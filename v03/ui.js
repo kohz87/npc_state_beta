@@ -78,7 +78,7 @@ export function createNpcStateUi(adapters = {}) {
     async function safely(label, task) {
         try { return await task(); }
         catch (error) {
-            console.error(`[NPC State v0.3] ${label} failed safely`, error);
+            console.error(`[NPC State v0.4.1] ${label} failed safely`, error);
             notify('error', `NPC State: ${label} failed. No partial dossier write was committed. ${error?.message || error}`);
             return { ok: false, reason: 'error', error };
         }
@@ -216,11 +216,11 @@ export function createNpcStateUi(adapters = {}) {
             return;
         }
         const current = state();
-        if (!current) { holder.innerHTML = '<span class="npc-state-muted">Open a chat to load its v0.3 dossier.</span>'; return; }
+        if (!current) { holder.innerHTML = '<span class="npc-state-muted">Open a chat to load its NPC State dossier.</span>'; return; }
         const active = current.npcs.filter(npc => !npc.archived);
         const archived = current.npcs.filter(npc => npc.archived);
         const rows = list => list.map(npc => `<button class="menu_button npc-state-v3-roster-open" data-npc-id="${escapeHtml(npc.id)}">${npc.present ? '● ' : (npc.worldActive ? '◌ ' : '')}${escapeHtml(npc.name)}</button>`).join('');
-        holder.innerHTML = `<small class="npc-state-muted">Persistent v0.3 database · ${active.length} active · ${archived.length} archived</small><div class="npc-state-roster-chips">${rows(active)}${rows(archived)}</div>`;
+        holder.innerHTML = `<small class="npc-state-muted">Persistent NPC State 0.4.1 database · ${active.length} active · ${archived.length} archived</small><div class="npc-state-roster-chips">${rows(active)}${rows(archived)}</div>`;
         holder.querySelectorAll('.npc-state-v3-roster-open').forEach(button => button.addEventListener('click', () => openLibrary(button.dataset.npcId)));
     }
 
