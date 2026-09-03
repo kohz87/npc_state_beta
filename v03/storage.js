@@ -1,6 +1,6 @@
 import { NPC_STATE_VERSION, normalizeState } from './schema.js';
 
-export const V3_FILE_FORMAT = 'npc_state_v04_beta_chat_data';
+export const V3_FILE_FORMAT = 'npc_state_v3_chat_data';
 export const V3_FILE_FORMAT_VERSION = 1;
 const writerLocks = new Map();
 const LOCK_LEASE_MS = 15000;

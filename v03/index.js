@@ -165,6 +165,7 @@ const engine = createNpcStateEngine({
     getPointer: getV3Pointer,
     setPointer: setV3Pointer,
     getLegacyPointer,
+    getStablePointer: chatKey => extension_settings?.npc_state?.v3?.dataFiles?.[chatKey] || null,
     persistSettings,
     getHeaders: () => getRequestHeaders(),
     fetchFn: (...args) => globalThis.fetch(...args),

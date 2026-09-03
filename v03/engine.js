@@ -66,6 +66,7 @@ export function createNpcStateEngine(adapters = {}) {
     const getPointer = adapters.getPointer || (() => null);
     const setPointer = adapters.setPointer || (() => {});
     const getLegacyPointer = adapters.getLegacyPointer || (() => null);
+    const getStablePointer = adapters.getStablePointer || (() => null);
     const persistSettings = adapters.persistSettings || (() => {});
     const getHeaders = adapters.getHeaders || (() => ({}));
     const fetchFn = adapters.fetchFn || globalThis.fetch;
@@ -128,6 +129,7 @@ export function createNpcStateEngine(adapters = {}) {
                 : (configuredPointer?.path && hintedPointer?.path && configuredPointer.path === hintedPointer.path && Number(hintedPointer.revision || 0) > Number(configuredPointer.revision || 0) ? hintedPointer : configuredPointer);
             let state;
             let importedLegacy = false;
+            let importedStable = false;
             if (pointer?.path) {
                 const loaded = await readV3Sidecar({ chatKey, pointer, fetchFn });
                 if (!loaded) throw new Error('NPC State v0.3 sidecar pointer exists but the file is missing. Refusing to create a blank replacement.');
@@ -137,20 +139,29 @@ export function createNpcStateEngine(adapters = {}) {
                     persistSettings();
                 }
             } else {
-                const legacyPointer = getLegacyPointer(chatKey);
-                if (legacyPointer?.path) {
-                    const legacy = await readLegacyV02Sidecar({ chatKey, pointer: legacyPointer, fetchFn });
-                    if (!legacy) throw new Error('NPC State v0.2 sidecar pointer exists but the legacy file is missing. Refusing to overwrite it.');
-                    state = legacy.state;
-                    importedLegacy = true;
+                const stablePointer = getStablePointer(chatKey);
+                if (stablePointer?.path) {
+                    const stable = await readV3Sidecar({ chatKey, pointer: stablePointer, fetchFn });
+                    if (!stable) throw new Error('Stable NPC State sidecar pointer exists but the file is missing. Refusing to create a blank beta replacement.');
+                    state = stable.state;
+                    importedStable = true;
                 } else {
-                    state = createEmptyState(chatKey);
+                    const legacyPointer = getLegacyPointer(chatKey);
+                    if (legacyPointer?.path) {
+                        const legacy = await readLegacyV02Sidecar({ chatKey, pointer: legacyPointer, fetchFn });
+                        if (!legacy) throw new Error('NPC State v0.2 sidecar pointer exists but the legacy file is missing. Refusing to overwrite it.');
+                        state = legacy.state;
+                        importedLegacy = true;
+                    } else {
+                        state = createEmptyState(chatKey);
+                    }
                 }
             }
             state = ensureBranchBase(normalizeState(state, chatKey), getContext().chat || []);
-            if (importedLegacy) {
+            if (importedLegacy || importedStable) {
                 state = await persist(chatKey, state);
-                notify('success', `Imported ${state.npcs.length} NPC dossier${state.npcs.length === 1 ? '' : 's'} from v0.2 into an independent v0.3 sidecar.`);
+                if (importedStable) notify('success', 'Cloned stable NPC State dossiers into an independent beta sidecar. Stable data was not modified.');
+                else notify('success', 'Imported ' + state.npcs.length + ' NPC dossier' + (state.npcs.length === 1 ? '' : 's') + ' from v0.2 into an independent beta sidecar.');
             }
             cache.set(chatKey, state);
             hydration.set(chatKey, { status: 'ready', error: null });
