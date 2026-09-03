@@ -44,6 +44,44 @@ function list(value, max = 12, itemMax = 500) {
     return out;
 }
 
+function keyRelationshipEntry(value, itemMax = 500) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const pick = (keys, max = 240) => {
+            for (const key of keys) {
+                const clean = text(value?.[key], max);
+                if (clean && clean !== '[object Object]') return clean;
+            }
+            return '';
+        };
+        const name = pick(['name', 'npc', 'person', 'target', 'otherNpc', 'other', 'with', 'character'], 200);
+        const relation = pick(['relationship', 'relation', 'type', 'kind', 'role', 'tie'], 200);
+        const summary = pick(['summary', 'description', 'details', 'note'], 300);
+        if (name && relation) return text(name + ' - ' + relation + (summary && normalizeName(summary) !== normalizeName(relation) ? ': ' + summary : ''), itemMax);
+        if (name && summary) return text(name + ' - ' + summary, itemMax);
+        if (name) return text(name, itemMax);
+        if (relation && summary) return text(relation + ': ' + summary, itemMax);
+        if (summary) return text(summary, itemMax);
+        return '';
+    }
+    const clean = text(value, itemMax);
+    return clean === '[object Object]' ? '' : clean;
+}
+
+export function normalizeKeyRelationshipEntries(value, max = KEY_RELATIONSHIP_LIMIT, itemMax = 500) {
+    const input = Array.isArray(value) ? value : (value == null ? [] : [value]);
+    const out = [];
+    const seen = new Set();
+    for (const item of input) {
+        const clean = keyRelationshipEntry(item, itemMax);
+        const key = normalizeName(clean);
+        if (!clean || !key || seen.has(key)) continue;
+        seen.add(key);
+        out.push(clean);
+        if (out.length >= max) break;
+    }
+    return out;
+}
+
 function clampRelationship(value) {
     const number = Number(value);
     return Number.isFinite(number) ? Math.max(-100, Math.min(100, Math.round(number))) : 0;
@@ -155,7 +193,7 @@ export function normalizeNpc(input = {}, options = {}) {
         speech: text(input.speech, 900),
         mannerisms: list(input.mannerisms, DOSSIER_LIMIT_MAXIMUMS.mannerisms, 280),
         background: text(input.background, 1600),
-        keyRelationships: list(input.keyRelationships, DOSSIER_LIMIT_MAXIMUMS.keyRelationships, 500),
+        keyRelationships: normalizeKeyRelationshipEntries(input.keyRelationships, DOSSIER_LIMIT_MAXIMUMS.keyRelationships, 500),
         memories: list(input.memories, DOSSIER_LIMIT_MAXIMUMS.memories, 700),
         relationship: normalizeRelationship(input.relationship || DEFAULT_RELATIONSHIP),
         relationshipSummary: text(input.relationshipSummary, 1000),

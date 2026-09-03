@@ -6,6 +6,7 @@ import {
     makeNpcId,
     normalizeApparentAge,
     normalizeDossierLimits,
+    normalizeKeyRelationshipEntries,
     normalizeName,
     normalizeNpc,
     normalizeRelationship,
@@ -154,6 +155,7 @@ function dossierCollectionRules(limits) {
         '- Use [] only when the evidence supports deliberately clearing the whole collection. Do not clear a collection merely because the supplied chat window does not mention its existing entries.',
         '- Keep individual collection entries concise, grounded, and independently useful later.',
         '- For significant NPC-to-NPC relationships, especially explicit family, kinship, spouse, guardian, or dependent ties, keyRelationships is mandatory dossier data. When such a tie is established, include the other NPC by name and the directional relationship from THIS NPC perspective in each involved NPC keyRelationships whenever that NPC has a returned dossier. socialEdges is complementary graph data and MUST NOT substitute for keyRelationships. For an EXISTING NPC, revealing or changing a significant tie is a material keyRelationships change: return the COMPLETE replacement array, preserving still-valid prior ties and adding or revising the newly established tie; do not return null.',
+        '- KeyRelationships entries MUST be strings, never objects. Use the canonical form Other NPC name - relationship from THIS NPC perspective, for example Mira - sister or Tomas - father. A short clarifying note may follow after a colon when useful.',
     ];
 }
 
@@ -300,7 +302,8 @@ function applyStablePatch(npc, patch, options = {}) {
         next.mannerisms = appendUnique([], patch.mannerisms, limits.mannerisms);
     }
     if (!locked.has('keyRelationships') && Array.isArray(patch?.keyRelationships)) {
-        const incoming = patch.keyRelationships.filter(item => !keyRelationshipReferencesPlayer(item, options.playerName));
+        const incoming = normalizeKeyRelationshipEntries(patch.keyRelationships, limits.keyRelationships, 500)
+            .filter(item => !keyRelationshipReferencesPlayer(item, options.playerName));
         next.keyRelationships = appendUnique([], incoming, limits.keyRelationships);
     }
     return next;
