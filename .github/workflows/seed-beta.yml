@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - beta/build-beta-v2.mjs
+      - beta/post-build-patch.mjs
       - .github/workflows/seed-beta.yml
 
 permissions:
@@ -30,11 +31,14 @@ jobs:
           cp /tmp/npc-state-stable/package.json ./package.json
 
       - name: Apply 0.4 beta transformation
-        run: node beta/build-beta-v2.mjs
+        run: |
+          node beta/build-beta-v2.mjs
+          node beta/post-build-patch.mjs
 
       - name: Syntax gate
         run: |
           node --check beta/build-beta-v2.mjs
+          node --check beta/post-build-patch.mjs
           node --check bootstrap.js
           node --check v03/index.js
           node --check v03/engine.js
@@ -54,6 +58,13 @@ jobs:
           if (result.cleanedText.includes('npc_state_v1')) throw new Error('NPC transport was not stripped');
           console.log('Foreground parser smoke test passed');
           EOF
+
+      - name: Stable clone isolation smoke test
+        run: |
+          grep -q "getStablePointer" v03/engine.js
+          grep -q "extension_settings?.npc_state?.v3?.dataFiles" v03/index.js
+          grep -q "npc-state-v04-beta-" v03/storage.js
+          grep -q "npc_state_v3_chat_data" v03/storage.js
 
       - name: Commit generated beta runtime
         run: |
