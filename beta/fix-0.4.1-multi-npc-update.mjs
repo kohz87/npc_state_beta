@@ -34,7 +34,7 @@ scanner = replaceRequired(
 );
 scanner = replaceRequired(
     scanner,
-    "        const canPatch = patch && (targetSet.has(npc.id) || allowHistoricalProfilePatches);",
+    "        const canPatch = Boolean(patch && (targetSet.has(npc.id) || allowHistoricalProfilePatches));",
     "        const canPatch = Boolean(patch && (targetSet.has(npc.id) || allowHistoricalProfilePatches || (options.applyReturnedNpcPatches === true && returnedPatchSet.has(npc.id))));",
     'existing patch apply gate',
 );
