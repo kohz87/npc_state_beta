@@ -17,6 +17,7 @@ on:
       - beta/fix-0.4.1-deep-hardening.mjs
       - beta/fix-0.4.1-prelock-stale-embedded.mjs
       - beta/verify-0.4.1.mjs
+      - beta/verify-final-0.4.1.mjs
       - .github/workflows/seed-beta.yml
 
 permissions:
@@ -67,7 +68,9 @@ jobs:
           node --check bootstrap.js
 
       - name: Consolidated behavior gate
-        run: node beta/verify-0.4.1.mjs
+        run: |
+          node beta/verify-0.4.1.mjs
+          node beta/verify-final-0.4.1.mjs
 
       - name: Architecture and migration gate
         run: |
@@ -86,6 +89,7 @@ jobs:
           grep -q "KeyRelationships entries MUST be strings, never objects" v03/injection.js
           grep -q "expectedMessageText" v03/engine.js
           grep -q "expectedMessageText: consumed.cleanedText" v03/index.js
+          grep -q "applyRelationship: !alreadyScannedMessage" v03/engine.js
           grep -q "Persistent NPC State 0.4.1 database" v03/ui.js
           ! grep -q "Persistent v0.3 database" v03/ui.js
           grep -q "branchFingerprintVersion: 3" v03/schema.js
