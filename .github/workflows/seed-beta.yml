@@ -12,6 +12,7 @@ on:
       - beta/fix-0.4.1-first-run-stable-probe.mjs
       - beta/fix-0.4.1-key-relationship-shape.mjs
       - beta/fix-0.4.1-multi-npc-bootstrap.mjs
+      - beta/fix-0.4.1-multi-npc-update.mjs
       - .github/workflows/seed-beta.yml
 
 permissions:
@@ -46,6 +47,7 @@ jobs:
           node beta/fix-0.4.1-first-run-stable-probe.mjs
           node beta/fix-0.4.1-key-relationship-shape.mjs
           node beta/fix-0.4.1-multi-npc-bootstrap.mjs
+          node beta/fix-0.4.1-multi-npc-update.mjs
 
       - name: Syntax gate
         run: |
@@ -57,6 +59,7 @@ jobs:
           node --check beta/fix-0.4.1-first-run-stable-probe.mjs
           node --check beta/fix-0.4.1-key-relationship-shape.mjs
           node --check beta/fix-0.4.1-multi-npc-bootstrap.mjs
+          node --check beta/fix-0.4.1-multi-npc-update.mjs
           node --check bootstrap.js
           node --check v03/index.js
           node --check v03/engine.js
@@ -123,8 +126,12 @@ jobs:
           grep -q "KeyRelationships entries MUST be strings, never objects" v03/scanner.js
           grep -q "A single scan may introduce MULTIPLE new individually relevant NPCs" v03/injection.js
           grep -q "A single scan may introduce MULTIPLE new individually relevant NPCs" v03/scanner.js
+          grep -q "A single scan may update MULTIPLE existing NPCs" v03/injection.js
+          grep -q "A single scan may update MULTIPLE existing NPCs" v03/scanner.js
           grep -q "const bootstrapRefs" v03/scanner.js
           grep -q "const bootstrapIds" v03/scanner.js
+          grep -q "const returnedPatchSet" v03/scanner.js
+          grep -q "applyReturnedNpcPatches: true" v03/engine.js
           grep -q "normalizeKeyRelationshipEntries" v03/schema.js
           grep -q "normalizeKeyRelationshipEntries" v03/scanner.js
           grep -q "behaviorProfile: \[\], speech: '', mannerisms: \[\]" v03/scanner.js
@@ -212,6 +219,59 @@ jobs:
           console.log('Multi-NPC embedded bootstrap gate passed');
           EOF
 
+      - name: Multi-NPC existing update gate
+        run: |
+          node --input-type=module <<'EOF'
+          import { createEmptyState } from './v03/schema.js';
+          import { applyScanResult } from './v03/scanner.js';
+
+          const seeded = applyScanResult(createEmptyState('existing-multi'), {
+            exchangeActiveNpcIds: ['Astra', 'Kiri', 'Brina'],
+            inChatNpcIds: ['Astra', 'Kiri', 'Brina'],
+            worldActiveNpcIds: [],
+            npcs: [
+              { id: '', name: 'Astra', role: 'daughter' },
+              { id: '', name: 'Kiri', role: 'daughter' },
+              { id: '', name: 'Brina', role: 'mother' },
+            ],
+            socialEdges: [],
+          }, { sourceMessageId: 1, turn: 1 });
+
+          const updated = applyScanResult(seeded.state, {
+            exchangeActiveNpcIds: ['Astra'],
+            inChatNpcIds: ['Astra'],
+            worldActiveNpcIds: [],
+            npcs: [
+              { id: seeded.state.npcs.find(n => n.name === 'Astra').id, name: 'Astra', status: 'ready', keyRelationships: ['Kiri - sister'] },
+              { id: seeded.state.npcs.find(n => n.name === 'Kiri').id, name: 'Kiri', status: 'watchful', keyRelationships: ['Astra - sister'] },
+              { id: seeded.state.npcs.find(n => n.name === 'Brina').id, name: 'Brina', status: 'protective', keyRelationships: ['Astra - daughter', 'Kiri - daughter'] },
+            ],
+            socialEdges: [],
+          }, { sourceMessageId: 2, turn: 2, applyReturnedNpcPatches: true });
+
+          const astra = updated.state.npcs.find(n => n.name === 'Astra');
+          const kiri = updated.state.npcs.find(n => n.name === 'Kiri');
+          const brina = updated.state.npcs.find(n => n.name === 'Brina');
+          if (astra.status !== 'ready' || kiri.status !== 'watchful' || brina.status !== 'protective') {
+            throw new Error('Secondary existing NPC patches were not all applied');
+          }
+          if (!kiri.keyRelationships.includes('Astra - sister') || !brina.keyRelationships.includes('Kiri - daughter')) {
+            throw new Error('Secondary existing NPC collection updates were discarded');
+          }
+
+          const worldOnly = applyScanResult(updated.state, {
+            exchangeActiveNpcIds: [],
+            inChatNpcIds: [],
+            worldActiveNpcIds: ['Brina'],
+            npcs: [{ id: brina.id, name: 'Brina', role: 'queen', location: 'North road' }],
+            socialEdges: [],
+          }, { sourceMessageId: 3, turn: 3, applyReturnedNpcPatches: true });
+          const brinaWorld = worldOnly.state.npcs.find(n => n.name === 'Brina');
+          if (brinaWorld.role !== 'mother') throw new Error('World-only NPC incorrectly received stable-profile update');
+          if (brinaWorld.location !== 'North road') throw new Error('World-only NPC did not receive restricted live-state update');
+          console.log('Multi-NPC existing update gate passed');
+          EOF
+
       - name: Commit generated beta runtime
         run: |
           git config user.name "github-actions[bot]"
@@ -221,5 +281,5 @@ jobs:
             echo "No generated changes"
             exit 0
           fi
-          git commit -m "NPC State v0.4.1: support multi-NPC embedded bootstrap"
+          git commit -m "NPC State v0.4.1: apply all returned NPC updates"
           git push
