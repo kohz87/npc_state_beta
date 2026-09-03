@@ -9,6 +9,7 @@ on:
       - beta/harden-0.4.1.mjs
       - beta/fix-0.4.1-roster-copy.mjs
       - beta/fix-0.4.1-new-npc-bootstrap.mjs
+      - beta/fix-0.4.1-first-run-stable-probe.mjs
       - .github/workflows/seed-beta.yml
 
 permissions:
@@ -40,6 +41,7 @@ jobs:
           node beta/harden-0.4.1.mjs
           node beta/fix-0.4.1-roster-copy.mjs
           node beta/fix-0.4.1-new-npc-bootstrap.mjs
+          node beta/fix-0.4.1-first-run-stable-probe.mjs
 
       - name: Syntax gate
         run: |
@@ -48,6 +50,7 @@ jobs:
           node --check beta/harden-0.4.1.mjs
           node --check beta/fix-0.4.1-roster-copy.mjs
           node --check beta/fix-0.4.1-new-npc-bootstrap.mjs
+          node --check beta/fix-0.4.1-first-run-stable-probe.mjs
           node --check bootstrap.js
           node --check v03/index.js
           node --check v03/engine.js
@@ -93,6 +96,8 @@ jobs:
           test ! -e v03/migrate-v02.js
           ! grep -q "readLegacyV02Sidecar" v03/engine.js
           ! grep -q "getLegacyPointer" v03/index.js
+          grep -q "Optional stable v0.3 import pointer is stale; starting a fresh beta database" v03/engine.js
+          ! grep -q "Stable NPC State v0.3 sidecar pointer exists but the file is missing. Refusing to create a blank beta replacement" v03/engine.js
 
       - name: Recovery architecture gate
         run: |
@@ -120,5 +125,5 @@ jobs:
             echo "No generated changes"
             exit 0
           fi
-          git commit -m "NPC State v0.4.1: fix new NPC bootstrap collections"
+          git commit -m "NPC State v0.4.1: allow fresh start when optional stable sidecar is missing"
           git push
