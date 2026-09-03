@@ -194,6 +194,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- Every new NPC referenced by those arrays must also have one npcs entry so identity can be created safely.',
         '- For a NEW NPC, behaviorProfile, mannerisms, keyRelationships, and memories are bootstrap collections: return arrays containing all grounded entries established by the CURRENT exchange; use [] only when none are supported. Do not use null for those four fields on a new NPC. A first scene can establish behavior or mannerisms when the text explicitly describes or clearly demonstrates a characteristic pattern, gesture, habit, or social tendency; prior sightings are not required.',
         '- A single scan may introduce MULTIPLE new individually relevant NPCs. Do not stop after the first. Return one separate npcs object for every such NPC. For every NEW NPC use id as an empty string; never invent a stable ID. Reference each new NPC in exchangeActiveNpcIds, inChatNpcIds, or worldActiveNpcIds by the exact canonical name or unique role label that appears in its npcs object. Do not add new npcs entries for named-only mentions, crowds, background workers, incidental guards, or other non-individually-relevant characters.',
+        '- A single scan may update MULTIPLE existing NPCs in the same response. Do not stop after the first and do not omit a dossier patch merely because another NPC is more prominent. Return one separate npcs object for every individually relevant existing NPC whose grounded dossier data is established, corrected, or materially changed in this response. Keep exchangeActiveNpcIds, inChatNpcIds, and worldActiveNpcIds complete for their own semantics.',
         '- The PLAYER/current USER persona is not an NPC for this scanner, even when named in narration. Never create the PLAYER as an npcs entry.',
         '- relationship, relationshipSummary, and relationshipChange describe THIS NPC toward the PLAYER. They are the dedicated player-relationship channel.',
         '- keyRelationships contains significant NON-PLAYER ties only, such as family, friends, rivals, patrons, dependents, or other NPCs. Never include the PLAYER/current USER persona there.',
@@ -481,11 +482,16 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     const targetSet = new Set(targetIds);
     const exchangeSet = new Set(exchangeIds);
     const worldSet = new Set(worldIds);
+    // A returned dossier patch is itself meaningful structured output. When enabled by the
+    // caller, apply it even if the model imperfectly omitted this existing NPC from the
+    // activity arrays. Keep world-only NPCs on their restricted live-state path unless they
+    // are also an exchange/in-chat target. Relationship deltas remain exchange-gated.
+    const returnedPatchSet = new Set([...patchByNpcId.keys()].filter(id => !worldSet.has(id) || targetSet.has(id)));
 
     for (let i = 0; i < state.npcs.length; i += 1) {
         let npc = state.npcs[i];
         const patch = patchByNpcId.get(npc.id);
-        const canPatch = Boolean(patch && (targetSet.has(npc.id) || allowHistoricalProfilePatches));
+        const canPatch = Boolean(patch && (targetSet.has(npc.id) || allowHistoricalProfilePatches || (options.applyReturnedNpcPatches === true && returnedPatchSet.has(npc.id))));
         if (canPatch) {
             npc = applyStablePatch(npc, patch, { playerName, dossierLimits });
             npc = applyDynamicPatch(npc, patch, { dossierLimits });

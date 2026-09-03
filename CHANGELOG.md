@@ -2,6 +2,7 @@
 
 ## v0.4.1
 
+- Fixed multi-NPC existing-dossier updates so every valid returned NPC patch in the same foreground/recovery output can be applied even when the model imperfectly omits a secondary existing NPC from an activity array; relationship deltas remain exchange-gated and world-only NPCs retain restricted update semantics.
 - Fixed multi-NPC embedded bootstrap so one foreground payload can create every individually relevant new NPC in the same response; idless new `npcs` entries are now retained as bootstrap candidates even if the model imperfectly omits a secondary name from the activity arrays.
 - Normalized structured **Key relationships** values at the schema and scanner boundaries so object-shaped model output can no longer persist or render as `[object Object]`; prompts now require canonical string entries such as `Mira - sister`.
 - Hardened **Key relationships** capture: explicit family/kinship/spouse/guardian/dependent ties must be recorded in each involved NPC dossier, while `socialEdges` remains complementary graph data rather than a substitute; newly revealed ties now count as material collection updates for existing NPCs.

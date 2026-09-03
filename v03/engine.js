@@ -229,6 +229,7 @@ export function createNpcStateEngine(adapters = {}) {
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 dossierLimits: settings.dossierLimits,
+                applyReturnedNpcPatches: true,
             });
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
             const referencedNpcIds = referencedNpcIdsFromExchange(applied.state, exchange);
@@ -286,6 +287,7 @@ export function createNpcStateEngine(adapters = {}) {
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 dossierLimits: settings.dossierLimits,
+                applyReturnedNpcPatches: true,
             });
             const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(settings.relationshipHistoryLimit);
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
