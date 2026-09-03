@@ -45,6 +45,12 @@ write('v03/engine.js', engine);
 let index = read('v03/index.js');
 index = replaceRequired(
     index,
+    "function activeEmbeddedMeta(message) {\n    if (!message) return null;\n    const swipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;\n    const swipeMeta = Array.isArray(message.swipe_info) ? message.swipe_info?.[swipeId]?.extra?.npc_state_beta_v1 : null;\n    return swipeMeta || message.extra?.npc_state_beta_v1 || null;\n}",
+    "function activeEmbeddedMeta(message) {\n    if (!message) return null;\n    const swipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;\n    const swipe = Array.isArray(message.swipe_info) ? message.swipe_info?.[swipeId] : null;\n    if (swipe) return swipe.extra?.npc_state_beta_v1 || null;\n    return message.extra?.npc_state_beta_v1 || null;\n}",
+    'active swipe metadata isolation',
+);
+index = replaceRequired(
+    index,
     '        const result = await engine.applyEmbeddedScan(id, consumed.parsed);',
     '        const result = await engine.applyEmbeddedScan(id, consumed.parsed, { expectedMessageText: consumed.cleanedText });',
     'foreground expected message wiring',
@@ -55,6 +61,7 @@ let changelog = read('CHANGELOG.md');
 const lines = [
     '- Closed the pre-lock embedded stale-payload race: foreground apply now carries the exact cleaned assistant text that produced the payload and rejects it if that message was edited, replaced, deleted, or shifted before the engine lock begins.',
     '- Made forced rescans of an already-scanned assistant message relationship-idempotent: dossier/profile reconciliation may run again, but the same current-exchange relationship delta is not applied twice.',
+    '- Isolated stored foreground payload replay per active swipe: when a concrete swipe record exists, missing swipe metadata no longer falls back to potentially stale message-level metadata from another variant.',
 ];
 for (const line of lines.reverse()) {
     if (!changelog.includes(line)) changelog = replaceRequired(changelog, '## v0.4.1\n\n', '## v0.4.1\n\n' + line + '\n', 'changelog heading');
