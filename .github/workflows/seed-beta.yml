@@ -17,8 +17,10 @@ on:
       - beta/fix-0.4.1-deep-hardening.mjs
       - beta/fix-0.4.1-prelock-stale-embedded.mjs
       - beta/fix-0.4.1-missing-embedded-fallback.mjs
+      - beta/fix-0.4.1-status-semantics.mjs
       - beta/verify-0.4.1.mjs
       - beta/verify-final-0.4.1.mjs
+      - beta/verify-status-semantics-0.4.1.mjs
       - .github/workflows/seed-beta.yml
 
 permissions:
@@ -62,6 +64,7 @@ jobs:
           node beta/fix-0.4.1-deep-hardening.mjs
           node beta/fix-0.4.1-prelock-stale-embedded.mjs
           node beta/fix-0.4.1-missing-embedded-fallback.mjs
+          node beta/fix-0.4.1-status-semantics.mjs
 
       - name: Syntax gate
         run: |
@@ -73,6 +76,7 @@ jobs:
         run: |
           node beta/verify-0.4.1.mjs
           node beta/verify-final-0.4.1.mjs
+          node beta/verify-status-semantics-0.4.1.mjs
 
       - name: Architecture and migration gate
         run: |
@@ -91,6 +95,9 @@ jobs:
           grep -q "A single scan may introduce MULTIPLE new individually relevant NPCs" v03/injection.js
           grep -q "A single scan may update MULTIPLE existing NPCs" v03/injection.js
           grep -q "KeyRelationships entries MUST be strings, never objects" v03/injection.js
+          grep -q "status is the NPC current concrete activity" v03/injection.js
+          grep -q "normalizeCurrentStatus" v03/schema.js
+          grep -q "Activity / condition" v03/dossier-view.js
           grep -q "expectedMessageText" v03/engine.js
           grep -q "expectedMessageText: consumed.cleanedText" v03/index.js
           grep -q "applyRelationship: !alreadyScannedMessage" v03/engine.js
