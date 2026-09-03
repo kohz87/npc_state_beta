@@ -156,10 +156,27 @@ export function createNpcStateEngine(adapters = {}) {
                     state = createEmptyState(chatKey);
                 }
             }
-            state = ensureBranchBase(normalizeState(state, chatKey), getContext().chat || []);
-            if (importedStable) {
+            const normalized = normalizeState(state, chatKey);
+            const fingerprintUpgraded = Number(normalized.branchFingerprintVersion || 0) < 2;
+            if (fingerprintUpgraded) {
+                // Stored v0.4.1 lineages were hashed before transient foreground controls were
+                // canonicalized, so their old hashes cannot be safely translated after cleanup.
+                // Preserve all durable NPC data, reset only rollback metadata, and accept the
+                // currently visible chat as the new canonical baseline once.
+                normalized.checkpoints = [];
+                normalized.branchBase = null;
+                normalized.branchHeadLineage = [];
+                normalized.branchSafety = { status: 'safe', kind: '', reason: '' };
+                normalized.branchFingerprintVersion = 2;
+            }
+            state = ensureBranchBase(normalized, getContext().chat || []);
+            if (importedStable || fingerprintUpgraded) {
                 state = await persist(chatKey, state);
-                notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.1 beta sidecar. Stable data was not modified.');
+                if (importedStable) {
+                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.1 beta sidecar. Stable data was not modified.');
+                } else if (fingerprintUpgraded) {
+                    notify('info', 'Upgraded branch checkpoint fingerprints for transport-safe rollback. Existing dossiers were preserved; old rollback hashes were reset once.');
+                }
             }
             cache.set(chatKey, state);
             hydration.set(chatKey, { status: 'ready', error: null });

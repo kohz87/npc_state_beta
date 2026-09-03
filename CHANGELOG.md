@@ -2,6 +2,7 @@
 
 ## v0.4.1
 
+- Canonicalized assistant-message branch fingerprints so transient `<npc_state_v1>` and `INVENTORY_BLOCK_UPDATE` controls do not make an unchanged visible narrative look like a different branch after post-generation cleanup; existing 0.4.1 sidecars perform a one-time rollback-hash reset while preserving dossiers, relationships, and memories.
 - Canonicalized assistant-message branch fingerprints so transient `<npc_state_v1>` and `INVENTORY_BLOCK_UPDATE` controls do not make an unchanged visible narrative look like a different branch after post-generation cleanup; this improves recent message-delete rollback reliability.
 - Fixed multi-NPC existing-dossier updates so every valid returned NPC patch in the same foreground/recovery output can be applied even when the model imperfectly omits a secondary existing NPC from an activity array; relationship deltas remain exchange-gated and world-only NPCs retain restricted update semantics.
 - Fixed multi-NPC embedded bootstrap so one foreground payload can create every individually relevant new NPC in the same response; idless new `npcs` entries are now retained as bootstrap candidates even if the model imperfectly omits a secondary name from the activity arrays.
