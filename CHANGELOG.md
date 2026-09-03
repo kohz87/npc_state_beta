@@ -2,6 +2,7 @@
 
 ## v0.4.1
 
+- Fixed new-NPC bootstrap capture so **Behavioral profile** and **Mannerisms** (plus other evolving collections) are populated from grounded first-scene evidence instead of defaulting to `null`; `null` remains the unchanged sentinel for existing dossiers.
 - Retained the full separate structured scanner as a contingency while keeping normal automatic turns on the one-pass embedded foreground path.
 - Added optional **Automatic recovery scanner** fallback for missing or malformed `<npc_state_v1>` capture. It is off by default; manual **Scan current cast** remains available regardless.
 - Restored changed-branch recovery without reintroducing a mandatory second request: tracked swipes restore from checkpoints, stored swipe payloads can replay locally when needed, and edited/untracked branches fall back to the separate scanner when branch rescan is enabled.
