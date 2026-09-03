@@ -60,5 +60,6 @@ if (!changelog.includes(changelogLine.trim())) {
     write('CHANGELOG.md', changelog);
 }
 
+// Also applies branch-fingerprint canonicalization and its one-time lineage upgrade.
 await import('./fix-0.4.1-canonical-branch-fingerprint.mjs');
 console.log('Fixed NPC State 0.4.1 multi-NPC existing dossier updates');
