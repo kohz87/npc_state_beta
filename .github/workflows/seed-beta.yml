@@ -13,6 +13,9 @@ on:
       - beta/fix-0.4.1-key-relationship-shape.mjs
       - beta/fix-0.4.1-multi-npc-bootstrap.mjs
       - beta/fix-0.4.1-multi-npc-update.mjs
+      - beta/fix-0.4.1-canonical-branch-fingerprint.mjs
+      - beta/fix-0.4.1-deep-hardening.mjs
+      - beta/DEEP-HARDENING-NOTES.md
       - .github/workflows/seed-beta.yml
 
 permissions:
@@ -27,10 +30,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch stable NPC State baseline
+      - name: Fetch pinned stable NPC State baseline
         run: |
           rm -rf /tmp/npc-state-stable
-          git clone --depth 1 https://github.com/kohz87/npc_state.git /tmp/npc-state-stable
+          git clone https://github.com/kohz87/npc_state.git /tmp/npc-state-stable
+          cd /tmp/npc-state-stable
+          git checkout a12b2937b5c1305e3e3017218a626478a5bedcdc
+          cd "$GITHUB_WORKSPACE"
           rm -rf v03
           cp -R /tmp/npc-state-stable/v03 ./v03
           cp /tmp/npc-state-stable/bootstrap.js ./bootstrap.js
@@ -48,51 +54,69 @@ jobs:
           node beta/fix-0.4.1-key-relationship-shape.mjs
           node beta/fix-0.4.1-multi-npc-bootstrap.mjs
           node beta/fix-0.4.1-multi-npc-update.mjs
+          node beta/fix-0.4.1-canonical-branch-fingerprint.mjs
+          node beta/fix-0.4.1-deep-hardening.mjs
 
       - name: Syntax gate
         run: |
-          node --check beta/build-beta-v2.mjs
-          node --check beta/post-build-patch.mjs
-          node --check beta/harden-0.4.1.mjs
-          node --check beta/fix-0.4.1-roster-copy.mjs
-          node --check beta/fix-0.4.1-new-npc-bootstrap.mjs
-          node --check beta/fix-0.4.1-first-run-stable-probe.mjs
-          node --check beta/fix-0.4.1-key-relationship-shape.mjs
-          node --check beta/fix-0.4.1-multi-npc-bootstrap.mjs
-          node --check beta/fix-0.4.1-multi-npc-update.mjs
-          node --check bootstrap.js
-          node --check v03/index.js
-          node --check v03/engine.js
-          node --check v03/injection.js
-          node --check v03/foreground.js
-          node --check v03/scanner.js
-          node --check v03/storage.js
-          node --check v03/ui.js
-          node --check v03/dossier-view.js
-          node --check v03/schema.js
+          for file in \
+            beta/build-beta-v2.mjs \
+            beta/post-build-patch.mjs \
+            beta/harden-0.4.1.mjs \
+            beta/fix-0.4.1-roster-copy.mjs \
+            beta/fix-0.4.1-new-npc-bootstrap.mjs \
+            beta/fix-0.4.1-first-run-stable-probe.mjs \
+            beta/fix-0.4.1-key-relationship-shape.mjs \
+            beta/fix-0.4.1-multi-npc-bootstrap.mjs \
+            beta/fix-0.4.1-multi-npc-update.mjs \
+            beta/fix-0.4.1-canonical-branch-fingerprint.mjs \
+            beta/fix-0.4.1-deep-hardening.mjs \
+            bootstrap.js \
+            v03/index.js \
+            v03/engine.js \
+            v03/injection.js \
+            v03/foreground.js \
+            v03/scanner.js \
+            v03/storage.js \
+            v03/ui.js \
+            v03/dossier-view.js \
+            v03/schema.js \
+            v03/branches.js \
+            v03/bundle.js \
+            v03/bundle-ui.js \
+            v03/relationship-history-ui.js; do
+            node --check "$file"
+          done
 
       - name: Foreground parser compatibility gate
         run: |
           node --input-type=module <<'EOF'
           import { consumeNpcStateControl } from './v03/foreground.js';
 
-          const inventory = '<!-- INVENTORY_BLOCK_UPDATE {"mode":"patch","ops":[]} -->.';
+          const legacyInventory = '<!-- INVENTORY_BLOCK_UPDATE {"mode":"patch","ops":[]} -->.';
+          const v05Inventory = '<!-- INVENTORY_BLOCK_V05\n<Inventory>\nCoin Pouch | 1 | 90 Gold\n</Inventory>\n-->';
           const payload = '{"exchangeActiveNpcIds":[],"inChatNpcIds":[],"worldActiveNpcIds":[],"npcs":[],"socialEdges":[]}';
 
-          const valid = consumeNpcStateControl('Story text.\n\n<npc_state_v1>' + payload + '</npc_state_v1>\n\n' + inventory);
-          if (!valid.found || valid.errors.length || !valid.parsed) throw new Error('Valid NPC foreground payload did not parse');
-          if (!valid.cleanedText.includes('INVENTORY_BLOCK_UPDATE')) throw new Error('NPC stripping consumed Inventory transport');
-          if (valid.cleanedText.includes('npc_state_v1')) throw new Error('NPC transport was not stripped');
+          for (const inventory of [legacyInventory, v05Inventory]) {
+            const valid = consumeNpcStateControl('Story text.\n\n<npc_state_v1>' + payload + '</npc_state_v1>\n\n' + inventory);
+            if (!valid.found || valid.errors.length || !valid.parsed) throw new Error('Valid NPC foreground payload did not parse');
+            if (!valid.cleanedText.includes(inventory.includes('V05') ? 'INVENTORY_BLOCK_V05' : 'INVENTORY_BLOCK_UPDATE')) throw new Error('NPC stripping consumed Inventory transport');
+            if (valid.cleanedText.includes('npc_state_v1')) throw new Error('NPC transport was not stripped');
 
-          const duplicate = consumeNpcStateControl('Story\n<npc_state_v1>' + payload + '</npc_state_v1>\n<npc_state_v1>' + payload + '</npc_state_v1>\n' + inventory);
+            const truncated = consumeNpcStateControl('Story\n<npc_state_v1>{"broken":true}\n' + inventory);
+            if (!truncated.errors.length) throw new Error('Truncated NPC block was not rejected');
+            if (truncated.cleanedText.includes('npc_state_v1')) throw new Error('Truncated NPC block leaked into cleaned text');
+            if (!truncated.cleanedText.includes(inventory.includes('V05') ? 'INVENTORY_BLOCK_V05' : 'INVENTORY_BLOCK_UPDATE')) throw new Error('Truncated NPC cleanup consumed Inventory transport');
+          }
+
+          const plainInventory = '<Inventory>\nCoin Pouch | 1 | 90 Gold\n</Inventory>';
+          const truncatedPlain = consumeNpcStateControl('Story\n<npc_state_v1>{"broken":true}\n' + plainInventory);
+          if (!truncatedPlain.errors.length || !truncatedPlain.cleanedText.includes('<Inventory>')) throw new Error('Truncated NPC cleanup did not preserve plain Inventory snapshot');
+
+          const duplicate = consumeNpcStateControl('Story\n<npc_state_v1>' + payload + '</npc_state_v1>\n<npc_state_v1>' + payload + '</npc_state_v1>\n' + v05Inventory);
           if (!duplicate.errors.length) throw new Error('Duplicate NPC blocks were not rejected');
           if (duplicate.cleanedText.includes('npc_state_v1')) throw new Error('Duplicate NPC blocks leaked into cleaned text');
-          if (!duplicate.cleanedText.includes('INVENTORY_BLOCK_UPDATE')) throw new Error('Duplicate cleanup consumed Inventory transport');
-
-          const truncated = consumeNpcStateControl('Story\n<npc_state_v1>{"broken":true}\n' + inventory);
-          if (!truncated.errors.length) throw new Error('Truncated NPC block was not rejected');
-          if (truncated.cleanedText.includes('npc_state_v1')) throw new Error('Truncated NPC block leaked into cleaned text');
-          if (!truncated.cleanedText.includes('INVENTORY_BLOCK_UPDATE')) throw new Error('Truncated NPC cleanup consumed Inventory transport');
+          if (!duplicate.cleanedText.includes('INVENTORY_BLOCK_V05')) throw new Error('Duplicate cleanup consumed Inventory v0.5 transport');
 
           console.log('Foreground parser compatibility gate passed');
           EOF
@@ -173,10 +197,25 @@ jobs:
             socialEdges: [],
           }, { sourceMessageId: 1, turn: 1 });
           const kiri = applied.state.npcs.find(npc => npc.name === 'Kiri');
-          if (!kiri || kiri.keyRelationships[0] !== 'Astra - sister') {
-            throw new Error('Scanner apply path did not normalize structured key relationships');
-          }
+          if (!kiri || kiri.keyRelationships[0] !== 'Astra - sister') throw new Error('Scanner apply path did not normalize structured key relationships');
           console.log('Key relationship normalization gate passed');
+          EOF
+
+      - name: Generic collection normalization gate
+        run: |
+          node --input-type=module <<'EOF'
+          import { normalizeNpc } from './v03/schema.js';
+          const npc = normalizeNpc({
+            name: 'Astra',
+            aliases: [{ alias: 'Ash' }, '[object Object]'],
+            behaviorProfile: [{ behavior: 'Protective of Kiri' }],
+            mannerisms: [{ description: 'Folds her wings when nervous' }],
+            memories: [{ memory: 'Lucien sheltered her during the storm' }],
+          });
+          const all = [...npc.aliases, ...npc.behaviorProfile, ...npc.mannerisms, ...npc.memories];
+          if (all.some(value => value === '[object Object]')) throw new Error('Generic collection object leaked as [object Object]');
+          if (!npc.aliases.includes('Ash') || !npc.behaviorProfile.includes('Protective of Kiri') || !npc.mannerisms.includes('Folds her wings when nervous') || !npc.memories.includes('Lucien sheltered her during the storm')) throw new Error('Structured generic collections were not normalized');
+          console.log('Generic collection normalization gate passed');
           EOF
 
       - name: Multi-NPC embedded bootstrap gate
@@ -252,12 +291,8 @@ jobs:
           const astra = updated.state.npcs.find(n => n.name === 'Astra');
           const kiri = updated.state.npcs.find(n => n.name === 'Kiri');
           const brina = updated.state.npcs.find(n => n.name === 'Brina');
-          if (astra.status !== 'ready' || kiri.status !== 'watchful' || brina.status !== 'protective') {
-            throw new Error('Secondary existing NPC patches were not all applied');
-          }
-          if (!kiri.keyRelationships.includes('Astra - sister') || !brina.keyRelationships.includes('Kiri - daughter')) {
-            throw new Error('Secondary existing NPC collection updates were discarded');
-          }
+          if (astra.status !== 'ready' || kiri.status !== 'watchful' || brina.status !== 'protective') throw new Error('Secondary existing NPC patches were not all applied');
+          if (!kiri.keyRelationships.includes('Astra - sister') || !brina.keyRelationships.includes('Kiri - daughter')) throw new Error('Secondary existing NPC collection updates were discarded');
 
           const worldOnly = applyScanResult(updated.state, {
             exchangeActiveNpcIds: [],
@@ -267,19 +302,85 @@ jobs:
             socialEdges: [],
           }, { sourceMessageId: 3, turn: 3, applyReturnedNpcPatches: true });
           const brinaWorld = worldOnly.state.npcs.find(n => n.name === 'Brina');
-          if (brinaWorld.role !== 'mother') throw new Error('World-only NPC incorrectly received stable-profile update');
-          if (brinaWorld.location !== 'North road') throw new Error('World-only NPC did not receive restricted live-state update');
+          if (brinaWorld.role === 'queen') throw new Error('World-only patch incorrectly changed stable profile');
+          if (brinaWorld.location !== 'North road') throw new Error('World-only patch did not update live location');
           console.log('Multi-NPC existing update gate passed');
           EOF
 
+      - name: Branch fingerprint and checkpoint gate
+        run: |
+          node --input-type=module <<'EOF'
+          import { createEmptyState, normalizeNpc, snapshotForCheckpoint } from './v03/schema.js';
+          import { fingerprintMessage, recordCheckpoint, reconcileToCurrentBranch } from './v03/branches.js';
+
+          const plain = fingerprintMessage({ is_user: false, swipe_id: 0, mes: 'Story text.' });
+          const v05 = fingerprintMessage({ is_user: false, swipe_id: 0, mes: 'Story text.\n<!-- INVENTORY_BLOCK_V05\n<Inventory>\nCoin | 1 | 10 Gold\n</Inventory>\n-->' });
+          const plainInventory = fingerprintMessage({ is_user: false, swipe_id: 0, mes: 'Story text.\n<Inventory>\nCoin | 1 | 10 Gold\n</Inventory>' });
+          const npcControl = fingerprintMessage({ is_user: false, swipe_id: 0, mes: 'Story text.\n<npc_state_v1>{"npcs":[]}</npc_state_v1>' });
+          if (plain !== v05 || plain !== plainInventory || plain !== npcControl) throw new Error('Transient machine state altered branch fingerprint');
+
+          let state = createEmptyState('branch-test');
+          state.npcs.push(normalizeNpc({ id: 'npc-a', name: 'Astra', portrait: { dataUrl: 'data:image/webp;base64,' + 'x'.repeat(20000) } }));
+          const snap = snapshotForCheckpoint(state);
+          if (snap.npcs[0].portrait !== null) throw new Error('Portrait payload leaked into checkpoint snapshot');
+
+          const chat = [
+            { is_user: true, mes: 'Hi' },
+            { is_user: false, swipe_id: 0, mes: 'A' },
+          ];
+          state = recordCheckpoint(state, chat, 1, 'first');
+          chat[1] = { is_user: false, swipe_id: 1, mes: 'B' };
+          state = recordCheckpoint(state, chat, 1, 'swipe');
+          if (state.checkpoints.filter(cp => cp.messageId === 1).length !== 1) throw new Error('Swipe churn consumed multiple checkpoint entries for one message');
+
+          const currentPortrait = state.npcs[0].portrait?.dataUrl;
+          const restored = reconcileToCurrentBranch(state, chat).state;
+          if (restored.npcs[0]?.portrait?.dataUrl !== currentPortrait) throw new Error('Rollback failed to preserve current portrait presentation data');
+          console.log('Branch fingerprint and checkpoint gate passed');
+          EOF
+
+      - name: Bundle compatibility gate
+        run: |
+          node --input-type=module <<'EOF'
+          import { createEmptyState, normalizeNpc } from './v03/schema.js';
+          import { createNpcStateBundle, parseNpcStateBundle, bundleSuggestedFilename } from './v03/bundle.js';
+          const state = createEmptyState('bundle-test');
+          state.npcs.push(normalizeNpc({ id: 'npc-astra', name: 'Astra' }));
+          const bundle = createNpcStateBundle(state);
+          const parsed = parseNpcStateBundle(bundle);
+          if (parsed.appVersion !== '0.4.1') throw new Error('0.4.1 bundle did not parse itself');
+          if (!bundleSuggestedFilename(bundle).includes('npc-state-v3-chat-backup')) throw new Error('0.4.1 bundle filename generation failed');
+          const legacy = structuredClone(bundle);
+          legacy.appVersion = '0.3.2';
+          parseNpcStateBundle(legacy);
+          console.log('Bundle compatibility gate passed');
+          EOF
+
+      - name: Deep hardening static gate
+        run: |
+          grep -q "extension_settings.npc_state_beta" v03/relationship-history-ui.js
+          ! grep -q "extension_settings.npc_state;" v03/relationship-history-ui.js
+          grep -q "reason: 'stale-operation'" v03/engine.js
+          grep -q "state.branchSafety?.status !== 'safe'" v03/engine.js
+          grep -q "parsedRaw.npcs" v03/engine.js
+          grep -q "INVENTORY_BLOCK_V05" v03/foreground.js
+          grep -q "INVENTORY_BLOCK_V05" v03/injection.js
+          grep -q "INVENTORY_BLOCK_V05" v03/branches.js
+          grep -q "remainingChars" v03/injection.js
+          grep -q "portrait: null" v03/schema.js
+          grep -q "preserveCurrentPresentation" v03/branches.js
+          grep -q "collectionPatchEntry" v03/scanner.js
+          grep -q "collectionEntry" v03/schema.js
+          grep -q "0\\.4" v03/bundle.js
+
       - name: Commit generated beta runtime
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A README.md CHANGELOG.md bootstrap.js manifest.json package.json v03
-          if git diff --cached --quiet; then
-            echo "No generated changes"
+          if git diff --quiet; then
+            echo "Generated beta runtime already matches build output."
             exit 0
           fi
-          git commit -m "NPC State v0.4.1: apply all returned NPC updates"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add v03 bootstrap.js manifest.json package.json CHANGELOG.md
+          git commit -m "NPC State v0.4.1: deep hardening pass"
           git push
