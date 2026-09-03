@@ -69,6 +69,7 @@ jobs:
 
       - name: Architecture and migration gate
         run: |
+          test ! -e beta/build-beta.mjs
           grep -q "getStablePointer" v03/engine.js
           grep -q "extension_settings?.npc_state?.v3?.dataFiles" v03/index.js
           grep -q "Optional stable v0.3 import pointer is stale; starting a fresh beta database" v03/engine.js
