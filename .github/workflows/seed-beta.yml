@@ -108,6 +108,10 @@ jobs:
           grep -q "inChatNpcIds" v03/scanner.js
           grep -q "For a NEW NPC, behaviorProfile, mannerisms, keyRelationships, and memories are bootstrap collections" v03/injection.js
           grep -q "For a NEW NPC, behaviorProfile, mannerisms, keyRelationships, and memories are bootstrap collections" v03/scanner.js
+          grep -q "keyRelationships is mandatory dossier data" v03/injection.js
+          grep -q "keyRelationships is mandatory dossier data" v03/scanner.js
+          grep -q "socialEdges is complementary graph data and MUST NOT substitute for keyRelationships" v03/injection.js
+          grep -q "socialEdges is complementary graph data and MUST NOT substitute for keyRelationships" v03/scanner.js
           grep -q "behaviorProfile: \[\], speech: '', mannerisms: \[\]" v03/scanner.js
           grep -q '"behaviorProfile":\[\],"speech":"","mannerisms":\[\]' v03/injection.js
           grep -q "In chat" v03/dossier-view.js
@@ -125,5 +129,5 @@ jobs:
             echo "No generated changes"
             exit 0
           fi
-          git commit -m "NPC State v0.4.1: allow fresh start when optional stable sidecar is missing"
+          git commit -m "NPC State v0.4.1: harden family key relationships"
           git push
