@@ -5,7 +5,6 @@ import {
     createNpcStateBundle,
     previewNpcStateBundleImport,
 } from './bundle.js';
-import { readLegacyV02Sidecar } from './migrate-v02.js';
 import {
     DEFAULT_RELATIONSHIP_CAPS,
     createEmptyState,
@@ -36,7 +35,7 @@ import {
 } from './stale.js';
 import { readV3PointerHint, readV3Sidecar, writeV3Sidecar } from './storage.js';
 
-const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.3.2 structured scanner. Obey the supplied schema and evidence rules exactly.';
+const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.1 recovery scanner. Obey the supplied schema and evidence rules exactly.';
 
 function latestAssistantMessageId(chat = []) {
     for (let i = chat.length - 1; i >= 0; i -= 1) {
@@ -65,7 +64,6 @@ export function createNpcStateEngine(adapters = {}) {
     const getSettings = adapters.getSettings;
     const getPointer = adapters.getPointer || (() => null);
     const setPointer = adapters.setPointer || (() => {});
-    const getLegacyPointer = adapters.getLegacyPointer || (() => null);
     const getStablePointer = adapters.getStablePointer || (() => null);
     const persistSettings = adapters.persistSettings || (() => {});
     const getHeaders = adapters.getHeaders || (() => ({}));
@@ -75,7 +73,7 @@ export function createNpcStateEngine(adapters = {}) {
     const notify = adapters.notify || (() => {});
 
     if (typeof getContext !== 'function' || typeof getChatKey !== 'function' || typeof getSettings !== 'function' || typeof generate !== 'function') {
-        throw new Error('NPC State v0.3 engine requires getContext, getChatKey, getSettings, and generate adapters.');
+        throw new Error('NPC State v0.4.1 engine requires getContext, getChatKey, getSettings, and generate adapters.');
     }
 
     function epoch(chatKey) { return operationEpoch.get(chatKey) || 0; }
@@ -128,11 +126,10 @@ export function createNpcStateEngine(adapters = {}) {
                 ? hintedPointer
                 : (configuredPointer?.path && hintedPointer?.path && configuredPointer.path === hintedPointer.path && Number(hintedPointer.revision || 0) > Number(configuredPointer.revision || 0) ? hintedPointer : configuredPointer);
             let state;
-            let importedLegacy = false;
             let importedStable = false;
             if (pointer?.path) {
                 const loaded = await readV3Sidecar({ chatKey, pointer, fetchFn });
-                if (!loaded) throw new Error('NPC State v0.3 sidecar pointer exists but the file is missing. Refusing to create a blank replacement.');
+                if (!loaded) throw new Error('NPC State beta sidecar pointer exists but the file is missing. Refusing to create a blank replacement.');
                 state = loaded.state;
                 if (!configuredPointer?.path || Number(pointer.revision || 0) > Number(configuredPointer.revision || 0)) {
                     setPointer(chatKey, pointer);
@@ -142,26 +139,17 @@ export function createNpcStateEngine(adapters = {}) {
                 const stablePointer = getStablePointer(chatKey);
                 if (stablePointer?.path) {
                     const stable = await readV3Sidecar({ chatKey, pointer: stablePointer, fetchFn });
-                    if (!stable) throw new Error('Stable NPC State sidecar pointer exists but the file is missing. Refusing to create a blank beta replacement.');
+                    if (!stable) throw new Error('Stable NPC State v0.3 sidecar pointer exists but the file is missing. Refusing to create a blank beta replacement.');
                     state = stable.state;
                     importedStable = true;
                 } else {
-                    const legacyPointer = getLegacyPointer(chatKey);
-                    if (legacyPointer?.path) {
-                        const legacy = await readLegacyV02Sidecar({ chatKey, pointer: legacyPointer, fetchFn });
-                        if (!legacy) throw new Error('NPC State v0.2 sidecar pointer exists but the legacy file is missing. Refusing to overwrite it.');
-                        state = legacy.state;
-                        importedLegacy = true;
-                    } else {
-                        state = createEmptyState(chatKey);
-                    }
+                    state = createEmptyState(chatKey);
                 }
             }
             state = ensureBranchBase(normalizeState(state, chatKey), getContext().chat || []);
-            if (importedLegacy || importedStable) {
+            if (importedStable) {
                 state = await persist(chatKey, state);
-                if (importedStable) notify('success', 'Cloned stable NPC State dossiers into an independent beta sidecar. Stable data was not modified.');
-                else notify('success', 'Imported ' + state.npcs.length + ' NPC dossier' + (state.npcs.length === 1 ? '' : 's') + ' from v0.2 into an independent beta sidecar.');
+                notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.1 beta sidecar. Stable data was not modified.');
             }
             cache.set(chatKey, state);
             hydration.set(chatKey, { status: 'ready', error: null });

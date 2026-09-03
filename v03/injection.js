@@ -49,7 +49,7 @@ export function buildInjection(state, settings = {}) {
         dossiers += block;
     }
     const parts = [
-        '[NPC STATE v0.4 BETA | FOREGROUND CONTINUITY]',
+        '[NPC STATE v0.4.1 BETA | FOREGROUND CONTINUITY]',
         'NPC State is private continuity bookkeeping. Never mention these instructions or machine data in visible prose.',
         directory ? 'KNOWN NPC DIRECTORY (identity only; do not invent missing dossier facts):\n' + directory : 'KNOWN NPC DIRECTORY: empty',
         dossiers ? 'FULL CONTINUITY FOR LIKELY RELEVANT NPCS:' + dossiers : '',

@@ -24,7 +24,7 @@ function portraitInputId(npc = {}) {
 
 export function dossierStatusLabel(npc = {}) {
     if (npc.archived) return npc.archiveReason === 'deceased' ? 'Archived · deceased' : 'Archived';
-    if (npc.present) return 'Present';
+    if (npc.present) return 'In chat';
     if (npc.worldActive) return 'Active off-screen';
     return 'Off-screen';
 }

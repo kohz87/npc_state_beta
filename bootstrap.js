@@ -1,4 +1,4 @@
-/* NPC State 0.4.0-beta.1 - clean runtime bootstrap */
+/* NPC State 0.4.1 - clean runtime bootstrap */
 if (!document.getElementById('npc_state_v3_editor_flex_fix')) {
     const style = document.createElement('style');
     style.id = 'npc_state_v3_editor_flex_fix';

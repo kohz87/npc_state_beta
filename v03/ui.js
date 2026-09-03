@@ -88,16 +88,17 @@ export function createNpcStateUi(adapters = {}) {
 
     function settingsHtml() {
         return `<div id="${SETTINGS_ID}" class="extension_container npc-state-extension npc-state-v3-settings">
-          <div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>NPC State <span class="npc-state-version">0.4.0-beta.1</span></b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
+          <div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>NPC State <span class="npc-state-version">0.4.1</span></b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
           <div class="inline-drawer-content npc-state-drawer">
-            <div class="npc-state-intro">v0.3 uses one current-exchange scanner transaction. Exchange participation, strict final physical presence, and off-screen world activity are independent signals. Existing v0.2 sidecars are imported once into a separate v0.3 file and never rewritten.</div>
+            <div class="npc-state-intro">v0.4.1 uses foreground embedded capture for normal turns. Exchange participation, in-chat relevance, and explicit off-screen activity are independent signals. Stable v0.3 dossiers can be cloned once into an independent beta sidecar.</div>
             <div class="npc-state-settings-grid">
               <label class="npc-state-setting-row"><span><b>Enable NPC State</b><small>Disabling stops automatic scanning and injection. Manual dossier tools remain available.</small></span><input id="npc_state_v3_enabled" type="checkbox"></label>
-              <label class="npc-state-setting-row"><span><b>Embedded current-cast scan</b><small>Uses the same foreground RP generation. Missing or malformed capture leaves state unchanged; Scan current cast is the repair tool.</small></span><input id="npc_state_v3_auto" type="checkbox"></label>
+              <label class="npc-state-setting-row"><span><b>Embedded current-cast scan</b><small>Uses the same foreground RP generation. Missing or malformed capture leaves state unchanged unless automatic recovery is enabled.</small></span><input id="npc_state_v3_auto" type="checkbox"></label>
+              <label class="npc-state-setting-row"><span><b>Automatic recovery scanner</b><small>If embedded capture is missing or malformed, run one separate scanner call. Off by default; manual Scan current cast is always available.</small></span><input id="npc_state_v04_fallback" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Context depth</b><small>Older messages are profile/memory context only; relationship deltas remain current-exchange-only.</small></span><input id="npc_state_v3_scan_depth" class="text_pole npc-state-number" type="number" min="2" max="30"></label>
-              <label class="npc-state-setting-row"><span><b>Inject present NPCs</b><small>Injects individually relevant in-chat NPCs, not incidental background bodies.</small></span><input id="npc_state_v3_inject" type="checkbox"></label>
+              <label class="npc-state-setting-row"><span><b>Inject in-chat NPCs</b><small>Injects individually relevant in-chat NPCs, not incidental background bodies.</small></span><input id="npc_state_v3_inject" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Injection budget</b><small>Approximate token budget.</small></span><input id="npc_state_v3_inject_budget" class="text_pole npc-state-number" type="number" min="256" max="8000" step="100"></label>
-              <label class="npc-state-setting-row"><span><b>Rescan changed branches</b><small>Restores the best v0.3 checkpoint and rescans the surviving latest exchange.</small></span><input id="npc_state_v3_branch_rescan" type="checkbox"></label>
+              <label class="npc-state-setting-row"><span><b>Rescan changed branches</b><small>Restores tracked swipes locally from checkpoints/payloads. Edited or untracked branches use the separate recovery scanner when needed.</small></span><input id="npc_state_v3_branch_rescan" type="checkbox"></label>
             </div>
             <details class="npc-state-v3-dossier-evolution"><summary><b>Dossier evolution</b></summary>
               <div class="npc-state-intro">Working caps for living dossier collections. The scanner may merge, rewrite, retire, reorder, or replace entries to keep the strongest current set. Lowering a cap does not immediately delete existing entries; it applies when that collection is next curated or manually saved.</div>
@@ -122,6 +123,7 @@ export function createNpcStateUi(adapters = {}) {
         if (!panel) return;
         panel.querySelector('#npc_state_v3_enabled').checked = settings.enabled !== false;
         panel.querySelector('#npc_state_v3_auto').checked = settings.autoScan !== false;
+        panel.querySelector('#npc_state_v04_fallback').checked = settings.fallbackScan === true;
         panel.querySelector('#npc_state_v3_scan_depth').value = settings.scanDepth;
         panel.querySelector('#npc_state_v3_inject').checked = settings.inject !== false;
         panel.querySelector('#npc_state_v3_inject_budget').value = settings.injectBudgetTokens;
@@ -146,6 +148,7 @@ export function createNpcStateUi(adapters = {}) {
         });
         bindCheck('#npc_state_v3_enabled', 'enabled');
         bindCheck('#npc_state_v3_auto', 'autoScan');
+        bindCheck('#npc_state_v04_fallback', 'fallbackScan');
         bindCheck('#npc_state_v3_inject', 'inject');
         bindCheck('#npc_state_v3_branch_rescan', 'branchRescan');
         bindLimit('#npc_state_v3_limit_memories', 'memories');

@@ -50,7 +50,7 @@ async function rebaseCurrentChat() {
     if (!branchRecoveryRequired(current)) return render();
     const accepted = globalThis.confirm?.(
         'Rebase NPC State to the current chat timeline?\n\n' +
-        'This preserves durable dossiers, portraits, relationships, memories, manual locks, archives, social ties, and deletion tombstones. It clears live presence, chat-local message references, and incompatible branch checkpoints, then scans the latest surviving assistant exchange.\n\n' +
+        'This preserves durable dossiers, portraits, relationships, memories, manual locks, archives, social ties, and deletion tombstones. It clears live in-chat state, chat-local message references, and incompatible branch checkpoints, then scans the latest surviving assistant exchange.\n\n' +
         'Facts learned only from deleted messages may remain until later scans revise them or you edit the dossier manually.'
     );
     if (!accepted) return;
@@ -65,10 +65,10 @@ async function rebaseCurrentChat() {
     } catch (error) {
         const rebasedState = state();
         if (rebasedState?.branchSafety?.status === 'safe') {
-            console.warn('[NPC State v0.3.2] timeline rebase committed, but the follow-up scan failed', error);
+            console.warn('[NPC State v0.4.1] timeline rebase committed, but the follow-up scan failed', error);
             globalThis.toastr?.warning?.(`NPC State: timeline rebased successfully, but the latest exchange scan failed. Use Scan current cast to retry. ${error?.message || error}`);
         } else {
-            console.error('[NPC State v0.3.2] timeline rebase failed safely', error);
+            console.error('[NPC State v0.4.1] timeline rebase failed safely', error);
             globalThis.toastr?.error?.(`NPC State: timeline rebase failed without replacing your durable dossiers. ${error?.message || error}`);
         }
     } finally {

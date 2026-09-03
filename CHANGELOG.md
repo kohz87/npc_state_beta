@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.1
+
+- Retained the full separate structured scanner as a contingency while keeping normal automatic turns on the one-pass embedded foreground path.
+- Added optional **Automatic recovery scanner** fallback for missing or malformed `<npc_state_v1>` capture. It is off by default; manual **Scan current cast** remains available regardless.
+- Restored changed-branch recovery without reintroducing a mandatory second request: tracked swipes restore from checkpoints, stored swipe payloads can replay locally when needed, and edited/untracked branches fall back to the separate scanner when branch rescan is enabled.
+- Invalidated stored embedded metadata on assistant edits so stale machine observations cannot be reapplied to rewritten prose.
+- Hardened foreground transport stripping so duplicate NPC blocks are rejected and removed, truncated NPC output is fail-closed, and Inventory Block 0.4 terminal controls are preserved.
+- Standardized the separate recovery scanner on the same **in-chat** semantics as embedded mode instead of the v0.3.2 strict physical-presence rule.
+- Updated dossier/status/settings wording from **Present** / strict physical presence to **In chat** / individually relevant current participants while keeping the internal `present` field for v0.3 sidecar compatibility.
+- Removed the v0.2 migration path from the 0.4 beta. The supported upgrade path is stable v0.3.x -> independent v0.4.1 beta clone.
+- Kept stable v0.3 relationship/history, memories, dossier evolution, portraits, bundles, stale management, branch checkpoints/rebase, manual tools, social graph, Megumin integration, and sidecar protections intact.
+
 ## v0.4.0-beta.1
 
 - Reworked normal automatic NPC accounting into a **foreground embedded scan** performed by the same LLM generation that writes the RP response, eliminating the routine second `generateRaw` scanner request.

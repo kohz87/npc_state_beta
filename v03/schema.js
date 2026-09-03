@@ -1,4 +1,4 @@
-export const NPC_STATE_VERSION = '0.4.0-beta.1';
+export const NPC_STATE_VERSION = '0.4.1';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export const RELATIONSHIP_AXES = Object.freeze(['trust', 'affection', 'desire', 'tension']);
 export const STABLE_PROFILE_FIELDS = Object.freeze([
