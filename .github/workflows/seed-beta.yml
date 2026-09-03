@@ -11,6 +11,7 @@ on:
       - beta/fix-0.4.1-new-npc-bootstrap.mjs
       - beta/fix-0.4.1-first-run-stable-probe.mjs
       - beta/fix-0.4.1-key-relationship-shape.mjs
+      - beta/fix-0.4.1-multi-npc-bootstrap.mjs
       - .github/workflows/seed-beta.yml
 
 permissions:
@@ -44,6 +45,7 @@ jobs:
           node beta/fix-0.4.1-new-npc-bootstrap.mjs
           node beta/fix-0.4.1-first-run-stable-probe.mjs
           node beta/fix-0.4.1-key-relationship-shape.mjs
+          node beta/fix-0.4.1-multi-npc-bootstrap.mjs
 
       - name: Syntax gate
         run: |
@@ -54,6 +56,7 @@ jobs:
           node --check beta/fix-0.4.1-new-npc-bootstrap.mjs
           node --check beta/fix-0.4.1-first-run-stable-probe.mjs
           node --check beta/fix-0.4.1-key-relationship-shape.mjs
+          node --check beta/fix-0.4.1-multi-npc-bootstrap.mjs
           node --check bootstrap.js
           node --check v03/index.js
           node --check v03/engine.js
@@ -118,6 +121,10 @@ jobs:
           grep -q "socialEdges is complementary graph data and MUST NOT substitute for keyRelationships" v03/scanner.js
           grep -q "KeyRelationships entries MUST be strings, never objects" v03/injection.js
           grep -q "KeyRelationships entries MUST be strings, never objects" v03/scanner.js
+          grep -q "A single scan may introduce MULTIPLE new individually relevant NPCs" v03/injection.js
+          grep -q "A single scan may introduce MULTIPLE new individually relevant NPCs" v03/scanner.js
+          grep -q "const bootstrapRefs" v03/scanner.js
+          grep -q "const bootstrapIds" v03/scanner.js
           grep -q "normalizeKeyRelationshipEntries" v03/schema.js
           grep -q "normalizeKeyRelationshipEntries" v03/scanner.js
           grep -q "behaviorProfile: \[\], speech: '', mannerisms: \[\]" v03/scanner.js
@@ -155,11 +162,7 @@ jobs:
             exchangeActiveNpcIds: ['Kiri'],
             inChatNpcIds: ['Kiri'],
             worldActiveNpcIds: [],
-            npcs: [{
-              id: '',
-              name: 'Kiri',
-              keyRelationships: [{ name: 'Astra', relation: 'sister' }],
-            }],
+            npcs: [{ id: '', name: 'Kiri', keyRelationships: [{ name: 'Astra', relation: 'sister' }] }],
             socialEdges: [],
           }, { sourceMessageId: 1, turn: 1 });
           const kiri = applied.state.npcs.find(npc => npc.name === 'Kiri');
@@ -167,6 +170,46 @@ jobs:
             throw new Error('Scanner apply path did not normalize structured key relationships');
           }
           console.log('Key relationship normalization gate passed');
+          EOF
+
+      - name: Multi-NPC embedded bootstrap gate
+        run: |
+          node --input-type=module <<'EOF'
+          import { consumeNpcStateControl } from './v03/foreground.js';
+          import { createEmptyState } from './v03/schema.js';
+          import { applyScanResult } from './v03/scanner.js';
+
+          const payload = {
+            exchangeActiveNpcIds: ['Astra', 'Kiri', 'Brina'],
+            inChatNpcIds: ['Astra', 'Kiri', 'Brina'],
+            worldActiveNpcIds: [],
+            npcs: [
+              { id: '', name: 'Astra', role: 'daughter', keyRelationships: ['Kiri - sister', 'Brina - mother'] },
+              { id: '', name: 'Kiri', role: 'daughter', keyRelationships: ['Astra - sister', 'Brina - mother'] },
+              { id: '', name: 'Brina', role: 'mother', keyRelationships: ['Astra - daughter', 'Kiri - daughter'] },
+            ],
+            socialEdges: [],
+          };
+          const consumed = consumeNpcStateControl('Story\n<npc_state_v1>' + JSON.stringify(payload) + '</npc_state_v1>');
+          if (!consumed.parsed || consumed.errors.length) throw new Error('Multi-NPC embedded payload did not parse');
+          const applied = applyScanResult(createEmptyState('multi-chat'), consumed.parsed, { sourceMessageId: 1, turn: 1 });
+          if (applied.state.npcs.length !== 3) throw new Error('Embedded multi-NPC payload did not create all three dossiers');
+          if (applied.finalPresentNpcIds.length !== 3) throw new Error('Embedded multi-NPC payload did not retain all three in-chat NPCs');
+
+          const imperfect = applyScanResult(createEmptyState('multi-imperfect'), {
+            exchangeActiveNpcIds: ['Astra'],
+            inChatNpcIds: ['Astra'],
+            worldActiveNpcIds: [],
+            npcs: [
+              { id: '', name: 'Astra', role: 'daughter' },
+              { id: '', name: 'Kiri', role: 'daughter' },
+              { id: '', name: 'Brina', role: 'mother' },
+            ],
+            socialEdges: [],
+          }, { sourceMessageId: 1, turn: 1 });
+          if (imperfect.state.npcs.length !== 3) throw new Error('Secondary idless bootstrap NPCs were silently discarded');
+          if (!imperfect.state.npcs.every(npc => npc.role)) throw new Error('Secondary bootstrap NPCs did not receive their profile patches');
+          console.log('Multi-NPC embedded bootstrap gate passed');
           EOF
 
       - name: Commit generated beta runtime
@@ -178,5 +221,5 @@ jobs:
             echo "No generated changes"
             exit 0
           fi
-          git commit -m "NPC State v0.4.1: normalize key relationship values"
+          git commit -m "NPC State v0.4.1: support multi-NPC embedded bootstrap"
           git push
