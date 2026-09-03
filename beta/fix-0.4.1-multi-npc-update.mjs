@@ -60,4 +60,5 @@ if (!changelog.includes(changelogLine.trim())) {
     write('CHANGELOG.md', changelog);
 }
 
+await import('./fix-0.4.1-canonical-branch-fingerprint.mjs');
 console.log('Fixed NPC State 0.4.1 multi-NPC existing dossier updates');
