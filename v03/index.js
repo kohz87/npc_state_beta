@@ -339,10 +339,8 @@ async function processEmbeddedScan(messageId) {
     }
     const consumed = consumeNpcStateControl(message.mes);
     if (!consumed.found) {
-        console.warn('[NPC State Beta] Foreground response omitted <npc_state_v1>.');
-        const fallback = await maybeForegroundFallback(id, 'missing-control');
-        if (!fallback.ok && getSettings().fallbackScan !== true) notify('warning', 'embedded NPC scan was missing. State was left unchanged; use Scan current cast for recovery.');
-        return fallback;
+        console.warn('[NPC State Beta] Foreground response omitted <npc_state_v1>; running one full recovery scan.');
+        return runSeparateRecoveryScan(id, 'foreground-missing-control');
     }
 
     message.mes = consumed.cleanedText;

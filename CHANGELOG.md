@@ -2,6 +2,7 @@
 
 ## v0.4.1
 
+- Missing embedded foreground capture now automatically falls back to one full separate current-cast scan whenever embedded scanning is enabled; the recovery toggle now applies only to malformed embedded blocks.
 - Silenced foreground missing-capture warnings when NPC State or embedded auto-scan is intentionally disabled; any stray NPC transport is cleanup-only and never applied.
 - Preserved social edges between secondary existing NPCs when both have valid returned dossier patches, even if an imperfect activity array omitted them.
 - Isolated stored foreground payload replay per active swipe: when a concrete swipe record exists, missing swipe metadata no longer falls back to potentially stale message-level metadata from another variant.
