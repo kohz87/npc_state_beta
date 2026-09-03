@@ -164,7 +164,7 @@ export function dossierHtml(npc) {
             ${currentFact('Mood', npc.mood)}
             ${currentFact('Location', npc.location)}
             ${currentFact('Goal', npc.goal)}
-            ${currentFact('Status', npc.status)}
+            ${currentFact('Activity / condition', npc.status)}
           </div>
         </section>
 

@@ -5,6 +5,7 @@ import {
     findNpcByReference,
     makeNpcId,
     normalizeApparentAge,
+    normalizeCurrentStatus,
     normalizeDossierLimits,
     normalizeKeyRelationshipEntries,
     normalizeName,
@@ -186,7 +187,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
             name: 'canonical NPC name or unique NPC role label',
             aliases: [], role: '', species: '', age: '', apparentAge: '~N only, e.g. ~25, or empty', appearance: '', personality: '',
             behaviorProfile: [], speech: '', mannerisms: [], background: '', keyRelationships: [], memories: [],
-            relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: '', importance: 0,
+            relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0,
             lifeState: 'alive|dead|unknown', lifeStateCertainty: 'explicit|strong|uncertain', lifeStateReason: '', livingReturn: false,
             relationshipChange: { impact: 'none|ordinary|meaningful|major|extreme', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' },
         }],
@@ -203,6 +204,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- A character who is only mentioned, remembered, discussed, named as a topic, or present only in older history is NOT exchange-active.',
         '- inChatNpcIds: individually relevant NPCs still participating in the active scene/conversation at the END. Mere physical proximity, unnamed crowds, background workers, incidental guards, and characters only mentioned are not in-chat.',
         '- worldActiveNpcIds: NPCs explicitly active off-screen in the current world state. Keep this separate from in-chat participation.',
+        '- status is the NPC current concrete activity, immediate situation, or condition: what they are doing or undergoing now, for example standing watch at the gate, bandaging a wound, travelling toward Bluewatch, or asleep by the hearth. It is NOT lifecycle presence. Never use active, inactive, in chat, off-screen, present, archived, or equivalent lifecycle labels as status; those are tracked separately.',
         '- Every new NPC referenced by those arrays must also have one npcs entry so identity can be created safely.',
         '- For a NEW NPC, behaviorProfile, mannerisms, keyRelationships, and memories are bootstrap collections: return arrays containing all grounded entries established by the CURRENT exchange; use [] only when none are supported. Do not use null for those four fields on a new NPC. A first scene can establish behavior or mannerisms when the text explicitly describes or clearly demonstrates a characteristic pattern, gesture, habit, or social tendency; prior sightings are not required.',
         '- A single scan may introduce MULTIPLE new individually relevant NPCs. Do not stop after the first. Return one separate npcs object for every such NPC. For every NEW NPC use id as an empty string; never invent a stable ID. Reference each new NPC in exchangeActiveNpcIds, inChatNpcIds, or worldActiveNpcIds by the exact canonical name or unique role label that appears in its npcs object. Do not add new npcs entries for named-only mentions, crowds, background workers, incidental guards, or other non-individually-relevant characters.',
@@ -243,7 +245,8 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
-        'Use the supplied chat window to reconcile grounded stable profile facts, current status when supported, durable memories, and key relationships for THIS NPC only.',
+        'Use the supplied chat window to reconcile grounded stable profile facts, current activity/situation/condition when supported, durable memories, and key relationships for THIS NPC only.',
+        'status is the NPC current concrete activity, immediate situation, or condition: what they are doing or undergoing now. Never use active, inactive, in chat, off-screen, present, archived, or equivalent lifecycle labels as status; lifecycle presence is tracked separately.',
         'The PLAYER/current USER persona is not an NPC. relationshipSummary is this NPC toward the PLAYER; keyRelationships is NON-PLAYER ties only and must never duplicate the PLAYER.',
         'apparentAge must be one supported numeric approximation formatted exactly as ~N. Never use decade bands, worded age bands, or ranges. Leave it empty if no single numeric apparent age is supported.',
         ...dossierCollectionRules(limits),
@@ -251,7 +254,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
         'If the chat does not establish a scalar field, leave it empty. Never invent facts.',
         memoryCriteria ? `IMPORTANT MEMORY RUBRIC:\n${compactText(memoryCriteria, 6000)}` : '',
         `CHAT WINDOW:\n${JSON.stringify(history)}`,
-        `OUTPUT CONTRACT:\n${JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id: npc.id, name: npc.name, aliases: [], role: '', species: '', age: '', apparentAge: '~N only or empty', appearance: '', personality: '', behaviorProfile: null, speech: '', mannerisms: null, background: '', keyRelationships: null, memories: null, relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: '', importance: 0, lifeState: 'alive|dead|unknown', lifeStateCertainty: '', lifeStateReason: '', livingReturn: false, relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' } }], socialEdges: [] })}`,
+        `OUTPUT CONTRACT:\n${JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id: npc.id, name: npc.name, aliases: [], role: '', species: '', age: '', apparentAge: '~N only or empty', appearance: '', personality: '', behaviorProfile: null, speech: '', mannerisms: null, background: '', keyRelationships: null, memories: null, relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0, lifeState: 'alive|dead|unknown', lifeStateCertainty: '', lifeStateReason: '', livingReturn: false, relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' } }], socialEdges: [] })}`,
     ].filter(Boolean).join('\n\n');
 }
 
@@ -325,10 +328,12 @@ function applyStablePatch(npc, patch, options = {}) {
 
 function applyLivePatch(npc, patch) {
     const next = structuredClone(npc);
-    for (const field of ['mood', 'location', 'goal', 'status']) {
+    for (const field of ['mood', 'location', 'goal']) {
         const value = String(patch?.[field] ?? '').trim();
         if (value) next[field] = value;
     }
+    const status = normalizeCurrentStatus(patch?.status);
+    if (status) next.status = status;
     if (Number.isFinite(Number(patch?.importance))) next.importance = Math.max(next.importance || 0, Math.min(100, Math.max(0, Math.round(Number(patch.importance)))));
     return next;
 }

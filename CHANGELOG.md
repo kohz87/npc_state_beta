@@ -2,6 +2,7 @@
 
 ## v0.4.1
 
+- Clarified dossier current status semantics: status now means the NPC concrete immediate activity, situation, or condition, never active/inactive/in-chat/off-screen/archive lifecycle state. Lifecycle-only status pollution is rejected deterministically and existing generic values normalize away on load.
 - Missing embedded foreground capture now automatically falls back to one full separate current-cast scan whenever embedded scanning is enabled; the recovery toggle now applies only to malformed embedded blocks.
 - Silenced foreground missing-capture warnings when NPC State or embedded auto-scan is intentionally disabled; any stray NPC transport is cleanup-only and never applied.
 - Preserved social edges between secondary existing NPCs when both have valid returned dossier patches, even if an imperfect activity array omitted them.

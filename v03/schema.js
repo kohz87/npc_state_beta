@@ -139,6 +139,22 @@ export function normalizeApparentAge(value) {
     return `~${matches[0]}`;
 }
 
+const LIFECYCLE_ONLY_CURRENT_STATUSES = new Set([
+    'active', 'inactive', 'not active', 'currently active', 'currently inactive',
+    'present', 'not present', 'currently present', 'currently not present',
+    'in chat', 'not in chat', 'in the chat', 'not in the chat',
+    'in scene', 'not in scene', 'in the scene', 'not in the scene',
+    'on screen', 'off screen', 'active on screen', 'active off screen', 'inactive off screen',
+    'world active', 'world inactive', 'archived', 'unarchived', 'not archived',
+    'dossier active', 'dossier inactive',
+]);
+
+export function normalizeCurrentStatus(value) {
+    const clean = text(value, 360);
+    if (!clean) return '';
+    return LIFECYCLE_ONLY_CURRENT_STATUSES.has(normalizeName(clean)) ? '' : clean;
+}
+
 export function normalizeDossierLimits(value = {}) {
     const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     return Object.fromEntries(Object.keys(DOSSIER_LIMIT_DEFAULTS).map(key => {
@@ -224,7 +240,7 @@ export function normalizeNpc(input = {}, options = {}) {
         mood: text(input.mood, 240),
         location: text(input.location, 360),
         goal: text(input.goal, 600),
-        status: text(input.status, 360),
+        status: normalizeCurrentStatus(input.status),
         present: archived ? false : input.present === true,
         worldActive: archived ? false : input.worldActive === true,
         lifeState: ['alive', 'dead', 'unknown'].includes(String(input.lifeState)) ? String(input.lifeState) : 'unknown',
