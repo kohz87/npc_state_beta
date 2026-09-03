@@ -16,6 +16,7 @@ on:
       - beta/fix-0.4.1-canonical-branch-fingerprint.mjs
       - beta/fix-0.4.1-deep-hardening.mjs
       - beta/fix-0.4.1-prelock-stale-embedded.mjs
+      - beta/fix-0.4.1-missing-embedded-fallback.mjs
       - beta/verify-0.4.1.mjs
       - beta/verify-final-0.4.1.mjs
       - .github/workflows/seed-beta.yml
@@ -60,6 +61,7 @@ jobs:
           node beta/fix-0.4.1-canonical-branch-fingerprint.mjs
           node beta/fix-0.4.1-deep-hardening.mjs
           node beta/fix-0.4.1-prelock-stale-embedded.mjs
+          node beta/fix-0.4.1-missing-embedded-fallback.mjs
 
       - name: Syntax gate
         run: |
@@ -83,7 +85,9 @@ jobs:
           ! grep -q "readLegacyV02Sidecar" v03/engine.js
           ! grep -q "getLegacyPointer" v03/index.js
           grep -q "fallbackScan: false" v03/index.js
-          grep -q "Automatic recovery scanner" v03/ui.js
+          grep -q "Malformed capture recovery" v03/ui.js
+          grep -q "foreground-missing-control" v03/index.js
+          ! grep -q "maybeForegroundFallback(id, 'missing-control')" v03/index.js
           grep -q "A single scan may introduce MULTIPLE new individually relevant NPCs" v03/injection.js
           grep -q "A single scan may update MULTIPLE existing NPCs" v03/injection.js
           grep -q "KeyRelationships entries MUST be strings, never objects" v03/injection.js
