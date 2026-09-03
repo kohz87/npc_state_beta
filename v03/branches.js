@@ -10,10 +10,20 @@ function fnv1a(value) {
     return (hash >>> 0).toString(36);
 }
 
+function canonicalAssistantMessageText(value = '') {
+    const source = String(value ?? '');
+    const withoutNpc = source
+        .replace(/<npc_state_v1\b[^>]*>[\s\S]*?<\/npc_state_v1\s*>/gi, '')
+        .replace(/<npc_state_v1\b[^>]*>[\s\S]*$/gi, '');
+    const withoutInventory = withoutNpc.replace(/<!--\s*INVENTORY_BLOCK_UPDATE\b[\s\S]*?-->\.?/gi, '');
+    return withoutInventory.replace(/\n{3,}/g, '\n\n').trimEnd();
+}
+
 export function fingerprintMessage(message = {}) {
     const role = message.is_system ? 's' : (message.is_user ? 'u' : 'a');
     const swipe = Number.isInteger(message.swipe_id) ? message.swipe_id : '';
-    return `${role}:${swipe}:${fnv1a(String(message.mes ?? ''))}`;
+    const text = role === 'a' ? canonicalAssistantMessageText(message.mes) : String(message.mes ?? '');
+    return `${role}:${swipe}:${fnv1a(text)}`;
 }
 
 export function chatLineage(chat = [], throughMessageId = null) {
