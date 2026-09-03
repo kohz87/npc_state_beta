@@ -15,15 +15,17 @@ function canonicalAssistantMessageText(value = '') {
     const withoutNpc = source
         .replace(/<npc_state_v1\b[^>]*>[\s\S]*?<\/npc_state_v1\s*>/gi, '')
         .replace(/<npc_state_v1\b[^>]*>[\s\S]*$/gi, '');
-    const withoutInventory = withoutNpc.replace(/<!--\s*INVENTORY_BLOCK_UPDATE\b[\s\S]*?-->\.?/gi, '');
+    const withoutInventory = withoutNpc
+        .replace(/<!--\s*INVENTORY_BLOCK_UPDATE\b[\s\S]*?-->\.?/gi, '')
+        .replace(/<!--\s*INVENTORY_BLOCK_V05\b[\s\S]*?-->/gi, '')
+        .replace(/<Inventory\b[^>]*>[\s\S]*?<\/Inventory\s*>/gi, '');
     return withoutInventory.replace(/\n{3,}/g, '\n\n').trimEnd();
 }
 
 export function fingerprintMessage(message = {}) {
     const role = message.is_system ? 's' : (message.is_user ? 'u' : 'a');
-    const swipe = Number.isInteger(message.swipe_id) ? message.swipe_id : '';
     const text = role === 'a' ? canonicalAssistantMessageText(message.mes) : String(message.mes ?? '');
-    return `${role}:${swipe}:${fnv1a(text)}`;
+    return `${role}:${fnv1a(text)}`;
 }
 
 export function chatLineage(chat = [], throughMessageId = null) {
@@ -142,9 +144,10 @@ export function recordCheckpoint(state, chat, messageId, reason = 'scan') {
         createdAt: Date.now(),
         snapshot: snapshotForCheckpoint(next),
     };
-    const existing = next.checkpoints.findIndex(item => item.messageId === messageId && arraysEqual(item.lineage, lineage));
-    if (existing >= 0) next.checkpoints[existing] = checkpoint;
-    else next.checkpoints.push(checkpoint);
+    // One current rollback snapshot per assistant message id. Swipe/regeneration variants
+    // replace that message's checkpoint instead of consuming the entire 48-entry window.
+    next.checkpoints = next.checkpoints.filter(item => item.messageId !== messageId);
+    next.checkpoints.push(checkpoint);
     next.checkpoints.sort((a, b) => a.lineage.length - b.lineage.length || a.createdAt - b.createdAt);
     if (next.checkpoints.length > CHECKPOINT_LIMIT) next.checkpoints.splice(0, next.checkpoints.length - CHECKPOINT_LIMIT);
     next.branchHeadLineage = chatLineage(chat);
@@ -164,6 +167,15 @@ export function bestCheckpoint(state, chat) {
         if (!best || candidate.lineage.length > best.lineage.length || (candidate.lineage.length === best.lineage.length && candidate.createdAt > best.createdAt)) best = candidate;
     }
     return best;
+}
+
+function preserveCurrentPresentation(restored, current) {
+    const currentById = new Map((current?.npcs || []).map(npc => [npc.id, npc]));
+    restored.npcs = (restored.npcs || []).map(npc => {
+        const live = currentById.get(npc.id);
+        return live?.portrait ? { ...npc, portrait: structuredClone(live.portrait) } : npc;
+    });
+    return restored;
 }
 
 function preserveTombstones(restored, current) {
@@ -213,7 +225,7 @@ export function reconcileToCurrentBranch(state, chat) {
         return { changed: true, unsafeDivergence: true, state: failed, checkpoint: null };
     }
 
-    const restored = preserveTombstones(normalizeState(checkpoint.snapshot, normalized.chatKey), normalized);
+    const restored = preserveCurrentPresentation(preserveTombstones(normalizeState(checkpoint.snapshot, normalized.chatKey), normalized), normalized);
     restored.checkpoints = structuredClone(normalized.checkpoints || []);
     restored.branchBase = structuredClone(normalized.branchBase || null);
     restored.branchHeadLineage = currentLineage;

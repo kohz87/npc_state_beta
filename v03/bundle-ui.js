@@ -82,7 +82,7 @@ export function createBundleManagementUi(adapters = {}) {
         return `<details id="${SECTION_ID}" class="npc-state-v3-bundle-settings">
           <summary><b>Bundle import / export</b></summary>
           <div class="npc-state-v3-bundle-settings-body">
-            <small class="npc-state-muted">Exports normalized v0.3 dossier data only. Branch checkpoints, branch baselines, observations, sidecar revisions, migration/runtime state, and operation locks are never bundled.</small>
+            <small class="npc-state-muted">Exports normalized v3-compatible dossier data only. Branch checkpoints, branch baselines, observations, sidecar revisions, migration/runtime state, and operation locks are never bundled.</small>
             <div class="npc-state-v3-bundle-export-grid">
               <div><b>Full-chat backup</b><small>All dossiers, memories, relationships, social graph, portraits, suppression names, tombstones, archive state, and stale lifecycle fields.</small><button id="npc_state_v3_bundle_export_full" class="menu_button"><i class="fa-solid fa-file-export"></i> Export full chat</button></div>
               <div><b>Selected NPC</b><small>One normalized dossier plus social edges that touch that stable NPC id. Edges whose counterpart is absent in the destination are safely dropped during import.</small><select id="npc_state_v3_bundle_npc" class="text_pole"></select><button id="npc_state_v3_bundle_export_npc" class="menu_button"><i class="fa-solid fa-user-tag"></i> Export selected NPC</button></div>
@@ -137,7 +137,7 @@ export function createBundleManagementUi(adapters = {}) {
         const result = await engine.exportBundle();
         if (!result.ok) return notify('warning', `full-chat export was not created (${result.reason || 'unknown'}).`);
         downloadJson(result.bundle, result.filename);
-        notify('success', `exported ${result.npcCount} dossier${result.npcCount === 1 ? '' : 's'} as a full-chat v0.3 backup.`);
+        notify('success', `exported ${result.npcCount} dossier${result.npcCount === 1 ? '' : 's'} as a full-chat NPC State backup.`);
     }
 
     async function exportSelected(panel) {
@@ -146,7 +146,7 @@ export function createBundleManagementUi(adapters = {}) {
         const result = await engine.exportBundle(id);
         if (!result.ok) return notify('warning', `selected-NPC export was not created (${result.reason || 'unknown'}).`);
         downloadJson(result.bundle, result.filename);
-        notify('success', 'exported the selected v0.3 dossier bundle.');
+        notify('success', 'exported the selected NPC State dossier bundle.');
     }
 
     async function importFile(panel, file) {

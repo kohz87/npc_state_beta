@@ -157,17 +157,17 @@ export function createNpcStateEngine(adapters = {}) {
                 }
             }
             const normalized = normalizeState(state, chatKey);
-            const fingerprintUpgraded = Number(normalized.branchFingerprintVersion || 0) < 2;
+            const fingerprintUpgraded = Number(normalized.branchFingerprintVersion || 0) < 3;
             if (fingerprintUpgraded) {
-                // Stored v0.4.1 lineages were hashed before transient foreground controls were
-                // canonicalized, so their old hashes cannot be safely translated after cleanup.
-                // Preserve all durable NPC data, reset only rollback metadata, and accept the
+                // Stored lineages used an older fingerprint policy. They cannot be safely
+                // translated after transport canonicalization and swipe-index removal.
+                // Preserve durable NPC data, reset only rollback metadata, and accept the
                 // currently visible chat as the new canonical baseline once.
                 normalized.checkpoints = [];
                 normalized.branchBase = null;
                 normalized.branchHeadLineage = [];
                 normalized.branchSafety = { status: 'safe', kind: '', reason: '' };
-                normalized.branchFingerprintVersion = 2;
+                normalized.branchFingerprintVersion = 3;
             }
             state = ensureBranchBase(normalized, getContext().chat || []);
             if (importedStable || fingerprintUpgraded) {
@@ -175,7 +175,7 @@ export function createNpcStateEngine(adapters = {}) {
                 if (importedStable) {
                     notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.1 beta sidecar. Stable data was not modified.');
                 } else if (fingerprintUpgraded) {
-                    notify('info', 'Upgraded branch checkpoint fingerprints for transport-safe rollback. Existing dossiers were preserved; old rollback hashes were reset once.');
+                    notify('info', 'Upgraded branch checkpoint fingerprints for transport-safe, swipe-index-independent rollback. Existing dossiers were preserved; old rollback hashes were reset once.');
                 }
             }
             cache.set(chatKey, state);
@@ -297,6 +297,8 @@ export function createNpcStateEngine(adapters = {}) {
             const chat = ctx.chat || [];
             const message = chat[messageId];
             if (!message || message.is_system || message.is_user) return { ok: false, reason: 'not-assistant-message' };
+            const startEpoch = epoch(chatKey);
+            const startFingerprint = fingerprintMessage(message);
             const working = normalizeState(state, chatKey);
             working.turn = Math.max(0, Number(working.turn) || 0) + 1;
             const applied = applyScanResult(working, parsed, {
@@ -319,7 +321,12 @@ export function createNpcStateEngine(adapters = {}) {
                 worldActiveNpcIds: applied.worldActiveNpcIds,
                 referencedNpcIds,
             });
-            let committed = recordCheckpoint(stale.state, chat, messageId, 'embedded-foreground');
+            const liveCtx = getContext();
+            const liveChat = liveCtx.chat || [];
+            if (getChatKey() !== chatKey || epoch(chatKey) !== startEpoch || fingerprintMessage(liveChat[messageId] || {}) !== startFingerprint) {
+                return { ok: false, discarded: true, reason: 'stale-operation', messageId };
+            }
+            let committed = recordCheckpoint(stale.state, liveChat, messageId, 'embedded-foreground');
             committed.lastScannedMessageId = messageId;
             committed.updatedAt = Date.now();
             const persisted = await persist(chatKey, committed);
@@ -341,7 +348,7 @@ export function createNpcStateEngine(adapters = {}) {
         if (!chatKey || chatKey === 'no-chat') return { ok: false, reason: 'no-chat' };
         return exclusive(chatKey, async () => {
             const state = await loadChat(chatKey);
-            if (state?.branchSafety?.status === 'prebaseline-diverged') return { ok: false, reason: 'branch-unsafe' };
+            if (state?.branchSafety?.status !== 'safe') return { ok: false, reason: 'branch-unsafe' };
             const npc = findNpcByReference(state, reference);
             if (!npc) return { ok: false, reason: 'not-found' };
             const ctx = getContext();
@@ -359,8 +366,20 @@ export function createNpcStateEngine(adapters = {}) {
                 scanDepth: settings.scanDepth,
                 memoryCriteria: settings.memoryCriteria,
                 dossierLimits: settings.dossierLimits,
+                applyReturnedNpcPatches: true,
             });
-            const parsed = await invokeJson(prompt, `targeted-${npc.id}`);
+            const parsedRaw = await invokeJson(prompt, `targeted-${npc.id}`);
+            const parsed = {
+                ...parsedRaw,
+                exchangeActiveNpcIds: [],
+                finalPresentNpcIds: [],
+                worldActiveNpcIds: [],
+                npcs: (parsedRaw.npcs || []).filter(patch => {
+                    const patchId = String(patch?.id || '').trim();
+                    return patchId ? patchId === npc.id : normalizeName(patch?.name) === normalizeName(npc.name);
+                }).slice(0, 1),
+                socialEdges: [],
+            };
             const liveChat = getContext().chat || [];
             if (getChatKey() !== chatKey || epoch(chatKey) !== startEpoch || fingerprintMessage(liveChat[messageId] || {}) !== startFingerprint) {
                 return { ok: false, discarded: true, reason: 'stale-operation' };
@@ -374,6 +393,7 @@ export function createNpcStateEngine(adapters = {}) {
                 allowHistoricalProfilePatches: true,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 dossierLimits: settings.dossierLimits,
+                applyReturnedNpcPatches: true,
             });
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
             const committed = recordCheckpoint(applied.state, liveChat, messageId, 'targeted-refresh');
@@ -387,6 +407,7 @@ export function createNpcStateEngine(adapters = {}) {
         if (!chatKey || chatKey === 'no-chat' || /-pending:/.test(chatKey)) return { ok: false, reason: 'no-chat' };
         return exclusive(chatKey, async () => {
             const state = normalizeState(await loadChat(chatKey), chatKey);
+            if (state.branchSafety?.status !== 'safe') return { ok: false, reason: 'branch-unsafe' };
             const result = await mutator(state);
             if (result === false) return { ok: false, reason: 'rejected' };
             if (result?.rejected) return { ok: false, reason: String(result.rejected) };

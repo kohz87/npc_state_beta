@@ -41,11 +41,13 @@ export function buildInjection(state, settings = {}) {
     const maxChars = budgetTokens * 4;
     const capture = settings.autoScan !== false;
     const continuity = settings.inject !== false;
-    const directory = identityDirectory(state);
+    const directoryRaw = identityDirectory(state);
+    const directory = directoryRaw.slice(0, maxChars);
+    const remainingChars = Math.max(0, maxChars - directory.length);
     let dossiers = '';
     if (continuity || capture) for (const npc of activeCandidates(state, limit)) {
         const block = '\n\n' + fullNpc(npc);
-        if ((dossiers + block).length > maxChars) break;
+        if ((dossiers + block).length > remainingChars) break;
         dossiers += block;
     }
     const parts = [
@@ -57,7 +59,7 @@ export function buildInjection(state, settings = {}) {
     if (capture) parts.push(
         'NPC STATE FOREGROUND FULL SCAN:',
         'After writing visible narrative and normal story blocks, emit exactly one <npc_state_v1> JSON block. It is a current-exchange observation report, not a database rewrite.',
-        'If Inventory Block requires INVENTORY_BLOCK_UPDATE to be final, place <npc_state_v1> immediately BEFORE that Inventory control. NPC State never claims the final machine position.',
+        'If Inventory Block emits an Inventory machine snapshot (including INVENTORY_BLOCK_V05 or older INVENTORY_BLOCK_UPDATE transport), keep it standalone and place <npc_state_v1> immediately BEFORE that Inventory control. NPC State never claims the final machine position.',
         'inChatNpcIds: individually relevant NPCs still participating in the active scene/conversation at the END. Mere physical proximity, unnamed crowds, background workers, incidental guards, and characters only mentioned are not in-chat.',
         'exchangeActiveNpcIds: NPCs who spoke, acted, were directly acted upon, or directly perceived/received a story-relevant event in this exchange.',
         'worldActiveNpcIds: explicitly active off-screen NPCs; keep separate from in-chat.',

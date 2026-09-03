@@ -2,7 +2,7 @@ import { parseScanJson } from './scanner.js';
 
 const OPEN = /<npc_state_v1\b[^>]*>/i;
 const COMPLETE_BLOCK = /<npc_state_v1\b[^>]*>[\s\S]*?<\/npc_state_v1\s*>/gi;
-const INVENTORY_TAIL = /<!--\s*INVENTORY_BLOCK_UPDATE\b[\s\S]*$/i;
+const INVENTORY_TAIL = /(?:<!--\s*(?:INVENTORY_BLOCK_UPDATE|INVENTORY_BLOCK_V05)\b[\s\S]*$|<Inventory\b[\s\S]*$)/i;
 
 function tidy(value) { return String(value ?? '').replace(/\n{3,}/g, '\n\n').trimEnd(); }
 

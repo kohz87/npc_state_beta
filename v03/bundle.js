@@ -54,7 +54,7 @@ function normalizeBundleNpc(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Bundle contains an invalid NPC dossier entry.');
     const id = text(raw.id, 160);
     const name = text(raw.name, 120);
-    if (!id) throw new Error('Every imported v0.3 dossier must contain its stable NPC id.');
+    if (!id) throw new Error('Every imported v3-compatible dossier must contain its stable NPC id.');
     if (!name) throw new Error(`Imported dossier ${id} is missing its canonical name.`);
     return normalizeNpc({ ...structuredClone(raw), id, name });
 }
@@ -155,8 +155,9 @@ export function parseNpcStateBundle(input) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('NPC State bundle root must be a JSON object.');
     if (raw.format !== NPC_STATE_BUNDLE_FORMAT) throw new Error(`Unsupported bundle format ${text(raw.format, 120) || 'missing'}.`);
     if (Number(raw.formatVersion) !== NPC_STATE_BUNDLE_VERSION) throw new Error(`Unsupported NPC State bundle format version ${raw.formatVersion}.`);
-    if (Number(raw.schemaVersion) !== NPC_STATE_SCHEMA_VERSION) throw new Error(`Bundle schema ${raw.schemaVersion} is not compatible with v0.3 schema ${NPC_STATE_SCHEMA_VERSION}.`);
-    if (!/^0\.3(?:\.|$)/.test(String(raw.appVersion || ''))) throw new Error(`Bundle app version ${text(raw.appVersion, 80) || 'missing'} is not a v0.3 bundle.`);
+    if (Number(raw.schemaVersion) !== NPC_STATE_SCHEMA_VERSION) throw new Error(`Bundle schema ${raw.schemaVersion} is not compatible with v3-compatible schema ${NPC_STATE_SCHEMA_VERSION}.`);
+    const appVersion = String(raw.appVersion || '');
+    if (!/^(?:0\.3(?:\.|$)|0\.4(?:\.|$))/.test(appVersion)) throw new Error(`Bundle app version ${text(appVersion, 80) || 'missing'} is not compatible with the v3 dossier schema.`);
     const bundleType = normalizeBundleType(raw.bundleType);
     const source = raw.source && typeof raw.source === 'object' && !Array.isArray(raw.source) ? raw.source : {};
     return {

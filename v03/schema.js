@@ -29,12 +29,25 @@ function text(value, max = 1200) {
     return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
+function collectionEntry(value, itemMax = 500) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const candidates = [value.text, value.value, value.summary, value.description, value.name, value.label, value.memory, value.mannerism, value.behavior, value.trait, value.alias];
+        for (const candidate of candidates) {
+            const clean = text(candidate, itemMax);
+            if (clean && clean !== '[object Object]') return clean;
+        }
+        return '';
+    }
+    const clean = text(value, itemMax);
+    return clean === '[object Object]' ? '' : clean;
+}
+
 function list(value, max = 12, itemMax = 500) {
     const input = Array.isArray(value) ? value : (value == null ? [] : [value]);
     const out = [];
     const seen = new Set();
     for (const item of input) {
-        const clean = text(item, itemMax);
+        const clean = collectionEntry(item, itemMax);
         const key = clean.toLocaleLowerCase();
         if (!clean || seen.has(key)) continue;
         seen.add(key);
@@ -261,7 +274,7 @@ export function createEmptyState(chatKey = '') {
         branchBase: null,
         branchHeadLineage: [],
         branchSafety: { status: 'safe', kind: '', reason: '' },
-        branchFingerprintVersion: 2,
+        branchFingerprintVersion: 3,
         migration: null,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -356,5 +369,9 @@ export function snapshotForCheckpoint(state) {
     const copy = normalizeState(state, state?.chatKey || '');
     copy.checkpoints = [];
     copy.branchBase = null;
+    // Portrait binary/data URLs are durable presentation assets, not timeline state.
+    // Excluding them keeps up to 48 rollback checkpoints from multiplying megabytes
+    // of identical image data. Restoration merges the current portrait back by id.
+    copy.npcs = copy.npcs.map(npc => ({ ...npc, portrait: null }));
     return copy;
 }

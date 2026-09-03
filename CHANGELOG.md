@@ -2,6 +2,10 @@
 
 ## v0.4.1
 
+- Deep hardening: fixed 0.4.1 bundle self-compatibility, beta relationship-history namespace isolation, embedded stale-operation protection, unsafe-branch mutation gates, and deterministic targeted Refresh isolation.
+- Deep hardening: added Inventory Block v0.5 transport compatibility, portrait-light rollback snapshots, generic structured collection normalization, total injection-budget accounting, and per-message checkpoint compaction for swipe-heavy chats.
+- Canonicalized assistant-message branch fingerprints so transient `<npc_state_v1>` / Inventory controls and swipe-index renumbering do not make unchanged visible narrative look like a different branch; existing 0.4.1 sidecars perform a one-time rollback-hash reset while preserving dossiers, relationships, and memories.
+- Applied every returned existing-NPC dossier patch in foreground/recovery scans instead of silently discarding secondary NPC updates when an activity-reference array is incomplete; relationship deltas remain exchange-gated and world-only updates remain restricted.
 - Canonicalized assistant-message branch fingerprints so transient `<npc_state_v1>` and `INVENTORY_BLOCK_UPDATE` controls do not make an unchanged visible narrative look like a different branch after post-generation cleanup; existing 0.4.1 sidecars perform a one-time rollback-hash reset while preserving dossiers, relationships, and memories.
 - Canonicalized assistant-message branch fingerprints so transient `<npc_state_v1>` and `INVENTORY_BLOCK_UPDATE` controls do not make an unchanged visible narrative look like a different branch after post-generation cleanup; this improves recent message-delete rollback reliability.
 - Fixed multi-NPC existing-dossier updates so every valid returned NPC patch in the same foreground/recovery output can be applied even when the model imperfectly omits a secondary existing NPC from an activity array; relationship deltas remain exchange-gated and world-only NPCs retain restricted update semantics.

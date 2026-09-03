@@ -33,11 +33,23 @@ function uniqueStrings(values = [], max = 100) {
     return out;
 }
 
+function collectionPatchEntry(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+        for (const candidate of [value.text, value.value, value.summary, value.description, value.name, value.label, value.memory, value.mannerism, value.behavior, value.trait, value.alias]) {
+            const clean = String(candidate ?? '').trim();
+            if (clean && clean !== '[object Object]') return clean;
+        }
+        return '';
+    }
+    const clean = String(value ?? '').trim();
+    return clean === '[object Object]' ? '' : clean;
+}
+
 function appendUnique(existing = [], incoming = [], max = 12) {
     const out = [...existing];
     const seen = new Set(existing.map(item => normalizeName(item)));
     for (const item of incoming || []) {
-        const clean = String(item ?? '').trim();
+        const clean = collectionPatchEntry(item);
         const key = normalizeName(clean);
         if (!clean || !key || seen.has(key)) continue;
         seen.add(key);

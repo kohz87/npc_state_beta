@@ -12,10 +12,10 @@ let started = false;
 let scheduled = false;
 
 function settings() {
-    let root = extension_settings.npc_state;
+    let root = extension_settings.npc_state_beta;
     if (!root || typeof root !== 'object' || Array.isArray(root)) {
         root = {};
-        extension_settings.npc_state = root;
+        extension_settings.npc_state_beta = root;
     }
     if (!root.v3 || typeof root.v3 !== 'object' || Array.isArray(root.v3)) root.v3 = {};
     if (root.v3.relationshipHistoryLimit === undefined) root.v3.relationshipHistoryLimit = RELATIONSHIP_HISTORY_DEFAULT;
