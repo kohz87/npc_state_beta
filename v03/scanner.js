@@ -545,7 +545,8 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         const from = findNpcByReference(state, raw?.from);
         const to = findNpcByReference(state, raw?.to);
         if (!from || !to || from.id === to.id) continue;
-        if (!targetSet.has(from.id) && !targetSet.has(to.id) && !allowHistoricalProfilePatches) continue;
+        const returnedPair = options.applyReturnedNpcPatches === true && returnedPatchSet.has(from.id) && returnedPatchSet.has(to.id);
+        if (!targetSet.has(from.id) && !targetSet.has(to.id) && !allowHistoricalProfilePatches && !returnedPair) continue;
         const relation = String(raw?.relation || '').trim().slice(0, 160);
         if (!relation) continue;
         const edge = { fromId: from.id, toId: to.id, relation, summary: String(raw?.summary || '').trim().slice(0, 500), updatedAt: Date.now(), sourceMessageId };

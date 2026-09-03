@@ -332,6 +332,11 @@ async function processEmbeddedScan(messageId) {
     const id = Number(messageId);
     const message = ctx?.chat?.[id];
     if (!Number.isInteger(id) || !message || message.is_user || message.is_system) return { ok: false, reason: 'not-assistant-message' };
+    const settings = getSettings();
+    if (settings.enabled === false || settings.autoScan === false) {
+        stripNpcTransportOnly(id);
+        return { ok: false, reason: 'auto-disabled' };
+    }
     const consumed = consumeNpcStateControl(message.mes);
     if (!consumed.found) {
         console.warn('[NPC State Beta] Foreground response omitted <npc_state_v1>.');
