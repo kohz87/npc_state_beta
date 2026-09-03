@@ -2,6 +2,7 @@
 
 ## v0.4.1
 
+- Closed the pre-lock embedded stale-payload race: foreground apply now carries the exact cleaned assistant text that produced the payload and rejects it if that message was edited, replaced, deleted, or shifted before the engine lock begins.
 - Deep hardening: fixed 0.4.1 bundle self-compatibility, beta relationship-history namespace isolation, embedded stale-operation protection, unsafe-branch mutation gates, and deterministic targeted Refresh isolation.
 - Deep hardening: added Inventory Block v0.5 transport compatibility, portrait-light rollback snapshots, generic structured collection normalization, total injection-budget accounting, and per-message checkpoint compaction for swipe-heavy chats.
 - Canonicalized assistant-message branch fingerprints so transient `<npc_state_v1>` / Inventory controls and swipe-index renumbering do not make unchanged visible narrative look like a different branch; existing 0.4.1 sidecars perform a one-time rollback-hash reset while preserving dossiers, relationships, and memories.

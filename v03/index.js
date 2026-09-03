@@ -352,7 +352,7 @@ async function processEmbeddedScan(messageId) {
     }
 
     try {
-        const result = await engine.applyEmbeddedScan(id, consumed.parsed);
+        const result = await engine.applyEmbeddedScan(id, consumed.parsed, { expectedMessageText: consumed.cleanedText });
         if (result?.ok) refreshSurfaces();
         return result;
     } catch (error) {

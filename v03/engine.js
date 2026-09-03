@@ -284,7 +284,7 @@ export function createNpcStateEngine(adapters = {}) {
         });
     }
 
-    async function applyEmbeddedScan(messageId, parsed) {
+    async function applyEmbeddedScan(messageId, parsed, options = {}) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat' || /-pending:/.test(chatKey)) return { ok: false, reason: 'no-chat' };
         const settings = getSettings();
@@ -297,6 +297,12 @@ export function createNpcStateEngine(adapters = {}) {
             const chat = ctx.chat || [];
             const message = chat[messageId];
             if (!message || message.is_system || message.is_user) return { ok: false, reason: 'not-assistant-message' };
+            if (typeof options.expectedMessageText === 'string') {
+                const expectedFingerprint = fingerprintMessage({ ...message, mes: options.expectedMessageText });
+                if (fingerprintMessage(message) !== expectedFingerprint) {
+                    return { ok: false, discarded: true, reason: 'stale-operation', messageId };
+                }
+            }
             const startEpoch = epoch(chatKey);
             const startFingerprint = fingerprintMessage(message);
             const working = normalizeState(state, chatKey);
