@@ -2,6 +2,7 @@
 
 ## v0.4.1
 
+- Isolated stored foreground payload replay per active swipe: when a concrete swipe record exists, missing swipe metadata no longer falls back to potentially stale message-level metadata from another variant.
 - Made forced rescans of an already-scanned assistant message relationship-idempotent: dossier/profile reconciliation may run again, but the same current-exchange relationship delta is not applied twice.
 - Closed the pre-lock embedded stale-payload race: foreground apply now carries the exact cleaned assistant text that produced the payload and rejects it if that message was edited, replaced, deleted, or shifted before the engine lock begins.
 - Deep hardening: fixed 0.4.1 bundle self-compatibility, beta relationship-history namespace isolation, embedded stale-operation protection, unsafe-branch mutation gates, and deterministic targeted Refresh isolation.

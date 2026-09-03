@@ -253,8 +253,9 @@ function latestAssistantMessageId(chat = []) {
 function activeEmbeddedMeta(message) {
     if (!message) return null;
     const swipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
-    const swipeMeta = Array.isArray(message.swipe_info) ? message.swipe_info?.[swipeId]?.extra?.npc_state_beta_v1 : null;
-    return swipeMeta || message.extra?.npc_state_beta_v1 || null;
+    const swipe = Array.isArray(message.swipe_info) ? message.swipe_info?.[swipeId] : null;
+    if (swipe) return swipe.extra?.npc_state_beta_v1 || null;
+    return message.extra?.npc_state_beta_v1 || null;
 }
 
 function persistMessageMutation(ctx, messageId) {
