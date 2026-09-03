@@ -193,6 +193,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- worldActiveNpcIds: NPCs explicitly active off-screen in the current world state. Keep this separate from in-chat participation.',
         '- Every new NPC referenced by those arrays must also have one npcs entry so identity can be created safely.',
         '- For a NEW NPC, behaviorProfile, mannerisms, keyRelationships, and memories are bootstrap collections: return arrays containing all grounded entries established by the CURRENT exchange; use [] only when none are supported. Do not use null for those four fields on a new NPC. A first scene can establish behavior or mannerisms when the text explicitly describes or clearly demonstrates a characteristic pattern, gesture, habit, or social tendency; prior sightings are not required.',
+        '- A single scan may introduce MULTIPLE new individually relevant NPCs. Do not stop after the first. Return one separate npcs object for every such NPC. For every NEW NPC use id as an empty string; never invent a stable ID. Reference each new NPC in exchangeActiveNpcIds, inChatNpcIds, or worldActiveNpcIds by the exact canonical name or unique role label that appears in its npcs object. Do not add new npcs entries for named-only mentions, crowds, background workers, incidental guards, or other non-individually-relevant characters.',
         '- The PLAYER/current USER persona is not an NPC for this scanner, even when named in narration. Never create the PLAYER as an npcs entry.',
         '- relationship, relationshipSummary, and relationshipChange describe THIS NPC toward the PLAYER. They are the dedicated player-relationship channel.',
         '- keyRelationships contains significant NON-PLAYER ties only, such as family, friends, rivals, patrons, dependents, or other NPCs. Never include the PLAYER/current USER persona there.',
@@ -416,7 +417,18 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     const exchangeRefs = uniqueStrings(result.exchangeActiveNpcIds);
     const presentRefs = uniqueStrings(result.finalPresentNpcIds);
     const worldRefs = uniqueStrings(result.worldActiveNpcIds);
-    const targetRefs = [...new Set([...exchangeRefs, ...presentRefs])];
+    // New idless patches are themselves explicit bootstrap observations. Trust them as
+    // bootstrap candidates so an imperfect reference array cannot silently discard the
+    // second or third new NPC from an otherwise valid embedded scan. The prompt forbids
+    // background/mentioned-only characters from being emitted as new npcs entries.
+    const bootstrapRefs = uniqueStrings(result.npcs
+        .filter(patch => {
+            const patchId = String(patch?.id || '').trim();
+            const name = String(patch?.name || '').trim();
+            return !patchId && name && !GENERIC_REFERENCES.has(normalizeName(name)) && !findNpcByReference(state, name);
+        })
+        .map(patch => String(patch.name).trim()));
+    const targetRefs = [...new Set([...exchangeRefs, ...presentRefs, ...bootstrapRefs])];
 
     const deletedIds = new Set(state.deletedNpcIds || []);
     const patchByNpcId = new Map();
@@ -464,7 +476,8 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     const exchangeIds = resolveRefs(exchangeRefs);
     const presentIds = resolveRefs(presentRefs);
     const worldIds = resolveRefs(worldRefs);
-    const targetIds = [...new Set([...exchangeIds, ...presentIds])];
+    const bootstrapIds = resolveRefs(bootstrapRefs);
+    const targetIds = [...new Set([...exchangeIds, ...presentIds, ...bootstrapIds])];
     const targetSet = new Set(targetIds);
     const exchangeSet = new Set(exchangeIds);
     const worldSet = new Set(worldIds);
