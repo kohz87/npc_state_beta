@@ -216,7 +216,8 @@ export function createNpcStateEngine(adapters = {}) {
             const state = await loadChat(chatKey);
             if (!state) return { ok: false, reason: 'no-state' };
             if (state.branchSafety?.status !== 'safe') return { ok: false, reason: 'branch-unsafe', messageId };
-            if (!force && state.lastScannedMessageId === messageId) return { ok: true, skipped: true, reason: 'already-scanned', messageId };
+            const alreadyScannedMessage = state.lastScannedMessageId === messageId;
+            if (!force && alreadyScannedMessage) return { ok: true, skipped: true, reason: 'already-scanned', messageId };
             const ctx = getContext();
             const chat = ctx.chat || [];
             const exchange = currentExchange(chat, messageId);
@@ -247,6 +248,7 @@ export function createNpcStateEngine(adapters = {}) {
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 dossierLimits: settings.dossierLimits,
                 applyReturnedNpcPatches: true,
+                applyRelationship: !alreadyScannedMessage,
             });
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
             const referencedNpcIds = referencedNpcIdsFromExchange(applied.state, exchange);
