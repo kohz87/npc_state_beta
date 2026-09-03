@@ -8,6 +8,7 @@ on:
       - beta/post-build-patch.mjs
       - beta/harden-0.4.1.mjs
       - beta/fix-0.4.1-roster-copy.mjs
+      - beta/fix-0.4.1-new-npc-bootstrap.mjs
       - .github/workflows/seed-beta.yml
 
 permissions:
@@ -38,6 +39,7 @@ jobs:
           node beta/post-build-patch.mjs
           node beta/harden-0.4.1.mjs
           node beta/fix-0.4.1-roster-copy.mjs
+          node beta/fix-0.4.1-new-npc-bootstrap.mjs
 
       - name: Syntax gate
         run: |
@@ -45,6 +47,7 @@ jobs:
           node --check beta/post-build-patch.mjs
           node --check beta/harden-0.4.1.mjs
           node --check beta/fix-0.4.1-roster-copy.mjs
+          node --check beta/fix-0.4.1-new-npc-bootstrap.mjs
           node --check bootstrap.js
           node --check v03/index.js
           node --check v03/engine.js
@@ -98,6 +101,10 @@ jobs:
           grep -q "runSeparateRecoveryScan" v03/index.js
           grep -q "reapplyStoredEmbeddedPayload" v03/index.js
           grep -q "inChatNpcIds" v03/scanner.js
+          grep -q "For a NEW NPC, behaviorProfile, mannerisms, keyRelationships, and memories are bootstrap collections" v03/injection.js
+          grep -q "For a NEW NPC, behaviorProfile, mannerisms, keyRelationships, and memories are bootstrap collections" v03/scanner.js
+          grep -q "behaviorProfile: \[\], speech: '', mannerisms: \[\]" v03/scanner.js
+          grep -q '"behaviorProfile":\[\],"speech":"","mannerisms":\[\]' v03/injection.js
           grep -q "In chat" v03/dossier-view.js
           grep -q "Persistent NPC State 0.4.1 database" v03/ui.js
           ! grep -q "Persistent v0.3 database" v03/ui.js
@@ -113,5 +120,5 @@ jobs:
             echo "No generated changes"
             exit 0
           fi
-          git commit -m "NPC State v0.4.1: fix roster version copy"
+          git commit -m "NPC State v0.4.1: fix new NPC bootstrap collections"
           git push
