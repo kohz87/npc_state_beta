@@ -10,6 +10,7 @@ on:
       - beta/fix-0.4.1-roster-copy.mjs
       - beta/fix-0.4.1-new-npc-bootstrap.mjs
       - beta/fix-0.4.1-first-run-stable-probe.mjs
+      - beta/fix-0.4.1-key-relationship-shape.mjs
       - .github/workflows/seed-beta.yml
 
 permissions:
@@ -42,6 +43,7 @@ jobs:
           node beta/fix-0.4.1-roster-copy.mjs
           node beta/fix-0.4.1-new-npc-bootstrap.mjs
           node beta/fix-0.4.1-first-run-stable-probe.mjs
+          node beta/fix-0.4.1-key-relationship-shape.mjs
 
       - name: Syntax gate
         run: |
@@ -51,6 +53,7 @@ jobs:
           node --check beta/fix-0.4.1-roster-copy.mjs
           node --check beta/fix-0.4.1-new-npc-bootstrap.mjs
           node --check beta/fix-0.4.1-first-run-stable-probe.mjs
+          node --check beta/fix-0.4.1-key-relationship-shape.mjs
           node --check bootstrap.js
           node --check v03/index.js
           node --check v03/engine.js
@@ -60,6 +63,7 @@ jobs:
           node --check v03/storage.js
           node --check v03/ui.js
           node --check v03/dossier-view.js
+          node --check v03/schema.js
 
       - name: Foreground parser compatibility gate
         run: |
@@ -112,6 +116,10 @@ jobs:
           grep -q "keyRelationships is mandatory dossier data" v03/scanner.js
           grep -q "socialEdges is complementary graph data and MUST NOT substitute for keyRelationships" v03/injection.js
           grep -q "socialEdges is complementary graph data and MUST NOT substitute for keyRelationships" v03/scanner.js
+          grep -q "KeyRelationships entries MUST be strings, never objects" v03/injection.js
+          grep -q "KeyRelationships entries MUST be strings, never objects" v03/scanner.js
+          grep -q "normalizeKeyRelationshipEntries" v03/schema.js
+          grep -q "normalizeKeyRelationshipEntries" v03/scanner.js
           grep -q "behaviorProfile: \[\], speech: '', mannerisms: \[\]" v03/scanner.js
           grep -q '"behaviorProfile":\[\],"speech":"","mannerisms":\[\]' v03/injection.js
           grep -q "In chat" v03/dossier-view.js
@@ -119,6 +127,47 @@ jobs:
           ! grep -q "Persistent v0.3 database" v03/ui.js
           ! grep -q "load its v0.3 dossier" v03/ui.js
           grep -q '"version": "0.4.1"' manifest.json
+
+      - name: Key relationship normalization gate
+        run: |
+          node --input-type=module <<'EOF'
+          import { createEmptyState, normalizeKeyRelationshipEntries, normalizeNpc } from './v03/schema.js';
+          import { applyScanResult } from './v03/scanner.js';
+
+          const shaped = normalizeKeyRelationshipEntries([
+            { name: 'Astra', relation: 'sister' },
+            { npc: 'Brina', relationship: 'mother' },
+            '[object Object]',
+          ]);
+          if (shaped[0] !== 'Astra - sister' || shaped[1] !== 'Brina - mother' || shaped.some(value => value.includes('[object Object]'))) {
+            throw new Error('Structured key relationship values were not normalized');
+          }
+
+          const legacy = normalizeNpc({
+            name: 'Kiri',
+            keyRelationships: [{ name: 'Astra', relationship: 'sister' }, '[object Object]'],
+          });
+          if (legacy.keyRelationships.length !== 1 || legacy.keyRelationships[0] !== 'Astra - sister') {
+            throw new Error('Schema boundary did not normalize legacy/object-shaped key relationships');
+          }
+
+          const applied = applyScanResult(createEmptyState('test-chat'), {
+            exchangeActiveNpcIds: ['Kiri'],
+            inChatNpcIds: ['Kiri'],
+            worldActiveNpcIds: [],
+            npcs: [{
+              id: '',
+              name: 'Kiri',
+              keyRelationships: [{ name: 'Astra', relation: 'sister' }],
+            }],
+            socialEdges: [],
+          }, { sourceMessageId: 1, turn: 1 });
+          const kiri = applied.state.npcs.find(npc => npc.name === 'Kiri');
+          if (!kiri || kiri.keyRelationships[0] !== 'Astra - sister') {
+            throw new Error('Scanner apply path did not normalize structured key relationships');
+          }
+          console.log('Key relationship normalization gate passed');
+          EOF
 
       - name: Commit generated beta runtime
         run: |
@@ -129,5 +178,5 @@ jobs:
             echo "No generated changes"
             exit 0
           fi
-          git commit -m "NPC State v0.4.1: harden family key relationships"
+          git commit -m "NPC State v0.4.1: normalize key relationship values"
           git push
