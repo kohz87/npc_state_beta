@@ -51,6 +51,7 @@ function file(path) {
 {
     const engine = file('v03/engine.js');
     const index = file('v03/index.js');
+    const ui = file('v03/ui.js');
     assert(engine.includes('const alreadyScannedMessage = state.lastScannedMessageId === messageId'), 'Repeated-scan idempotence flag missing');
     assert(engine.includes('applyRelationship: !alreadyScannedMessage'), 'Repeated forced scan can replay relationship deltas');
     assert(engine.includes("typeof options.expectedMessageText === 'string'"), 'Pre-lock embedded expected-message guard missing');
@@ -58,6 +59,10 @@ function file(path) {
     assert(index.includes("settings.enabled === false || settings.autoScan === false"), 'Disabled foreground quiet path missing');
     assert(index.includes('stripNpcTransportOnly(id);'), 'Disabled foreground path does not clean stray transport');
     assert(index.includes('if (swipe) return swipe.extra?.npc_state_beta_v1 || null;'), 'Active swipe can still fall back to another swipe message payload');
+    assert(index.includes("return runSeparateRecoveryScan(id, 'foreground-missing-control');"), 'Missing embedded capture does not automatically invoke a full recovery scan');
+    assert(!index.includes("maybeForegroundFallback(id, 'missing-control')"), 'Missing embedded capture still depends on the optional fallback toggle');
+    assert(ui.includes('Missing embedded capture always triggers one full scan.'), 'Recovery UI does not explain unconditional missing-capture fallback');
+    assert(ui.includes('Malformed capture recovery'), 'Recovery toggle is still ambiguously labeled for missing capture');
 }
 
 console.log('NPC State 0.4.1 final foreground/replay verification passed');
