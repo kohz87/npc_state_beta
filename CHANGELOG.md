@@ -2,6 +2,7 @@
 
 ## v0.4.1
 
+- Hardened new-NPC identity authority: model-invented ids are ignored for new dossiers, existing dossiers reconcile by canonical name when an unknown id is returned, proper names take priority over role labels, and same-payload activity/social references map to the locally allocated stable id.
 - Clarified dossier current status semantics: status now means the NPC concrete immediate activity, situation, or condition, never active/inactive/in-chat/off-screen/archive lifecycle state. Lifecycle-only status pollution is rejected deterministically and existing generic values normalize away on load.
 - Missing embedded foreground capture now automatically falls back to one full separate current-cast scan whenever embedded scanning is enabled; the recovery toggle now applies only to malformed embedded blocks.
 - Silenced foreground missing-capture warnings when NPC State or embedded auto-scan is intentionally disabled; any stray NPC transport is cleanup-only and never applied.

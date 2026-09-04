@@ -184,7 +184,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         worldActiveNpcIds: ['existing dossier id OR exact canonical name'],
         npcs: [{
             id: 'existing id when known, otherwise empty',
-            name: 'canonical NPC name or unique NPC role label',
+            name: 'canonical proper name when known; unique role label only if genuinely unnamed',
             aliases: [], role: '', species: '', age: '', apparentAge: '~N only, e.g. ~25, or empty', appearance: '', personality: '',
             behaviorProfile: [], speech: '', mannerisms: [], background: '', keyRelationships: [], memories: [],
             relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0,
@@ -206,6 +206,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- worldActiveNpcIds: NPCs explicitly active off-screen in the current world state. Keep this separate from in-chat participation.',
         '- status is the NPC current concrete activity, immediate situation, or condition: what they are doing or undergoing now, for example standing watch at the gate, bandaging a wound, travelling toward Bluewatch, or asleep by the hearth. It is NOT lifecycle presence. Never use active, inactive, in chat, off-screen, present, archived, or equivalent lifecycle labels as status; those are tracked separately.',
         '- Every new NPC referenced by those arrays must also have one npcs entry so identity can be created safely.',
+        '- For NEW NPC identity: if a proper/personal name is established anywhere in the current exchange, npcs.name MUST be that canonical name and nothing else. Put occupation/function such as Clerk, Guard, Innkeeper, or Receptionist in role, not in name. Use a unique role label as name only while the NPC is genuinely unnamed. Always return id as an empty string for a new NPC; NPC State assigns the stable id locally. Never invent an npc-* id.',
         '- For a NEW NPC, behaviorProfile, mannerisms, keyRelationships, and memories are bootstrap collections: return arrays containing all grounded entries established by the CURRENT exchange; use [] only when none are supported. Do not use null for those four fields on a new NPC. A first scene can establish behavior or mannerisms when the text explicitly describes or clearly demonstrates a characteristic pattern, gesture, habit, or social tendency; prior sightings are not required.',
         '- A single scan may introduce MULTIPLE new individually relevant NPCs. Do not stop after the first. Return one separate npcs object for every such NPC. For every NEW NPC use id as an empty string; never invent a stable ID. Reference each new NPC in exchangeActiveNpcIds, inChatNpcIds, or worldActiveNpcIds by the exact canonical name or unique role label that appears in its npcs object. Do not add new npcs entries for named-only mentions, crowds, background workers, incidental guards, or other non-individually-relevant characters.',
         '- A single scan may update MULTIPLE existing NPCs in the same response. Do not stop after the first and do not omit a dossier patch merely because another NPC is more prominent. Return one separate npcs object for every individually relevant existing NPC whose grounded dossier data is established, corrected, or materially changed in this response. Keep exchangeActiveNpcIds, inChatNpcIds, and worldActiveNpcIds complete for their own semantics.',
@@ -290,7 +291,9 @@ function createFromPatch(patch, sourceMessageId) {
     const name = String(patch?.name || '').trim();
     if (!name || GENERIC_REFERENCES.has(normalizeName(name))) return null;
     return normalizeNpc({
-        id: String(patch?.id || '').trim() || makeNpcId(name, `${sourceMessageId}-${Math.random()}`),
+        // Never trust a model-supplied id for a dossier that does not already exist.
+        // Stable ids are allocated by NPC State itself from the canonical returned name.
+        id: makeNpcId(name, `${sourceMessageId}-${Math.random()}`),
         name,
         firstSeenMessageId: Number.isInteger(sourceMessageId) ? sourceMessageId : null,
         createdAt: Date.now(),
@@ -443,7 +446,8 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         .filter(patch => {
             const patchId = String(patch?.id || '').trim();
             const name = String(patch?.name || '').trim();
-            return !patchId && name && !GENERIC_REFERENCES.has(normalizeName(name)) && !findNpcByReference(state, name);
+            const knownId = Boolean(patchId && state.npcs.some(item => item.id === patchId));
+            return !knownId && name && !GENERIC_REFERENCES.has(normalizeName(name)) && !findNpcByReference(state, name);
         })
         .map(patch => String(patch.name).trim()));
     const targetRefs = [...new Set([...exchangeRefs, ...presentRefs, ...bootstrapRefs])];
@@ -454,11 +458,10 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         const patchId = String(patch?.id || '').trim();
         if (patchId && deletedIds.has(patchId)) continue;
         let npc = patchId ? state.npcs.find(item => item.id === patchId) || null : null;
-        if (!patchId && patch?.name) npc = findNpcByReference(state, String(patch.name));
-        if (patchId && !npc && patch?.name && findNpcByReference(state, String(patch.name))) {
-            // Stable IDs are authoritative once known. A model-supplied unknown ID must not
-            // retarget a same-name live dossier or create a duplicate identity.
-            continue;
+        if (!npc && patch?.name) {
+            // Unknown model ids are never authoritative. Exact canonical name/alias may
+            // still reconcile the returned patch to an existing dossier safely.
+            npc = findNpcByReference(state, String(patch.name));
         }
         const referenced = targetRefs.some(ref => patchReferenceMatches(patch, ref)) || worldRefs.some(ref => patchReferenceMatches(patch, ref));
         if (!npc && referenced) {
@@ -478,12 +481,17 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             if (!npc) {
                 const patch = result.npcs.find(item => patchReferenceMatches(item, ref));
                 if (patch) {
-                    const created = createFromPatch(patch, sourceMessageId);
-                    if (created && !deletedIds.has(created.id) && !(state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
-                        state.npcs.push(created);
-                        patchByNpcId.set(created.id, patch);
-                        npc = created;
+                    // The first bootstrap pass may already have created this patch under a
+                    // locally allocated id. Resolve by its canonical returned name first.
+                    npc = patch?.name ? findNpcByReference(state, String(patch.name)) : null;
+                    if (!npc) {
+                        const created = createFromPatch(patch, sourceMessageId);
+                        if (created && !deletedIds.has(created.id) && !(state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
+                            state.npcs.push(created);
+                            npc = created;
+                        }
                     }
+                    if (npc) patchByNpcId.set(npc.id, patch);
                 }
             }
             if (npc && !ids.includes(npc.id)) ids.push(npc.id);
@@ -544,11 +552,17 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         });
     }
 
+    const resolveReturnedReference = reference => {
+        const direct = findNpcByReference(state, reference);
+        if (direct) return direct;
+        const patch = result.npcs.find(item => patchReferenceMatches(item, reference));
+        return patch?.name ? findNpcByReference(state, String(patch.name)) : null;
+    };
     const edgeMap = new Map((state.socialGraph || []).map(edge => [socialEdgeKey(edge), edge]));
     for (const raw of result.socialEdges) {
         if (keyRelationshipReferencesPlayer(raw?.from, playerName) || keyRelationshipReferencesPlayer(raw?.to, playerName)) continue;
-        const from = findNpcByReference(state, raw?.from);
-        const to = findNpcByReference(state, raw?.to);
+        const from = resolveReturnedReference(raw?.from);
+        const to = resolveReturnedReference(raw?.to);
         if (!from || !to || from.id === to.id) continue;
         const returnedPair = options.applyReturnedNpcPatches === true && returnedPatchSet.has(from.id) && returnedPatchSet.has(to.id);
         if (!targetSet.has(from.id) && !targetSet.has(to.id) && !allowHistoricalProfilePatches && !returnedPair) continue;
