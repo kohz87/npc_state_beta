@@ -23,6 +23,7 @@ on:
       - beta/fix-0.4.1-age-semantics.mjs
       - beta/fix-0.4.1-form-aware-appearance.mjs
       - beta/fix-0.4.1-form-capture-semantics.mjs
+      - beta/fix-0.4.1-form-baseline-recovery.mjs
       - beta/verify-0.4.1.mjs
       - beta/verify-final-0.4.1.mjs
       - beta/verify-status-semantics-0.4.1.mjs
@@ -31,6 +32,7 @@ on:
       - beta/verify-age-semantics-0.4.1.mjs
       - beta/verify-form-aware-appearance-0.4.1.mjs
       - beta/verify-form-capture-semantics-0.4.1.mjs
+      - beta/verify-form-baseline-recovery-0.4.1.mjs
       - .github/workflows/seed-beta.yml
 
 permissions:
@@ -80,6 +82,7 @@ jobs:
           node beta/fix-0.4.1-age-semantics.mjs
           node beta/fix-0.4.1-form-aware-appearance.mjs
           node beta/fix-0.4.1-form-capture-semantics.mjs
+          node beta/fix-0.4.1-form-baseline-recovery.mjs
 
       - name: Syntax gate
         run: |
@@ -97,6 +100,7 @@ jobs:
           node beta/verify-age-semantics-0.4.1.mjs
           node beta/verify-form-aware-appearance-0.4.1.mjs
           node beta/verify-form-capture-semantics-0.4.1.mjs
+          node beta/verify-form-baseline-recovery-0.4.1.mjs
 
       - name: Architecture and migration gate
         run: |
@@ -130,6 +134,7 @@ jobs:
           grep -q "appearanceForms stores durable canonical descriptions" v03/scanner.js
           grep -q "A physical form MAY be temporary, reversible, magical, elemental, spectral, or energy-made" v03/scanner.js
           grep -q "Capture EVERY distinct form state explicitly entered in this response" v03/injection.js
+          grep -q "RECOVERY: if an older scan already captured an alternate form but no Base entry" v03/scanner.js
           grep -q "name: 'Base'" v03/scanner.js
           grep -q "Known physical forms" v03/injection.js
           grep -q "Appearance forms" v03/dossier-view.js
