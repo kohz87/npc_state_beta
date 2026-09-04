@@ -111,8 +111,10 @@ function resolvePlayerName(explicit = '', chat = [], assistantMessageId = null) 
 }
 
 function containsNormalizedPhrase(value, phrase) {
-    const haystack = normalizeName(value);
-    const needle = normalizeName(phrase);
+    // normalizeName() intentionally caps identity keys at 160 chars. Evidence/search
+    // haystacks are not identity keys and must not silently stop matching after char 160.
+    const haystack = evidenceTextKey(value, 50000);
+    const needle = evidenceTextKey(phrase, 600);
     return Boolean(haystack && needle && ` ${haystack} `.includes(` ${needle} `));
 }
 
@@ -251,8 +253,8 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- Existing form descriptions are sticky continuity facts. Never change an established form because later prose casually uses different dimensions, colors, anatomy, or proportions. Use appearanceFormChanges only when the CURRENT exchange explicitly corrects canon or establishes a real persistent physical change/growth/evolution. Every appearanceFormChanges entry requires concrete evidence; otherwise omit it.',
         ...dossierCollectionRules(limits),
         '- Do not infer romance, obedience, hostility, personality, motives, secrets, age, species, or relationships without evidence.',
-        '- Confirmed death requires explicit current-timeline evidence. Ambiguous danger/injury is not death.',
-        '- livingReturn is true only when a previously archived/dead dossier is explicitly alive, surviving, resurrected, or physically returned.',
+        '- Confirmed death requires explicit current-timeline evidence. Ambiguous danger/injury is not death. lifeStateReason must state the concrete evidence and is backend-grounded against visible narrative or World_State.',
+        '- livingReturn is true only when a previously archived/dead dossier is explicitly alive, surviving, resurrected, or physically returned. It also requires a grounded lifeStateReason; merely outputting lifeState alive never resurrects a confirmed dead dossier.',
         '- Stable scalar profile fields should contain only newly established or clearly supported facts. Omit/empty scalar fields rather than guessing.',
         '- DURABLE SCALAR CANON: established ordinary Appearance, Species, Background, and Role are sticky. Do not restate them with a different value merely because wording drifts. Any real revision must include canonChanges with the same field/value plus grounded evidence. appearance refine adds compatible lasting detail; appearance change needs a lasting physical change; species accepts explicit correction/revelation or a genuine permanent species change; background accepts grounded refinement/revelation/correction; role change needs an actual promotion/reassignment/retirement/etc. Scanner importance is non-authoritative and must not be used to raise dossier priority.',
         '- DURABLE PROFILE EVOLUTION: a new NPC may establish grounded foundational personality/behavior/speech/mannerisms from its first rich scene. For an EXISTING established field, never rewrite personality, behaviorProfile, speech, or mannerisms merely because one scene looks different. Any genuine change requires a matching profileChanges entry with field, mode, stable concept label, and concrete evidence. refine adds compatible detail only and must not smuggle no-longer/became/increasingly transitions or morality flips. gradual development requires the same concept to be independently supported on a later scan. explicit requires narration that clearly establishes a lasting/corrective change. batch requires an actual narrated time skip plus development across that skipped period. A one-off gesture is not a permanent mannerism; mannerism seeding needs recurring/habit language or repeated confirmation.',
@@ -459,7 +461,7 @@ function createFromPatch(patch, sourceMessageId, referenceCandidates = []) {
     });
 }
 
-function mergeAppearanceFormPatch(existingValue, newValue, revisionValue) {
+function mergeAppearanceFormPatch(existingValue, newValue, revisionValue, evidenceContext = '') {
     const out = normalizeAppearanceForms(existingValue);
     const indexByName = () => new Map(out.map((form, index) => [normalizeName(form.name), index]));
     let indices = indexByName();
@@ -479,6 +481,7 @@ function mergeAppearanceFormPatch(existingValue, newValue, revisionValue) {
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
         const evidence = String(raw.evidence || raw.reason || '').trim();
         if (!evidence) continue;
+        if (String(evidenceContext || '').trim() && !profileEvidenceGrounded(evidence, evidenceContext)) continue;
         const revised = normalizeAppearanceForms([raw])[0];
         if (!revised) continue;
         const key = normalizeName(revised.name);
@@ -499,8 +502,8 @@ const PROFILE_KIND_CUES = /\b(kind|gentle|compassionate|empathetic|merciful|cari
 const PROFILE_CRUEL_CUES = /\b(cruel|callous|sadistic|merciless|brutal|ruthless|heartless)\b/i;
 
 function profileValueKey(value) {
-    if (Array.isArray(value)) return value.map(item => normalizeName(item)).filter(Boolean).join(' | ');
-    return normalizeName(value);
+    if (Array.isArray(value)) return value.map(item => evidenceTextKey(item, 1400)).filter(Boolean).join(' | ');
+    return evidenceTextKey(value, 5000);
 }
 
 function profileChangeForField(patch, field) {
@@ -546,13 +549,21 @@ function appendProfileEvolutionEvidence(npc, change, field, options = {}) {
     const concept = String(change?.concept || '').trim().slice(0, 180);
     const evidence = String(change?.evidence || '').trim().slice(0, 600);
     if (!concept || !evidence) return;
-    npc.profileEvolutionEvidence = normalizeProfileEvolutionEvidence([...(npc.profileEvolutionEvidence || []), {
+    const sourceMessageId = Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null;
+    const turn = Number.isInteger(options.turn) ? options.turn : null;
+    const existing = normalizeProfileEvolutionEvidence(npc.profileEvolutionEvidence);
+    const duplicateSource = existing.some(entry =>
+        entry.field === field
+        && normalizeName(entry.concept) === normalizeName(concept)
+        && (sourceMessageId !== null ? entry.sourceMessageId === sourceMessageId : (turn !== null && entry.sourceMessageId == null && entry.turn === turn)));
+    if (duplicateSource) return;
+    npc.profileEvolutionEvidence = normalizeProfileEvolutionEvidence([...existing, {
         field,
         mode: String(change?.mode || 'gradual').trim(),
         concept,
         evidence,
-        sourceMessageId: Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null,
-        turn: Number.isInteger(options.turn) ? options.turn : null,
+        sourceMessageId,
+        turn,
         at: Date.now(),
     }]);
 }
@@ -602,10 +613,16 @@ function profileEvolutionDecision(npc, patch, field, incomingValue, options = {}
     }
 
     // Gradual development needs the same labeled concept on a different prior scan.
-    const prior = normalizeProfileEvolutionEvidence(npc.profileEvolutionEvidence).find(entry =>
-        entry.field === field
-        && normalizeName(entry.concept) === concept
-        && (entry.sourceMessageId !== options.sourceMessageId || entry.turn !== options.turn));
+    const prior = normalizeProfileEvolutionEvidence(npc.profileEvolutionEvidence).find(entry => {
+        if (entry.field !== field || normalizeName(entry.concept) !== concept) return false;
+        // A rescan of the same assistant message may advance the internal turn counter.
+        // Message identity is authoritative whenever both sides have one; turn is fallback.
+        if (Number.isInteger(entry.sourceMessageId) && Number.isInteger(options.sourceMessageId)) {
+            return entry.sourceMessageId !== options.sourceMessageId;
+        }
+        if (Number.isInteger(entry.turn) && Number.isInteger(options.turn)) return entry.turn !== options.turn;
+        return true;
+    });
     return { apply: Boolean(prior), queue: true, change };
 }
 
@@ -620,7 +637,7 @@ function keyRelationshipOtherKey(entry) {
     return normalizeName(keyRelationshipParts(entry).other);
 }
 
-function mergeKeyRelationshipPatch(existingValue, incomingValue, changesValue, limit) {
+function mergeKeyRelationshipPatch(existingValue, incomingValue, changesValue, limit, evidenceContext = '') {
     const out = normalizeKeyRelationshipEntries(existingValue, Math.max(limit, 30), 500);
     const indexFor = () => new Map(out.map((entry, index) => [keyRelationshipOtherKey(entry), index]).filter(([key]) => key));
     let indices = indexFor();
@@ -635,6 +652,7 @@ function mergeKeyRelationshipPatch(existingValue, incomingValue, changesValue, l
         const evidence = String(raw.evidence || raw.reason || '').trim();
         const key = normalizeName(raw.other || raw.name || raw.target);
         if (!evidence || !key) continue;
+        if (String(evidenceContext || '').trim() && !profileEvidenceGrounded(evidence, evidenceContext)) continue;
         for (let i = out.length - 1; i >= 0; i -= 1) if (keyRelationshipOtherKey(out[i]) === key) out.splice(i, 1);
     }
     return normalizeKeyRelationshipEntries(out, limit, 500);
@@ -655,7 +673,7 @@ function familySlotKey(ownerId, relation, twinGroup = '') {
     return String(ownerId || '') + '|' + familyRole(relation) + '|' + normalizeName(relation) + '|' + normalizeName(twinGroup);
 }
 
-function addFamilyFacts(state, facts, resolveReference, sourceMessageId) {
+function addFamilyFacts(state, facts, resolveReference, sourceMessageId, evidenceContext = '') {
     const slots = normalizeFamilySlots(state.familySlots, new Set(state.npcs.map(npc => npc.id)));
     const byKey = new Map(slots.map((slot, index) => [familySlotKey(slot.ownerId, slot.relation, slot.twinGroup), index]));
     for (const raw of Array.isArray(facts) ? facts : []) {
@@ -664,6 +682,7 @@ function addFamilyFacts(state, facts, resolveReference, sourceMessageId) {
         const evidence = String(raw?.evidence || '').trim().slice(0, 600);
         const role = familyRole(relation);
         if (!owner || !role || !relation || !evidence) continue;
+        if (String(evidenceContext || '').trim() && !profileEvidenceGrounded(evidence, evidenceContext)) continue;
         const count = Math.max(1, Math.min(20, Math.round(Number(raw?.count) || 1)));
         const descriptor = String(raw?.descriptor || '').trim().slice(0, 240);
         const twinGroup = String(raw?.twinGroup || '').trim().slice(0, 160);
@@ -915,7 +934,7 @@ function applyStablePatch(npc, patch, options = {}) {
         if (!hasBase && (firstAlternate || wantsBase) && String(npc.appearance || '').trim()) {
             next.appearanceForms = [...existingForms, { name: 'Base', appearance: String(npc.appearance).trim() }];
         }
-        next.appearanceForms = mergeAppearanceFormPatch(next.appearanceForms, incomingForms, patch?.appearanceFormChanges);
+        next.appearanceForms = mergeAppearanceFormPatch(next.appearanceForms, incomingForms, patch?.appearanceFormChanges, String(options.profileContext || ''));
     }
     if (!locked.has('aliases')) {
         const safeAliases = (Array.isArray(patch?.aliases) ? patch.aliases : []).filter(alias => humanIdentityCandidate(alias, patch?.role));
@@ -936,7 +955,7 @@ function applyStablePatch(npc, patch, options = {}) {
     if (!locked.has('keyRelationships') && (Array.isArray(patch?.keyRelationships) || Array.isArray(patch?.keyRelationshipChanges))) {
         const incoming = normalizeKeyRelationshipEntries(patch.keyRelationships, limits.keyRelationships, 500)
             .filter(item => !keyRelationshipReferencesPlayer(item, options.playerName));
-        next.keyRelationships = mergeKeyRelationshipPatch(next.keyRelationships, incoming, patch?.keyRelationshipChanges, limits.keyRelationships);
+        next.keyRelationships = mergeKeyRelationshipPatch(next.keyRelationships, incoming, patch?.keyRelationshipChanges, limits.keyRelationships, String(options.profileContext || ''));
     }
     return next;
 }
@@ -1051,12 +1070,12 @@ function selectRelationshipAxes(delta, axisLimit) {
 const DESIRE_EVIDENCE_CUES = /\b(desire|desires|desired|desiring|attract|attracts|attracted|attraction|romantic|romance|intimacy|intimate|kiss|kisses|kissed|kissing|sexual|sexually|lust|longing|yearn|yearns|yearned|yearning|flirt|flirts|flirted|flirting|date|dating|lover|physical closeness|physical contact|physically drawn|wants? (?:him|her|them|the player) physically|drawn to)\b/i;
 
 function relationshipTextTokens(value) {
-    return normalizeName(value).split(/\s+/).filter(token => token.length >= 3);
+    return evidenceTextKey(value, 1600).split(/\s+/).filter(token => token.length >= 3);
 }
 
 function relationshipTextSimilarity(a, b) {
-    const leftText = normalizeName(a);
-    const rightText = normalizeName(b);
+    const leftText = evidenceTextKey(a, 1600);
+    const rightText = evidenceTextKey(b, 1600);
     if (!leftText || !rightText) return 0;
     if (leftText === rightText) return 1;
     const left = new Set(relationshipTextTokens(leftText));
@@ -1258,31 +1277,51 @@ function applyRelationshipChange(npc, patch, options = {}) {
     }
     return next;
 }
-function applyLifeState(npc, patch, options) {
+function applyLifeState(npc, patch, options = {}) {
     const next = structuredClone(npc);
-    const lifeState = String(patch?.lifeState || '').trim();
+    const lifeState = String(patch?.lifeState || '').trim().toLocaleLowerCase();
     const certainty = String(patch?.lifeStateCertainty || '').trim();
     const reason = String(patch?.lifeStateReason || '').trim();
+    const policy = options.evidencePolicy && typeof options.evidencePolicy === 'object' ? options.evidencePolicy : null;
+    const lifeContext = policy?.detected
+        ? [policy.visibleText, policy.worldStateText].filter(Boolean).join('\n')
+        : String(options.profileContext || '');
+    const grounded = Boolean(reason && (!lifeContext.trim() || profileEvidenceGrounded(reason, lifeContext)));
+    const wasDead = String(npc?.lifeState || '').toLocaleLowerCase() === 'dead'
+        || (npc?.archived === true && String(npc?.archiveReason || '').toLocaleLowerCase() === 'deceased');
+
+    // A dead/archived dossier may return only through the explicit livingReturn channel,
+    // and that channel must point back to visible/world current-continuity evidence.
     if (patch?.livingReturn === true) {
+        if (!grounded) return next;
         next.archived = false;
         next.archiveReason = '';
         next.archivedAt = null;
         next.lifeState = 'alive';
         next.lifeStateCertainty = certainty || 'explicit';
-        next.lifeStateReason = reason || 'Explicit living return in current continuity.';
+        next.lifeStateReason = reason;
         return next;
     }
-    if (['alive', 'dead', 'unknown'].includes(lifeState)) {
-        next.lifeState = lifeState;
+
+    if (lifeState === 'dead') {
+        if (!['explicit', 'confirmed'].includes(certainty.toLocaleLowerCase()) || !grounded) return next;
+        next.lifeState = 'dead';
         next.lifeStateCertainty = certainty;
-        if (reason) next.lifeStateReason = reason;
-    }
-    if (lifeState === 'dead' && ['explicit', 'confirmed'].includes(certainty.toLocaleLowerCase())) {
+        next.lifeStateReason = reason;
         next.archived = true;
         next.archiveReason = 'deceased';
         next.archivedAt = Date.now();
         next.present = false;
         next.worldActive = false;
+        return next;
+    }
+
+    // Merely outputting alive must never resurrect a confirmed dead dossier.
+    if (lifeState === 'alive' && wasDead) return next;
+    if (['alive', 'unknown'].includes(lifeState) && grounded) {
+        next.lifeState = lifeState;
+        next.lifeStateCertainty = certainty;
+        next.lifeStateReason = reason;
     }
     return next;
 }
@@ -1308,6 +1347,12 @@ function referenceAllowedForActivity(state, reference, policy) {
     if (!['world', 'inner', 'excluded'].includes(scope)) return true;
     return npc?.present === true;
 }
+function referenceAllowedForWorldActivity(state, reference, policy) {
+    if (!policy?.detected) return true;
+    const npc = findNpcByReference(state, reference);
+    const scope = evidenceReferenceScope(policy, npc ? npcEvidenceVariants(npc) : [reference]);
+    return scope === 'visible' || scope === 'world';
+}
 function newPatchMentionedInCurrentExchange(patch, currentAdmissionText = '') {
     const source = String(currentAdmissionText || '').trim();
     if (!source) return true;
@@ -1326,21 +1371,38 @@ function newPatchAllowedByEvidence(state, patch, policy, currentAdmissionText = 
     return !['world', 'inner', 'excluded'].includes(scope);
 }
 
+const ROLE_LABEL_MODIFIERS = new Set([
+    'north','northern','south','southern','east','eastern','west','western','upper','lower','inner','outer','front','rear',
+    'first','second','third','senior','junior','night','day','city','town','village','castle','palace','guild','gate','door',
+    'dock','harbor','market','temple','road','bridge','watch','local','royal','main','outermost','inner-most',
+]);
+function looksLikeRoleLabel(name, role) {
+    const nameKey = normalizeName(name);
+    const roleKey = normalizeName(role);
+    if (!nameKey) return true;
+    if (!roleKey) return false;
+    if (nameKey === roleKey) return true;
+    const roleTokens = roleKey.split(/\s+/).filter(Boolean);
+    const nameTokens = nameKey.split(/\s+/).filter(Boolean);
+    if (roleTokens.length && nameTokens.length >= roleTokens.length) {
+        const tail = nameTokens.slice(-roleTokens.length).join(' ');
+        if (tail === roleKey) {
+            const prefix = nameTokens.slice(0, -roleTokens.length);
+            if (prefix.length && prefix.every(token => ROLE_LABEL_MODIFIERS.has(token))) return true;
+        }
+    }
+    return false;
+}
+
 export function newNpcAdmissionAllows(patch, mode = 'balanced', referenceCandidates = []) {
     const policy = normalizeNpcAdmissionMode(mode);
     if (policy === 'balanced') return true;
     if (policy === 'manual') return false;
     const kind = String(patch?.identityKind || '').trim().toLocaleLowerCase().replace(/[_ ]+/g, '-');
     if (['role-label', 'role', 'unnamed'].includes(kind)) return false;
-    if (['named', 'proper-name', 'proper'].includes(kind)) return true;
-    // Weak-model fallback for Named preferred: a human name that merely wraps its declared
-    // occupation (Northern Gate Guard / role Guard) is treated as a role label. Otherwise a
-    // canonical name/alias may admit. Balanced remains the backwards-compatible default.
     const name = canonicalPatchName(patch, referenceCandidates);
-    const nameKey = normalizeName(name);
-    const roleKey = normalizeName(patch?.role);
-    if (!nameKey) return false;
-    if (roleKey && (nameKey === roleKey || containsNormalizedPhrase(nameKey, roleKey))) return false;
+    if (!name || looksLikeRoleLabel(name, patch?.role)) return false;
+    if (['named', 'proper-name', 'proper'].includes(kind)) return true;
     return true;
 }
 
@@ -1377,7 +1439,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     const currentAdmissionText = String(options.currentAdmissionText || '').trim();
     const exchangeRefs = uniqueStrings(result.exchangeActiveNpcIds).filter(ref => referenceAllowedForActivity(state, ref, evidencePolicy));
     const presentRefs = uniqueStrings(result.finalPresentNpcIds).filter(ref => referenceAllowedForActivity(state, ref, evidencePolicy));
-    const worldRefs = uniqueStrings(result.worldActiveNpcIds);
+    const worldRefs = uniqueStrings(result.worldActiveNpcIds).filter(ref => referenceAllowedForWorldActivity(state, ref, evidencePolicy));
     const identityRefs = uniqueStrings([...exchangeRefs, ...presentRefs, ...worldRefs]);
     // A new returned dossier may contain a bad machine-shaped name even when the same
     // payload also contains its real human name in aliases/activity references. Resolve the
@@ -1534,7 +1596,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         edgeMap.set(socialEdgeKey(edge), edge);
     }
     state.socialGraph = [...edgeMap.values()].slice(-200);
-    addFamilyFacts(state, result.familyFacts, resolveReturnedReference, sourceMessageId);
+    addFamilyFacts(state, result.familyFacts, resolveReturnedReference, sourceMessageId, String(options.profileContext || ''));
     const familyReconciled = reconcileFamilyGraphState(state, { sourceMessageId, dossierLimits });
     state.npcs = familyReconciled.npcs;
     state.socialGraph = familyReconciled.socialGraph;

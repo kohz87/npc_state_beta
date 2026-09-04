@@ -579,11 +579,14 @@ export function createNpcStateEngine(adapters = {}) {
                     nextRaw.relationshipHistory = [...(current.relationshipHistory || []), event].slice(-relationshipHistoryLimit);
                 }
             }
-            const next = normalizeNpc(nextRaw);
-            const collision = state.npcs.some((npc, i) => i !== index && normalizeName(npc.name) === normalizeName(next.name));
-            if (collision) return false;
+            let next = normalizeNpc(nextRaw);
             if (next.name !== current.name && current.name) next.aliases = [...new Set([...(next.aliases || []), current.name])].slice(0, 10);
-            state.npcs[index] = normalizeNpc(next);
+            next = normalizeNpc(next);
+            const nextIdentityKeys = new Set([next.name, ...(next.aliases || [])].map(value => normalizeName(value)).filter(Boolean));
+            const collision = state.npcs.some((npc, i) => i !== index && [npc.name, ...(npc.aliases || [])]
+                .map(value => normalizeName(value)).filter(Boolean).some(key => nextIdentityKeys.has(key)));
+            if (collision) return { rejected: 'identity-collision' };
+            state.npcs[index] = next;
             if (Object.prototype.hasOwnProperty.call(patch || {}, 'keyRelationships')) {
                 const reconciled = reconcileFamilyGraphState(state, { sourceMessageId: latestAssistantMessageId(getContext().chat || []), dossierLimits: getSettings().dossierLimits });
                 state.npcs = reconciled.npcs;
@@ -608,6 +611,11 @@ export function createNpcStateEngine(adapters = {}) {
                 next.present = false;
                 next.worldActive = false;
             } else {
+                if (String(next.lifeState || '').toLocaleLowerCase() === 'dead' || String(next.archiveReason || '').toLocaleLowerCase() === 'deceased') {
+                    next.lifeState = 'alive';
+                    next.lifeStateCertainty = 'explicit';
+                    next.lifeStateReason = 'Manual dossier restore by player.';
+                }
                 const chat = getContext().chat || [];
                 const messageId = latestAssistantMessageId(chat);
                 next.lastActivityTurn = narrativeTurnForMessage(chat, messageId);

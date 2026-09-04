@@ -1,4 +1,4 @@
-import { CHECKPOINT_LIMIT, normalizeState, snapshotForCheckpoint } from './schema.js';
+import { CHECKPOINT_LIMIT, STABLE_PROFILE_FIELDS, normalizeState, snapshotForCheckpoint } from './schema.js';
 
 export const CHECKPOINT_BYTE_LIMIT = 4 * 1024 * 1024;
 
@@ -215,9 +215,20 @@ export function bestCheckpoint(state, chat) {
 
 function preserveCurrentPresentation(restored, current) {
     const currentById = new Map((current?.npcs || []).map(npc => [npc.id, npc]));
+    const stableFields = new Set(STABLE_PROFILE_FIELDS);
     restored.npcs = (restored.npcs || []).map(npc => {
         const live = currentById.get(npc.id);
-        return live?.portrait ? { ...npc, portrait: structuredClone(live.portrait) } : npc;
+        if (!live) return npc;
+        const next = { ...npc };
+        if (live.portrait) next.portrait = structuredClone(live.portrait);
+        const locked = [...new Set(Array.isArray(live.manualProfileFields) ? live.manualProfileFields : [])];
+        next.manualProfileFields = structuredClone(locked);
+        for (const field of locked) {
+            if (stableFields.has(field)) next[field] = structuredClone(live[field]);
+        }
+        // Importance became editor-owned in 0.4.3, so branch history must not undo it.
+        next.importance = Number(live.importance) || 0;
+        return next;
     });
     return restored;
 }

@@ -29,14 +29,18 @@ export function narrativeTurnForMessage(chat = [], messageId = null) {
     return turn;
 }
 
+function referenceEvidenceText(value, max = 50000) {
+    return String(value ?? '').normalize('NFKC').toLocaleLowerCase().replace(/[\s\p{P}\p{S}]+/gu, ' ').trim().slice(0, max);
+}
+
 export function referencedNpcIdsFromExchange(state = {}, exchange = null) {
     const source = `${String(exchange?.user?.mes || '')}\n${String(exchange?.assistant?.mes || '')}`;
-    const haystack = ` ${normalizeName(source)} `;
+    const haystack = ` ${referenceEvidenceText(source)} `;
     if (!haystack.trim()) return [];
     const ids = [];
     for (const npc of state?.npcs || []) {
         const labels = [npc.name, ...(npc.aliases || [])]
-            .map(value => normalizeName(value))
+            .map(value => referenceEvidenceText(value, 600))
             .filter(value => value.length >= 2);
         if (labels.some(label => haystack.includes(` ${label} `))) ids.push(npc.id);
     }

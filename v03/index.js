@@ -198,6 +198,16 @@ export function buildForegroundNewNpcHistory(chat = [], settings = {}) {
     return rows.join('\n');
 }
 
+function latestForegroundUserText(chat = []) {
+    const source = Array.isArray(chat) ? chat : [];
+    for (let i = source.length - 1; i >= 0; i -= 1) {
+        const message = source[i];
+        if (!message || message.is_system) continue;
+        return message.is_user ? cleanForegroundHistoryText(message.mes).slice(0, 12000) : '';
+    }
+    return '';
+}
+
 function updateInjection() {
     const ctx = getContext();
     const settings = getSettings();
@@ -205,7 +215,8 @@ function updateInjection() {
     const state = key === 'no-chat' ? null : engine.getState(key);
     const structuredEvidenceDetected = (ctx.chat || []).slice(-30).some(message => hasRecognizedStructuredBlocks(message?.mes));
     const foregroundNewNpcHistory = buildForegroundNewNpcHistory(ctx.chat || [], settings);
-    const prompt = state ? buildInjection(state, { ...settings, structuredEvidenceDetected, foregroundNewNpcHistory }) : '';
+    const foregroundCurrentUserText = latestForegroundUserText(ctx.chat || []);
+    const prompt = state ? buildInjection(state, { ...settings, structuredEvidenceDetected, foregroundNewNpcHistory, foregroundCurrentUserText }) : '';
     ctx.setExtensionPrompt?.(
         PROMPT_KEY,
         prompt,
@@ -683,7 +694,7 @@ function npcStateDebugStatus() {
         lastScannedMessageId: state?.lastScannedMessageId ?? null,
         structuredEvidenceDetected: (getContext().chat || []).slice(-30).some(message => hasRecognizedStructuredBlocks(message?.mes)),
         admissionMode: normalizeNpcAdmissionMode(settings.newNpcAdmissionMode),
-        injection: state ? injectionDiagnostics(state, settings) : null,
+        injection: state ? injectionDiagnostics(state, { ...settings, foregroundCurrentUserText: latestForegroundUserText(getContext().chat || []) }) : null,
     };
 }
 

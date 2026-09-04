@@ -9,14 +9,44 @@ function normalizePhrase(value) {
 }
 const WORLD_TAGS = new Set(['worldstate']);
 const INNER_TAGS = new Set(['npcinnerchatter']);
+const REFERENCE_TAGS = new Set(['storytracker', 'charactersheet', 'cyoa', 'bonds', 'newnpc', 'npcupdate']);
+const RECOGNIZED_BLOCK_TAGS = new Set([...WORLD_TAGS, ...INNER_TAGS, ...REFERENCE_TAGS]);
+
+function masterHasRecognizedTag(body) {
+    const pattern = /<([A-Za-z][A-Za-z0-9_-]*)\b[^>]*>/g;
+    let child;
+    while ((child = pattern.exec(String(body || '')))) {
+        if (RECOGNIZED_BLOCK_TAGS.has(normalizeTag(child[1]))) return true;
+    }
+    return false;
+}
 
 export function analyzeStructuredEvidence(value) {
     const source = String(value ?? '');
     const masters = [];
     const masterPattern = /<Blocks\b[^>]*>([\s\S]*?)<\/Blocks\s*>/gi;
     let match;
-    while ((match = masterPattern.exec(source))) masters.push({ full: match[0], body: match[1] || '' });
-    if (!masters.length) return { detected: false, visibleText: source, worldStateText: '', innerChatterText: '', excludedText: '', excludedTags: [] };
+    while ((match = masterPattern.exec(source))) {
+        const body = match[1] || '';
+        if (masterHasRecognizedTag(body)) masters.push({ full: match[0], body });
+    }
+
+    // Find a recognized <Blocks> opening with no later closing tag. Once the wrapper is
+    // truncated, the safe interpretation is reference/control material, not visible story.
+    let malformedStart = -1;
+    const openingPattern = /<Blocks\b[^>]*>/gi;
+    let opening;
+    while ((opening = openingPattern.exec(source))) {
+        const closeIndex = source.toLocaleLowerCase().indexOf('</blocks', opening.index + opening[0].length);
+        if (closeIndex >= 0) continue;
+        const tail = source.slice(opening.index);
+        if (masterHasRecognizedTag(tail)) { malformedStart = opening.index; break; }
+    }
+    const malformedTail = malformedStart >= 0 ? source.slice(malformedStart) : '';
+    if (!masters.length && !malformedTail) {
+        return { detected: false, malformed: false, visibleText: source, worldStateText: '', innerChatterText: '', excludedText: '', excludedTags: [] };
+    }
+
     let visibleText = source;
     const world = [];
     const inner = [];
@@ -38,8 +68,14 @@ export function analyzeStructuredEvidence(value) {
             }
         }
     }
+    if (malformedTail) {
+        visibleText = visibleText.replace(malformedTail, '\n');
+        excluded.push(clean(malformedTail, 30000));
+        if (!excludedTags.includes('Malformed_Blocks')) excludedTags.push('Malformed_Blocks');
+    }
     return {
         detected: true,
+        malformed: Boolean(malformedTail),
         visibleText: clean(visibleText),
         worldStateText: clean(world.join('\n')),
         innerChatterText: clean(inner.join('\n')),
@@ -101,7 +137,7 @@ export function evidenceReferenceScope(policy, variants) {
 }
 export function structuredEvidencePromptRules() {
     return [
-        'STRUCTURED BLOCK EVIDENCE FIREWALL (active because a Megumin <Blocks> master block is present):',
+        'STRUCTURED BLOCK EVIDENCE FIREWALL (active because recognized Megumin-style <Blocks> content is present):',
         '- Visible narrative outside <Blocks> is ordinary full event evidence.',
         '- <World_State> may ground live location/status/off-screen world activity, but by itself NEVER proves exchange action, In chat participation, speech, direct perception, or a new NPC introduction.',
         '- <NPC_Inner_Chatter> may ground private goals, thoughts, attitudes, or relationship context, but by itself NEVER proves In chat presence, exchange action, spoken dialogue, gesture, or a visible emotional reaction.',
