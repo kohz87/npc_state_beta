@@ -6,7 +6,7 @@ import { createNpcStateEngine } from './engine.js';
 import { getChatIdentity, resolveLifecycleChatKey, resolveRenameLifecycleKeys } from './identity.js';
 import { buildInjection } from './injection.js';
 import { consumeNpcStateControl } from './foreground.js';
-import { hasRecognizedStructuredBlocks } from './evidence-adapter.js';
+import { hasRecognizedStructuredBlocks, profileEvidenceText } from './evidence-adapter.js';
 import { createMeguminBlockIntegration } from './megumin.js';
 import {
     DEFAULT_PORTRAIT_NEGATIVE_PROMPT,
@@ -59,6 +59,7 @@ const V3_DEFAULTS = Object.freeze({
     injectBudgetTokens: 1800,
     branchRescan: true,
     fallbackScan: false,
+    newNpcHistoryEnrichment: true,
     staleManagementEnabled: true,
     staleArchiveAfter: 30,
     staleDeleteAfter: 50,
@@ -155,13 +156,53 @@ async function generateJson({ systemPrompt, prompt, responseLength }) {
     }));
 }
 
+function cleanForegroundHistoryText(value) {
+    return profileEvidenceText(value)
+        .replace(/<npc_state_v1\b[^>]*>[\s\S]*?<\/npc_state_v1\s*>/gi, '')
+        .replace(/<npc_state_v1\b[^>]*>[\s\S]*$/gi, '')
+        .replace(/<!--\s*INVENTORY_BLOCK_(?:V05|UPDATE)\b[\s\S]*?-->/gi, '')
+        .replace(/<Inventory\b[^>]*>[\s\S]*?<\/Inventory\s*>/gi, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
+export function buildForegroundNewNpcHistory(chat = [], settings = {}) {
+    if (settings.newNpcHistoryEnrichment === false) return '';
+    const source = Array.isArray(chat) ? chat : [];
+    let end = source.length;
+    while (end > 0 && source[end - 1]?.is_system) end -= 1;
+    // The newest user message is part of the live exchange, not historical enrichment.
+    if (end > 0 && source[end - 1]?.is_user) end -= 1;
+    const depth = Math.max(2, Math.min(6, Math.round(Number(settings.scanDepth) || 6)));
+    const candidates = source.slice(0, end).map((message, id) => ({ ...message, id }))
+        .filter(message => message && !message.is_system)
+        .slice(-depth);
+    const rows = [];
+    let used = 0;
+    const cap = 3500;
+    for (const message of candidates) {
+        const text = cleanForegroundHistoryText(message.mes).slice(0, 1400);
+        if (!text) continue;
+        const row = '[' + (message.is_user ? 'USER' : 'ASSISTANT') + ' #' + message.id + '] ' + text;
+        if (used + row.length > cap) {
+            const remaining = cap - used;
+            if (remaining > 160) rows.push(row.slice(0, remaining));
+            break;
+        }
+        rows.push(row);
+        used += row.length + 1;
+    }
+    return rows.join('\n');
+}
+
 function updateInjection() {
     const ctx = getContext();
     const settings = getSettings();
     const key = getChatKey();
     const state = key === 'no-chat' ? null : engine.getState(key);
     const structuredEvidenceDetected = (ctx.chat || []).slice(-30).some(message => hasRecognizedStructuredBlocks(message?.mes));
-    const prompt = state ? buildInjection(state, { ...settings, structuredEvidenceDetected }) : '';
+    const foregroundNewNpcHistory = buildForegroundNewNpcHistory(ctx.chat || [], settings);
+    const prompt = state ? buildInjection(state, { ...settings, structuredEvidenceDetected, foregroundNewNpcHistory }) : '';
     ctx.setExtensionPrompt?.(
         PROMPT_KEY,
         prompt,

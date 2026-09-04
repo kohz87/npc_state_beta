@@ -122,6 +122,7 @@ export function createNpcStateUi(adapters = {}) {
               <label class="npc-state-setting-row"><span><b>Embedded current-cast scan</b><small>Uses the same foreground RP generation. If the embedded block is missing, NPC State automatically runs one full separate current-cast scan.</small></span><input id="npc_state_v3_auto" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Malformed capture recovery</b><small>Missing embedded capture always triggers one full scan. Enable this to also run a separate recovery scan when an embedded block is present but malformed. Off by default.</small></span><input id="npc_state_v04_fallback" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Context depth</b><small>Older messages are profile/memory context only; relationship deltas remain current-exchange-only.</small></span><input id="npc_state_v3_scan_depth" class="text_pole npc-state-number" type="number" min="2" max="30"></label>
+              <label class="npc-state-setting-row"><span><b>Enrich new NPCs from recent history</b><small>Adds a small visible-history capsule to the same foreground generation. Current exchange still decides admission, live state, and relationship changes. No extra model call.</small></span><input id="npc_state_v04_new_npc_history" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Inject in-chat NPCs</b><small>Injects individually relevant in-chat NPCs, not incidental background bodies.</small></span><input id="npc_state_v3_inject" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Injection budget</b><small>Approximate token budget.</small></span><input id="npc_state_v3_inject_budget" class="text_pole npc-state-number" type="number" min="256" max="8000" step="100"></label>
               <label class="npc-state-setting-row"><span><b>Rescan changed branches</b><small>Restores tracked swipes locally from checkpoints/payloads. Edited or untracked branches use the separate recovery scanner when needed.</small></span><input id="npc_state_v3_branch_rescan" type="checkbox"></label>
@@ -151,6 +152,7 @@ export function createNpcStateUi(adapters = {}) {
         panel.querySelector('#npc_state_v3_auto').checked = settings.autoScan !== false;
         panel.querySelector('#npc_state_v04_fallback').checked = settings.fallbackScan === true;
         panel.querySelector('#npc_state_v3_scan_depth').value = settings.scanDepth;
+        panel.querySelector('#npc_state_v04_new_npc_history').checked = settings.newNpcHistoryEnrichment !== false;
         panel.querySelector('#npc_state_v3_inject').checked = settings.inject !== false;
         panel.querySelector('#npc_state_v3_inject_budget').value = settings.injectBudgetTokens;
         panel.querySelector('#npc_state_v3_branch_rescan').checked = settings.branchRescan !== false;
@@ -175,6 +177,7 @@ export function createNpcStateUi(adapters = {}) {
         bindCheck('#npc_state_v3_enabled', 'enabled');
         bindCheck('#npc_state_v3_auto', 'autoScan');
         bindCheck('#npc_state_v04_fallback', 'fallbackScan');
+        bindCheck('#npc_state_v04_new_npc_history', 'newNpcHistoryEnrichment');
         bindCheck('#npc_state_v3_inject', 'inject');
         bindCheck('#npc_state_v3_branch_rescan', 'branchRescan');
         bindLimit('#npc_state_v3_limit_memories', 'memories');

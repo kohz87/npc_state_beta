@@ -1000,6 +1000,7 @@ function applyRelationshipChange(npc, patch, options = {}) {
     const caps = options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS;
     const change = relationshipDeltaForPatch(patch, caps);
     if (change.impact === 'none') return npc;
+    if (options.requireCurrentRelationshipEvidence === true && !profileEvidenceGrounded(change.evidence, String(options.relationshipContext || ''))) return npc;
     if (relationshipChangeLooksDuplicate(npc, change, options)) return npc;
 
     const context = String(options.relationshipContext || '').trim();
@@ -1174,8 +1175,20 @@ function referenceAllowedForActivity(state, reference, policy) {
     if (!['world', 'inner', 'excluded'].includes(scope)) return true;
     return npc?.present === true;
 }
-function newPatchAllowedByEvidence(state, patch, policy) {
-    if (!policy?.detected || findNpcByReference(state, patch?.name || '')) return true;
+function newPatchMentionedInCurrentExchange(patch, currentAdmissionText = '') {
+    const source = String(currentAdmissionText || '').trim();
+    if (!source) return true;
+    const variants = [...new Set([
+        patch?.name,
+        ...(Array.isArray(patch?.aliases) ? patch.aliases : []),
+        patch?.role,
+    ].map(value => String(value || '').trim()).filter(value => value && !isTechnicalNpcIdentity(value) && !GENERIC_REFERENCES.has(normalizeName(value))))];
+    return variants.some(value => containsNormalizedPhrase(source, value));
+}
+function newPatchAllowedByEvidence(state, patch, policy, currentAdmissionText = '') {
+    if (findNpcByReference(state, patch?.name || '')) return true;
+    if (!newPatchMentionedInCurrentExchange(patch, currentAdmissionText)) return false;
+    if (!policy?.detected) return true;
     const scope = restrictedEvidenceScope(state, patch, policy);
     return !['world', 'inner', 'excluded'].includes(scope);
 }
@@ -1202,6 +1215,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     state.npcs = state.npcs.map(npc => repairTechnicalStoredName(sanitizePlayerKeyRelationships(npc, playerName)));
 
     const evidencePolicy = options.evidencePolicy && typeof options.evidencePolicy === 'object' ? options.evidencePolicy : null;
+    const currentAdmissionText = String(options.currentAdmissionText || '').trim();
     const exchangeRefs = uniqueStrings(result.exchangeActiveNpcIds).filter(ref => referenceAllowedForActivity(state, ref, evidencePolicy));
     const presentRefs = uniqueStrings(result.finalPresentNpcIds).filter(ref => referenceAllowedForActivity(state, ref, evidencePolicy));
     const worldRefs = uniqueStrings(result.worldActiveNpcIds);
@@ -1214,7 +1228,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             const patchId = String(patch?.id || '').trim();
             const name = canonicalPatchName(patch, identityRefs);
             const knownId = Boolean(patchId && state.npcs.some(item => item.id === patchId));
-            return !knownId && name && !findNpcByReference(state, name) && newPatchAllowedByEvidence(state, patch, evidencePolicy);
+            return !knownId && name && !findNpcByReference(state, name) && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText);
         })
         .map(patch => canonicalPatchName(patch, identityRefs)));
     const targetRefs = [...new Set([...exchangeRefs, ...presentRefs, ...bootstrapRefs])];
@@ -1233,7 +1247,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             npc = findNpcByReference(state, canonicalName);
         }
         const referenced = targetRefs.some(ref => patchReferenceMatches(patch, ref)) || worldRefs.some(ref => patchReferenceMatches(patch, ref));
-        if (!npc && referenced && newPatchAllowedByEvidence(state, patch, evidencePolicy)) {
+        if (!npc && referenced && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText)) {
             const created = createFromPatch(patch, sourceMessageId, identityRefs);
             if (created && !deletedIds.has(created.id) && !(state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
                 state.npcs.push(created);
@@ -1255,7 +1269,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                     // locally allocated id. Resolve by its human-facing canonical name first.
                     const canonicalName = canonicalPatchName(patch, [...identityRefs, ref]);
                     npc = canonicalName ? findNpcByReference(state, canonicalName) : null;
-                    if (!npc && newPatchAllowedByEvidence(state, patch, evidencePolicy)) {
+                    if (!npc && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText)) {
                         const created = createFromPatch(patch, sourceMessageId, [...identityRefs, ref]);
                         if (created && !deletedIds.has(created.id) && !(state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
                             state.npcs.push(created);
@@ -1304,6 +1318,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             if (applyRelationship && exchangeSet.has(npc.id)) npc = applyRelationshipChange(npc, patch, {
                 relationshipCaps: options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 relationshipContext: String(options.relationshipContext || ''),
+                requireCurrentRelationshipEvidence: createdNpcIds.has(npc.id),
                 sourceMessageId,
                 turn,
             });

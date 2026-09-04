@@ -275,6 +275,7 @@ export function createNpcStateEngine(adapters = {}) {
                 relationshipContext: relationshipContextForExchange(exchange),
                 profileContext: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
                 evidencePolicy: buildExchangeEvidencePolicy(exchange),
+                currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
                 dossierLimits: settings.dossierLimits,
                 applyReturnedNpcPatches: true,
                 applyRelationship: !alreadyScannedMessage,
@@ -347,6 +348,7 @@ export function createNpcStateEngine(adapters = {}) {
                 relationshipContext: relationshipContextForExchange(exchange),
                 profileContext: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
                 evidencePolicy: buildExchangeEvidencePolicy(exchange),
+                currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
                 dossierLimits: settings.dossierLimits,
                 applyReturnedNpcPatches: true,
             });
