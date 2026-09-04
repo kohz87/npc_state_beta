@@ -182,7 +182,6 @@ injection = injection.replaceAll(
     `"name":"human-facing canonical proper name when known; readable role label only if genuinely unnamed; never npc-*","aliases":[]`,
     `"name":"human-facing canonical proper name when known; readable role label only if genuinely unnamed; never npc-*","identityKind":"named|role-label","aliases":[]`
 );
-// Read-only injection diagnostics share the same allocator/candidate selection as production.
 injection += `
 
 export function injectionDiagnostics(state, settings = {}) {
@@ -203,20 +202,9 @@ fs.writeFileSync('v03/injection.js', injection);
 
 // Engine sends policy to both recovery and foreground apply paths.
 let engine = fs.readFileSync('v03/engine.js', 'utf8');
-engine = replaceRequired(
-    engine,
-`                memoryCriteria: settings.memoryCriteria,
-                dossierLimits: settings.dossierLimits,
-            })}`, 
-`,
-`                memoryCriteria: settings.memoryCriteria,
-                dossierLimits: settings.dossierLimits,
-                admissionMode: settings.newNpcAdmissionMode,
-            })}`, 
-`,
-    'recovery prompt admission mode',
-);
-// There are two normal current-exchange apply paths: separate scan and embedded foreground.
+const promptNeedle = "                memoryCriteria: settings.memoryCriteria,\n                dossierLimits: settings.dossierLimits,\n            })}\\n\\n${relationshipAxisIndependencePrompt()}`;";
+const promptReplacement = "                memoryCriteria: settings.memoryCriteria,\n                dossierLimits: settings.dossierLimits,\n                admissionMode: settings.newNpcAdmissionMode,\n            })}\\n\\n${relationshipAxisIndependencePrompt()}`;";
+engine = replaceRequired(engine, promptNeedle, promptReplacement, 'recovery prompt admission mode');
 let applyNeedle = `                currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\\n'),
                 dossierLimits: settings.dossierLimits,`;
 let applyReplacement = `                currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\\n'),
@@ -232,24 +220,9 @@ fs.writeFileSync('v03/engine.js', engine);
 
 // Settings and public read-only diagnostics.
 let index = fs.readFileSync('v03/index.js', 'utf8');
-index = replaceRequired(
-    index,
-    "import { buildInjection } from './injection.js';",
-    "import { buildInjection, injectionDiagnostics } from './injection.js';",
-    'index injection diagnostics import',
-);
-index = replaceRequired(
-    index,
-    "import { DEFAULT_RELATIONSHIP_CAPS, DOSSIER_LIMIT_DEFAULTS, NPC_STATE_VERSION, normalizeDossierLimits } from './schema.js';",
-    "import { DEFAULT_RELATIONSHIP_CAPS, DOSSIER_LIMIT_DEFAULTS, NPC_STATE_VERSION, normalizeDossierLimits, normalizeNpcAdmissionMode } from './schema.js';",
-    'index admission normalization import',
-);
-index = replaceRequired(
-    index,
-    "import { runSharedQuietGeneration } from './shared-generation-queue.js';",
-    "import { runSharedQuietGeneration } from './shared-generation-queue.js';\nimport { checkpointStorageBytes } from './branches.js';",
-    'index checkpoint diagnostics import',
-);
+index = replaceRequired(index, "import { buildInjection } from './injection.js';", "import { buildInjection, injectionDiagnostics } from './injection.js';", 'index injection diagnostics import');
+index = replaceRequired(index, "import { DEFAULT_RELATIONSHIP_CAPS, DOSSIER_LIMIT_DEFAULTS, NPC_STATE_VERSION, normalizeDossierLimits } from './schema.js';", "import { DEFAULT_RELATIONSHIP_CAPS, DOSSIER_LIMIT_DEFAULTS, NPC_STATE_VERSION, normalizeDossierLimits, normalizeNpcAdmissionMode } from './schema.js';", 'index admission normalization import');
+index = replaceRequired(index, "import { runSharedQuietGeneration } from './shared-generation-queue.js';", "import { runSharedQuietGeneration } from './shared-generation-queue.js';\nimport { checkpointStorageBytes } from './branches.js';", 'index checkpoint diagnostics import');
 index = replaceRequired(
     index,
 `    newNpcHistoryEnrichment: true,
@@ -261,15 +234,7 @@ index = replaceRequired(
 `,
     'admission default',
 );
-index = replaceRequired(
-    index,
-`    settings.scanDepth = Math.max(2, Math.min(30, Math.round(Number(settings.scanDepth) || 8)));
-`,
-`    settings.scanDepth = Math.max(2, Math.min(30, Math.round(Number(settings.scanDepth) || 8)));
-    settings.newNpcAdmissionMode = normalizeNpcAdmissionMode(settings.newNpcAdmissionMode);
-`,
-    'admission settings normalization',
-);
+index = replaceRequired(index, "    settings.scanDepth = Math.max(2, Math.min(30, Math.round(Number(settings.scanDepth) || 8)));\n", "    settings.scanDepth = Math.max(2, Math.min(30, Math.round(Number(settings.scanDepth) || 8)));\n    settings.newNpcAdmissionMode = normalizeNpcAdmissionMode(settings.newNpcAdmissionMode);\n", 'admission settings normalization');
 const globalMarker = `globalThis.NPCState = Object.freeze({`;
 if (!index.includes(globalMarker)) throw new Error('Missing Phase 6 public API marker');
 const debugHelpers = `function npcStateDebugStatus() {
@@ -314,18 +279,7 @@ function npcStateScanMetrics() {
 
 `;
 index = index.replace(globalMarker, debugHelpers + globalMarker);
-index = replaceRequired(
-    index,
-`    version: NPC_STATE_VERSION,
-    scan: () => {
-`,
-`    version: NPC_STATE_VERSION,
-    debugStatus: npcStateDebugStatus,
-    scanMetrics: npcStateScanMetrics,
-    scan: () => {
-`,
-    'debug public API',
-);
+index = replaceRequired(index, "    version: NPC_STATE_VERSION,\n    scan: () => {\n", "    version: NPC_STATE_VERSION,\n    debugStatus: npcStateDebugStatus,\n    scanMetrics: npcStateScanMetrics,\n    scan: () => {\n", 'debug public API');
 fs.writeFileSync('v03/index.js', index);
 
 // Settings UI admission selector.
@@ -339,17 +293,7 @@ ui = replaceRequired(
 `,
     'admission setting UI',
 );
-ui = replaceRequired(
-    ui,
-`        panel.querySelector('#npc_state_v04_new_npc_history').checked = settings.newNpcHistoryEnrichment !== false;
-        panel.querySelector('#npc_state_v3_inject').checked = settings.inject !== false;
-`,
-`        panel.querySelector('#npc_state_v04_new_npc_history').checked = settings.newNpcHistoryEnrichment !== false;
-        panel.querySelector('#npc_state_v04_admission').value = settings.newNpcAdmissionMode || 'balanced';
-        panel.querySelector('#npc_state_v3_inject').checked = settings.inject !== false;
-`,
-    'admission setting sync',
-);
+ui = replaceRequired(ui, "        panel.querySelector('#npc_state_v04_new_npc_history').checked = settings.newNpcHistoryEnrichment !== false;\n        panel.querySelector('#npc_state_v3_inject').checked = settings.inject !== false;\n", "        panel.querySelector('#npc_state_v04_new_npc_history').checked = settings.newNpcHistoryEnrichment !== false;\n        panel.querySelector('#npc_state_v04_admission').value = settings.newNpcAdmissionMode || 'balanced';\n        panel.querySelector('#npc_state_v3_inject').checked = settings.inject !== false;\n", 'admission setting sync');
 ui = replaceRequired(
     ui,
 `        bindCheck('#npc_state_v04_new_npc_history', 'newNpcHistoryEnrichment');
