@@ -1,4 +1,4 @@
-/* NPC State v0.3.1 responsive settings hierarchy.
+/* NPC State v0.4.4 responsive categorized settings hierarchy.
    Density follows the extension panel's actual inline width through container
    queries, so SillyTavern sidebars and split layouts are handled correctly. */
 
@@ -231,4 +231,15 @@
   .npc-state-v3-settings .npc-state-v3-portrait-card{gap:8px;padding:8px}
   .npc-state-v3-settings .npc-state-v3-portrait-settings .npc-state-v3-portrait-control-row,
   .npc-state-v3-settings .npc-state-v3-portrait-name-field{padding:8px}
+}
+
+/* v0.4.4 categorized settings density */
+.npc-state-v3-settings .npc-state-v3-control-group-body{gap:.34em}
+.npc-state-v3-settings .npc-state-v3-category-row[hidden]{display:none!important}
+.npc-state-v3-settings .npc-state-v3-birthday-calendar-row{grid-template-columns:1fr!important}
+.npc-state-v3-settings .npc-state-v3-birthday-calendar-row textarea{width:100%;min-height:7em}
+@container (min-width:700px){
+  .npc-state-v3-settings .npc-state-v3-tracking-group>.npc-state-v3-control-group-body,
+  .npc-state-v3-settings .npc-state-v3-injection-group>.npc-state-v3-control-group-body,
+  .npc-state-v3-settings .npc-state-v3-recovery-group>.npc-state-v3-control-group-body{grid-template-columns:repeat(2,minmax(0,1fr))}
 }

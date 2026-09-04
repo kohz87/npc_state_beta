@@ -1,9 +1,13 @@
-/* NPC State v0.3.2 responsive settings layout coordinator.
+/* NPC State v0.4.4 categorized responsive settings layout coordinator.
    This module only reorganizes existing settings DOM. It moves live nodes rather
    than recreating controls, so the authoritative listeners owned by ui.js and the
    feature modules stay attached. */
 
 const PANEL_ID = 'npc_state_settings';
+const TRACKING_GROUP_ID = 'npc_state_v04_tracking';
+const INJECTION_GROUP_ID = 'npc_state_v04_continuity_injection';
+const BIRTHDAY_GROUP_ID = 'npc_state_v04_birthday_continuity';
+const RECOVERY_GROUP_ID = 'npc_state_v04_recovery_branch';
 const SCANNER_GROUP_ID = 'npc_state_v3_scanner_rules';
 const MAINTENANCE_GROUP_ID = 'npc_state_v3_maintenance';
 const CAST_SECTION_ID = 'npc_state_v3_cast_settings';
@@ -64,19 +68,82 @@ function ensureHeader(panel) {
     return header;
 }
 
+function rowForControl(drawer, selector) {
+    return drawer?.querySelector?.(selector)?.closest?.('.npc-state-setting-row') || null;
+}
+
+function moveControlRows(drawer, group, selectors = []) {
+    const body = group?.querySelector?.('.npc-state-v3-settings-group-body');
+    if (!body) return group;
+    for (const selector of selectors) {
+        const row = rowForControl(drawer, selector);
+        if (!row) continue;
+        row.classList.add('npc-state-v3-category-row');
+        if (row.parentElement !== body) body.appendChild(row);
+    }
+    return group;
+}
+
 function ensureTracking(drawer) {
-    let section = drawer?.querySelector?.('.npc-state-v3-tracking-section');
-    if (section) return section;
-    const grid = directChild(drawer, '.npc-state-settings-grid');
-    if (!grid) return null;
-    section = makeElement('section', 'npc-state-v3-tracking-section npc-state-v3-settings-card');
-    const heading = makeElement('h3', 'npc-state-v3-settings-card-title', 'Tracking');
-    if (!section) return null;
-    grid.classList.add('npc-state-v3-tracking-grid');
-    grid.before(section);
-    if (heading) section.appendChild(heading);
-    section.appendChild(grid);
-    return section;
+    const group = ensureParentDetails(drawer, TRACKING_GROUP_ID, 'Tracking', 'npc-state-v3-tracking-group', true, 'npc-state-v3-control-group-body');
+    return moveControlRows(drawer, group, [
+        '#npc_state_v3_auto',
+        '#npc_state_v3_scan_depth',
+        '#npc_state_v04_new_npc_history',
+        '#npc_state_v04_admission',
+    ]);
+}
+
+function ensureContinuityInjection(drawer) {
+    const group = ensureParentDetails(drawer, INJECTION_GROUP_ID, 'Continuity Injection', 'npc-state-v3-injection-group', false, 'npc-state-v3-control-group-body');
+    return moveControlRows(drawer, group, [
+        '#npc_state_v3_inject',
+        '#npc_state_v3_inject_budget',
+    ]);
+}
+
+function syncBirthdayOptions(drawer) {
+    const select = drawer?.querySelector?.('#npc_state_v04_birthday_fill');
+    if (!select) return false;
+    const mode = String(select.value || 'off').toLocaleLowerCase();
+    const randomOnly = ['#npc_state_v04_birthday_calendar', '#npc_state_v04_birthday_days'];
+    for (const selector of randomOnly) {
+        const row = rowForControl(drawer, selector);
+        if (!row) continue;
+        row.hidden = mode !== 'random';
+        row.setAttribute('aria-hidden', row.hidden ? 'true' : 'false');
+    }
+    const fillRow = rowForControl(drawer, '#npc_state_v04_birthday_fill_now');
+    if (fillRow) {
+        fillRow.hidden = mode === 'off';
+        fillRow.setAttribute('aria-hidden', fillRow.hidden ? 'true' : 'false');
+    }
+    if (!select.dataset.npcStateBirthdayVisibilityBound) {
+        select.dataset.npcStateBirthdayVisibilityBound = '1';
+        select.addEventListener('change', () => syncBirthdayOptions(drawer));
+    }
+    return true;
+}
+
+function ensureBirthdayContinuity(drawer) {
+    const group = ensureParentDetails(drawer, BIRTHDAY_GROUP_ID, 'Birthday Continuity', 'npc-state-v3-birthday-group', false, 'npc-state-v3-control-group-body');
+    moveControlRows(drawer, group, [
+        '#npc_state_v04_birthday_fill',
+        '#npc_state_v04_birthday_calendar',
+        '#npc_state_v04_birthday_days',
+        '#npc_state_v04_birthday_fill_now',
+    ]);
+    rowForControl(drawer, '#npc_state_v04_birthday_calendar')?.classList.add('npc-state-v3-birthday-calendar-row');
+    syncBirthdayOptions(drawer);
+    return group;
+}
+
+function ensureRecoveryBranch(drawer) {
+    const group = ensureParentDetails(drawer, RECOVERY_GROUP_ID, 'Recovery & Branch Safety', 'npc-state-v3-recovery-group', false, 'npc-state-v3-control-group-body');
+    return moveControlRows(drawer, group, [
+        '#npc_state_v04_fallback',
+        '#npc_state_v3_branch_rescan',
+    ]);
 }
 
 function ensureDossierEvolution(drawer) {
@@ -84,7 +151,7 @@ function ensureDossierEvolution(drawer) {
     if (!section) return null;
     section.classList.add('npc-state-v3-settings-card', 'npc-state-v3-evolution-card');
     if (!section.dataset.npcStateResponsiveDefault) {
-        section.open = true;
+        section.open = false;
         section.dataset.npcStateResponsiveDefault = '1';
         const intro = section.querySelector('.npc-state-intro');
         if (intro) intro.textContent = 'Entries evolve as canon changes. Lower caps apply when that collection is next curated or manually saved.';
@@ -92,15 +159,17 @@ function ensureDossierEvolution(drawer) {
     return section;
 }
 
-function ensureParentDetails(drawer, id, title, className) {
+function ensureParentDetails(drawer, id, title, className, openByDefault = false, bodyClassName = '') {
     let group = globalThis.document?.getElementById?.(id);
     if (group) return group;
     group = makeElement('details', `npc-state-v3-settings-group npc-state-v3-settings-card ${className}`);
     if (!group) return null;
     group.id = id;
+    group.open = Boolean(openByDefault);
+    group.dataset.npcStateCategoryDefault = openByDefault ? 'open' : 'closed';
     const summary = makeElement('summary');
     const label = makeElement('b', '', title);
-    const body = makeElement('div', 'npc-state-v3-settings-group-body');
+    const body = makeElement('div', ['npc-state-v3-settings-group-body', bodyClassName].filter(Boolean).join(' '));
     if (summary && label) summary.appendChild(label);
     if (summary) group.appendChild(summary);
     if (body) group.appendChild(body);
@@ -112,7 +181,7 @@ function ensureScannerRules(drawer) {
     const relationship = drawer?.querySelector?.('#npc_state_v3_relationship_criteria')?.closest?.('details') || null;
     const memory = drawer?.querySelector?.('#npc_state_v3_memory_criteria')?.closest?.('details') || null;
     if (!relationship && !memory) return globalThis.document?.getElementById?.(SCANNER_GROUP_ID) || null;
-    const group = ensureParentDetails(drawer, SCANNER_GROUP_ID, 'Scanner rules', 'npc-state-v3-scanner-rules');
+    const group = ensureParentDetails(drawer, SCANNER_GROUP_ID, 'Advanced Rubrics', 'npc-state-v3-scanner-rules npc-state-v3-advanced-rubrics');
     const body = group?.querySelector?.('.npc-state-v3-settings-group-body');
     if (!body) return group;
     for (const section of [relationship, memory]) {
@@ -202,14 +271,20 @@ export function applySettingsLayout() {
     const intro = directChild(drawer, '.npc-state-intro');
     const actions = decorateActions(drawer);
     const tracking = ensureTracking(drawer);
+    const injection = ensureContinuityInjection(drawer);
+    const birthday = ensureBirthdayContinuity(drawer);
     const evolution = ensureDossierEvolution(drawer);
+    const recovery = ensureRecoveryBranch(drawer);
     const scanner = ensureScannerRules(drawer);
     const maintenance = ensureMaintenance(drawer);
     const portrait = ensurePortrait(drawer);
     const cast = ensureCast(drawer);
 
+    const legacyGrid = directChild(drawer, '.npc-state-settings-grid');
+    if (legacyGrid && legacyGrid.children.length === 0) legacyGrid.remove();
+
     let anchor = intro;
-    for (const node of [actions, tracking, evolution, scanner, maintenance, portrait, cast]) {
+    for (const node of [tracking, injection, birthday, evolution, recovery, scanner, maintenance, portrait, actions, cast]) {
         anchor = placeAfter(anchor, node, drawer) || anchor;
     }
     panel.classList.add('npc-state-v3-responsive-settings-ready');
