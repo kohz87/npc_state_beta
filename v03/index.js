@@ -667,6 +667,7 @@ globalThis.NPCState = Object.freeze({
         return id >= 0 ? engine.scan(id, { manual: true, force: true }) : Promise.resolve({ ok: false, reason: 'no-assistant-message' });
     },
     refreshFromChat: reference => engine.refreshDossier(reference),
+    importStructuredDossier: reference => engine.importStructuredDossier(reference),
     getState: () => engine.getState(getChatKey()),
     hydrationStatus: () => engine.hydrationStatus(getChatKey()),
     isBusy: () => engine.isBusy(getChatKey()),

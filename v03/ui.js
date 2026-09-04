@@ -366,6 +366,16 @@ export function createNpcStateUi(adapters = {}) {
             notify(result.ok ? 'success' : 'warning', result.ok ? 'NPC State: dossier reconciled from recent chat without replaying relationship deltas.' : (result.reason === 'branch-unsafe' ? 'NPC State: timeline rebase required. Open NPC State settings and choose Rebase to current chat.' : `NPC State: dossier scan did not commit (${result.reason || 'unknown'}).`));
             refresh();
         });
+        root.querySelector('.npc-state-v3-import-structured')?.addEventListener('click', async event => {
+            const id = event.currentTarget.dataset.npcId;
+            event.currentTarget.disabled = true;
+            const result = await safely('structured dossier import', () => engine.importStructuredDossier(id));
+            event.currentTarget.disabled = false;
+            if (result.ok) notify('success', `NPC State: imported ${result.sourceCount || 0} matching New_NPC / NPC_Update source block${result.sourceCount === 1 ? '' : 's'} into durable dossier fields.`);
+            else if (result.reason === 'no-structured-source') notify('info', 'NPC State: no matching Megumin New_NPC / NPC_Update source was found for this dossier. Nothing was changed.');
+            else notify('warning', `NPC State: structured dossier import did not commit (${result.reason || 'unknown'}).`);
+            refresh();
+        });
         root.querySelector('.npc-state-v3-archive')?.addEventListener('click', async event => {
             const id = event.currentTarget.dataset.npcId;
             const npc = findNpcByReference(state(), id);

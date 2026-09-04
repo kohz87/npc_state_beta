@@ -160,6 +160,7 @@ export function dossierHtml(npc) {
           <button class="menu_button npc-state-v3-edit" data-npc-id="${escapeHtml(npc.id)}"><i class="fa-solid fa-pen"></i><span>Edit</span></button>
           <button class="menu_button npc-state-v3-refresh" data-npc-id="${escapeHtml(npc.id)}"><i class="fa-solid fa-arrows-rotate"></i><span>Refresh</span></button>
           <details class="npc-state-v3-dossier-more"><summary><i class="fa-solid fa-ellipsis"></i><span>More</span></summary><div>
+            <button class="menu_button npc-state-v3-import-structured" data-npc-id="${escapeHtml(npc.id)}"><i class="fa-solid fa-file-import"></i> Import New_NPC / NPC_Update</button>
             <button class="menu_button npc-state-v3-generate-image-prompt" data-npc-id="${escapeHtml(npc.id)}"><i class="fa-solid fa-image"></i> Generate image prompt</button>
             <input id="${escapeHtml(portraitFileId)}" class="npc-state-v3-portrait-file" data-npc-id="${escapeHtml(npc.id)}" type="file" accept="image/*" hidden>
             <label for="${escapeHtml(portraitFileId)}" class="menu_button npc-state-v3-attach-portrait"><i class="fa-solid fa-image-portrait"></i> ${portraitUrl ? 'Change portrait' : 'Attach portrait'}</label>

@@ -109,3 +109,47 @@ export function structuredEvidencePromptRules() {
         '- Never convert private thought into visible behavior unless visible narrative independently establishes that behavior.',
     ];
 }
+
+
+const STRUCTURED_DOSSIER_TAGS = new Map([
+    ['newnpc', 'New_NPC'],
+    ['npcupdate', 'NPC_Update'],
+]);
+
+export function extractStructuredDossierBlocks(value) {
+    const source = String(value ?? '');
+    const out = [];
+    const masterPattern = /<Blocks\b[^>]*>([\s\S]*?)<\/Blocks\s*>/gi;
+    let master;
+    while ((master = masterPattern.exec(source))) {
+        const childPattern = /<([A-Za-z][A-Za-z0-9_-]*)\b[^>]*>([\s\S]*?)<\/\1\s*>/g;
+        let child;
+        while ((child = childPattern.exec(master[1] || ''))) {
+            const tag = STRUCTURED_DOSSIER_TAGS.get(normalizeTag(child[1]));
+            const body = clean(child[2], 30000);
+            if (tag && body) out.push({ tag, body });
+        }
+    }
+    return out.slice(0, 80);
+}
+
+export function structuredDossierBlocksForNpc(chat = [], npc = {}, depth = 30) {
+    // Deliberate structured import must identify the dossier by canonical name/alias.
+    // Generic occupations such as Guard or Clerk are not identity evidence and could pull
+    // another NPC's structured block into the selected dossier.
+    const variants = [...new Set([npc?.name, ...(Array.isArray(npc?.aliases) ? npc.aliases : [])]
+        .map(value => String(value || '').trim()).filter(Boolean))];
+    if (!variants.length) return [];
+    const rows = [];
+    const source = Array.isArray(chat) ? chat : [];
+    const start = Math.max(0, source.length - Math.max(2, Math.min(80, Math.round(Number(depth) || 30))));
+    for (let messageId = start; messageId < source.length; messageId += 1) {
+        const message = source[messageId];
+        if (!message || message.is_system) continue;
+        for (const block of extractStructuredDossierBlocks(message.mes)) {
+            if (!containsReference(block.body, variants)) continue;
+            rows.push({ messageId, role: message.is_user ? 'USER' : 'ASSISTANT', tag: block.tag, body: block.body });
+        }
+    }
+    return rows.slice(-24);
+}

@@ -1,5 +1,5 @@
 import { bestCheckpoint, ensureBranchBase, fingerprintMessage, rebaseToCurrentChat, reconcileToCurrentBranch, recordCheckpoint } from './branches.js';
-import { buildExchangeEvidencePolicy, profileEvidenceText, relationshipEvidenceText, retentionEvidenceText } from './evidence-adapter.js';
+import { buildExchangeEvidencePolicy, profileEvidenceText, relationshipEvidenceText, retentionEvidenceText, structuredDossierBlocksForNpc } from './evidence-adapter.js';
 import {
     applyNpcStateBundleImport,
     bundleSuggestedFilename,
@@ -25,10 +25,12 @@ import {
 import {
     applyScanResult,
     buildScanPrompt,
+    buildStructuredDossierImportPrompt,
     buildTargetedRefreshPrompt,
     currentExchange,
     parseScanJson,
     reconcileFamilyGraphState,
+    sanitizeStructuredDossierPatch,
 } from './scanner.js';
 import {
     applyStaleLifecycle,
@@ -384,6 +386,64 @@ export function createNpcStateEngine(adapters = {}) {
                 referencedNpcIds, targetNpcIds: applied.targetNpcIds,
                 state: structuredClone(persisted),
             };
+        });
+    }
+
+    async function importStructuredDossier(reference) {
+        const chatKey = getChatKey();
+        if (!chatKey || chatKey === 'no-chat') return { ok: false, reason: 'no-chat' };
+        return exclusive(chatKey, async () => {
+            const state = await loadChat(chatKey);
+            if (state?.branchSafety?.status !== 'safe') return { ok: false, reason: 'branch-unsafe' };
+            const npc = findNpcByReference(state, reference);
+            if (!npc) return { ok: false, reason: 'not-found' };
+            const ctx = getContext();
+            const chat = ctx.chat || [];
+            const settings = getSettings();
+            const blocks = structuredDossierBlocksForNpc(chat, npc, Math.max(12, Number(settings.scanDepth) || 8) * 3);
+            // Non-Megumin users and chats without a matching structured dossier source stop
+            // here. No scanner generation, sidecar mutation, presence change, or prompt cost.
+            if (!blocks.length) return { ok: false, reason: 'no-structured-source', npcId: npc.id };
+            const messageId = latestAssistantMessageId(chat);
+            if (messageId < 0) return { ok: false, reason: 'no-assistant-message' };
+            const startEpoch = epoch(chatKey);
+            const startFingerprint = fingerprintMessage(chat[messageId] || {});
+            const sourceContext = blocks.map(block => block.body).join('\n');
+            const prompt = buildStructuredDossierImportPrompt({
+                npc,
+                blocks,
+                memoryCriteria: settings.memoryCriteria,
+                dossierLimits: settings.dossierLimits,
+            });
+            const parsedRaw = await invokeJson(prompt, 'structured-import-' + npc.id);
+            const candidate = (parsedRaw.npcs || []).find(patch => {
+                const patchId = String(patch?.id || '').trim();
+                return patchId ? patchId === npc.id : normalizeName(patch?.name) === normalizeName(npc.name);
+            });
+            if (!candidate) return { ok: false, reason: 'structured-source-no-target', npcId: npc.id };
+            const parsed = {
+                exchangeActiveNpcIds: [], finalPresentNpcIds: [], worldActiveNpcIds: [],
+                npcs: [sanitizeStructuredDossierPatch(candidate, npc)], socialEdges: [], familyFacts: [],
+            };
+            const liveChat = getContext().chat || [];
+            if (getChatKey() !== chatKey || epoch(chatKey) !== startEpoch || fingerprintMessage(liveChat[messageId] || {}) !== startFingerprint) {
+                return { ok: false, discarded: true, reason: 'stale-operation' };
+            }
+            const applied = applyScanResult(state, parsed, {
+                sourceMessageId: messageId,
+                turn: state.turn,
+                preservePresence: true,
+                preserveObservation: true,
+                applyRelationship: false,
+                allowHistoricalProfilePatches: true,
+                profileContext: sourceContext,
+                relationshipContext: '',
+                dossierLimits: settings.dossierLimits,
+                applyReturnedNpcPatches: true,
+            });
+            const committed = recordCheckpoint(applied.state, liveChat, messageId, 'structured-dossier-import');
+            const persisted = await persist(chatKey, committed);
+            return { ok: true, npcId: npc.id, sourceCount: blocks.length, state: structuredClone(persisted) };
         });
     }
 
@@ -818,6 +878,7 @@ export function createNpcStateEngine(adapters = {}) {
         scan,
         applyEmbeddedScan,
         refreshDossier,
+        importStructuredDossier,
         addNpc,
         updateNpc,
         archiveNpc,

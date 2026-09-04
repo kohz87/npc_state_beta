@@ -266,6 +266,60 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
     ].filter(Boolean).join('\n\n');
 }
 
+export function sanitizeStructuredDossierPatch(patch = {}, npc = {}) {
+    const out = {
+        id: String(npc?.id || patch?.id || '').trim(),
+        name: String(npc?.name || patch?.name || '').trim(),
+        relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' },
+    };
+    for (const field of [
+        'aliases', 'role', 'species', 'age', 'ageChange', 'apparentAge', 'appearance', 'appearanceForms', 'appearanceFormChanges',
+        'personality', 'behaviorProfile', 'speech', 'mannerisms', 'profileChanges', 'canonChanges', 'background',
+        'keyRelationships', 'keyRelationshipChanges', 'memories',
+    ]) {
+        if (Object.prototype.hasOwnProperty.call(patch || {}, field)) out[field] = structuredClone(patch[field]);
+    }
+    return out;
+}
+
+export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCriteria = '', dossierLimits = {} }) {
+    const limits = normalizeDossierLimits(dossierLimits);
+    const sources = (Array.isArray(blocks) ? blocks : []).slice(-24).map(block => ({
+        messageId: Number.isInteger(block?.messageId) ? block.messageId : null,
+        role: String(block?.role || ''),
+        tag: String(block?.tag || ''),
+        body: compactText(block?.body, 12000),
+    }));
+    return [
+        'You are NPC State v0.4.3 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
+        'Return JSON only. This is reference-data reconciliation, NOT a current scene/event scan.',
+        'Only the supplied Megumin New_NPC / NPC_Update blocks are authoritative sources for this operation.',
+        'TARGET DOSSIER: ' + JSON.stringify(rosterForPrompt({ npcs: [npc] })[0]),
+        'STRUCTURED DOSSIER SOURCES: ' + JSON.stringify(sources),
+        'IMPORT AUTHORITY RULES:',
+        '- Import durable identity/profile facts only: aliases, role, species, actual/apparent age, appearance/forms, personality, behavior, speech, mannerisms, background, non-player Key Relationships, and durable Important Memories.',
+        '- NEVER infer current In-chat presence, exchange activity, off-screen activity, Mood, Location, Goal, Status, currentForm, life/death/archive state, Importance, or any other live state from these reference blocks.',
+        '- NEVER create or change Trust/Affection/Desire/Tension, relationshipChange, relationshipSummary, or relationship history from structured dossier import.',
+        '- Preserve established canon when the blocks merely phrase it differently. For a real correction/revelation/revision of established Appearance/Species/Background/Role, return canonChanges with concrete evidence quoted/paraphrased from the source block.',
+        '- For established Personality/Behavior/Speech/Mannerisms revisions, use profileChanges and source-block evidence under the normal durable-evolution rules. A structured profile description may seed an empty field, but it does not waive contradiction safeguards.',
+        '- Existing appearanceForms remain sticky; add genuinely new forms normally and use appearanceFormChanges only when the structured source explicitly corrects/changes a known form.',
+        '- Existing actual Age remains sticky; use ageChange only when the structured source explicitly establishes a correction/birthday/elapsed-time result with the resulting numeric age.',
+        ...dossierCollectionRules(limits),
+        'MEMORY SEMANTIC HYGIENE: collapse paraphrases of the same durable event/fact, while preserving genuinely different events.',
+        memoryCriteria ? 'IMPORTANT MEMORY RUBRIC:\n' + compactText(memoryCriteria, 6000) : '',
+        'OUTPUT CONTRACT: ' + JSON.stringify({
+            exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [],
+            npcs: [{
+                id: npc.id, name: npc.name, aliases: null, role: '', species: '', age: '', ageChange: null, apparentAge: '',
+                appearance: '', appearanceForms: null, appearanceFormChanges: null,
+                personality: '', behaviorProfile: null, speech: '', mannerisms: null, profileChanges: null,
+                canonChanges: null, background: '', keyRelationships: null, keyRelationshipChanges: null, memories: null,
+                relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' },
+            }], socialEdges: [], familyFacts: [],
+        }),
+    ].filter(Boolean).join('\n\n');
+}
+
 export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scanDepth = 12, memoryCriteria = '', playerName = '', dossierLimits = {} }) {
     const history = nonSystemMessages(chat)
         .filter(message => !Number.isInteger(assistantMessageId) || message.id <= assistantMessageId)
