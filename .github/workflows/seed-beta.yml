@@ -21,12 +21,14 @@ on:
       - beta/fix-0.4.1-new-npc-id-authority.mjs
       - beta/fix-0.4.1-display-name-authority.mjs
       - beta/fix-0.4.1-age-semantics.mjs
+      - beta/fix-0.4.1-form-aware-appearance.mjs
       - beta/verify-0.4.1.mjs
       - beta/verify-final-0.4.1.mjs
       - beta/verify-status-semantics-0.4.1.mjs
       - beta/verify-new-npc-id-authority-0.4.1.mjs
       - beta/verify-display-name-authority-0.4.1.mjs
       - beta/verify-age-semantics-0.4.1.mjs
+      - beta/verify-form-aware-appearance-0.4.1.mjs
       - .github/workflows/seed-beta.yml
 
 permissions:
@@ -74,6 +76,7 @@ jobs:
           node beta/fix-0.4.1-new-npc-id-authority.mjs
           node beta/fix-0.4.1-display-name-authority.mjs
           node beta/fix-0.4.1-age-semantics.mjs
+          node beta/fix-0.4.1-form-aware-appearance.mjs
 
       - name: Syntax gate
         run: |
@@ -89,6 +92,7 @@ jobs:
           node beta/verify-new-npc-id-authority-0.4.1.mjs
           node beta/verify-display-name-authority-0.4.1.mjs
           node beta/verify-age-semantics-0.4.1.mjs
+          node beta/verify-form-aware-appearance-0.4.1.mjs
 
       - name: Architecture and migration gate
         run: |
@@ -118,6 +122,12 @@ jobs:
           grep -q "normalizeActualAge" v03/schema.js
           grep -q "age is ACTUAL chronological age only" v03/injection.js
           grep -q "Actual age" v03/dossier-view.js
+          grep -q "normalizeAppearanceForms" v03/schema.js
+          grep -q "appearanceForms stores durable canonical descriptions" v03/scanner.js
+          grep -q "Known physical forms" v03/injection.js
+          grep -q "Appearance forms" v03/dossier-view.js
+          grep -q "Appearance forms · one per line as Form | description" v03/ui.js
+          grep -q "currentFormAppearance" v03/portrait-prompt.js
           grep -q "expectedMessageText" v03/engine.js
           grep -q "expectedMessageText: consumed.cleanedText" v03/index.js
           grep -q "applyRelationship: !alreadyScannedMessage" v03/engine.js
