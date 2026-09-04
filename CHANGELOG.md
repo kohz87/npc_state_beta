@@ -2,6 +2,7 @@
 
 ## v0.4.1
 
+- Age semantics hardening: actual age is now numeric chronological data only, existing numeric ages are scanner-sticky instead of being re-estimated, recovery/Refresh prompts receive the stored age, and life-stage labels such as child/adult/elderly are rejected from age fields.
 - Hardened new-NPC display-name authority: `npc-*` transport ids/slugs can no longer become dossier names; grounded human aliases/activity references are promoted to the canonical display name, existing bad technical names self-repair when a trustworthy alias exists, and unresolved machine-only identities fail closed instead of polluting the roster.
 - Hardened new-NPC identity authority: model-invented ids are ignored for new dossiers, existing dossiers reconcile by canonical name when an unknown id is returned, proper names take priority over role labels, and same-payload activity/social references map to the locally allocated stable id.
 - Clarified dossier current status semantics: status now means the NPC concrete immediate activity, situation, or condition, never active/inactive/in-chat/off-screen/archive lifecycle state. Lifecycle-only status pollution is rejected deterministically and existing generic values normalize away on load.

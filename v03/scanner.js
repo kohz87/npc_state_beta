@@ -4,6 +4,7 @@ import {
     STABLE_PROFILE_FIELDS,
     findNpcByReference,
     makeNpcId,
+    normalizeActualAge,
     normalizeApparentAge,
     normalizeCurrentStatus,
     normalizeDossierLimits,
@@ -143,6 +144,9 @@ function rosterForPrompt(state) {
         name: npc.name,
         aliases: npc.aliases,
         role: npc.role,
+        species: npc.species,
+        age: npc.age,
+        apparentAge: npc.apparentAge,
         archived: npc.archived,
         archiveReason: npc.archiveReason,
         present: npc.present,
@@ -185,7 +189,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         npcs: [{
             id: 'existing id when known, otherwise empty',
             name: 'human-facing canonical proper name when known; readable role label only if genuinely unnamed; never npc-*',
-            aliases: [], role: '', species: '', age: '', apparentAge: '~N only, e.g. ~25, or empty', appearance: '', personality: '',
+            aliases: [], role: '', species: '', age: 'actual chronological numeric age only: N, ~N, or N days/weeks/months; never child/adult/elderly', apparentAge: '~N only, e.g. ~25, or empty', appearance: '', personality: '',
             behaviorProfile: [], speech: '', mannerisms: [], background: '', keyRelationships: [], memories: [],
             relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0,
             lifeState: 'alive|dead|unknown', lifeStateCertainty: 'explicit|strong|uncertain', lifeStateReason: '', livingReturn: false,
@@ -216,6 +220,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- socialEdges are NPC-to-NPC only. Never use the PLAYER/current USER persona as an endpoint.',
         '- Current exchange decides relationship changes. Older history may recover stable profile facts and durable memories, but must NEVER replay relationship deltas.',
         '- Only propose a relationshipChange when the current exchange contains concrete evidence. If unsure, use impact none and zero deltas.',
+        '- age is ACTUAL chronological age only. Use one grounded numeric age. Years use N or ~N; if canon explicitly gives a smaller unit, use N days, N weeks, or N months. Never write child, teenager, adult, young adult, middle-aged, elder, elderly, old, or another life-stage label in age. Never infer actual age from appearance. For an EXISTING NPC, leave age empty unless the current exchange explicitly establishes a more authoritative actual age; do not re-estimate it from prose or appearance.',
         '- apparentAge is separate from actual age. When clearly supported, it MUST be one approximate integer written exactly as ~N, for example ~18 or ~25. Never output decade bands, prose bands, or ranges such as twenties, 20s, late twenties, 20-30, or twenties to thirties. If a single numeric apparent age is not supported, leave apparentAge empty.',
         ...dossierCollectionRules(limits),
         '- Do not infer romance, obedience, hostility, personality, motives, secrets, age, species, or relationships without evidence.',
@@ -249,13 +254,14 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
         'Use the supplied chat window to reconcile grounded stable profile facts, current activity/situation/condition when supported, durable memories, and key relationships for THIS NPC only.',
         'status is the NPC current concrete activity, immediate situation, or condition: what they are doing or undergoing now. Never use active, inactive, in chat, off-screen, present, archived, or equivalent lifecycle labels as status; lifecycle presence is tracked separately.',
         'The PLAYER/current USER persona is not an NPC. relationshipSummary is this NPC toward the PLAYER; keyRelationships is NON-PLAYER ties only and must never duplicate the PLAYER.',
+        'age is ACTUAL chronological age only. Use grounded numeric age data only: N or ~N years, or N days/weeks/months when explicitly established. Never use child, teenager, adult, young adult, middle-aged, elder, elderly, old, or another life-stage label. If the target already has an age and the chat does not explicitly correct it, leave age empty rather than re-estimating it.',
         'apparentAge must be one supported numeric approximation formatted exactly as ~N. Never use decade bands, worded age bands, or ranges. Leave it empty if no single numeric apparent age is supported.',
         ...dossierCollectionRules(limits),
         'Do NOT change relationship scores or propose relationship deltas in a targeted refresh. Do NOT change global in-chat state for other NPCs.',
         'If the chat does not establish a scalar field, leave it empty. Never invent facts.',
         memoryCriteria ? `IMPORTANT MEMORY RUBRIC:\n${compactText(memoryCriteria, 6000)}` : '',
         `CHAT WINDOW:\n${JSON.stringify(history)}`,
-        `OUTPUT CONTRACT:\n${JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id: npc.id, name: npc.name, aliases: [], role: '', species: '', age: '', apparentAge: '~N only or empty', appearance: '', personality: '', behaviorProfile: null, speech: '', mannerisms: null, background: '', keyRelationships: null, memories: null, relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0, lifeState: 'alive|dead|unknown', lifeStateCertainty: '', lifeStateReason: '', livingReturn: false, relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' } }], socialEdges: [] })}`,
+        `OUTPUT CONTRACT:\n${JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id: npc.id, name: npc.name, aliases: [], role: '', species: '', age: 'actual chronological numeric age only or empty', apparentAge: '~N only or empty', appearance: '', personality: '', behaviorProfile: null, speech: '', mannerisms: null, background: '', keyRelationships: null, memories: null, relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0, lifeState: 'alive|dead|unknown', lifeStateCertainty: '', lifeStateReason: '', livingReturn: false, relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' } }], socialEdges: [] })}`,
     ].filter(Boolean).join('\n\n');
 }
 
@@ -370,8 +376,19 @@ function applyStablePatch(npc, patch, options = {}) {
         if (locked.has(field)) continue;
         const value = field === 'name'
             ? canonicalName
-            : (field === 'apparentAge' ? normalizeApparentAge(patch?.[field]) : String(patch?.[field] ?? '').trim());
+            : (field === 'age'
+                ? normalizeActualAge(patch?.[field])
+                : (field === 'apparentAge' ? normalizeApparentAge(patch?.[field]) : String(patch?.[field] ?? '').trim()));
         if (!value) continue;
+        if (field === 'age') {
+            const current = normalizeActualAge(next.age);
+            if (current && current !== value) {
+                // Scanner age is sticky once grounded. Only refine ~N to the same exact N.
+                // Genuine later corrections/aging remain available through manual dossier edit.
+                const exactRefinement = current.startsWith('~') && !value.startsWith('~') && current.slice(1) === value;
+                if (!exactRefinement) continue;
+            }
+        }
         if (field === 'name' && value !== next.name && next.name && !isTechnicalNpcIdentity(next.name)) next.aliases = appendUnique(next.aliases, [next.name], 10);
         next[field] = value;
     }

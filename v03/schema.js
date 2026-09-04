@@ -139,6 +139,26 @@ export function normalizeApparentAge(value) {
     return `~${matches[0]}`;
 }
 
+export function normalizeActualAge(value) {
+    const raw = text(value, 80);
+    if (!raw) return '';
+    // Actual age is chronological numeric data, not a life-stage label or a broad band.
+    // Preserve small-unit ages for infants/newborns, while years use the compact N/~N form.
+    if (/\b\d{1,4}\s*['’]?\s*s\b/i.test(raw)) return '';
+    if (/\d{1,4}\s*(?:-|–|—|to)\s*\d{1,4}/i.test(raw)) return '';
+    const matches = [...raw.matchAll(/(^|[^\d])(\d{1,4})(?!\d)/g)].map(match => Number(match[2]));
+    if (matches.length !== 1 || !Number.isInteger(matches[0]) || matches[0] < 0) return '';
+    const number = matches[0];
+    const approximate = /~|\b(?:about|around|approx(?:imately)?|roughly|circa)\b/i.test(raw);
+    const prefix = approximate ? '~' : '';
+    const lower = raw.toLocaleLowerCase();
+    const unit = /\bdays?\b/.test(lower) ? 'day'
+        : (/\bweeks?\b/.test(lower) ? 'week'
+            : (/\bmonths?\b/.test(lower) ? 'month' : ''));
+    if (unit) return `${prefix}${number} ${unit}${number === 1 ? '' : 's'}`;
+    return `${prefix}${number}`;
+}
+
 const LIFECYCLE_ONLY_CURRENT_STATUSES = new Set([
     'active', 'inactive', 'not active', 'currently active', 'currently inactive',
     'present', 'not present', 'currently present', 'currently not present',
@@ -214,7 +234,7 @@ export function normalizeNpc(input = {}, options = {}) {
         aliases: list(input.aliases, 10, 120).filter(alias => normalizeName(alias) !== normalizeName(name)),
         role: text(input.role, 240),
         species: text(input.species, 160),
-        age: text(input.age, 80),
+        age: normalizeActualAge(input.age),
         apparentAge: normalizeApparentAge(input.apparentAge),
         appearance: text(input.appearance, 1800),
         personality: text(input.personality, 1200),

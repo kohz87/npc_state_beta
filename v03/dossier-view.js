@@ -83,7 +83,7 @@ function identityText(npc = {}) {
     return [
         npc.species,
         npc.role,
-        npc.age ? `Age ${npc.age}` : '',
+        npc.age ? `Actual age ${npc.age}` : '',
         npc.apparentAge ? `Looks ${npc.apparentAge}` : '',
     ].filter(Boolean).join(' · ');
 }
