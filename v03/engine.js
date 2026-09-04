@@ -38,6 +38,17 @@ import { readV3PointerHint, readV3Sidecar, writeV3Sidecar } from './storage.js';
 
 const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.2 recovery scanner. Obey the supplied schema and evidence rules exactly.';
 
+function profileContextForWindow(chat = [], messageId = null, depth = 8) {
+    const end = Number.isInteger(messageId) ? Math.min(chat.length - 1, messageId) : chat.length - 1;
+    const rows = [];
+    for (let i = Math.max(0, end - Math.max(2, Number(depth) || 8) * 2); i <= end; i += 1) {
+        const message = chat[i];
+        if (!message || message.is_system) continue;
+        rows.push(String(message.mes || '').slice(0, 8000));
+    }
+    return rows.join('\n');
+}
+
 function relationshipContextForExchange(exchange) {
     if (!exchange) return '';
     return [exchange.user?.mes, exchange.assistant?.mes].map(value => String(value || '').trim()).filter(Boolean).join('\n');
@@ -253,6 +264,7 @@ export function createNpcStateEngine(adapters = {}) {
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 relationshipContext: relationshipContextForExchange(exchange),
+                profileContext: relationshipContextForExchange(exchange),
                 dossierLimits: settings.dossierLimits,
                 applyReturnedNpcPatches: true,
                 applyRelationship: !alreadyScannedMessage,
@@ -322,6 +334,7 @@ export function createNpcStateEngine(adapters = {}) {
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 relationshipContext: relationshipContextForExchange(exchange),
+                profileContext: relationshipContextForExchange(exchange),
                 dossierLimits: settings.dossierLimits,
                 applyReturnedNpcPatches: true,
             });
@@ -407,6 +420,7 @@ export function createNpcStateEngine(adapters = {}) {
                 preserveObservation: true,
                 applyRelationship: false,
                 allowHistoricalProfilePatches: true,
+                profileContext: profileContextForWindow(liveChat, messageId, settings.scanDepth),
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 dossierLimits: settings.dossierLimits,
                 applyReturnedNpcPatches: true,

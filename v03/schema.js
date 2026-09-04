@@ -31,6 +31,7 @@ export const DOSSIER_LIMIT_MAXIMUMS = Object.freeze({
 });
 export const CHECKPOINT_LIMIT = 48;
 export const APPEARANCE_FORM_LIMIT = 12;
+export const PROFILE_EVOLUTION_EVIDENCE_LIMIT = 12;
 
 function text(value, max = 1200) {
     return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -359,6 +360,31 @@ export function applyRelationshipMilestoneCrossings(milestones, crossings = [], 
     return normalizeRelationshipMilestones([...map.values()], DEFAULT_RELATIONSHIP, { inferFromRelationship: false });
 }
 
+export function normalizeProfileEvolutionEvidence(value = []) {
+    const allowedFields = new Set(['personality', 'behaviorProfile', 'speech', 'mannerisms']);
+    const allowedModes = new Set(['refine', 'gradual', 'explicit', 'batch']);
+    const source = Array.isArray(value) ? value : [];
+    const out = [];
+    for (const raw of source.slice(-PROFILE_EVOLUTION_EVIDENCE_LIMIT * 2)) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+        const field = String(raw.field || '').trim();
+        const mode = allowedModes.has(String(raw.mode || '').trim()) ? String(raw.mode).trim() : 'gradual';
+        const concept = text(raw.concept, 180);
+        const evidence = text(raw.evidence, 600);
+        if (!allowedFields.has(field) || !concept || !evidence) continue;
+        out.push({
+            field,
+            mode,
+            concept,
+            evidence,
+            sourceMessageId: Number.isInteger(raw.sourceMessageId) ? raw.sourceMessageId : null,
+            turn: Number.isInteger(raw.turn) ? raw.turn : null,
+            at: Number(raw.at) || null,
+        });
+    }
+    return out.slice(-PROFILE_EVOLUTION_EVIDENCE_LIMIT);
+}
+
 export function emptyRelationshipChange() {
     return {
         impact: 'none',
@@ -392,6 +418,7 @@ export function normalizeNpc(input = {}, options = {}) {
     const relationshipEvidenceHistory = normalizeRelationshipEvidenceHistory(input.relationshipEvidenceHistory);
     const hasMilestoneState = Object.prototype.hasOwnProperty.call(input, 'relationshipMilestones');
     const relationshipMilestones = normalizeRelationshipMilestones(input.relationshipMilestones, relationship, { inferFromRelationship: !hasMilestoneState });
+    const profileEvolutionEvidence = normalizeProfileEvolutionEvidence(input.profileEvolutionEvidence);
     const appearanceForms = normalizeAppearanceForms(input.appearanceForms);
     const requestedCurrentForm = text(input.currentForm, 80);
     const matchedCurrentForm = appearanceFormByName(appearanceForms, requestedCurrentForm);
@@ -411,6 +438,7 @@ export function normalizeNpc(input = {}, options = {}) {
         behaviorProfile: list(input.behaviorProfile, DOSSIER_LIMIT_MAXIMUMS.behaviorProfile, 360),
         speech: text(input.speech, 900),
         mannerisms: list(input.mannerisms, DOSSIER_LIMIT_MAXIMUMS.mannerisms, 280),
+        profileEvolutionEvidence,
         background: text(input.background, 1600),
         keyRelationships: normalizeKeyRelationshipEntries(input.keyRelationships, DOSSIER_LIMIT_MAXIMUMS.keyRelationships, 500),
         memories: list(input.memories, DOSSIER_LIMIT_MAXIMUMS.memories, 700),

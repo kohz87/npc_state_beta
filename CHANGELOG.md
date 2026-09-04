@@ -2,6 +2,7 @@
 
 ## v0.4.2
 
+- Phase 3 restores durable characterization safeguards for Personality, Behavioral Profile, Speech, and Mannerisms. New NPCs can still establish a rich baseline immediately, but established fields require grounded refine/gradual/explicit/batch evidence; gradual concepts need cross-scan confirmation, explicit changes need lasting-change cues, batch changes need a real narrated time skip, refinement cannot hide identity flips, and one-off gestures cannot become permanent mannerisms.
 - Phase 2 restores bounded exact sibling swipe snapshots: up to four distinct content-lineage checkpoints may coexist for one assistant message, while v0.4.2 keeps swipe-index-independent fingerprints, the global 48-checkpoint bound, and stored embedded-payload replay as fallback after older sibling eviction.
 - Phase 1 restores v0.2 relationship hardening on top of the v0.4 milestone gates: fractional evidence progress, depth inertia, tier axis-count limits with tied-overflow rejection, recent semantic event dedupe, a narration-backed Desire firewall, and Relationship Summary depth validation. Blocked/duplicate events cannot rewrite the summary, while checkpoint-blocked evidence is retained only in the short hidden dedupe ledger.
 - Begins the phased v0.4.2 hardening line. Each recovery phase is applied and verified independently before the next phase is introduced.
