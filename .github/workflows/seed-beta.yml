@@ -24,6 +24,7 @@ on:
       - beta/fix-0.4.1-form-aware-appearance.mjs
       - beta/fix-0.4.1-form-capture-semantics.mjs
       - beta/fix-0.4.1-form-baseline-recovery.mjs
+      - beta/fix-0.4.1-relationship-milestone-gates.mjs
       - beta/verify-0.4.1.mjs
       - beta/verify-final-0.4.1.mjs
       - beta/verify-status-semantics-0.4.1.mjs
@@ -33,6 +34,7 @@ on:
       - beta/verify-form-aware-appearance-0.4.1.mjs
       - beta/verify-form-capture-semantics-0.4.1.mjs
       - beta/verify-form-baseline-recovery-0.4.1.mjs
+      - beta/verify-relationship-milestone-gates-0.4.1.mjs
       - .github/workflows/seed-beta.yml
 
 permissions:
@@ -83,6 +85,7 @@ jobs:
           node beta/fix-0.4.1-form-aware-appearance.mjs
           node beta/fix-0.4.1-form-capture-semantics.mjs
           node beta/fix-0.4.1-form-baseline-recovery.mjs
+          node beta/fix-0.4.1-relationship-milestone-gates.mjs
 
       - name: Syntax gate
         run: |
@@ -101,6 +104,7 @@ jobs:
           node beta/verify-form-aware-appearance-0.4.1.mjs
           node beta/verify-form-capture-semantics-0.4.1.mjs
           node beta/verify-form-baseline-recovery-0.4.1.mjs
+          node beta/verify-relationship-milestone-gates-0.4.1.mjs
 
       - name: Architecture and migration gate
         run: |
@@ -140,6 +144,11 @@ jobs:
           grep -q "Appearance forms" v03/dossier-view.js
           grep -q "Appearance forms · one per line as Form | description" v03/ui.js
           grep -q "currentFormAppearance" v03/portrait-prompt.js
+          grep -q "RELATIONSHIP_MILESTONE_THRESHOLDS" v03/schema.js
+          grep -q "relationshipMilestoneUnlocked" v03/scanner.js
+          grep -q "RELATIONSHIP MILESTONE GATES" v03/injection.js
+          grep -q "PRE_GATE_RELATIONSHIP_CRITERIA" v03/index.js
+          grep -q "includeBoundary: true" v03/engine.js
           grep -q "expectedMessageText" v03/engine.js
           grep -q "expectedMessageText: consumed.cleanedText" v03/index.js
           grep -q "applyRelationship: !alreadyScannedMessage" v03/engine.js
