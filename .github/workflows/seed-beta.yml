@@ -28,6 +28,7 @@ on:
       - beta/bump-0.4.2.mjs
       - beta/phase1-relationship-hardening-0.4.2.mjs
       - beta/phase1b-relationship-summary-gate-0.4.2.mjs
+      - beta/phase1c-fix-engine-newline-0.4.2.mjs
       - beta/verify-final-0.4.1.mjs
       - beta/verify-status-semantics-0.4.1.mjs
       - beta/verify-new-npc-id-authority-0.4.1.mjs
@@ -91,6 +92,7 @@ jobs:
           node beta/bump-0.4.2.mjs
           node beta/phase1-relationship-hardening-0.4.2.mjs
           node beta/phase1b-relationship-summary-gate-0.4.2.mjs
+          node beta/phase1c-fix-engine-newline-0.4.2.mjs
 
       - name: Syntax gate
         run: |
