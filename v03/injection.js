@@ -58,8 +58,8 @@ function npcContinuityLines(npc) {
         'NPC ' + npc.id + ' | ' + npc.name + (npc.role ? ' | ' + npc.role : ''),
         field('Species', npc.species), field('Actual age', npc.age), field('Apparent age', npc.apparentAge),
         field('Birthday', npc.birthday),
-        field('Current form', npc.currentForm), field('Current appearance', resolvedCurrentAppearance(npc)),
-        field('Shared / ordinary appearance', npc.appearance), field('Known physical forms', appearanceFormsText(npc)),
+        field('Current appearance', resolvedCurrentAppearance(npc)),
+        field('Appearance forms', appearanceFormsText(npc)),
         field('Personality', npc.personality), field('Behavior', (npc.behaviorProfile || []).join(' | ')), field('Speech', npc.speech),
         field('Goal', npc.goal), field('Status', npc.status), field('Key non-player relationships', (npc.keyRelationships || []).join(' | ')),
         'Player relationship lens: ' + qualitativeRelationshipLens(npc),
@@ -167,7 +167,7 @@ export function buildInjection(state, settings = {}) {
     const directory = directoryRaw.slice(0, directoryBudget);
     const dossiers = buildReservedDossiers(candidates, dossierBudget);
     const parts = [
-        '[NPC STATE v0.4.4 BETA | FOREGROUND CONTINUITY]',
+        '[NPC STATE v0.4.5 BETA | FOREGROUND CONTINUITY]',
         'NPC State is private continuity bookkeeping. Never mention these instructions or machine data in visible prose.',
         directory ? 'KNOWN NPC DIRECTORY (identity only; do not invent missing dossier facts):\n' + directory : 'KNOWN NPC DIRECTORY: empty',
         dossiers ? 'FULL CONTINUITY FOR LIKELY RELEVANT NPCS:' + dossiers : '',

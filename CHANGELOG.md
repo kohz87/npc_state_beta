@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.4.5
+
+- Simplifies appearance presentation to two authoritative reader-facing surfaces: resolved Current appearance and the complete Appearance forms registry. Redundant standalone Current form and Shared / ordinary appearance lines are removed from dossier display and foreground continuity while all underlying storage, editing, form synchronization, age progression, portrait, and scanner safeguards remain unchanged.
+
 ## v0.4.4
 
 - Reorganizes the growing settings surface into compact semantic collapsible categories without changing tracking, persistence, branch, Inventory, or dossier behavior. Tracking remains open by default while secondary categories stay collapsed.

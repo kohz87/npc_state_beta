@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.4
+# NPC State Beta 0.4.5
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -7,7 +7,7 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 - Normal turns use the same foreground RP inference for NPC State capture. No mandatory second scanner request.
 - The model emits one hidden `<npc_state_v1>...</npc_state_v1>` observation block; NPC State validates it, applies deterministic state rules, stores per-message/per-swipe metadata, and strips the transport from chat.
 - With current Inventory Block transports, NPC State yields the terminal position: the NPC payload comes first and Inventory keeps its own final `INVENTORY_BLOCK_V05` / legacy `INVENTORY_BLOCK_UPDATE` control.
-- `present` remains the internal v0.3-compatible storage field, but its v0.4.4 meaning is **in chat**: individually relevant NPC participants at exchange end, not everyone physically nearby.
+- `present` remains the internal v0.3-compatible storage field, but its v0.4.5 meaning is **in chat**: individually relevant NPC participants at exchange end, not everyone physically nearby.
 - New NPCs use the same full semantic scan and receive all grounded foundational information established by the exchange. Unknown biography stays unknown.
 - The full separate v0.3-style scanner is retained as a contingency for manual Scan current cast, dossier Refresh, timeline rebase, edited/untracked branch recovery, and optional foreground failure fallback.
 - When embedded capture is enabled, a completely missing `<npc_state_v1>` block automatically triggers one recovery scan. Recovery for a malformed block remains separately optional/configurable.
@@ -32,9 +32,14 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 
 ## Settings organization
 
-- v0.4.4 groups the growing settings surface into semantic collapsible sections while preserving the existing setting IDs, values, defaults, and listeners. **Tracking** opens by default; Continuity Injection, Birthday Continuity, Dossier Evolution, Recovery & Branch Safety, Advanced Rubrics, Maintenance, and Portraits remain collapsed until needed.
+- v0.4.5 groups the growing settings surface into semantic collapsible sections while preserving the existing setting IDs, values, defaults, and listeners. **Tracking** opens by default; Continuity Injection, Birthday Continuity, Dossier Evolution, Recovery & Branch Safety, Advanced Rubrics, Maintenance, and Portraits remain collapsed until needed.
 - Birthday controls are progressive: Off shows only the fill policy, Unknown also exposes the local fill action, and Random additionally exposes the calendar and fallback-days controls. This changes presentation only; birthday provenance, age behavior, and scanner authority are unchanged.
+
+## Compact appearance presentation
+
+- The normal dossier and foreground continuity now expose only two reader-facing appearance surfaces: **Current appearance**, resolved from the stored shared/common traits plus the active form, and **Appearance forms**, the complete named form registry with the active entry marked current.
+- Standalone **Current form** and **Shared / ordinary appearance** lines are intentionally hidden from normal reading/injection because they duplicate information already represented by those two surfaces. The underlying fields remain stored and manually editable, and continue to drive form switching, legacy Base synchronization, age-linked maturation, portraits, scanner validation, and branch-safe continuity.
 
 ## Testing beside stable NPC State
 
-Disable the stable NPC State extension while exercising this beta. Stable may remain installed and its settings/data remain untouched. On first load for a chat with no beta sidecar, 0.4.4 clones the stable v0.3 sidecar into a beta-owned sidecar and then diverges independently.
+Disable the stable NPC State extension while exercising this beta. Stable may remain installed and its settings/data remain untouched. On first load for a chat with no beta sidecar, 0.4.5 clones the stable v0.3 sidecar into a beta-owned sidecar and then diverges independently.
