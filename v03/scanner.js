@@ -8,12 +8,15 @@ import {
     RELATIONSHIP_MILESTONE_REQUIREMENTS,
     RELATIONSHIP_MILESTONE_THRESHOLDS,
     STABLE_PROFILE_FIELDS,
+    applyBirthdayFill,
     applyRelationshipMilestoneCrossings,
     findNpcByReference,
     makeNpcId,
     normalizeActualAge,
     normalizeAppearanceForms,
     normalizeApparentAge,
+    normalizeBirthday,
+    normalizeBirthdayProvenance,
     normalizeCurrentStatus,
     normalizeDossierLimits,
     normalizeFamilySlots,
@@ -164,6 +167,8 @@ function rosterForPrompt(state) {
         species: npc.species,
         age: npc.age,
         apparentAge: npc.apparentAge,
+        birthday: npc.birthday,
+        birthdayProvenance: npc.birthdayProvenance,
         appearance: npc.appearance,
         appearanceForms: npc.appearanceForms,
         currentForm: npc.currentForm,
@@ -826,7 +831,13 @@ function explicitAgeChange(npc, patch, options = {}) {
     return age;
 }
 
-const DURABLE_CANON_FIELDS = new Set(['appearance', 'species', 'background', 'role']);
+const DURABLE_CANON_FIELDS = new Set(['appearance', 'species', 'background', 'role', 'birthday']);
+const BIRTHDAY_EVIDENCE_CUES = /\b(?:birthday|birth date|date of birth|born(?:\s+on)?|name day|nameday)\b/i;
+function birthdayEvidenceGrounded(value, context) {
+    const birthday = normalizeBirthday(value);
+    const source = String(context || '');
+    return Boolean(birthday && source.trim() && BIRTHDAY_EVIDENCE_CUES.test(source) && profileEvidenceGrounded(birthday, source));
+}
 const CANON_CORRECTION_CUES = /\b(actually|correction|corrected|mistaken|mistake|wrong|misidentified|misstated|in fact|rather than|true (?:species|identity|origin))\b/i;
 const CANON_REVELATION_CUES = /\b(reveal(?:s|ed)?|turns out|true (?:species|identity|origin)|secretly|had always been|was born|comes from|originally from|confesses?|admits?)\b/i;
 const CANON_ROLE_CHANGE_CUES = /\b(promot(?:ed|ion)|demot(?:ed|ion)|appointed|assigned|reassigned|retired|resigned|dismissed|became|becomes|now serves?|takes? the role|takes? over as|elected|installed as)\b/i;
@@ -852,6 +863,9 @@ function durableCanonDecision(npc, patch, field, incomingValue, options = {}) {
     const mode = String(change.mode || '').trim().toLocaleLowerCase();
     const context = String(options.profileContext || '');
     if (!value || normalizeName(value) !== normalizeName(incoming) || !evidence || !profileEvidenceGrounded(evidence, context)) return false;
+    if (field === 'birthday') {
+        return mode === 'correction' && CANON_CORRECTION_CUES.test(evidence + ' ' + context);
+    }
     if (field === 'species') {
         if (mode === 'correction') return CANON_CORRECTION_CUES.test(evidence + ' ' + context);
         if (mode === 'revelation') return CANON_REVELATION_CUES.test(evidence + ' ' + context);
@@ -921,6 +935,22 @@ function applyStablePatch(npc, patch, options = {}) {
         if (apparent && !currentApparent) next.apparentAge = apparent;
         else if (apparent && apparent === currentApparent) next.apparentAge = apparent;
         else if (apparent && apparentAgeProgressionAllowed(npc, apparent, ageProgression)) next.apparentAge = apparent;
+    }
+    if (!locked.has('birthday')) {
+        const incomingBirthday = normalizeBirthday(patch?.birthday);
+        const currentBirthday = normalizeBirthday(npc?.birthday);
+        const currentProvenance = normalizeBirthdayProvenance(npc?.birthdayProvenance, currentBirthday);
+        const groundedBirthday = incomingBirthday && birthdayEvidenceGrounded(incomingBirthday, String(options.profileContext || ''));
+        if (groundedBirthday && (options.isBootstrap === true || !currentBirthday || currentProvenance === 'generated')) {
+            next.birthday = incomingBirthday;
+            next.birthdayProvenance = 'explicit';
+        } else if (incomingBirthday && currentBirthday && normalizeName(incomingBirthday) !== normalizeName(currentBirthday)
+            && durableCanonDecision(npc, patch, 'birthday', incomingBirthday, options)) {
+            next.birthday = incomingBirthday;
+            next.birthdayProvenance = 'explicit';
+        } else if (groundedBirthday && normalizeName(incomingBirthday) === normalizeName(currentBirthday) && currentProvenance === 'generated') {
+            next.birthdayProvenance = 'explicit';
+        }
     }
     for (const field of ['role', 'species', 'background']) {
         if (locked.has(field)) continue;
@@ -1648,6 +1678,15 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     state.npcs = familyReconciled.npcs;
     state.socialGraph = familyReconciled.socialGraph;
     state.familySlots = familyReconciled.familySlots;
+
+    // Passive birthday fill is metadata only. It applies after grounded reconciliation to
+    // participating dossiers, and never manufactures ageChange or age-progression authority.
+    const birthdayFillIds = new Set([...targetIds, ...returnedPatchSet]);
+    if (options.birthdayFill && birthdayFillIds.size) {
+        state.npcs = state.npcs.map(raw => birthdayFillIds.has(raw.id)
+            ? normalizeNpc(applyBirthdayFill(raw, options.birthdayFill))
+            : raw);
+    }
 
     if (options.preserveObservation !== true) {
         state.lastObservation = {

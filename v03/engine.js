@@ -281,6 +281,11 @@ export function createNpcStateEngine(adapters = {}) {
                 currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
                 admissionMode: settings.newNpcAdmissionMode,
                 dossierLimits: settings.dossierLimits,
+                birthdayFill: {
+                    mode: settings.birthdayFillMode,
+                    calendar: settings.birthdayRandomCalendar,
+                    fallbackDays: settings.birthdayRandomDaysPerMonth,
+                },
                 applyReturnedNpcPatches: true,
                 applyRelationship: !alreadyScannedMessage,
             });
@@ -355,6 +360,11 @@ export function createNpcStateEngine(adapters = {}) {
                 currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
                 admissionMode: settings.newNpcAdmissionMode,
                 dossierLimits: settings.dossierLimits,
+                birthdayFill: {
+                    mode: settings.birthdayFillMode,
+                    calendar: settings.birthdayRandomCalendar,
+                    fallbackDays: settings.birthdayRandomDaysPerMonth,
+                },
                 applyReturnedNpcPatches: true,
             });
             const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(settings.relationshipHistoryLimit);
@@ -442,6 +452,11 @@ export function createNpcStateEngine(adapters = {}) {
                 profileContext: sourceContext,
                 relationshipContext: '',
                 dossierLimits: settings.dossierLimits,
+                birthdayFill: {
+                    mode: settings.birthdayFillMode,
+                    calendar: settings.birthdayRandomCalendar,
+                    fallbackDays: settings.birthdayRandomDaysPerMonth,
+                },
                 applyReturnedNpcPatches: true,
             });
             const committed = recordCheckpoint(applied.state, liveChat, messageId, 'structured-dossier-import');
@@ -473,6 +488,11 @@ export function createNpcStateEngine(adapters = {}) {
                 scanDepth: settings.scanDepth,
                 memoryCriteria: settings.memoryCriteria,
                 dossierLimits: settings.dossierLimits,
+                birthdayFill: {
+                    mode: settings.birthdayFillMode,
+                    calendar: settings.birthdayRandomCalendar,
+                    fallbackDays: settings.birthdayRandomDaysPerMonth,
+                },
                 applyReturnedNpcPatches: true,
             });
             const parsedRaw = await invokeJson(prompt, `targeted-${npc.id}`);
@@ -501,6 +521,11 @@ export function createNpcStateEngine(adapters = {}) {
                 profileContext: profileContextForWindow(liveChat, messageId, settings.scanDepth),
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 dossierLimits: settings.dossierLimits,
+                birthdayFill: {
+                    mode: settings.birthdayFillMode,
+                    calendar: settings.birthdayRandomCalendar,
+                    fallbackDays: settings.birthdayRandomDaysPerMonth,
+                },
                 applyReturnedNpcPatches: true,
             });
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
