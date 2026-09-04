@@ -13,6 +13,7 @@ import {
     normalizeName,
     normalizeNpc,
     normalizeRelationship,
+    normalizeRelationshipMilestones,
     normalizeState,
 } from './schema.js';
 import {
@@ -465,6 +466,7 @@ export function createNpcStateEngine(adapters = {}) {
             if (patch?.relationship && typeof patch.relationship === 'object') {
                 const before = normalizeRelationship(current.relationship);
                 const after = normalizeRelationship(patch.relationship);
+                nextRaw.relationshipMilestones = normalizeRelationshipMilestones(current.relationshipMilestones, after, { inferFromRelationship: true, includeBoundary: true });
                 const delta = Object.fromEntries(Object.keys(before).map(axis => [axis, after[axis] - before[axis]]));
                 if (Object.values(delta).some(value => value !== 0)) {
                     const event = {

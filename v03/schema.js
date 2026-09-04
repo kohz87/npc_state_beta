@@ -7,6 +7,10 @@ export const STABLE_PROFILE_FIELDS = Object.freeze([
 ]);
 export const DEFAULT_RELATIONSHIP = Object.freeze({ trust: 0, affection: 0, desire: 0, tension: 0 });
 export const DEFAULT_RELATIONSHIP_CAPS = Object.freeze({ ordinary: 1, meaningful: 2, major: 5, extreme: 10 });
+export const RELATIONSHIP_MILESTONE_THRESHOLDS = Object.freeze([25, 50, 75, 90]);
+export const RELATIONSHIP_MILESTONE_REQUIREMENTS = Object.freeze({ 25: 'meaningful', 50: 'major', 75: 'extreme', 90: 'extreme' });
+export const RELATIONSHIP_MILESTONE_MIN_RAW = Object.freeze({ 25: 1, 50: 3, 75: 5, 90: 8 });
+export const RELATIONSHIP_MILESTONE_LIMIT = RELATIONSHIP_AXES.length * 2 * RELATIONSHIP_MILESTONE_THRESHOLDS.length;
 export const MEMORY_LIMIT = 5;
 export const KEY_RELATIONSHIP_LIMIT = 12;
 export const MANNERISM_LIMIT = 8;
@@ -228,6 +232,110 @@ export function normalizeRelationship(value = {}) {
     return Object.fromEntries(RELATIONSHIP_AXES.map(axis => [axis, clampRelationship(value?.[axis])]));
 }
 
+function normalizeMilestonePolarity(value) {
+    const number = Number(value);
+    return number > 0 ? 1 : (number < 0 ? -1 : 0);
+}
+
+function milestoneIdentity(entry) {
+    return String(entry?.axis || '') + ':' + String(entry?.polarity || 0) + ':' + String(entry?.threshold || 0);
+}
+
+function inferredRelationshipMilestones(relationship = DEFAULT_RELATIONSHIP, { includeBoundary = false, reason = 'Existing relationship depth predates milestone tracking.' } = {}) {
+    const rel = normalizeRelationship(relationship || DEFAULT_RELATIONSHIP);
+    const out = [];
+    for (const axis of RELATIONSHIP_AXES) {
+        const score = Number(rel[axis]) || 0;
+        const polarity = Math.sign(score);
+        if (!polarity) continue;
+        const magnitude = Math.abs(score);
+        for (const threshold of RELATIONSHIP_MILESTONE_THRESHOLDS) {
+            const established = includeBoundary ? magnitude >= threshold : magnitude > threshold;
+            if (!established) continue;
+            out.push({
+                axis,
+                polarity,
+                threshold,
+                reason,
+                evidence: '',
+                sourceMessageId: null,
+                turn: null,
+                at: null,
+                inferred: true,
+            });
+        }
+    }
+    return out;
+}
+
+export function normalizeRelationshipMilestones(value, relationship = DEFAULT_RELATIONSHIP, { inferFromRelationship = true, includeBoundary = false } = {}) {
+    const source = Array.isArray(value) ? value : [];
+    const map = new Map();
+    for (const raw of source) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+        const axis = RELATIONSHIP_AXES.includes(String(raw.axis || '').trim().toLocaleLowerCase()) ? String(raw.axis).trim().toLocaleLowerCase() : '';
+        const polarity = normalizeMilestonePolarity(raw.polarity);
+        const threshold = Number(raw.threshold);
+        if (!axis || !polarity || !RELATIONSHIP_MILESTONE_THRESHOLDS.includes(threshold)) continue;
+        const entry = {
+            axis,
+            polarity,
+            threshold,
+            reason: text(raw.reason, 300) || 'Relationship milestone established.',
+            evidence: text(raw.evidence, 500),
+            sourceMessageId: Number.isInteger(raw.sourceMessageId) ? raw.sourceMessageId : null,
+            turn: Number.isInteger(raw.turn) ? raw.turn : null,
+            at: Number(raw.at) || null,
+            inferred: raw.inferred === true,
+        };
+        map.set(milestoneIdentity(entry), entry);
+    }
+    if (inferFromRelationship) {
+        for (const entry of inferredRelationshipMilestones(relationship, { includeBoundary })) {
+            const key = milestoneIdentity(entry);
+            if (!map.has(key)) map.set(key, entry);
+        }
+    }
+    return [...map.values()]
+        .sort((a, b) => RELATIONSHIP_AXES.indexOf(a.axis) - RELATIONSHIP_AXES.indexOf(b.axis)
+            || a.polarity - b.polarity
+            || a.threshold - b.threshold)
+        .slice(0, RELATIONSHIP_MILESTONE_LIMIT);
+}
+
+export function relationshipMilestoneUnlocked(milestones, axis, polarity, threshold) {
+    const key = String(axis || '').trim().toLocaleLowerCase();
+    const sign = normalizeMilestonePolarity(polarity);
+    const point = Number(threshold);
+    if (!key || !sign || !RELATIONSHIP_MILESTONE_THRESHOLDS.includes(point)) return false;
+    return normalizeRelationshipMilestones(milestones, DEFAULT_RELATIONSHIP, { inferFromRelationship: false })
+        .some(entry => entry.axis === key && entry.polarity === sign && entry.threshold === point);
+}
+
+export function applyRelationshipMilestoneCrossings(milestones, crossings = [], { reason = '', evidence = '', sourceMessageId = null, turn = null, at = Date.now() } = {}) {
+    const map = new Map(normalizeRelationshipMilestones(milestones, DEFAULT_RELATIONSHIP, { inferFromRelationship: false })
+        .map(entry => [milestoneIdentity(entry), entry]));
+    for (const raw of Array.isArray(crossings) ? crossings : []) {
+        const axis = RELATIONSHIP_AXES.includes(String(raw?.axis || '').trim().toLocaleLowerCase()) ? String(raw.axis).trim().toLocaleLowerCase() : '';
+        const polarity = normalizeMilestonePolarity(raw?.polarity);
+        const threshold = Number(raw?.threshold);
+        if (!axis || !polarity || !RELATIONSHIP_MILESTONE_THRESHOLDS.includes(threshold)) continue;
+        const entry = {
+            axis,
+            polarity,
+            threshold,
+            reason: text(reason || raw.reason, 300) || ('Relationship crossed the ' + (polarity > 0 ? '+' : '-') + threshold + ' ' + axis + ' milestone.'),
+            evidence: text(evidence || raw.evidence, 500),
+            sourceMessageId: Number.isInteger(sourceMessageId) ? sourceMessageId : null,
+            turn: Number.isInteger(turn) ? turn : null,
+            at: Number(at) || Date.now(),
+            inferred: false,
+        };
+        map.set(milestoneIdentity(entry), entry);
+    }
+    return normalizeRelationshipMilestones([...map.values()], DEFAULT_RELATIONSHIP, { inferFromRelationship: false });
+}
+
 export function emptyRelationshipChange() {
     return {
         impact: 'none',
@@ -256,6 +364,9 @@ export function normalizeNpc(input = {}, options = {}) {
         turn: Number.isInteger(item?.turn) ? item.turn : null,
         at: Number(item?.at) || now,
     })) : [];
+    const relationship = normalizeRelationship(input.relationship || DEFAULT_RELATIONSHIP);
+    const hasMilestoneState = Object.prototype.hasOwnProperty.call(input, 'relationshipMilestones');
+    const relationshipMilestones = normalizeRelationshipMilestones(input.relationshipMilestones, relationship, { inferFromRelationship: !hasMilestoneState });
     const appearanceForms = normalizeAppearanceForms(input.appearanceForms);
     const requestedCurrentForm = text(input.currentForm, 80);
     const matchedCurrentForm = appearanceFormByName(appearanceForms, requestedCurrentForm);
@@ -278,7 +389,8 @@ export function normalizeNpc(input = {}, options = {}) {
         background: text(input.background, 1600),
         keyRelationships: normalizeKeyRelationshipEntries(input.keyRelationships, DOSSIER_LIMIT_MAXIMUMS.keyRelationships, 500),
         memories: list(input.memories, DOSSIER_LIMIT_MAXIMUMS.memories, 700),
-        relationship: normalizeRelationship(input.relationship || DEFAULT_RELATIONSHIP),
+        relationship,
+        relationshipMilestones,
         relationshipSummary: text(input.relationshipSummary, 1000),
         relationshipHistory,
         lastRelationshipChange: input.lastRelationshipChange ? {

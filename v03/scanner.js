@@ -1,7 +1,11 @@
 import {
     DEFAULT_RELATIONSHIP_CAPS,
     RELATIONSHIP_AXES,
+    RELATIONSHIP_MILESTONE_MIN_RAW,
+    RELATIONSHIP_MILESTONE_REQUIREMENTS,
+    RELATIONSHIP_MILESTONE_THRESHOLDS,
     STABLE_PROFILE_FIELDS,
+    applyRelationshipMilestoneCrossings,
     findNpcByReference,
     makeNpcId,
     normalizeActualAge,
@@ -14,6 +18,7 @@ import {
     normalizeNpc,
     normalizeRelationship,
     normalizeState,
+    relationshipMilestoneUnlocked,
 } from './schema.js';
 
 const IMPACTS = new Set(['none', 'ordinary', 'meaningful', 'major', 'extreme']);
@@ -224,6 +229,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- socialEdges are NPC-to-NPC only. Never use the PLAYER/current USER persona as an endpoint.',
         '- Current exchange decides relationship changes. Older history may recover stable profile facts and durable memories, but must NEVER replay relationship deltas.',
         '- Only propose a relationshipChange when the current exchange contains concrete evidence. If unsure, use impact none and zero deltas.',
+        '- RELATIONSHIP MILESTONE GATES are enforced by NPC State at absolute depth 25, 50, 75, and 90 independently for each axis and positive/negative polarity. Ordinary evidence may reach a locked boundary but cannot deepen beyond it. Crossing 25 requires meaningful-or-stronger evidence; crossing 50 requires a major-or-stronger event with at least 3 raw points on that axis; crossing 75 requires extreme evidence with at least 5 raw points; crossing 90 requires extreme relationship-defining evidence with at least 8 raw points. Movement back toward neutral is never gate-blocked. Classify impact and deltas from the story honestly; never inflate them merely to open a gate.',
         '- age is ACTUAL chronological age only. Use one grounded numeric age. Years use N or ~N; if canon explicitly gives a smaller unit, use N days, N weeks, or N months. Never write child, teenager, adult, young adult, middle-aged, elder, elderly, old, or another life-stage label in age. Never infer actual age from appearance. For an EXISTING NPC, leave age empty unless the current exchange explicitly establishes a more authoritative actual age; do not re-estimate it from prose or appearance.',
         '- apparentAge is separate from actual age. When clearly supported, it MUST be one approximate integer written exactly as ~N, for example ~18 or ~25. Never output decade bands, prose bands, or ranges such as twenties, 20s, late twenties, 20-30, or twenties to thirties. If a single numeric apparent age is not supported, leave apparentAge empty.',
         '- appearance remains the shared/common physical description, or the ordinary baseline appearance for an NPC with no distinct transforming forms. Do not rewrite appearance merely because a multi-form NPC changed form. For an EXISTING NPC that already has ordinary appearance but no appearanceForms, that stored appearance represents the baseline body; when the first alternate form is discovered NPC State preserves it locally as a neutral Base form.',
@@ -504,6 +510,59 @@ function applyDynamicPatch(npc, patch, options = {}) {
     return next;
 }
 
+function relationshipImpactRank(value) {
+    return { none: 0, ordinary: 1, meaningful: 2, major: 3, extreme: 4 }[String(value || '').trim()] || 0;
+}
+
+function relationshipMilestoneEventQualifies(change, axis, threshold, caps = DEFAULT_RELATIONSHIP_CAPS) {
+    const requiredImpact = RELATIONSHIP_MILESTONE_REQUIREMENTS[Number(threshold)] || 'extreme';
+    if (relationshipImpactRank(change?.impact) < relationshipImpactRank(requiredImpact)) return false;
+    const rawWeight = Math.abs(Number(change?.delta?.[axis]) || 0);
+    const tierCap = Math.max(0, Number(caps?.[change?.impact] ?? DEFAULT_RELATIONSHIP_CAPS[change?.impact] ?? 0));
+    const stockMinimum = Math.max(1, Number(RELATIONSHIP_MILESTONE_MIN_RAW[Number(threshold)]) || 1);
+    const requiredRaw = tierCap > 0 ? Math.min(tierCap, stockMinimum) : stockMinimum;
+    return rawWeight >= requiredRaw;
+}
+
+function gatedRelationshipAxis(currentValue, proposedDelta, axis, milestones, change, caps = DEFAULT_RELATIONSHIP_CAPS) {
+    const current = Math.max(-100, Math.min(100, Math.round(Number(currentValue) || 0)));
+    const delta = Math.round(Number(proposedDelta) || 0);
+    const desired = Math.max(-100, Math.min(100, current + delta));
+    if (!delta || desired === current) return { value: current, crossings: [] };
+
+    const currentPolarity = Math.sign(current);
+    const desiredPolarity = Math.sign(desired);
+    const movementPolarity = desiredPolarity || Math.sign(delta);
+    const currentMagnitude = currentPolarity === movementPolarity ? Math.abs(current) : 0;
+    const desiredMagnitude = Math.abs(desired);
+
+    // Movement toward neutral never meets an outward milestone gate.
+    if (currentPolarity && desiredPolarity === currentPolarity && desiredMagnitude < Math.abs(current)) {
+        return { value: desired, crossings: [] };
+    }
+
+    let allowedMagnitude = desiredMagnitude;
+    const crossings = [];
+    for (const threshold of RELATIONSHIP_MILESTONE_THRESHOLDS) {
+        if (threshold < currentMagnitude) continue;
+        if (relationshipMilestoneUnlocked(milestones, axis, movementPolarity, threshold)) continue;
+        if (allowedMagnitude < threshold) continue;
+
+        const qualifies = relationshipMilestoneEventQualifies(change, axis, threshold, caps);
+        if (allowedMagnitude === threshold) {
+            if (currentMagnitude < threshold && qualifies) crossings.push({ axis, polarity: movementPolarity, threshold });
+            break;
+        }
+        if (qualifies) {
+            crossings.push({ axis, polarity: movementPolarity, threshold });
+            continue;
+        }
+        allowedMagnitude = threshold;
+        break;
+    }
+    return { value: movementPolarity * allowedMagnitude, crossings };
+}
+
 function relationshipDeltaForPatch(patch, caps = DEFAULT_RELATIONSHIP_CAPS) {
     const change = patch?.relationshipChange && typeof patch.relationshipChange === 'object' ? patch.relationshipChange : {};
     const impact = IMPACTS.has(String(change.impact)) ? String(change.impact) : 'none';
@@ -522,15 +581,31 @@ function relationshipDeltaForPatch(patch, caps = DEFAULT_RELATIONSHIP_CAPS) {
 }
 
 function applyRelationshipChange(npc, patch, options) {
-    const change = relationshipDeltaForPatch(patch, options.relationshipCaps);
+    const caps = options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS;
+    const change = relationshipDeltaForPatch(patch, caps);
     if (change.impact === 'none') return npc;
     const next = structuredClone(npc);
     const current = normalizeRelationship(next.relationship);
     const updated = {};
-    for (const axis of RELATIONSHIP_AXES) updated[axis] = Math.max(-100, Math.min(100, current[axis] + change.delta[axis]));
+    const crossings = [];
+    const actualDelta = {};
+    for (const axis of RELATIONSHIP_AXES) {
+        const gated = gatedRelationshipAxis(current[axis], change.delta[axis], axis, next.relationshipMilestones, change, caps);
+        updated[axis] = gated.value;
+        actualDelta[axis] = gated.value - current[axis];
+        crossings.push(...gated.crossings);
+    }
+    next.relationshipMilestones = applyRelationshipMilestoneCrossings(next.relationshipMilestones, crossings, {
+        reason: change.reason,
+        evidence: change.evidence,
+        sourceMessageId: options.sourceMessageId,
+        turn: options.turn,
+    });
+    if (!Object.values(actualDelta).some(Boolean)) return next;
     next.relationship = updated;
     const event = {
         ...change,
+        delta: actualDelta,
         sourceMessageId: Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null,
         turn: Number.isInteger(options.turn) ? options.turn : null,
         at: Date.now(),
