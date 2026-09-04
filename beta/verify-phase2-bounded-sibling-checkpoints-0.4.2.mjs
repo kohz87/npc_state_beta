@@ -21,15 +21,16 @@ const variantChat = text => [baseUser, { is_user: false, is_system: false, swipe
     let state = createEmptyState('phase2-siblings');
     state.npcs = [normalizeNpc({ id: 'npc-mira-phase2', name: 'Mira', status: 'root' })];
     const chats = [];
+    const created = [];
     for (let i = 1; i <= 5; i += 1) {
         const chat = variantChat('Visible sibling ' + i);
         chats.push(chat);
         state.npcs[0].status = 'state-' + i;
         state = recordCheckpoint(state, chat, 1, 'sibling-' + i);
-        // Ensure createdAt ordering cannot collapse in a same-millisecond loop.
         const cp = state.checkpoints.find(item => item.messageId === 1 && item.lineage.at(-1) === fingerprintMessage(chat[1]));
-        if (cp) cp.createdAt += i;
+        if (cp) created.push(cp.createdAt);
     }
+    for (let i = 1; i < created.length; i += 1) assert(created[i] > created[i - 1], 'Checkpoint recency is not strictly monotonic');
     const siblings = state.checkpoints.filter(item => item.messageId === 1);
     assert(siblings.length === 4, 'Per-message sibling checkpoint bound is not four');
     const fingerprints = new Set(siblings.map(item => item.lineage.at(-1)));
@@ -79,6 +80,7 @@ const variantChat = text => [baseUser, { is_user: false, is_system: false, swipe
     assert(index.includes('preferStoredPayload'), 'Swipe reconcile no longer prefers stored payload when needed');
     assert(branches.includes('const siblingLimit = 4'), 'Bounded sibling checkpoint implementation missing');
     assert(branches.includes('arraysEqual(item.lineage || [], lineage)'), 'Exact sibling lineage replacement missing');
+    assert(branches.includes('newestCheckpointTime + 1'), 'Monotonic checkpoint recency guard missing');
 }
 
 console.log('NPC State 0.4.2 phase 2 bounded sibling checkpoint verification passed');
