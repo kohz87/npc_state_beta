@@ -137,11 +137,14 @@ export function recordCheckpoint(state, chat, messageId, reason = 'scan') {
     if (!Number.isInteger(messageId) || messageId < 0) return markBranchHead(state, chat);
     const next = ensureBranchBase(state, chat);
     const lineage = chatLineage(chat, messageId);
+    const newestCheckpointTime = Math.max(0, ...(next.checkpoints || []).map(item => Number(item?.createdAt) || 0), Number(next.branchBase?.createdAt) || 0);
     const checkpoint = {
         messageId,
         lineage,
         reason: String(reason || 'scan').slice(0, 80),
-        createdAt: Date.now(),
+        // Date.now() can repeat inside rapid swipe/regeneration churn. Keep checkpoint
+        // recency strictly monotonic so bounded sibling eviction is deterministic.
+        createdAt: Math.max(Date.now(), newestCheckpointTime + 1),
         snapshot: snapshotForCheckpoint(next),
     };
     // Keep several exact content-lineage siblings for one assistant message instead of
