@@ -1,5 +1,6 @@
 import { evidenceReferenceScope, hasRecognizedStructuredBlocks, scannerEvidenceText, structuredEvidencePromptRules } from './evidence-adapter.js';
 import { appearanceFormDescription, appearanceScalarIsLegacyBase } from './appearance.js';
+import { AGE_PROGRESSION_MODE, ageProgressionAppearanceSafe, apparentAgeProgressionAllowed, authorizeAgeProgression, progressionEvidence, sharedAgeProgressionAllowed } from './age-progression.js';
 import {
     DEFAULT_RELATIONSHIP_CAPS,
     RELATIONSHIP_AXES,
@@ -279,7 +280,7 @@ export function sanitizeStructuredDossierPatch(patch = {}, npc = {}) {
         relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' },
     };
     for (const field of [
-        'aliases', 'role', 'species', 'age', 'ageChange', 'apparentAge', 'appearance', 'appearanceForms', 'appearanceFormChanges',
+        'aliases', 'role', 'species', 'age', 'ageChange', 'ageProgression', 'apparentAge', 'appearance', 'appearanceForms', 'appearanceFormChanges',
         'personality', 'behaviorProfile', 'speech', 'mannerisms', 'profileChanges', 'canonChanges', 'background',
         'keyRelationships', 'keyRelationshipChanges', 'memories',
     ]) {
@@ -462,7 +463,7 @@ function createFromPatch(patch, sourceMessageId, referenceCandidates = []) {
     });
 }
 
-function mergeAppearanceFormPatch(existingValue, newValue, revisionValue, evidenceContext = '') {
+function mergeAppearanceFormPatch(existingValue, newValue, revisionValue, evidenceContext = '', ageProgression = null, npc = null, patch = null) {
     const out = normalizeAppearanceForms(existingValue);
     const indexByName = () => new Map(out.map((form, index) => [normalizeName(form.name), index]));
     let indices = indexByName();
@@ -488,8 +489,13 @@ function mergeAppearanceFormPatch(existingValue, newValue, revisionValue, eviden
         const key = normalizeName(revised.name);
         indices = indexByName();
         const index = indices.get(key);
+        const mode = String(raw.mode || '').trim().toLocaleLowerCase();
+        if (mode === AGE_PROGRESSION_MODE) {
+            if (!ageProgression?.allowed || !Number.isInteger(index) || !ageProgression.affectedForms?.has(key)) continue;
+            if (!ageProgressionAppearanceSafe(out[index]?.appearance, revised.appearance, npc || {}, patch || {})) continue;
+        }
         if (Number.isInteger(index)) out[index] = revised;
-        else if (out.length < 12) out.push(revised);
+        else if (mode !== AGE_PROGRESSION_MODE && out.length < 12) out.push(revised);
     }
     return normalizeAppearanceForms(out);
 }
@@ -855,6 +861,7 @@ function durableCanonDecision(npc, patch, field, incomingValue, options = {}) {
         return false;
     }
     if (field === 'appearance') {
+        if (mode === AGE_PROGRESSION_MODE) return sharedAgeProgressionAllowed(npc, incoming, patch, options.ageProgression);
         if (mode === 'correction') return CANON_CORRECTION_CUES.test(evidence + ' ' + context);
         if (mode === 'refine') return true;
         if (mode === 'change') return CANON_APPEARANCE_CHANGE_CUES.test(evidence + ' ' + context);
@@ -874,7 +881,7 @@ function applyStablePatch(npc, patch, options = {}) {
     const next = structuredClone(npc);
     const limits = normalizeDossierLimits(options.dossierLimits);
     const canonicalName = canonicalPatchName(patch);
-    const stringFields = ['name', 'age', 'apparentAge'];
+    const stringFields = ['name', 'age'];
     for (const field of stringFields) {
         if (locked.has(field)) continue;
         const value = field === 'name'
@@ -895,9 +902,21 @@ function applyStablePatch(npc, patch, options = {}) {
         if (field === 'name' && value !== next.name && next.name && !isTechnicalNpcIdentity(next.name)) next.aliases = appendUnique(next.aliases, [next.name], 10);
         next[field] = value;
     }
+    let changedAge = '';
     if (!locked.has('age')) {
-        const changedAge = explicitAgeChange(npc, patch, options);
+        changedAge = explicitAgeChange(npc, patch, options);
         if (changedAge) next.age = changedAge;
+    }
+    const progressionProof = progressionEvidence(patch);
+    const ageProgression = authorizeAgeProgression(npc, patch, changedAge, {
+        evidenceGrounded: Boolean(progressionProof && profileEvidenceGrounded(progressionProof, String(options.profileContext || ''))),
+    });
+    if (!locked.has('apparentAge')) {
+        const apparent = normalizeApparentAge(patch?.apparentAge);
+        const currentApparent = normalizeApparentAge(next.apparentAge);
+        if (apparent && !currentApparent) next.apparentAge = apparent;
+        else if (apparent && apparent === currentApparent) next.apparentAge = apparent;
+        else if (apparent && apparentAgeProgressionAllowed(npc, apparent, ageProgression)) next.apparentAge = apparent;
     }
     for (const field of ['role', 'species', 'background']) {
         if (locked.has(field)) continue;
@@ -918,7 +937,7 @@ function applyStablePatch(npc, patch, options = {}) {
         // switch alone never reaches this branch, but a grounded canonChanges.appearance
         // revision may update genuinely shared/common appearance even when forms exist.
         if (appearance && !next.appearance) next.appearance = appearance;
-        else if (appearance && durableCanonDecision(npc, patch, 'appearance', appearance, options)) next.appearance = appearance;
+        else if (appearance && durableCanonDecision(npc, patch, 'appearance', appearance, { ...options, ageProgression })) next.appearance = appearance;
     }
     if (!locked.has('appearanceForms')) {
         const incomingForms = normalizeAppearanceForms(patch?.appearanceForms);
@@ -935,7 +954,7 @@ function applyStablePatch(npc, patch, options = {}) {
         if (!hasBase && (firstAlternate || wantsBase) && String(npc.appearance || '').trim()) {
             next.appearanceForms = [...existingForms, { name: 'Base', appearance: String(npc.appearance).trim() }];
         }
-        next.appearanceForms = mergeAppearanceFormPatch(next.appearanceForms, incomingForms, patch?.appearanceFormChanges, String(options.profileContext || ''));
+        next.appearanceForms = mergeAppearanceFormPatch(next.appearanceForms, incomingForms, patch?.appearanceFormChanges, String(options.profileContext || ''), ageProgression, npc, patch);
 
         // v0.4.1 copied the old scalar ordinary appearance into Base for compatibility.
         // If that duplicated Base is authoritatively revised later, keep the legacy scalar
