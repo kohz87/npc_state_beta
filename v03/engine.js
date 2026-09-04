@@ -36,7 +36,12 @@ import {
 } from './stale.js';
 import { readV3PointerHint, readV3Sidecar, writeV3Sidecar } from './storage.js';
 
-const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.1 recovery scanner. Obey the supplied schema and evidence rules exactly.';
+const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.2 recovery scanner. Obey the supplied schema and evidence rules exactly.';
+
+function relationshipContextForExchange(exchange) {
+    if (!exchange) return '';
+    return [exchange.user?.mes, exchange.assistant?.mes].map(value => String(value || '').trim()).filter(Boolean).join('\n');
+}
 
 function latestAssistantMessageId(chat = []) {
     for (let i = chat.length - 1; i >= 0; i -= 1) {
@@ -74,7 +79,7 @@ export function createNpcStateEngine(adapters = {}) {
     const notify = adapters.notify || (() => {});
 
     if (typeof getContext !== 'function' || typeof getChatKey !== 'function' || typeof getSettings !== 'function' || typeof generate !== 'function') {
-        throw new Error('NPC State v0.4.1 engine requires getContext, getChatKey, getSettings, and generate adapters.');
+        throw new Error('NPC State v0.4.2 engine requires getContext, getChatKey, getSettings, and generate adapters.');
     }
 
     function epoch(chatKey) { return operationEpoch.get(chatKey) || 0; }
@@ -174,7 +179,7 @@ export function createNpcStateEngine(adapters = {}) {
             if (importedStable || fingerprintUpgraded) {
                 state = await persist(chatKey, state);
                 if (importedStable) {
-                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.1 beta sidecar. Stable data was not modified.');
+                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.2 beta sidecar. Stable data was not modified.');
                 } else if (fingerprintUpgraded) {
                     notify('info', 'Upgraded branch checkpoint fingerprints for transport-safe, swipe-index-independent rollback. Existing dossiers were preserved; old rollback hashes were reset once.');
                 }
@@ -247,6 +252,7 @@ export function createNpcStateEngine(adapters = {}) {
                 sourceMessageId: messageId,
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
+                relationshipContext: relationshipContextForExchange(exchange),
                 dossierLimits: settings.dossierLimits,
                 applyReturnedNpcPatches: true,
                 applyRelationship: !alreadyScannedMessage,
@@ -308,18 +314,19 @@ export function createNpcStateEngine(adapters = {}) {
             }
             const startEpoch = epoch(chatKey);
             const startFingerprint = fingerprintMessage(message);
+            const exchange = currentExchange(chat, messageId) || { assistant: { ...message, id: messageId }, user: null };
             const working = normalizeState(state, chatKey);
             working.turn = Math.max(0, Number(working.turn) || 0) + 1;
             const applied = applyScanResult(working, parsed, {
                 sourceMessageId: messageId,
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
+                relationshipContext: relationshipContextForExchange(exchange),
                 dossierLimits: settings.dossierLimits,
                 applyReturnedNpcPatches: true,
             });
             const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(settings.relationshipHistoryLimit);
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
-            const exchange = currentExchange(chat, messageId) || { assistant: { ...message, id: messageId }, user: null };
             const referencedNpcIds = referencedNpcIdsFromExchange(applied.state, exchange);
             const stale = applyStaleLifecycle(applied.state, {
                 settings,
@@ -468,6 +475,8 @@ export function createNpcStateEngine(adapters = {}) {
                 const after = normalizeRelationship(patch.relationship);
                 nextRaw.relationshipMilestones = normalizeRelationshipMilestones(current.relationshipMilestones, after, { inferFromRelationship: true, includeBoundary: true });
                 const delta = Object.fromEntries(Object.keys(before).map(axis => [axis, after[axis] - before[axis]]));
+                nextRaw.relationshipProgress = { ...(current.relationshipProgress || {}) };
+                for (const axis of Object.keys(delta)) if (delta[axis] !== 0) nextRaw.relationshipProgress[axis] = 0;
                 if (Object.values(delta).some(value => value !== 0)) {
                     const event = {
                         impact: 'manual', delta, evidence: '', reason: 'Manual dossier adjustment by player.',

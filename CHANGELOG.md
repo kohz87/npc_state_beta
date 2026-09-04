@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.4.2
+
+- Phase 1 restores v0.2 relationship hardening on top of the v0.4 milestone gates: fractional evidence progress, depth inertia, tier axis-count limits with tied-overflow rejection, recent semantic event dedupe, a narration-backed Desire firewall, and Relationship Summary depth validation. Blocked/duplicate events cannot rewrite the summary, while checkpoint-blocked evidence is retained only in the short hidden dedupe ledger.
+- Begins the phased v0.4.2 hardening line. Each recovery phase is applied and verified independently before the next phase is introduced.
+
 ## v0.4.1
 
 - Restored deterministic relationship milestone gates from the pre-v0.3 relationship model: each axis/direction now checkpoints at 25/50/75/90, requires meaningful/major/extreme evidence to deepen past those boundaries, records hidden directional unlock history, allows movement toward neutral, preserves already-passed legacy depths, and upgrades the exact old stock evidence rubric without overwriting custom rubrics.

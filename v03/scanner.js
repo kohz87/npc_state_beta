@@ -17,6 +17,8 @@ import {
     normalizeName,
     normalizeNpc,
     normalizeRelationship,
+    normalizeRelationshipEvidenceHistory,
+    normalizeRelationshipProgress,
     normalizeState,
     relationshipMilestoneUnlocked,
 } from './schema.js';
@@ -187,7 +189,7 @@ function dossierCollectionRules(limits) {
 
 export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', memoryCriteria = '', playerName = '', dossierLimits = {} }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State v0.4.1 recovery scanner requires an assistant message and its preceding user exchange.');
+    if (!exchange) throw new Error('NPC State v0.4.2 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
@@ -207,7 +209,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         socialEdges: [{ from: 'NPC id/name only', to: 'NPC id/name only', relation: '', summary: '' }],
     };
     return [
-        'You are NPC State v0.4.1, a private structured continuity scanner for a roleplay chat.',
+        'You are NPC State v0.4.2, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
         '',
         `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
@@ -229,6 +231,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- socialEdges are NPC-to-NPC only. Never use the PLAYER/current USER persona as an endpoint.',
         '- Current exchange decides relationship changes. Older history may recover stable profile facts and durable memories, but must NEVER replay relationship deltas.',
         '- Only propose a relationshipChange when the current exchange contains concrete evidence. If unsure, use impact none and zero deltas.',
+        '- RELATIONSHIP HARDENING: ordinary may affect at most 1 axis, meaningful 2, major 3, extreme 4. Repeated aftermath or semantically duplicate events must be zero. High relationship depth has increasing inertia, so raw deltas are evidence weights rather than guaranteed visible points. Desire requires explicit romantic/intimate/physical attraction evidence in the CURRENT narration, not friendship, gratitude, rescue, beauty, proximity, trust, or generic affection. Relationship Summary must describe only depth actually supported by the accepted relationship state.',
         '- RELATIONSHIP MILESTONE GATES are enforced by NPC State at absolute depth 25, 50, 75, and 90 independently for each axis and positive/negative polarity. Ordinary evidence may reach a locked boundary but cannot deepen beyond it. Crossing 25 requires meaningful-or-stronger evidence; crossing 50 requires a major-or-stronger event with at least 3 raw points on that axis; crossing 75 requires extreme evidence with at least 5 raw points; crossing 90 requires extreme relationship-defining evidence with at least 8 raw points. Movement back toward neutral is never gate-blocked. Classify impact and deltas from the story honestly; never inflate them merely to open a gate.',
         '- age is ACTUAL chronological age only. Use one grounded numeric age. Years use N or ~N; if canon explicitly gives a smaller unit, use N days, N weeks, or N months. Never write child, teenager, adult, young adult, middle-aged, elder, elderly, old, or another life-stage label in age. Never infer actual age from appearance. For an EXISTING NPC, leave age empty unless the current exchange explicitly establishes a more authoritative actual age; do not re-estimate it from prose or appearance.',
         '- apparentAge is separate from actual age. When clearly supported, it MUST be one approximate integer written exactly as ~N, for example ~18 or ~25. Never output decade bands, prose bands, or ranges such as twenties, 20s, late twenties, 20-30, or twenties to thirties. If a single numeric apparent age is not supported, leave apparentAge empty.',
@@ -261,7 +264,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State v0.4.1 performing a targeted dossier reconciliation.',
+        'You are NPC State v0.4.2 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
@@ -284,15 +287,15 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
 
 export function parseScanJson(raw) {
     const text = String(raw ?? '').trim();
-    if (!text) throw new Error('NPC State v0.4.1 recovery scanner returned an empty response.');
+    if (!text) throw new Error('NPC State v0.4.2 recovery scanner returned an empty response.');
     const unfenced = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
     const first = unfenced.indexOf('{');
     const last = unfenced.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('NPC State v0.4.1 recovery scanner returned no JSON object.');
+    if (first < 0 || last <= first) throw new Error('NPC State v0.4.2 recovery scanner returned no JSON object.');
     let parsed;
     try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
-    catch (error) { throw new Error(`NPC State v0.4.1 recovery scanner returned malformed JSON: ${error.message}`); }
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('NPC State v0.4.1 recovery scanner JSON must be an object.');
+    catch (error) { throw new Error(`NPC State v0.4.2 recovery scanner returned malformed JSON: ${error.message}`); }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('NPC State v0.4.2 recovery scanner JSON must be an object.');
     return {
         exchangeActiveNpcIds: uniqueStrings(parsed.exchangeActiveNpcIds),
         finalPresentNpcIds: uniqueStrings(parsed.inChatNpcIds ?? parsed.finalPresentNpcIds),
@@ -501,8 +504,8 @@ function applyLivePatch(npc, patch) {
 
 function applyDynamicPatch(npc, patch, options = {}) {
     const next = applyLivePatch(npc, patch);
-    const relationshipSummary = String(patch?.relationshipSummary ?? '').trim();
-    if (relationshipSummary) next.relationshipSummary = relationshipSummary;
+    // relationshipSummary is player-relationship state. It is deliberately deferred to
+    // applyRelationshipChange so a blocked/duplicate/unsupported event cannot rewrite it.
     if (Array.isArray(patch?.memories)) {
         const limits = normalizeDossierLimits(options.dossierLimits);
         next.memories = appendUnique([], patch.memories, limits.memories);
@@ -524,43 +527,131 @@ function relationshipMilestoneEventQualifies(change, axis, threshold, caps = DEF
     return rawWeight >= requiredRaw;
 }
 
-function gatedRelationshipAxis(currentValue, proposedDelta, axis, milestones, change, caps = DEFAULT_RELATIONSHIP_CAPS) {
-    const current = Math.max(-100, Math.min(100, Math.round(Number(currentValue) || 0)));
-    const delta = Math.round(Number(proposedDelta) || 0);
-    const desired = Math.max(-100, Math.min(100, current + delta));
-    if (!delta || desired === current) return { value: current, crossings: [] };
-
-    const currentPolarity = Math.sign(current);
-    const desiredPolarity = Math.sign(desired);
-    const movementPolarity = desiredPolarity || Math.sign(delta);
-    const currentMagnitude = currentPolarity === movementPolarity ? Math.abs(current) : 0;
-    const desiredMagnitude = Math.abs(desired);
-
-    // Movement toward neutral never meets an outward milestone gate.
-    if (currentPolarity && desiredPolarity === currentPolarity && desiredMagnitude < Math.abs(current)) {
-        return { value: desired, crossings: [] };
+function relationshipInertiaFactor(currentValue, proposedDelta, impact = 'ordinary') {
+    const current = Number(currentValue) || 0;
+    const delta = Number(proposedDelta) || 0;
+    if (!delta) return 0;
+    const magnitude = Math.abs(current);
+    const deepening = current === 0 || Math.sign(current) === Math.sign(delta);
+    if (deepening) {
+        if (magnitude < 30) return 1;
+        if (magnitude < 50) return 0.75;
+        if (magnitude < 70) return 0.5;
+        if (magnitude < 85) return 0.35;
+        if (magnitude < 95) return 0.2;
+        return 0.1;
     }
-
-    let allowedMagnitude = desiredMagnitude;
-    const crossings = [];
-    for (const threshold of RELATIONSHIP_MILESTONE_THRESHOLDS) {
-        if (threshold < currentMagnitude) continue;
-        if (relationshipMilestoneUnlocked(milestones, axis, movementPolarity, threshold)) continue;
-        if (allowedMagnitude < threshold) continue;
-
-        const qualifies = relationshipMilestoneEventQualifies(change, axis, threshold, caps);
-        if (allowedMagnitude === threshold) {
-            if (currentMagnitude < threshold && qualifies) crossings.push({ axis, polarity: movementPolarity, threshold });
-            break;
-        }
-        if (qualifies) {
-            crossings.push({ axis, polarity: movementPolarity, threshold });
-            continue;
-        }
-        allowedMagnitude = threshold;
-        break;
+    if (impact === 'extreme') return 1;
+    if (impact === 'major') {
+        if (magnitude < 50) return 1;
+        if (magnitude < 70) return 0.9;
+        if (magnitude < 85) return 0.8;
+        if (magnitude < 95) return 0.7;
+        return 0.6;
     }
-    return { value: movementPolarity * allowedMagnitude, crossings };
+    if (impact === 'meaningful') {
+        if (magnitude < 30) return 1;
+        if (magnitude < 50) return 0.9;
+        if (magnitude < 70) return 0.8;
+        if (magnitude < 85) return 0.65;
+        if (magnitude < 95) return 0.5;
+        return 0.4;
+    }
+    if (magnitude < 30) return 1;
+    if (magnitude < 50) return 0.85;
+    if (magnitude < 70) return 0.7;
+    if (magnitude < 85) return 0.55;
+    if (magnitude < 95) return 0.4;
+    return 0.3;
+}
+
+function relationshipAxisLimit(impact) {
+    if (impact === 'ordinary') return 1;
+    if (impact === 'meaningful') return 2;
+    if (impact === 'major') return 3;
+    if (impact === 'extreme') return 4;
+    return 0;
+}
+
+function selectRelationshipAxes(delta, axisLimit) {
+    const ranked = RELATIONSHIP_AXES
+        .filter(axis => Number(delta?.[axis]) !== 0)
+        .map(axis => ({ axis, magnitude: Math.abs(Number(delta[axis]) || 0) }))
+        .sort((a, b) => b.magnitude - a.magnitude || RELATIONSHIP_AXES.indexOf(a.axis) - RELATIONSHIP_AXES.indexOf(b.axis));
+    if (!axisLimit || !ranked.length) return new Set();
+    if (ranked.length <= axisLimit) return new Set(ranked.map(item => item.axis));
+    const cutoff = ranked[axisLimit - 1]?.magnitude ?? Infinity;
+    const above = ranked.filter(item => item.magnitude > cutoff);
+    const tied = ranked.filter(item => item.magnitude === cutoff);
+    const slots = Math.max(0, axisLimit - above.length);
+    // Do not create a fixed Trust/Affection bias when too many equal axes compete for
+    // too few legal slots. Ambiguous tied overflow is rejected as a group.
+    const acceptedTied = tied.length <= slots ? tied : [];
+    return new Set([...above, ...acceptedTied].map(item => item.axis));
+}
+
+const DESIRE_EVIDENCE_CUES = /\b(desire|desires|desired|desiring|attract|attracts|attracted|attraction|romantic|romance|intimacy|intimate|kiss|kisses|kissed|kissing|sexual|sexually|lust|longing|yearn|yearns|yearned|yearning|flirt|flirts|flirted|flirting|date|dating|lover|physical closeness|physical contact|physically drawn|wants? (?:him|her|them|the player) physically|drawn to)\b/i;
+
+function relationshipTextTokens(value) {
+    return normalizeName(value).split(/\s+/).filter(token => token.length >= 3);
+}
+
+function relationshipTextSimilarity(a, b) {
+    const leftText = normalizeName(a);
+    const rightText = normalizeName(b);
+    if (!leftText || !rightText) return 0;
+    if (leftText === rightText) return 1;
+    const left = new Set(relationshipTextTokens(leftText));
+    const right = new Set(relationshipTextTokens(rightText));
+    if (!left.size || !right.size) return 0;
+    let intersection = 0;
+    for (const token of left) if (right.has(token)) intersection += 1;
+    const union = new Set([...left, ...right]).size;
+    const jaccard = union ? intersection / union : 0;
+    const containment = intersection / Math.min(left.size, right.size);
+    return Math.max(jaccard, containment * 0.85);
+}
+
+function relationshipChangeLooksDuplicate(npc, change, { sourceMessageId = null, turn = null } = {}) {
+    const currentText = [change?.reason, change?.evidence].filter(Boolean).join(' ');
+    if (!currentText) return false;
+    const history = normalizeRelationshipEvidenceHistory(npc?.relationshipEvidenceHistory);
+    return history.some(previous => {
+        const priorTurn = Number(previous.turn);
+        const currentTurn = Number(turn);
+        const recentByTurn = Number.isFinite(priorTurn) && Number.isFinite(currentTurn) && Math.abs(currentTurn - priorTurn) <= 8;
+        const recentByMessage = Number.isInteger(sourceMessageId) && Number.isInteger(previous.sourceMessageId)
+            && Math.abs(sourceMessageId - previous.sourceMessageId) <= 10;
+        if (!recentByTurn && !recentByMessage) return false;
+        return relationshipTextSimilarity([previous.reason, previous.evidence].filter(Boolean).join(' '), currentText) >= 0.68;
+    });
+}
+
+function relationshipSummarySupported(value, relationship, milestones) {
+    const summary = String(value || '').trim();
+    if (!summary) return false;
+    const rel = normalizeRelationship(relationship || {});
+    const positiveStrength = Math.max(0, rel.trust, rel.affection, rel.desire);
+    const unlocked = (axis, polarity, threshold) => relationshipMilestoneUnlocked(milestones, axis, polarity, threshold);
+    const desireClaims = /\b(madly in love|in love|romantic|romance|sexually|sexual attraction|lust|desire[sd]?|intimate attraction|physically attracted|yearns? for)\b/i;
+    const tropeClaims = /\b(possessive|jealous|obsessive|obsessed|would kill|kill anyone|belongs to (?:him|her|them|the player)|unconditionally devoted|utterly devoted)\b/i;
+    const absoluteClaims = /\b(indispensable|everything to (?:her|him|them)|cannot live without|can't live without|completely dependent|utterly dependent)\b/i;
+    const deepTrustClaims = /\b(deep(?:est)? trust|deeply trusts?|profound trust|unwavering trust|unquestion(?:ing|ed) trust|complete trust|implicit trust)\b/i;
+    const exceptionalTrustClaims = /\b(absolute trust|unbreakable trust|trusts? (?:him|her|them|the player) with (?:her|his|their) life|without reservation)\b/i;
+    const deepAffectionClaims = /\b(deep affection|deeply attached|profound attachment|one of (?:her|his|their) most important people)\b/i;
+    const exceptionalAffectionClaims = /\b(inseparable|irreplaceable|life-defining bond|devoted to (?:him|her|them|the player))\b/i;
+    const deepDistrustClaims = /\b(deep distrust|profound distrust|deeply distrusts?|cannot trust (?:him|her|them|the player) at all)\b/i;
+    const deepDislikeClaims = /\b(deep hatred|profound hatred|deep resentment|utterly hates?)\b/i;
+    if (rel.desire < 30 && desireClaims.test(summary)) return false;
+    if (tropeClaims.test(summary)) return false;
+    if (positiveStrength < 70 && absoluteClaims.test(summary)) return false;
+    if (deepTrustClaims.test(summary) && !unlocked('trust', 1, 50)) return false;
+    if (exceptionalTrustClaims.test(summary) && !unlocked('trust', 1, 75)) return false;
+    if (deepAffectionClaims.test(summary) && !unlocked('affection', 1, 50)) return false;
+    if (exceptionalAffectionClaims.test(summary) && !unlocked('affection', 1, 75)) return false;
+    if (deepDistrustClaims.test(summary) && !unlocked('trust', -1, 50)) return false;
+    if (deepDislikeClaims.test(summary) && !unlocked('affection', -1, 50)) return false;
+    return true;
 }
 
 function relationshipDeltaForPatch(patch, caps = DEFAULT_RELATIONSHIP_CAPS) {
@@ -573,48 +664,141 @@ function relationshipDeltaForPatch(patch, caps = DEFAULT_RELATIONSHIP_CAPS) {
     const proposed = change.delta && typeof change.delta === 'object' ? change.delta : {};
     const delta = {};
     for (const axis of RELATIONSHIP_AXES) {
-        const value = Number(proposed[axis]);
-        delta[axis] = Number.isFinite(value) ? Math.max(-cap, Math.min(cap, Math.round(value))) : 0;
+        const number = Number(proposed[axis]);
+        delta[axis] = Number.isFinite(number) ? Math.max(-cap, Math.min(cap, Math.round(number))) : 0;
     }
     if (!Object.values(delta).some(Boolean)) return { impact: 'none', delta, evidence: '', reason: '' };
     return { impact, delta, evidence: evidence.slice(0, 800), reason: reason.slice(0, 800) };
 }
 
-function applyRelationshipChange(npc, patch, options) {
+function applyRelationshipChange(npc, patch, options = {}) {
     const caps = options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS;
     const change = relationshipDeltaForPatch(patch, caps);
     if (change.impact === 'none') return npc;
-    const next = structuredClone(npc);
-    const current = normalizeRelationship(next.relationship);
-    const updated = {};
-    const crossings = [];
-    const actualDelta = {};
-    for (const axis of RELATIONSHIP_AXES) {
-        const gated = gatedRelationshipAxis(current[axis], change.delta[axis], axis, next.relationshipMilestones, change, caps);
-        updated[axis] = gated.value;
-        actualDelta[axis] = gated.value - current[axis];
-        crossings.push(...gated.crossings);
+    if (relationshipChangeLooksDuplicate(npc, change, options)) return npc;
+
+    const context = String(options.relationshipContext || '').trim();
+    const filteredDelta = { ...change.delta };
+    if (filteredDelta.desire !== 0) {
+        const evidenceSupportsDesire = DESIRE_EVIDENCE_CUES.test(change.evidence) || DESIRE_EVIDENCE_CUES.test(change.reason);
+        const narrationSupportsDesire = !context || DESIRE_EVIDENCE_CUES.test(context);
+        if (!evidenceSupportsDesire || !narrationSupportsDesire) filteredDelta.desire = 0;
     }
+
+    const axisLimit = relationshipAxisLimit(change.impact);
+    const allowedAxes = selectRelationshipAxes(filteredDelta, axisLimit);
+    const next = structuredClone(npc);
+    const baseline = normalizeRelationship(next.relationship);
+    const priorProgress = normalizeRelationshipProgress(next.relationshipProgress);
+    const updated = { ...baseline };
+    const progress = { ...priorProgress };
+    const actualDelta = { trust: 0, affection: 0, desire: 0, tension: 0 };
+    const crossings = [];
+    let acceptedEvidence = false;
+
+    for (const axis of RELATIONSHIP_AXES) {
+        const raw = allowedAxes.has(axis) ? Number(filteredDelta[axis]) || 0 : 0;
+        if (!raw) continue;
+        acceptedEvidence = true;
+        const weighted = raw * relationshipInertiaFactor(baseline[axis], raw, change.impact);
+        let accumulated = priorProgress[axis] + weighted;
+        const baselineValue = baseline[axis];
+        const baselinePolarity = Math.sign(baselineValue);
+        const proposedPolarity = Math.sign(raw);
+
+        if (baselinePolarity === proposedPolarity) {
+            const lockedBoundary = RELATIONSHIP_MILESTONE_THRESHOLDS.find(threshold =>
+                Math.abs(baselineValue) === threshold
+                && !relationshipMilestoneUnlocked(next.relationshipMilestones, axis, proposedPolarity, threshold));
+            if (lockedBoundary) {
+                if (!relationshipMilestoneEventQualifies({ ...change, delta: filteredDelta }, axis, lockedBoundary, caps)) {
+                    accumulated = 0;
+                } else if (!crossings.some(entry => entry.axis === axis && entry.polarity === proposedPolarity && entry.threshold === lockedBoundary)) {
+                    crossings.push({ axis, polarity: proposedPolarity, threshold: lockedBoundary });
+                }
+            }
+        }
+
+        let whole = Math.trunc(accumulated);
+        let candidate = Math.max(-100, Math.min(100, baselineValue + whole));
+        let blockedAt = null;
+        if (Math.abs(candidate) >= Math.abs(baselineValue)) {
+            const movementPolarity = Math.sign(candidate) || proposedPolarity;
+            const lowMagnitude = baselinePolarity === movementPolarity ? Math.abs(baselineValue) : 0;
+            let highMagnitude = Math.abs(candidate);
+            for (const threshold of RELATIONSHIP_MILESTONE_THRESHOLDS) {
+                if (threshold < lowMagnitude || highMagnitude < threshold) continue;
+                if (relationshipMilestoneUnlocked(next.relationshipMilestones, axis, movementPolarity, threshold)) continue;
+                const qualifies = relationshipMilestoneEventQualifies({ ...change, delta: filteredDelta }, axis, threshold, caps);
+                if (highMagnitude === threshold) {
+                    if (lowMagnitude < threshold && qualifies && !crossings.some(entry => entry.axis === axis && entry.polarity === movementPolarity && entry.threshold === threshold)) {
+                        crossings.push({ axis, polarity: movementPolarity, threshold });
+                    }
+                    break;
+                }
+                if (qualifies) {
+                    if (!crossings.some(entry => entry.axis === axis && entry.polarity === movementPolarity && entry.threshold === threshold)) crossings.push({ axis, polarity: movementPolarity, threshold });
+                    continue;
+                }
+                blockedAt = threshold;
+                candidate = movementPolarity * threshold;
+                highMagnitude = threshold;
+                break;
+            }
+        }
+
+        whole = candidate - baselineValue;
+        let remainder = accumulated - whole;
+        const finalPolarity = Math.sign(candidate);
+        const lockedFinalBoundary = finalPolarity && RELATIONSHIP_MILESTONE_THRESHOLDS.find(threshold =>
+            Math.abs(candidate) === threshold
+            && !relationshipMilestoneUnlocked(next.relationshipMilestones, axis, finalPolarity, threshold)
+            && !crossings.some(entry => entry.axis === axis && entry.polarity === finalPolarity && entry.threshold === threshold));
+        if (blockedAt || (lockedFinalBoundary && Math.sign(remainder) === finalPolarity)) remainder = 0;
+        if ((candidate >= 100 && remainder > 0) || (candidate <= -100 && remainder < 0)) remainder = 0;
+        if (Math.abs(remainder) < 0.000001) remainder = 0;
+
+        updated[axis] = candidate;
+        actualDelta[axis] = whole;
+        progress[axis] = Number(Math.max(-0.999999, Math.min(0.999999, remainder)).toFixed(6));
+    }
+
+    if (!acceptedEvidence) return npc;
+
+    next.relationship = updated;
+    next.relationshipProgress = normalizeRelationshipProgress(progress);
     next.relationshipMilestones = applyRelationshipMilestoneCrossings(next.relationshipMilestones, crossings, {
         reason: change.reason,
         evidence: change.evidence,
         sourceMessageId: options.sourceMessageId,
         turn: options.turn,
     });
-    if (!Object.values(actualDelta).some(Boolean)) return next;
-    next.relationship = updated;
-    const event = {
-        ...change,
-        delta: actualDelta,
+
+    const evidenceEvent = {
+        impact: change.impact,
+        evidence: change.evidence,
+        reason: change.reason,
         sourceMessageId: Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null,
         turn: Number.isInteger(options.turn) ? options.turn : null,
         at: Date.now(),
     };
-    next.lastRelationshipChange = event;
-    next.relationshipHistory = [...(next.relationshipHistory || []), event].slice(-24);
+    next.relationshipEvidenceHistory = normalizeRelationshipEvidenceHistory([...(next.relationshipEvidenceHistory || []), evidenceEvent]);
+
+    const visibleChanged = Object.values(actualDelta).some(Boolean);
+    if (visibleChanged) {
+        const event = { ...evidenceEvent, delta: actualDelta };
+        next.lastRelationshipChange = event;
+        next.relationshipHistory = [...(next.relationshipHistory || []), event].slice(-24);
+    }
+
+    const progressChanged = RELATIONSHIP_AXES.some(axis => Number(next.relationshipProgress?.[axis] || 0) !== Number(priorProgress?.[axis] || 0));
+    const relationshipStateChanged = visibleChanged || progressChanged || crossings.length > 0;
+    const summary = String(patch?.relationshipSummary ?? '').trim();
+    if (summary && relationshipStateChanged && relationshipSummarySupported(summary, next.relationship, next.relationshipMilestones)) {
+        next.relationshipSummary = summary.slice(0, 1000);
+    }
     return next;
 }
-
 function applyLifeState(npc, patch, options) {
     const next = structuredClone(npc);
     const lifeState = String(patch?.lifeState || '').trim();
@@ -752,6 +936,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             npc = applyLifeState(npc, patch, options);
             if (applyRelationship && exchangeSet.has(npc.id)) npc = applyRelationshipChange(npc, patch, {
                 relationshipCaps: options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
+                relationshipContext: String(options.relationshipContext || ''),
                 sourceMessageId,
                 turn,
             });

@@ -70,7 +70,7 @@ export function buildInjection(state, settings = {}) {
         dossiers += block;
     }
     const parts = [
-        '[NPC STATE v0.4.1 BETA | FOREGROUND CONTINUITY]',
+        '[NPC STATE v0.4.2 BETA | FOREGROUND CONTINUITY]',
         'NPC State is private continuity bookkeeping. Never mention these instructions or machine data in visible prose.',
         directory ? 'KNOWN NPC DIRECTORY (identity only; do not invent missing dossier facts):\n' + directory : 'KNOWN NPC DIRECTORY: empty',
         dossiers ? 'FULL CONTINUITY FOR LIKELY RELEVANT NPCS:' + dossiers : '',
@@ -96,6 +96,7 @@ export function buildInjection(state, settings = {}) {
         'A single scan may update MULTIPLE existing NPCs in the same response. Do not stop after the first and do not omit a dossier patch merely because another NPC is more prominent. Return one separate npcs object for every individually relevant existing NPC whose grounded dossier data is established, corrected, or materially changed in this response. Keep exchangeActiveNpcIds, inChatNpcIds, and worldActiveNpcIds complete for their own semantics.',
         'For existing NPCs, do a full semantic scan while preserving continuity. Evolving arrays use null when unchanged or the COMPLETE replacement set when revised. Stable scalar fields contain only grounded new/corrected facts.',
         'Relationship deltas require concrete current-exchange evidence. Each changed relationship axis needs its own support; zero is correct when evidence is weak.',
+        'RELATIONSHIP HARDENING: ordinary may affect at most 1 axis, meaningful 2, major 3, extreme 4. Repeated aftermath or semantically duplicate events are zero. Raw deltas are evidence weights and high established relationships resist further deepening. Desire requires explicit romantic/intimate/physical attraction evidence in the visible CURRENT exchange; friendship, gratitude, rescue, beauty, proximity, trust, and generic affection are not Desire. Do not write a Relationship Summary deeper or more absolute than the accepted relationship state supports.',
         'RELATIONSHIP MILESTONE GATES: absolute relationship depth is checkpointed at 25, 50, 75, and 90 independently per axis and positive/negative direction. Ordinary evidence may reach a locked boundary but cannot deepen beyond it. Crossing 25 requires meaningful-or-stronger evidence; 50 requires major-or-stronger with at least 3 raw points on that axis; 75 requires extreme with at least 5 raw points; 90 requires an extreme relationship-defining event with at least 8 raw points. Movement toward neutral is never gate-blocked. Do not inflate impact or delta merely to open a gate; the backend is authoritative.',
         settings.relationshipCriteria ? 'RELATIONSHIP RUBRIC:\n' + String(settings.relationshipCriteria).slice(0, 6000) : '',
         settings.memoryCriteria ? 'IMPORTANT MEMORY RUBRIC:\n' + String(settings.memoryCriteria).slice(0, 6000) : '',

@@ -1,4 +1,4 @@
-export const NPC_STATE_VERSION = '0.4.1';
+export const NPC_STATE_VERSION = '0.4.2';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export const RELATIONSHIP_AXES = Object.freeze(['trust', 'affection', 'desire', 'tension']);
 export const STABLE_PROFILE_FIELDS = Object.freeze([
@@ -7,6 +7,8 @@ export const STABLE_PROFILE_FIELDS = Object.freeze([
 ]);
 export const DEFAULT_RELATIONSHIP = Object.freeze({ trust: 0, affection: 0, desire: 0, tension: 0 });
 export const DEFAULT_RELATIONSHIP_CAPS = Object.freeze({ ordinary: 1, meaningful: 2, major: 5, extreme: 10 });
+export const DEFAULT_RELATIONSHIP_PROGRESS = Object.freeze({ trust: 0, affection: 0, desire: 0, tension: 0 });
+export const RELATIONSHIP_EVIDENCE_HISTORY_LIMIT = 6;
 export const RELATIONSHIP_MILESTONE_THRESHOLDS = Object.freeze([25, 50, 75, 90]);
 export const RELATIONSHIP_MILESTONE_REQUIREMENTS = Object.freeze({ 25: 'meaningful', 50: 'major', 75: 'extreme', 90: 'extreme' });
 export const RELATIONSHIP_MILESTONE_MIN_RAW = Object.freeze({ 25: 1, 50: 3, 75: 5, 90: 8 });
@@ -232,6 +234,27 @@ export function normalizeRelationship(value = {}) {
     return Object.fromEntries(RELATIONSHIP_AXES.map(axis => [axis, clampRelationship(value?.[axis])]));
 }
 
+export function normalizeRelationshipProgress(value = {}) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    return Object.fromEntries(RELATIONSHIP_AXES.map(axis => {
+        const number = Number(source[axis]);
+        const safe = Number.isFinite(number) ? Math.max(-0.999999, Math.min(0.999999, number)) : 0;
+        return [axis, Math.abs(safe) < 0.000001 ? 0 : Number(safe.toFixed(6))];
+    }));
+}
+
+export function normalizeRelationshipEvidenceHistory(value = []) {
+    const source = Array.isArray(value) ? value : [];
+    return source.slice(-RELATIONSHIP_EVIDENCE_HISTORY_LIMIT * 2).map(raw => ({
+        impact: ['ordinary', 'meaningful', 'major', 'extreme'].includes(String(raw?.impact)) ? String(raw.impact) : 'ordinary',
+        reason: text(raw?.reason, 800),
+        evidence: text(raw?.evidence, 800),
+        sourceMessageId: Number.isInteger(raw?.sourceMessageId) ? raw.sourceMessageId : null,
+        turn: Number.isInteger(raw?.turn) ? raw.turn : null,
+        at: Number(raw?.at) || null,
+    })).filter(item => item.reason || item.evidence).slice(-RELATIONSHIP_EVIDENCE_HISTORY_LIMIT);
+}
+
 function normalizeMilestonePolarity(value) {
     const number = Number(value);
     return number > 0 ? 1 : (number < 0 ? -1 : 0);
@@ -365,6 +388,8 @@ export function normalizeNpc(input = {}, options = {}) {
         at: Number(item?.at) || now,
     })) : [];
     const relationship = normalizeRelationship(input.relationship || DEFAULT_RELATIONSHIP);
+    const relationshipProgress = normalizeRelationshipProgress(input.relationshipProgress || DEFAULT_RELATIONSHIP_PROGRESS);
+    const relationshipEvidenceHistory = normalizeRelationshipEvidenceHistory(input.relationshipEvidenceHistory);
     const hasMilestoneState = Object.prototype.hasOwnProperty.call(input, 'relationshipMilestones');
     const relationshipMilestones = normalizeRelationshipMilestones(input.relationshipMilestones, relationship, { inferFromRelationship: !hasMilestoneState });
     const appearanceForms = normalizeAppearanceForms(input.appearanceForms);
@@ -390,6 +415,8 @@ export function normalizeNpc(input = {}, options = {}) {
         keyRelationships: normalizeKeyRelationshipEntries(input.keyRelationships, DOSSIER_LIMIT_MAXIMUMS.keyRelationships, 500),
         memories: list(input.memories, DOSSIER_LIMIT_MAXIMUMS.memories, 700),
         relationship,
+        relationshipProgress,
+        relationshipEvidenceHistory,
         relationshipMilestones,
         relationshipSummary: text(input.relationshipSummary, 1000),
         relationshipHistory,
