@@ -4,7 +4,7 @@ import { extension_prompt_types, extension_prompt_roles, getRequestHeaders } fro
 import { createBundleManagementUi } from './bundle-ui.js';
 import { createNpcStateEngine } from './engine.js';
 import { characterOwnerRenamePairs, getChatIdentity, qualifiedChatKeysForOwner, resolveLifecycleChatKey, resolveRenameLifecycleKeys } from './identity.js';
-import { buildInjection } from './injection.js';
+import { buildInjection, injectionDiagnostics } from './injection.js';
 import { consumeNpcStateControl } from './foreground.js';
 import { hasRecognizedStructuredBlocks, profileEvidenceText } from './evidence-adapter.js';
 import { createMeguminBlockIntegration } from './megumin.js';
@@ -15,8 +15,9 @@ import {
     normalizePortraitPromptSettings,
 } from './portrait-prompt.js';
 import { createPortraitPromptUi } from './portrait-ui.js';
-import { DEFAULT_RELATIONSHIP_CAPS, DOSSIER_LIMIT_DEFAULTS, NPC_STATE_VERSION, normalizeDossierLimits } from './schema.js';
+import { DEFAULT_RELATIONSHIP_CAPS, DOSSIER_LIMIT_DEFAULTS, NPC_STATE_VERSION, normalizeDossierLimits, normalizeNpcAdmissionMode } from './schema.js';
 import { runSharedQuietGeneration } from './shared-generation-queue.js';
+import { checkpointStorageBytes } from './branches.js';
 import { createStaleManagementUi } from './stale-ui.js';
 import { createNpcStateUi } from './ui.js';
 
@@ -60,6 +61,7 @@ const V3_DEFAULTS = Object.freeze({
     branchRescan: true,
     fallbackScan: false,
     newNpcHistoryEnrichment: true,
+    newNpcAdmissionMode: 'balanced',
     staleManagementEnabled: true,
     staleArchiveAfter: 30,
     staleDeleteAfter: 50,
@@ -95,6 +97,7 @@ function getSettings() {
     if (String(settings.relationshipCriteria || '').trim() === PRE_GATE_RELATIONSHIP_CRITERIA.trim()) settings.relationshipCriteria = DEFAULT_RELATIONSHIP_CRITERIA;
     settings.schemaVersion = SETTINGS_SCHEMA;
     settings.scanDepth = Math.max(2, Math.min(30, Math.round(Number(settings.scanDepth) || 8)));
+    settings.newNpcAdmissionMode = normalizeNpcAdmissionMode(settings.newNpcAdmissionMode);
     settings.injectDepth = Math.max(0, Math.min(20, Math.round(Number(settings.injectDepth) || 1)));
     settings.injectLimit = Math.max(1, Math.min(20, Math.round(Number(settings.injectLimit) || 6)));
     settings.injectBudgetTokens = Math.max(256, Math.min(8000, Math.round(Number(settings.injectBudgetTokens) || 1800)));
@@ -658,8 +661,50 @@ try {
     console.debug('[NPC State Beta] lifecycle bootstrap will rely on DOM ready.', error);
 }
 
+function npcStateDebugStatus() {
+    const chatKey = getChatKey();
+    const settings = getSettings();
+    const state = chatKey && chatKey !== 'no-chat' ? engine.getState(chatKey) : null;
+    const pointer = chatKey && chatKey !== 'no-chat' ? getV3Pointer(chatKey) : null;
+    const observation = state?.lastObservation || {};
+    return {
+        version: NPC_STATE_VERSION,
+        chatKey,
+        sidecar: pointer ? { name: pointer.name || '', path: pointer.path || '', revision: Number(pointer.revision) || 0, updatedAt: Number(pointer.updatedAt) || 0 } : null,
+        hydration: chatKey && chatKey !== 'no-chat' ? engine.hydrationStatus(chatKey) : { status: 'no-chat' },
+        busy: chatKey && chatKey !== 'no-chat' ? engine.isBusy(chatKey) : false,
+        branchSafety: state?.branchSafety ? structuredClone(state.branchSafety) : null,
+        checkpointCount: Array.isArray(state?.checkpoints) ? state.checkpoints.length : 0,
+        checkpointBytes: state ? checkpointStorageBytes(state) : 0,
+        npcCount: Array.isArray(state?.npcs) ? state.npcs.length : 0,
+        inChatNpcIds: [...(observation.finalPresentNpcIds || [])],
+        exchangeActiveNpcIds: [...(observation.exchangeActiveNpcIds || [])],
+        worldActiveNpcIds: [...(observation.worldActiveNpcIds || [])],
+        lastScannedMessageId: state?.lastScannedMessageId ?? null,
+        structuredEvidenceDetected: (getContext().chat || []).slice(-30).some(message => hasRecognizedStructuredBlocks(message?.mes)),
+        admissionMode: normalizeNpcAdmissionMode(settings.newNpcAdmissionMode),
+        injection: state ? injectionDiagnostics(state, settings) : null,
+    };
+}
+
+function npcStateScanMetrics() {
+    const status = npcStateDebugStatus();
+    return {
+        npcCount: status.npcCount,
+        inChatCount: status.inChatNpcIds.length,
+        exchangeActiveCount: status.exchangeActiveNpcIds.length,
+        worldActiveCount: status.worldActiveNpcIds.length,
+        checkpointCount: status.checkpointCount,
+        checkpointBytes: status.checkpointBytes,
+        lastScannedMessageId: status.lastScannedMessageId,
+        selectedInjectionNpcIds: status.injection?.selectedNpcIds || [],
+    };
+}
+
 globalThis.NPCState = Object.freeze({
     version: NPC_STATE_VERSION,
+    debugStatus: npcStateDebugStatus,
+    scanMetrics: npcStateScanMetrics,
     scan: () => {
         const chat = getContext().chat || [];
         let id = -1;

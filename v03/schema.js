@@ -1,5 +1,10 @@
 export const NPC_STATE_VERSION = '0.4.3';
 export const NPC_STATE_SCHEMA_VERSION = 1;
+export const NPC_ADMISSION_MODES = Object.freeze(['balanced', 'named_preferred', 'manual']);
+export function normalizeNpcAdmissionMode(value) {
+    const mode = String(value || '').trim().toLocaleLowerCase();
+    return NPC_ADMISSION_MODES.includes(mode) ? mode : 'balanced';
+}
 export const RELATIONSHIP_AXES = Object.freeze(['trust', 'affection', 'desire', 'tension']);
 export const STABLE_PROFILE_FIELDS = Object.freeze([
     'name', 'aliases', 'role', 'species', 'age', 'apparentAge', 'appearance', 'appearanceForms',

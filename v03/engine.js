@@ -261,6 +261,7 @@ export function createNpcStateEngine(adapters = {}) {
                 relationshipCriteria: settings.relationshipCriteria,
                 memoryCriteria: settings.memoryCriteria,
                 dossierLimits: settings.dossierLimits,
+                admissionMode: settings.newNpcAdmissionMode,
             })}\n\n${relationshipAxisIndependencePrompt()}`;
             const parsed = await invokeJson(prompt, manual ? 'manual-current-cast' : 'automatic-current-cast');
             const liveCtx = getContext();
@@ -278,6 +279,7 @@ export function createNpcStateEngine(adapters = {}) {
                 profileContext: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
                 evidencePolicy: buildExchangeEvidencePolicy(exchange),
                 currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
+                admissionMode: settings.newNpcAdmissionMode,
                 dossierLimits: settings.dossierLimits,
                 applyReturnedNpcPatches: true,
                 applyRelationship: !alreadyScannedMessage,
@@ -351,6 +353,7 @@ export function createNpcStateEngine(adapters = {}) {
                 profileContext: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
                 evidencePolicy: buildExchangeEvidencePolicy(exchange),
                 currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
+                admissionMode: settings.newNpcAdmissionMode,
                 dossierLimits: settings.dossierLimits,
                 applyReturnedNpcPatches: true,
             });

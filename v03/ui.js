@@ -123,6 +123,7 @@ export function createNpcStateUi(adapters = {}) {
               <label class="npc-state-setting-row"><span><b>Malformed capture recovery</b><small>Missing embedded capture always triggers one full scan. Enable this to also run a separate recovery scan when an embedded block is present but malformed. Off by default.</small></span><input id="npc_state_v04_fallback" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Context depth</b><small>Older messages are profile/memory context only; relationship deltas remain current-exchange-only.</small></span><input id="npc_state_v3_scan_depth" class="text_pole npc-state-number" type="number" min="2" max="30"></label>
               <label class="npc-state-setting-row"><span><b>Enrich new NPCs from recent history</b><small>Adds a small visible-history capsule to the same foreground generation. Current exchange still decides admission, live state, and relationship changes. No extra model call.</small></span><input id="npc_state_v04_new_npc_history" type="checkbox"></label>
+              <label class="npc-state-setting-row"><span><b>New NPC admission</b><small>Balanced keeps current behavior. Named preferred ignores first-seen unnamed role labels. Manual prevents scanner-created dossiers while existing NPCs still update.</small></span><select id="npc_state_v04_admission" class="text_pole"><option value="balanced">Balanced</option><option value="named_preferred">Named preferred</option><option value="manual">Manual</option></select></label>
               <label class="npc-state-setting-row"><span><b>Inject in-chat NPCs</b><small>Injects individually relevant in-chat NPCs, not incidental background bodies.</small></span><input id="npc_state_v3_inject" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Injection budget</b><small>Approximate token budget.</small></span><input id="npc_state_v3_inject_budget" class="text_pole npc-state-number" type="number" min="256" max="8000" step="100"></label>
               <label class="npc-state-setting-row"><span><b>Rescan changed branches</b><small>Restores tracked swipes locally from checkpoints/payloads. Edited or untracked branches use the separate recovery scanner when needed.</small></span><input id="npc_state_v3_branch_rescan" type="checkbox"></label>
@@ -153,6 +154,7 @@ export function createNpcStateUi(adapters = {}) {
         panel.querySelector('#npc_state_v04_fallback').checked = settings.fallbackScan === true;
         panel.querySelector('#npc_state_v3_scan_depth').value = settings.scanDepth;
         panel.querySelector('#npc_state_v04_new_npc_history').checked = settings.newNpcHistoryEnrichment !== false;
+        panel.querySelector('#npc_state_v04_admission').value = settings.newNpcAdmissionMode || 'balanced';
         panel.querySelector('#npc_state_v3_inject').checked = settings.inject !== false;
         panel.querySelector('#npc_state_v3_inject_budget').value = settings.injectBudgetTokens;
         panel.querySelector('#npc_state_v3_branch_rescan').checked = settings.branchRescan !== false;
@@ -178,6 +180,12 @@ export function createNpcStateUi(adapters = {}) {
         bindCheck('#npc_state_v3_auto', 'autoScan');
         bindCheck('#npc_state_v04_fallback', 'fallbackScan');
         bindCheck('#npc_state_v04_new_npc_history', 'newNpcHistoryEnrichment');
+        panel.querySelector('#npc_state_v04_admission')?.addEventListener('change', event => {
+            const value = String(event.target.value || 'balanced');
+            getSettings().newNpcAdmissionMode = ['balanced', 'named_preferred', 'manual'].includes(value) ? value : 'balanced';
+            event.target.value = getSettings().newNpcAdmissionMode;
+            persistSettings(); onSettingsChanged();
+        });
         bindCheck('#npc_state_v3_inject', 'inject');
         bindCheck('#npc_state_v3_branch_rescan', 'branchRescan');
         bindLimit('#npc_state_v3_limit_memories', 'memories');

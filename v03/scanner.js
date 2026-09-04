@@ -19,6 +19,7 @@ import {
     normalizeMemoryEntries,
     normalizeName,
     normalizeNpc,
+    normalizeNpcAdmissionMode,
     normalizeProfileEvolutionEvidence,
     normalizeRelationship,
     normalizeRelationshipEvidenceHistory,
@@ -191,7 +192,7 @@ function dossierCollectionRules(limits) {
     ];
 }
 
-export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', memoryCriteria = '', playerName = '', dossierLimits = {} }) {
+export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
     const exchange = currentExchange(chat, assistantMessageId);
     if (!exchange) throw new Error('NPC State v0.4.3 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
@@ -205,6 +206,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         npcs: [{
             id: 'existing id when known, otherwise empty',
             name: 'human-facing canonical proper name when known; readable role label only if genuinely unnamed; never npc-*',
+            identityKind: 'named|role-label',
             aliases: [], role: '', species: '', age: 'initial actual chronological numeric age only, or same-value refinement; use ageChange for an established age changing', ageChange: { age: 'new actual chronological age', kind: 'birthday|elapsed|correction', evidence: 'explicit grounded age-change evidence that states the new age' }, apparentAge: '~N only, e.g. ~25, or empty', appearance: 'shared/common appearance, or ordinary single-form appearance', currentForm: 'current named physical form or empty', appearanceForms: [{ name: 'newly established physical form', appearance: 'durable canonical appearance for this form' }], appearanceFormChanges: [{ name: 'existing form explicitly corrected/changed', appearance: 'replacement canonical appearance', evidence: 'explicit current-exchange correction/growth/change evidence' }], personality: '',
             behaviorProfile: [], speech: '', mannerisms: [], keyRelationshipChanges: [{ other: 'existing NPC name/id', action: 'remove', evidence: 'explicit evidence the durable tie no longer applies' }], profileChanges: [{ field: 'personality|behaviorProfile|speech|mannerisms', mode: 'refine|gradual|explicit|batch', concept: 'short stable concept label', evidence: 'grounded evidence for this durable profile update' }], canonChanges: [{ field: 'appearance|species|background|role', mode: 'refine|change|correction|revelation', value: 'replacement durable canon', evidence: 'grounded evidence for this durable scalar revision' }], background: '', keyRelationships: [], memories: [],
             relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0,
@@ -227,6 +229,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- worldActiveNpcIds: NPCs explicitly active off-screen in the current world state. Keep this separate from in-chat participation.',
         '- status is the NPC current concrete activity, immediate situation, or condition: what they are doing or undergoing now, for example standing watch at the gate, bandaging a wound, travelling toward Bluewatch, or asleep by the hearth. It is NOT lifecycle presence. Never use active, inactive, in chat, off-screen, present, archived, or equivalent lifecycle labels as status; those are tracked separately.',
         '- Every new NPC referenced by those arrays must also have one npcs entry so identity can be created safely.',
+        admissionPromptRule(admissionMode),
         '- For NEW NPC identity: if a proper/personal name is established anywhere in the current exchange, npcs.name MUST be that canonical name and nothing else. npcs.name is human-facing display text and MUST NEVER be an npc-* identifier, slug, key, or machine label, and MUST NEVER begin with npc-. Put occupation/function such as Clerk, Guard, Innkeeper, or Receptionist in role, not in name. Use a human-readable unique role label as name only while the NPC is genuinely unnamed. Always return id as an empty string for a new NPC; NPC State assigns the stable id locally. Never invent an npc-* id.',
         '- For a NEW NPC, behaviorProfile, mannerisms, keyRelationships, and memories are bootstrap collections: return arrays containing all grounded entries established by the CURRENT exchange; use [] only when none are supported. Do not use null for those four fields on a new NPC. A first scene can establish behavior or mannerisms when the text explicitly describes or clearly demonstrates a characteristic pattern, gesture, habit, or social tendency; prior sightings are not required.',
         '- A single scan may introduce MULTIPLE new individually relevant NPCs. Do not stop after the first. Return one separate npcs object for every such NPC. For every NEW NPC use id as an empty string; never invent a stable ID. Reference each new NPC in exchangeActiveNpcIds, inChatNpcIds, or worldActiveNpcIds by the exact canonical name or unique role label that appears in its npcs object. Do not add new npcs entries for named-only mentions, crowds, background workers, incidental guards, or other non-individually-relevant characters.',
@@ -1322,6 +1325,31 @@ function newPatchAllowedByEvidence(state, patch, policy, currentAdmissionText = 
     const scope = restrictedEvidenceScope(state, patch, policy);
     return !['world', 'inner', 'excluded'].includes(scope);
 }
+
+export function newNpcAdmissionAllows(patch, mode = 'balanced', referenceCandidates = []) {
+    const policy = normalizeNpcAdmissionMode(mode);
+    if (policy === 'balanced') return true;
+    if (policy === 'manual') return false;
+    const kind = String(patch?.identityKind || '').trim().toLocaleLowerCase().replace(/[_ ]+/g, '-');
+    if (['role-label', 'role', 'unnamed'].includes(kind)) return false;
+    if (['named', 'proper-name', 'proper'].includes(kind)) return true;
+    // Weak-model fallback for Named preferred: a human name that merely wraps its declared
+    // occupation (Northern Gate Guard / role Guard) is treated as a role label. Otherwise a
+    // canonical name/alias may admit. Balanced remains the backwards-compatible default.
+    const name = canonicalPatchName(patch, referenceCandidates);
+    const nameKey = normalizeName(name);
+    const roleKey = normalizeName(patch?.role);
+    if (!nameKey) return false;
+    if (roleKey && (nameKey === roleKey || containsNormalizedPhrase(nameKey, roleKey))) return false;
+    return true;
+}
+
+function admissionPromptRule(mode = 'balanced') {
+    const policy = normalizeNpcAdmissionMode(mode);
+    if (policy === 'manual') return 'NEW NPC ADMISSION POLICY: Manual. Do not return NEW npcs entries or new-NPC activity references. Existing dossiers may still update normally.';
+    if (policy === 'named_preferred') return 'NEW NPC ADMISSION POLICY: Named preferred. A new dossier may be proposed only when a proper/personal canonical name is established. Set identityKind to named. Do not propose first-seen unnamed occupation/role labels as dossiers; they remain narrative-only until named or manually added.';
+    return 'NEW NPC ADMISSION POLICY: Balanced. Preserve normal v0.4 admission: individually relevant named NPCs and genuinely unique role-label NPCs may be proposed; set identityKind to named or role-label accurately.';
+}
 function applyPrivateEvidencePatch(npc, patch) {
     const next = structuredClone(npc);
     for (const field of ['mood', 'goal']) {
@@ -1341,6 +1369,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     const allowHistoricalProfilePatches = options.allowHistoricalProfilePatches === true;
     const playerName = resolvePlayerName(options.playerName);
     const dossierLimits = normalizeDossierLimits(options.dossierLimits);
+    const admissionMode = normalizeNpcAdmissionMode(options.admissionMode);
 
     state.npcs = state.npcs.map(npc => repairTechnicalStoredName(sanitizePlayerKeyRelationships(npc, playerName)));
 
@@ -1358,7 +1387,9 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             const patchId = String(patch?.id || '').trim();
             const name = canonicalPatchName(patch, identityRefs);
             const knownId = Boolean(patchId && state.npcs.some(item => item.id === patchId));
-            return !knownId && name && !findNpcByReference(state, name) && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText);
+            return !knownId && name && !findNpcByReference(state, name)
+                && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText)
+                && newNpcAdmissionAllows(patch, admissionMode, identityRefs);
         })
         .map(patch => canonicalPatchName(patch, identityRefs)));
     const targetRefs = [...new Set([...exchangeRefs, ...presentRefs, ...bootstrapRefs])];
@@ -1377,7 +1408,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             npc = findNpcByReference(state, canonicalName);
         }
         const referenced = targetRefs.some(ref => patchReferenceMatches(patch, ref)) || worldRefs.some(ref => patchReferenceMatches(patch, ref));
-        if (!npc && referenced && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText)) {
+        if (!npc && referenced && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText) && newNpcAdmissionAllows(patch, admissionMode, identityRefs)) {
             const created = createFromPatch(patch, sourceMessageId, identityRefs);
             if (created && !deletedIds.has(created.id) && !(state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
                 state.npcs.push(created);
@@ -1399,7 +1430,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                     // locally allocated id. Resolve by its human-facing canonical name first.
                     const canonicalName = canonicalPatchName(patch, [...identityRefs, ref]);
                     npc = canonicalName ? findNpcByReference(state, canonicalName) : null;
-                    if (!npc && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText)) {
+                    if (!npc && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText) && newNpcAdmissionAllows(patch, admissionMode, [...identityRefs, ref])) {
                         const created = createFromPatch(patch, sourceMessageId, [...identityRefs, ref]);
                         if (created && !deletedIds.has(created.id) && !(state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
                             state.npcs.push(created);
