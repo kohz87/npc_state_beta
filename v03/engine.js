@@ -149,6 +149,12 @@ export function createNpcStateEngine(adapters = {}) {
             if (pointer?.path) {
                 const loaded = await readV3Sidecar({ chatKey, pointer, fetchFn });
                 if (!loaded) throw new Error('NPC State beta sidecar pointer exists but the file is missing. Refusing to create a blank replacement.');
+                if (loaded.retired) {
+                    const error = new Error('NPC State beta sidecar was retired by a chat rename/delete lifecycle transaction. Refusing to hydrate it as empty live state.');
+                    error.code = 'NPC_STATE_V04_BETA_RETIRED_SIDECAR';
+                    error.redirectChatKey = loaded.redirectChatKey || '';
+                    throw error;
+                }
                 state = loaded.state;
                 if (!configuredPointer?.path || Number(pointer.revision || 0) > Number(configuredPointer.revision || 0)) {
                     setPointer(chatKey, pointer);
