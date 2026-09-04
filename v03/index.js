@@ -3,7 +3,7 @@ import { extension_settings, getContext } from '../../../../extensions.js';
 import { extension_prompt_types, extension_prompt_roles, getRequestHeaders } from '../../../../../script.js';
 import { createBundleManagementUi } from './bundle-ui.js';
 import { createNpcStateEngine } from './engine.js';
-import { getChatIdentity } from './identity.js';
+import { getChatIdentity, resolveLifecycleChatKey, resolveRenameLifecycleKeys } from './identity.js';
 import { buildInjection } from './injection.js';
 import { consumeNpcStateControl } from './foreground.js';
 import { createMeguminBlockIntegration } from './megumin.js';
@@ -129,6 +129,14 @@ function setV3Pointer(chatKey, pointer) {
     getSettings().dataFiles[chatKey] = structuredClone(pointer);
 }
 
+function deleteV3Pointer(chatKey) {
+    if (!chatKey) return false;
+    const files = getSettings().dataFiles || {};
+    if (!Object.prototype.hasOwnProperty.call(files, chatKey)) return false;
+    delete files[chatKey];
+    return true;
+}
+
 function notify(kind, message) {
     const fn = globalThis.toastr?.[kind];
     if (typeof fn === 'function') fn(`NPC State: ${message}`);
@@ -168,6 +176,7 @@ const engine = createNpcStateEngine({
     getSettings,
     getPointer: getV3Pointer,
     setPointer: setV3Pointer,
+    deletePointer: deleteV3Pointer,
     getStablePointer: chatKey => extension_settings?.npc_state?.v3?.dataFiles?.[chatKey] || null,
     persistSettings,
     getHeaders: () => getRequestHeaders(),
@@ -427,6 +436,48 @@ async function settledBranchReconcile({ reason = 'branch-change', messageId = nu
     }
 }
 
+function runBoundedLifecycleEvent(label, task, timeoutMs = 8000) {
+    let timer = null;
+    const work = Promise.resolve().then(task).catch(error => {
+        console.error('[NPC State Beta] ' + label + ' failed safely', error);
+        notify('error', label + ' failed safely; beta sidecar pointers were not guessed or partially replaced. ' + (error?.message || error));
+        return { ok: false, reason: 'lifecycle-error', error };
+    });
+    const timeout = new Promise(resolve => {
+        timer = setTimeout(() => resolve({ ok: false, reason: 'lifecycle-timeout' }), timeoutMs);
+    });
+    return Promise.race([work, timeout]).finally(() => { if (timer) clearTimeout(timer); });
+}
+
+async function handleChatRenameLifecycle(eventData = {}) {
+    const settings = getSettings();
+    const resolved = resolveRenameLifecycleKeys(settings.dataFiles, eventData);
+    if (!resolved) {
+        console.info('[NPC State Beta] Ignoring chat rename without unique owner-qualified beta source.', eventData);
+        return { ok: false, reason: 'unresolved-owner' };
+    }
+    if (settings.dataFiles?.[resolved.newKey]?.path) {
+        console.warn('[NPC State Beta] Refusing chat rename because destination already owns a beta sidecar.', resolved);
+        return { ok: false, reason: 'destination-exists' };
+    }
+    const result = await engine.renameChatKey(resolved.oldKey, resolved.newKey);
+    if (result?.ok && activeChatKey === resolved.oldKey) activeChatKey = resolved.newKey;
+    refreshSurfaces();
+    return result;
+}
+
+async function handleChatDeleteLifecycle(chatId, kind = 'chat') {
+    const key = resolveLifecycleChatKey(getSettings().dataFiles, { kind, ownerId: '', chatId });
+    if (!key) {
+        console.info('[NPC State Beta] Ignoring chat deletion without a unique owner-qualified beta source.', { kind, chatId });
+        return { ok: false, reason: 'unresolved-owner' };
+    }
+    const result = await engine.deleteChatKey(key);
+    if (result?.ok && activeChatKey === key) activeChatKey = 'no-chat';
+    refreshSurfaces();
+    return result;
+}
+
 function registerEvents() {
     if (eventsRegistered) return;
     const ctx = getContext();
@@ -467,6 +518,13 @@ function registerEvents() {
     if (events.MESSAGE_SWIPE_DELETED) source.on(events.MESSAGE_SWIPE_DELETED, messageId => {
         void settledBranchReconcile({ reason: 'swipe-deleted', messageId, preferStoredPayload: true });
     });
+
+    if (events.CHAT_RENAMED) source.on(events.CHAT_RENAMED, eventData =>
+        runBoundedLifecycleEvent('chat rename migration', () => handleChatRenameLifecycle(eventData || {})));
+    if (events.CHAT_DELETED) source.on(events.CHAT_DELETED, chatId =>
+        runBoundedLifecycleEvent('chat deletion retirement', () => handleChatDeleteLifecycle(chatId, 'chat')));
+    if (events.GROUP_CHAT_DELETED) source.on(events.GROUP_CHAT_DELETED, chatId =>
+        runBoundedLifecycleEvent('group chat deletion retirement', () => handleChatDeleteLifecycle(chatId, 'group')));
 
     for (const event of [events.CHARACTER_MESSAGE_RENDERED, events.MESSAGE_UPDATED, events.MORE_MESSAGES_LOADED].filter(Boolean)) {
         source.on(event, () => ui.renderInline());

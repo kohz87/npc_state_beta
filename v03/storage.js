@@ -33,6 +33,23 @@ function toBase64(text) {
     throw new Error('No base64 encoder is available.');
 }
 
+export function encodeV3RetiredPayload(chatKey, revision = 0, { reason = 'retired', redirectChatKey = '' } = {}) {
+    const empty = normalizeState({}, chatKey);
+    empty.revision = Math.max(0, Math.trunc(Number(revision) || 0));
+    return JSON.stringify({
+        format: V3_FILE_FORMAT,
+        formatVersion: V3_FILE_FORMAT_VERSION,
+        appVersion: NPC_STATE_VERSION,
+        chatKey: String(chatKey || ''),
+        revision: empty.revision,
+        updatedAt: new Date().toISOString(),
+        retired: true,
+        retireReason: String(reason || 'retired').slice(0, 160),
+        redirectChatKey: String(redirectChatKey || ''),
+        state: empty,
+    }, null, 2);
+}
+
 export function encodeV3Payload(chatKey, state, revision = 0) {
     const normalized = normalizeState(state, chatKey);
     normalized.revision = Math.max(0, Math.trunc(Number(revision) || 0));
@@ -56,7 +73,7 @@ export function decodeV3Payload(text, expectedChatKey = '') {
     if (expectedChatKey && String(payload.chatKey || '') !== String(expectedChatKey)) throw new Error('NPC State v0.3 sidecar belongs to a different chat.');
     const state = normalizeState(payload.state, payload.chatKey || expectedChatKey);
     state.revision = Math.max(0, Math.trunc(Number(payload.revision) || state.revision || 0));
-    return { ...payload, revision: state.revision, state };
+    return { ...payload, retired: payload?.retired === true, retireReason: String(payload?.retireReason || ''), redirectChatKey: String(payload?.redirectChatKey || ''), revision: state.revision, state };
 }
 
 function wait(ms) { return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms) || 0))); }
@@ -138,6 +155,12 @@ export function readV3PointerHint(chatKey, storage = globalThis.localStorage) {
     } catch { return null; }
 }
 
+export function clearV3PointerHint(chatKey, storage = globalThis.localStorage) {
+    if (!storage || typeof storage.removeItem !== 'function') return false;
+    try { storage.removeItem(pointerHintKey(chatKey)); return true; }
+    catch { return false; }
+}
+
 function writeV3PointerHint(chatKey, pointer, storage = globalThis.localStorage) {
     if (!storage || typeof storage.setItem !== 'function' || !pointer?.path) return;
     try { storage.setItem(pointerHintKey(chatKey), JSON.stringify(pointer)); } catch { /* settings pointer remains authoritative */ }
@@ -178,6 +201,12 @@ export async function writeV3Sidecar({ chatKey, state, pointer = null, fetchFn =
                 error.code = 'NPC_STATE_V04_BETA_MISSING_SIDECAR';
                 throw error;
             }
+            if (remote.retired) {
+                const error = new Error('NPC State beta sidecar is retired and cannot accept writes.');
+                error.code = 'NPC_STATE_V04_BETA_RETIRED_SIDECAR';
+                error.redirectChatKey = remote.redirectChatKey || '';
+                throw error;
+            }
             remoteRevision = remote.revision || 0;
             if (expected === null) throw conflict('NPC State v0.3 has no revision token for an existing sidecar. Reload before saving.', null, remoteRevision);
             if (remoteRevision !== expected) throw conflict(`NPC State v0.3 sidecar changed in another writer (expected ${expected}, found ${remoteRevision}). Reload before saving.`, expected, remoteRevision);
@@ -201,4 +230,49 @@ export async function writeV3Sidecar({ chatKey, state, pointer = null, fetchFn =
         writeV3PointerHint(chatKey, nextPointer);
         return { state: normalized, pointer: nextPointer };
     });
+}
+
+
+export async function retireV3Sidecar({ chatKey, pointer, reason = 'retired', redirectChatKey = '', fetchFn = globalThis.fetch, headers = {} }) {
+    if (!pointer?.path) return null;
+    if (typeof fetchFn !== 'function') throw new Error('fetch() is unavailable for NPC State beta lifecycle persistence.');
+    return withWriterLock(chatKey, async () => {
+        const remote = await readV3Sidecar({ chatKey, pointer, fetchFn });
+        if (!remote) {
+            const error = new Error('NPC State beta sidecar disappeared before lifecycle retirement.');
+            error.code = 'NPC_STATE_V04_BETA_MISSING_SIDECAR';
+            throw error;
+        }
+        if (remote.retired) return { pointer: { ...pointer, revision: remote.revision, retired: true }, payload: remote };
+        const expected = pointer?.revision == null ? null : Math.max(0, Math.trunc(Number(pointer.revision) || 0));
+        if (expected === null || Number(remote.revision || 0) !== expected) {
+            throw conflict('NPC State beta sidecar changed before lifecycle retirement. Reload/retry from its newest revision.', expected, remote.revision || 0);
+        }
+        const revision = expected + 1;
+        const json = encodeV3RetiredPayload(chatKey, revision, { reason, redirectChatKey });
+        const response = await fetchFn('/api/files/upload', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ name: pointer.name || makeV3FileName(chatKey), data: toBase64(json) }),
+        });
+        if (!response?.ok) throw new Error('NPC State beta sidecar retirement failed with HTTP ' + (response?.status || 'error') + '.');
+        const result = await response.json();
+        if (!result?.path) throw new Error('NPC State beta sidecar retirement returned no path.');
+        const retiredPointer = { name: pointer.name || makeV3FileName(chatKey), path: result.path, revision, updatedAt: Date.now(), retired: true };
+        writeV3PointerHint(chatKey, retiredPointer);
+        return { pointer: retiredPointer, payload: decodeV3Payload(json, chatKey) };
+    });
+}
+
+export async function deleteV3SidecarFile(pointer, { fetchFn = globalThis.fetch, headers = {} } = {}) {
+    if (!pointer?.path) return false;
+    if (typeof fetchFn !== 'function') throw new Error('fetch() is unavailable for NPC State beta lifecycle persistence.');
+    const response = await fetchFn('/api/files/delete', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ path: pointer.path }),
+    });
+    if (response?.status === 404) return false;
+    if (!response?.ok) throw new Error('NPC State beta sidecar delete failed with HTTP ' + (response?.status || 'error') + '.');
+    return true;
 }

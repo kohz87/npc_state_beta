@@ -35,7 +35,7 @@ import {
     narrativeTurnForMessage,
     referencedNpcIdsFromExchange,
 } from './stale.js';
-import { readV3PointerHint, readV3Sidecar, writeV3Sidecar } from './storage.js';
+import { clearV3PointerHint, deleteV3SidecarFile, readV3PointerHint, readV3Sidecar, retireV3Sidecar, writeV3Sidecar } from './storage.js';
 
 const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.2 recovery scanner. Obey the supplied schema and evidence rules exactly.';
 
@@ -82,6 +82,7 @@ export function createNpcStateEngine(adapters = {}) {
     const getSettings = adapters.getSettings;
     const getPointer = adapters.getPointer || (() => null);
     const setPointer = adapters.setPointer || (() => {});
+    const deletePointer = adapters.deletePointer || (() => {});
     const getStablePointer = adapters.getStablePointer || (() => null);
     const persistSettings = adapters.persistSettings || (() => {});
     const getHeaders = adapters.getHeaders || (() => ({}));
@@ -653,6 +654,115 @@ export function createNpcStateEngine(adapters = {}) {
         });
     }
 
+    async function withLifecycleKeys(keys, task) {
+        const ordered = [...new Set((keys || []).filter(Boolean))].sort();
+        const enter = async index => index >= ordered.length ? task() : exclusive(ordered[index], () => enter(index + 1));
+        return enter(0);
+    }
+
+    async function renameChatKey(oldKey, newKey) {
+        const sourceKey = String(oldKey || '');
+        const targetKey = String(newKey || '');
+        if (!sourceKey || !targetKey || sourceKey === targetKey || /-pending:/.test(sourceKey + targetKey)) return { ok: false, reason: 'invalid-lifecycle-key' };
+        invalidate(sourceKey);
+        invalidate(targetKey);
+        return withLifecycleKeys([sourceKey, targetKey], async () => {
+            let sourcePointer = getPointer(sourceKey);
+            if (!sourcePointer?.path) return { ok: false, reason: 'source-untracked' };
+            if (getPointer(targetKey)?.path) return { ok: false, reason: 'destination-exists' };
+            let destinationPointer = null;
+            let copiedState = null;
+            let retiredPointer = null;
+            try {
+                for (let attempt = 0; attempt < 3; attempt += 1) {
+                    const source = await readV3Sidecar({ chatKey: sourceKey, pointer: sourcePointer, fetchFn });
+                    if (!source || source.retired) return { ok: false, reason: source?.retired ? 'source-retired' : 'source-missing' };
+                    const sourceToken = { ...sourcePointer, revision: source.revision };
+                    const nextState = normalizeState(source.state, targetKey);
+                    const written = await writeV3Sidecar({ chatKey: targetKey, state: nextState, pointer: destinationPointer, fetchFn, headers: getHeaders() });
+                    destinationPointer = written.pointer;
+                    copiedState = written.state;
+                    const verified = await readV3Sidecar({ chatKey: targetKey, pointer: destinationPointer, fetchFn });
+                    if (!verified || verified.retired || verified.revision !== destinationPointer.revision || verified.state.chatKey !== targetKey) {
+                        throw new Error('NPC State beta rename destination verification failed.');
+                    }
+                    try {
+                        const retired = await retireV3Sidecar({ chatKey: sourceKey, pointer: sourceToken, reason: 'chat-renamed', redirectChatKey: targetKey, fetchFn, headers: getHeaders() });
+                        retiredPointer = retired?.pointer || sourceToken;
+                        break;
+                    } catch (error) {
+                        if (error?.code !== 'NPC_STATE_V04_BETA_WRITE_CONFLICT' || attempt >= 2) throw error;
+                        sourcePointer = { ...sourcePointer, revision: Number(error.actualRevision) || sourceToken.revision };
+                    }
+                }
+                if (!retiredPointer || !destinationPointer || !copiedState) throw new Error('NPC State beta rename did not reach a durable retirement boundary.');
+                setPointer(targetKey, destinationPointer);
+                deletePointer(sourceKey);
+                persistSettings();
+                cache.delete(sourceKey);
+                hydration.delete(sourceKey);
+                operationEpoch.delete(sourceKey);
+                cache.set(targetKey, copiedState);
+                hydration.set(targetKey, { status: 'ready', error: null });
+                clearV3PointerHint(sourceKey);
+                onStateChanged(targetKey, structuredClone(copiedState));
+                try { await deleteV3SidecarFile(retiredPointer, { fetchFn, headers: getHeaders() }); }
+                catch (error) { console.warn('[NPC State Beta] Retired rename source could not be physically deleted; it remains logically retired.', error); }
+                return { ok: true, oldKey: sourceKey, newKey: targetKey, state: structuredClone(copiedState) };
+            } catch (error) {
+                if (destinationPointer?.path && !getPointer(targetKey)?.path) {
+                    clearV3PointerHint(targetKey);
+                    try { await deleteV3SidecarFile(destinationPointer, { fetchFn, headers: getHeaders() }); } catch {}
+                }
+                throw error;
+            }
+        });
+    }
+
+    async function deleteChatKey(chatKey) {
+        const key = String(chatKey || '');
+        if (!key || key === 'no-chat' || /-pending:/.test(key)) return { ok: false, reason: 'invalid-lifecycle-key' };
+        invalidate(key);
+        return exclusive(key, async () => {
+            let pointer = getPointer(key);
+            if (!pointer?.path) {
+                deletePointer(key);
+                clearV3PointerHint(key);
+                cache.delete(key);
+                hydration.delete(key);
+                operationEpoch.delete(key);
+                persistSettings();
+                return { ok: true, missing: true, chatKey: key };
+            }
+            let retiredPointer = null;
+            for (let attempt = 0; attempt < 3; attempt += 1) {
+                const source = await readV3Sidecar({ chatKey: key, pointer, fetchFn });
+                if (!source) break;
+                if (source.retired) { retiredPointer = { ...pointer, revision: source.revision, retired: true }; break; }
+                const token = { ...pointer, revision: source.revision };
+                try {
+                    const retired = await retireV3Sidecar({ chatKey: key, pointer: token, reason: 'chat-deleted', fetchFn, headers: getHeaders() });
+                    retiredPointer = retired?.pointer || token;
+                    break;
+                } catch (error) {
+                    if (error?.code !== 'NPC_STATE_V04_BETA_WRITE_CONFLICT' || attempt >= 2) throw error;
+                    pointer = { ...pointer, revision: Number(error.actualRevision) || token.revision };
+                }
+            }
+            deletePointer(key);
+            clearV3PointerHint(key);
+            cache.delete(key);
+            hydration.delete(key);
+            operationEpoch.delete(key);
+            persistSettings();
+            if (retiredPointer?.path) {
+                try { await deleteV3SidecarFile(retiredPointer, { fetchFn, headers: getHeaders() }); }
+                catch (error) { console.warn('[NPC State Beta] Retired deleted-chat sidecar could not be physically removed; it remains logically retired.', error); }
+            }
+            return { ok: true, chatKey: key };
+        });
+    }
+
     async function reconcileBranch({ rescan = false, rebase = false } = {}) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat') return { ok: false, reason: 'no-chat' };
@@ -705,6 +815,8 @@ export function createNpcStateEngine(adapters = {}) {
         previewBundleImport,
         importBundle,
         reconcileBranch,
+        renameChatKey,
+        deleteChatKey,
         invalidate,
         getState: chatKey => cache.has(chatKey || getChatKey()) ? structuredClone(cache.get(chatKey || getChatKey())) : null,
         hydrationStatus: chatKey => hydration.get(chatKey || getChatKey()) || { status: cache.has(chatKey || getChatKey()) ? 'ready' : 'unloaded', error: null },

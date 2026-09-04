@@ -31,3 +31,51 @@ export function getChatIdentity(ctx = {}) {
     if (ownerId) return { key: `character-pending:${encodeKeyPart(ownerId)}`, kind: 'chat', ownerId, chatId: '', pending: true };
     return { key: 'no-chat', kind: 'none', ownerId: '', chatId: '', pending: true };
 }
+
+
+export function parseQualifiedChatKey(value) {
+    const match = String(value || '').match(/^(chat|group):([^:]+):(.+)$/);
+    if (!match) return null;
+    try {
+        return { kind: match[1], ownerId: decodeURIComponent(match[2]), chatId: decodeURIComponent(match[3]) };
+    } catch {
+        return null;
+    }
+}
+
+export function normalizeLifecycleChatId(value) {
+    return String(value ?? '').replace(/\.jsonl$/i, '').trim();
+}
+
+export function resolveLifecycleChatKey(dataFiles = {}, { kind = 'chat', ownerId = '', chatId = '' } = {}) {
+    const type = kind === 'group' ? 'group' : 'chat';
+    const id = normalizeLifecycleChatId(chatId);
+    const owner = String(ownerId || '').trim();
+    if (!id) return '';
+    if (owner) {
+        const exact = buildQualifiedChatKey(type, owner, id);
+        return dataFiles?.[exact]?.path ? exact : '';
+    }
+    const matches = Object.keys(dataFiles || {}).filter(key => {
+        const parsed = parseQualifiedChatKey(key);
+        return parsed?.kind === type && normalizeLifecycleChatId(parsed.chatId) === id && dataFiles?.[key]?.path;
+    });
+    return matches.length === 1 ? matches[0] : '';
+}
+
+export function resolveRenameLifecycleKeys(dataFiles = {}, eventData = {}) {
+    const oldId = normalizeLifecycleChatId(eventData?.oldFileName);
+    const newId = normalizeLifecycleChatId(eventData?.newFileName);
+    if (!oldId || !newId || oldId === newId) return null;
+    const groupOwner = eventData?.groupId === undefined || eventData?.groupId === null ? '' : String(eventData.groupId).trim();
+    const chatOwner = eventData?.avatarId === undefined || eventData?.avatarId === null ? '' : String(eventData.avatarId).trim();
+    const kind = groupOwner ? 'group' : 'chat';
+    const ownerId = groupOwner || chatOwner;
+    const oldKey = resolveLifecycleChatKey(dataFiles, { kind, ownerId, chatId: oldId });
+    if (!oldKey) return null;
+    const parsed = parseQualifiedChatKey(oldKey);
+    if (!parsed?.ownerId) return null;
+    const newKey = buildQualifiedChatKey(kind, parsed.ownerId, newId);
+    if (!newKey || newKey === oldKey) return null;
+    return { kind, ownerId: parsed.ownerId, oldId, newId, oldKey, newKey };
+}
