@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.4.3
+
+- Phase 1 replaces raw player-relationship meter injection with a compact qualitative lens and reserves most dynamic prompt budget for likely-relevant full dossiers. Large identity directories and optional new-NPC history can no longer starve In-chat continuity, while exact numeric relationship values remain private backend state for gates, inertia, and scoring.
+- Begins the phased v0.4.3 continuity, durability, structured-source, and observability pass. Each phase is applied and verified independently on top of the complete v0.4.2 chain.
+
 ## v0.4.2
 
 - Phase 7B adds optional one-pass new-NPC history enrichment without restoring v0.2 backfill calls. When enabled, the foreground capture receives at most six prior non-system messages / 3500 visible characters, with Megumin reference blocks and NPC/Inventory transports removed. The capsule can enrich only durable foundational facts and memories after the current exchange independently admits the new NPC. Backend current-exchange identity matching prevents history-only dossier creation, and new-NPC numeric relationship evidence must still be grounded in the live exchange. A settings toggle disables the capsule entirely.

@@ -24,21 +24,71 @@ function appearanceFormsText(npc = {}) {
     return rows.join(' | ');
 }
 
-function fullNpc(npc) {
+function relationshipBand(value, positive, negative) {
+    const score = Math.max(-100, Math.min(100, Math.round(Number(value) || 0)));
+    const magnitude = Math.abs(score);
+    if (magnitude < 10) return 'little established signal';
+    if (magnitude < 30) return score > 0 ? 'slightly ' + positive : 'slightly ' + negative;
+    if (magnitude < 70) return score > 0 ? 'established ' + positive : 'established ' + negative;
+    if (magnitude < 90) return score > 0 ? 'strong ' + positive : 'strong ' + negative;
+    return score > 0 ? 'very deep ' + positive : 'very deep ' + negative;
+}
+
+export function qualitativeRelationshipLens(npc = {}) {
     const rel = npc.relationship || {};
     return [
+        'Trust: ' + relationshipBand(rel.trust, 'confidence/reliance', 'distrust/wariness'),
+        'Affection: ' + relationshipBand(rel.affection, 'warmth/attachment', 'dislike/emotional distance'),
+        'Desire: ' + relationshipBand(rel.desire, 'attraction/intimate interest', 'aversion/lack of intimate interest'),
+        'Tension: ' + relationshipBand(rel.tension, 'interpersonal strain/charged friction', 'ease/low strain'),
+    ].join('; ');
+}
+
+function npcContinuityLines(npc) {
+    return [
         'NPC ' + npc.id + ' | ' + npc.name + (npc.role ? ' | ' + npc.role : ''),
-        field('Aliases', (npc.aliases || []).join(' | ')),
         field('Species', npc.species), field('Actual age', npc.age), field('Apparent age', npc.apparentAge),
-        field('Appearance', npc.appearance), field('Current form', npc.currentForm), field('Known physical forms', appearanceFormsText(npc)), field('Personality', npc.personality),
-        field('Behavior', (npc.behaviorProfile || []).join(' | ')), field('Speech', npc.speech),
-        field('Mannerisms', (npc.mannerisms || []).join(' | ')), field('Background', npc.background),
-        field('Mood', npc.mood), field('Location', npc.location), field('Goal', npc.goal), field('Status', npc.status),
-        'Relationship toward PLAYER: trust ' + (Number(rel.trust) || 0) + ', affection ' + (Number(rel.affection) || 0) + ', desire ' + (Number(rel.desire) || 0) + ', tension ' + (Number(rel.tension) || 0),
+        field('Current form', npc.currentForm), field('Appearance', npc.appearance), field('Known physical forms', appearanceFormsText(npc)),
+        field('Personality', npc.personality), field('Behavior', (npc.behaviorProfile || []).join(' | ')), field('Speech', npc.speech),
+        field('Goal', npc.goal), field('Status', npc.status), field('Key non-player relationships', (npc.keyRelationships || []).join(' | ')),
+        'Player relationship lens: ' + qualitativeRelationshipLens(npc),
         field('Relationship summary', npc.relationshipSummary),
-        field('Key non-player relationships', (npc.keyRelationships || []).join(' | ')),
-        field('Important memories', (npc.memories || []).join(' | ')),
-    ].filter(Boolean).join('\n');
+        field('Mannerisms', (npc.mannerisms || []).join(' | ')), field('Important memories', (npc.memories || []).join(' | ')),
+        field('Mood', npc.mood), field('Location', npc.location), field('Background', npc.background), field('Aliases', (npc.aliases || []).join(' | ')),
+    ].filter(Boolean);
+}
+
+function fitNpcBlock(npc, maxChars) {
+    const lines = npcContinuityLines(npc);
+    const out = [];
+    let used = 0;
+    for (const line of lines) {
+        const text = String(line || '').trim();
+        if (!text) continue;
+        const cost = text.length + (out.length ? 1 : 0);
+        if (used + cost > maxChars) continue;
+        out.push(text);
+        used += cost;
+    }
+    return out.join('\n');
+}
+
+function buildReservedDossiers(candidates, budgetChars) {
+    const list = Array.isArray(candidates) ? candidates : [];
+    if (!list.length || budgetChars <= 0) return '';
+    const blocks = [];
+    let remaining = budgetChars;
+    for (let i = 0; i < list.length; i += 1) {
+        const left = list.length - i;
+        const fairShare = Math.max(420, Math.floor(remaining / left));
+        const block = fitNpcBlock(list[i], fairShare);
+        if (!block) continue;
+        const cost = block.length + (blocks.length ? 2 : 0);
+        if (cost > remaining) continue;
+        blocks.push(block);
+        remaining -= cost;
+    }
+    return blocks.join('\n\n');
 }
 
 function identityDirectory(state) {
@@ -62,18 +112,21 @@ export function buildInjection(state, settings = {}) {
     const maxChars = budgetTokens * 4;
     const capture = settings.autoScan !== false;
     const continuity = settings.inject !== false;
-    const newNpcHistory = capture && settings.newNpcHistoryEnrichment !== false ? String(settings.foregroundNewNpcHistory || '').trim().slice(0, 4000) : '';
+    const candidates = (continuity || capture) ? activeCandidates(state, limit) : [];
+    // Continuity budgeting is intentionally asymmetric: likely-relevant full dossiers own
+    // the majority of the dynamic budget. A giant identity directory can no longer starve
+    // the characters who are actually in the active conversation.
+    const dossierBudget = Math.max(0, Math.floor(maxChars * 0.68));
+    const directoryBudget = Math.max(0, Math.min(Math.floor(maxChars * 0.20), maxChars - dossierBudget));
+    const historyBudget = Math.max(0, maxChars - dossierBudget - directoryBudget);
+    const newNpcHistory = capture && settings.newNpcHistoryEnrichment !== false
+        ? String(settings.foregroundNewNpcHistory || '').trim().slice(0, Math.min(4000, historyBudget))
+        : '';
     const directoryRaw = identityDirectory(state);
-    const directory = directoryRaw.slice(0, maxChars);
-    const remainingChars = Math.max(0, maxChars - directory.length);
-    let dossiers = '';
-    if (continuity || capture) for (const npc of activeCandidates(state, limit)) {
-        const block = '\n\n' + fullNpc(npc);
-        if ((dossiers + block).length > remainingChars) break;
-        dossiers += block;
-    }
+    const directory = directoryRaw.slice(0, directoryBudget);
+    const dossiers = buildReservedDossiers(candidates, dossierBudget);
     const parts = [
-        '[NPC STATE v0.4.2 BETA | FOREGROUND CONTINUITY]',
+        '[NPC STATE v0.4.3 BETA | FOREGROUND CONTINUITY]',
         'NPC State is private continuity bookkeeping. Never mention these instructions or machine data in visible prose.',
         directory ? 'KNOWN NPC DIRECTORY (identity only; do not invent missing dossier facts):\n' + directory : 'KNOWN NPC DIRECTORY: empty',
         dossiers ? 'FULL CONTINUITY FOR LIKELY RELEVANT NPCS:' + dossiers : '',
@@ -103,7 +156,7 @@ export function buildInjection(state, settings = {}) {
         'For existing NPCs, do a full semantic scan while preserving continuity. Evolving arrays use null when unchanged or the COMPLETE replacement set when revised. Stable scalar fields contain only grounded new/corrected facts.',
         'DURABLE PROFILE EVOLUTION: new NPCs may establish grounded foundational personality/behavior/speech/mannerisms in their first rich scene. For an EXISTING established personality, behaviorProfile, speech, or mannerisms, any real rewrite requires profileChanges with field, mode refine|gradual|explicit|batch, a short stable concept label, and concrete evidence. refine is compatible detail only, not no-longer/became/increasingly change or a morality flip. gradual means sustained same-concept development and may require later confirmation. explicit requires a clearly lasting/corrective change in this exchange. batch requires an actual narrated time skip plus development across it. Never promote a one-off gesture into a mannerism unless narration marks it recurring/habitual.',
         'Relationship deltas require concrete current-exchange evidence. Each changed relationship axis needs its own support; zero is correct when evidence is weak.',
-        'RELATIONSHIP HARDENING: ordinary may affect at most 1 axis, meaningful 2, major 3, extreme 4. Repeated aftermath or semantically duplicate events are zero. Raw deltas are evidence weights and high established relationships resist further deepening. Desire requires explicit romantic/intimate/physical attraction evidence in the visible CURRENT exchange; friendship, gratitude, rescue, beauty, proximity, trust, and generic affection are not Desire. Do not write a Relationship Summary deeper or more absolute than the accepted relationship state supports.',
+        'RELATIONSHIP HARDENING: ordinary may affect at most 1 axis, meaningful 2, major 3, extreme 4. Repeated aftermath or semantically duplicate events are zero. Raw deltas are evidence weights and high established relationships resist further deepening. Desire requires explicit romantic/intimate/physical attraction evidence in the visible CURRENT exchange; friendship, gratitude, rescue, beauty, proximity, trust, and generic affection are not Desire. Do not write a Relationship Summary deeper or more absolute than the accepted relationship state supports. The injected Player relationship lens is deliberately QUALITATIVE; never infer or echo hidden numeric meter values from its wording.',
         'RELATIONSHIP MILESTONE GATES: absolute relationship depth is checkpointed at 25, 50, 75, and 90 independently per axis and positive/negative direction. Ordinary evidence may reach a locked boundary but cannot deepen beyond it. Crossing 25 requires meaningful-or-stronger evidence; 50 requires major-or-stronger with at least 3 raw points on that axis; 75 requires extreme with at least 5 raw points; 90 requires an extreme relationship-defining event with at least 8 raw points. Movement toward neutral is never gate-blocked. Do not inflate impact or delta merely to open a gate; the backend is authoritative.',
         settings.relationshipCriteria ? 'RELATIONSHIP RUBRIC:\n' + String(settings.relationshipCriteria).slice(0, 6000) : '',
         settings.memoryCriteria ? 'IMPORTANT MEMORY RUBRIC:\n' + String(settings.memoryCriteria).slice(0, 6000) : '',

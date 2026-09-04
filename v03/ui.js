@@ -104,7 +104,7 @@ export function createNpcStateUi(adapters = {}) {
     async function safely(label, task) {
         try { return await task(); }
         catch (error) {
-            console.error(`[NPC State v0.4.2] ${label} failed safely`, error);
+            console.error(`[NPC State v0.4.3] ${label} failed safely`, error);
             notify('error', `NPC State: ${label} failed. No partial dossier write was committed. ${error?.message || error}`);
             return { ok: false, reason: 'error', error };
         }
@@ -114,9 +114,9 @@ export function createNpcStateUi(adapters = {}) {
 
     function settingsHtml() {
         return `<div id="${SETTINGS_ID}" class="extension_container npc-state-extension npc-state-v3-settings">
-          <div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>NPC State <span class="npc-state-version">0.4.2</span></b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
+          <div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>NPC State <span class="npc-state-version">0.4.3</span></b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
           <div class="inline-drawer-content npc-state-drawer">
-            <div class="npc-state-intro">v0.4.2 uses foreground embedded capture for normal turns. Exchange participation, in-chat relevance, and explicit off-screen activity are independent signals. Stable v0.3 dossiers can be cloned once into an independent beta sidecar.</div>
+            <div class="npc-state-intro">v0.4.3 uses foreground embedded capture for normal turns. Exchange participation, in-chat relevance, and explicit off-screen activity are independent signals. Stable v0.3 dossiers can be cloned once into an independent beta sidecar.</div>
             <div class="npc-state-settings-grid">
               <label class="npc-state-setting-row"><span><b>Enable NPC State</b><small>Disabling stops automatic scanning and injection. Manual dossier tools remain available.</small></span><input id="npc_state_v3_enabled" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Embedded current-cast scan</b><small>Uses the same foreground RP generation. If the embedded block is missing, NPC State automatically runs one full separate current-cast scan.</small></span><input id="npc_state_v3_auto" type="checkbox"></label>
@@ -249,7 +249,7 @@ export function createNpcStateUi(adapters = {}) {
         const active = current.npcs.filter(npc => !npc.archived);
         const archived = current.npcs.filter(npc => npc.archived);
         const rows = list => list.map(npc => `<button class="menu_button npc-state-v3-roster-open" data-npc-id="${escapeHtml(npc.id)}">${npc.present ? '● ' : (npc.worldActive ? '◌ ' : '')}${escapeHtml(npc.name)}</button>`).join('');
-        holder.innerHTML = `<small class="npc-state-muted">Persistent NPC State 0.4.2 database · ${active.length} active · ${archived.length} archived</small><div class="npc-state-roster-chips">${rows(active)}${rows(archived)}</div>`;
+        holder.innerHTML = `<small class="npc-state-muted">Persistent NPC State 0.4.3 database · ${active.length} active · ${archived.length} archived</small><div class="npc-state-roster-chips">${rows(active)}${rows(archived)}</div>`;
         holder.querySelectorAll('.npc-state-v3-roster-open').forEach(button => button.addEventListener('click', () => openLibrary(button.dataset.npcId)));
     }
 
