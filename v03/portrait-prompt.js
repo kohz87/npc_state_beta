@@ -152,11 +152,31 @@ function identityBits(npc = {}) {
     return bits;
 }
 
+function currentFormAppearance(npc = {}) {
+    const current = inlineText(npc.currentForm, 80).toLocaleLowerCase();
+    const forms = Array.isArray(npc.appearanceForms) ? npc.appearanceForms : [];
+    const form = current ? forms.find(item => inlineText(item?.name, 80).toLocaleLowerCase() === current) : null;
+    const general = inlineText(npc.appearance, 3000);
+    const specific = inlineText(form?.appearance, 3000);
+    return [general, specific].filter(Boolean).join('; ');
+}
+
+function appearanceFormsPromptText(npc = {}) {
+    return (Array.isArray(npc.appearanceForms) ? npc.appearanceForms : [])
+        .map(form => {
+            const name = inlineText(form?.name, 80);
+            const appearance = inlineText(form?.appearance, 1200);
+            return name && appearance ? name + ': ' + appearance : '';
+        })
+        .filter(Boolean)
+        .join(' | ');
+}
+
 function naturalCharacter(npc = {}) {
     const name = inlineText(npc.name, 120) || 'Unknown NPC';
     const identity = identityBits(npc);
     const sentences = [`Portrait of ${name}${identity.length ? `, ${identity.join(', ')}` : ''}.`];
-    const appearance = inlineText(npc.appearance, 3000);
+    const appearance = currentFormAppearance(npc);
     const personality = inlineText(npc.personality, 1600);
     const mannerisms = listText(npc.mannerisms, 8, 300).join('; ');
     const mood = inlineText(npc.mood, 240);
@@ -177,7 +197,7 @@ function tagsCharacter(npc = {}) {
     };
     push(npc.name);
     for (const bit of identityBits(npc)) push(bit);
-    push(npc.appearance);
+    push(currentFormAppearance(npc));
     for (const mannerism of listText(npc.mannerisms, 8, 300)) push(mannerism);
     push(npc.mood);
     push(npc.status);
@@ -188,7 +208,7 @@ function hybridCharacter(npc = {}) {
     const name = inlineText(npc.name, 120) || 'Unknown NPC';
     const tags = [name, ...identityBits(npc)].filter(Boolean).join(', ');
     const prose = [];
-    const appearance = inlineText(npc.appearance, 3000);
+    const appearance = currentFormAppearance(npc);
     const personality = inlineText(npc.personality, 1600);
     const mannerisms = listText(npc.mannerisms, 8, 300).join('; ');
     const mood = inlineText(npc.mood, 240);
@@ -209,7 +229,7 @@ export function buildPortraitCharacterBlock(npc = {}, mode = 'hybrid') {
 
 export const PORTRAIT_PROMPT_PLACEHOLDERS = Object.freeze([
     'positivePreset', 'negativePreset', 'character', 'name', 'aliases', 'role', 'species', 'age', 'apparentAge',
-    'appearance', 'personality', 'behaviorProfile', 'speech', 'mannerisms', 'background',
+    'appearance', 'currentForm', 'currentFormAppearance', 'appearanceForms', 'personality', 'behaviorProfile', 'speech', 'mannerisms', 'background',
     'mood', 'location', 'goal', 'status',
 ]);
 
@@ -228,6 +248,9 @@ function placeholderValues(npc = {}, settings = {}) {
         age: inlineText(npc.age, 80),
         apparentAge: inlineText(npc.apparentAge, 80),
         appearance: inlineText(npc.appearance, 3000),
+        currentForm: inlineText(npc.currentForm, 80),
+        currentFormAppearance: currentFormAppearance(npc),
+        appearanceForms: appearanceFormsPromptText(npc),
         personality: inlineText(npc.personality, 1600),
         behaviorProfile: listText(npc.behaviorProfile, 8, 360).join(', '),
         speech: inlineText(npc.speech, 1200),

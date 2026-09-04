@@ -2,7 +2,7 @@ export const NPC_STATE_VERSION = '0.4.1';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export const RELATIONSHIP_AXES = Object.freeze(['trust', 'affection', 'desire', 'tension']);
 export const STABLE_PROFILE_FIELDS = Object.freeze([
-    'name', 'aliases', 'role', 'species', 'age', 'apparentAge', 'appearance',
+    'name', 'aliases', 'role', 'species', 'age', 'apparentAge', 'appearance', 'appearanceForms',
     'personality', 'behaviorProfile', 'speech', 'mannerisms', 'background', 'keyRelationships',
 ]);
 export const DEFAULT_RELATIONSHIP = Object.freeze({ trust: 0, affection: 0, desire: 0, tension: 0 });
@@ -24,6 +24,7 @@ export const DOSSIER_LIMIT_MAXIMUMS = Object.freeze({
     behaviorProfile: 16,
 });
 export const CHECKPOINT_LIMIT = 48;
+export const APPEARANCE_FORM_LIMIT = 12;
 
 function text(value, max = 1200) {
     return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -175,6 +176,33 @@ export function normalizeCurrentStatus(value) {
     return LIFECYCLE_ONLY_CURRENT_STATUSES.has(normalizeName(clean)) ? '' : clean;
 }
 
+export function normalizeAppearanceForms(value) {
+    const source = Array.isArray(value)
+        ? value
+        : (value && typeof value === 'object'
+            ? Object.entries(value).map(([name, appearance]) => ({ name, appearance }))
+            : []);
+    const out = [];
+    const seen = new Set();
+    for (const raw of source) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+        const name = text(raw.name ?? raw.form ?? raw.label, 80);
+        const appearance = text(raw.appearance ?? raw.description ?? raw.text, 1800);
+        const key = normalizeName(name);
+        if (!name || !key || !appearance || seen.has(key)) continue;
+        seen.add(key);
+        out.push({ name, appearance });
+        if (out.length >= APPEARANCE_FORM_LIMIT) break;
+    }
+    return out;
+}
+
+export function appearanceFormByName(forms, reference) {
+    const key = normalizeName(reference);
+    if (!key) return null;
+    return normalizeAppearanceForms(forms).find(form => normalizeName(form.name) === key) || null;
+}
+
 export function normalizeDossierLimits(value = {}) {
     const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     return Object.fromEntries(Object.keys(DOSSIER_LIMIT_DEFAULTS).map(key => {
@@ -228,6 +256,10 @@ export function normalizeNpc(input = {}, options = {}) {
         turn: Number.isInteger(item?.turn) ? item.turn : null,
         at: Number(item?.at) || now,
     })) : [];
+    const appearanceForms = normalizeAppearanceForms(input.appearanceForms);
+    const requestedCurrentForm = text(input.currentForm, 80);
+    const matchedCurrentForm = appearanceFormByName(appearanceForms, requestedCurrentForm);
+    const currentForm = matchedCurrentForm?.name || requestedCurrentForm;
     return {
         id,
         name,
@@ -237,6 +269,8 @@ export function normalizeNpc(input = {}, options = {}) {
         age: normalizeActualAge(input.age),
         apparentAge: normalizeApparentAge(input.apparentAge),
         appearance: text(input.appearance, 1800),
+        appearanceForms,
+        currentForm,
         personality: text(input.personality, 1200),
         behaviorProfile: list(input.behaviorProfile, DOSSIER_LIMIT_MAXIMUMS.behaviorProfile, 360),
         speech: text(input.speech, 900),

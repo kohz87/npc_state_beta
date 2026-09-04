@@ -74,6 +74,18 @@ function listHtml(items, empty = 'None established.') {
         : `<p class="npc-state-muted">${escapeHtml(empty)}</p>`;
 }
 
+function appearanceFormsHtml(npc = {}) {
+    const forms = Array.isArray(npc.appearanceForms) ? npc.appearanceForms.filter(Boolean) : [];
+    if (!forms.length) return '<p class="npc-state-muted">No alternate physical forms established.</p>';
+    const current = String(npc.currentForm || '').trim().toLocaleLowerCase();
+    return '<ul class="npc-state-v3-block-list">' + forms.map(form => {
+        const name = String(form?.name || '').trim();
+        const appearance = String(form?.appearance || '').trim();
+        const suffix = name && name.toLocaleLowerCase() === current ? ' · current' : '';
+        return '<li><b>' + escapeHtml(name + suffix) + '</b><br>' + escapeHtml(appearance) + '</li>';
+    }).join('') + '</ul>';
+}
+
 function paragraphHtml(value, empty = 'Unknown') {
     const clean = String(value || '').trim();
     return `<p${clean ? '' : ' class="npc-state-muted"'}>${escapeHtml(clean || empty)}</p>`;
@@ -165,6 +177,7 @@ export function dossierHtml(npc) {
             ${currentFact('Location', npc.location)}
             ${currentFact('Goal', npc.goal)}
             ${currentFact('Activity / condition', npc.status)}
+            ${npc.currentForm ? currentFact('Current form', npc.currentForm) : ''}
           </div>
         </section>
 
@@ -186,6 +199,7 @@ export function dossierHtml(npc) {
           <div class="npc-state-v3-block-grid">
             ${block('Personality', paragraphHtml(npc.personality))}
             ${block('Appearance', paragraphHtml(npc.appearance))}
+            ${(npc.appearanceForms || []).length ? block('Appearance forms', appearanceFormsHtml(npc), 'npc-state-v3-block-wide') : ''}
             ${block('Behavioral profile', listHtml(npc.behaviorProfile))}
             ${block('Speech', paragraphHtml(npc.speech))}
             ${block('Mannerisms', listHtml(npc.mannerisms))}

@@ -3,13 +3,32 @@ function field(label, value) {
     return text ? label + ': ' + text : '';
 }
 
+function appearanceFormsText(npc = {}) {
+    const forms = Array.isArray(npc.appearanceForms) ? npc.appearanceForms.filter(Boolean) : [];
+    if (!forms.length) return '';
+    const currentKey = String(npc.currentForm || '').trim().toLocaleLowerCase();
+    const ordered = [...forms].sort((a, b) => Number(String(b?.name || '').trim().toLocaleLowerCase() === currentKey) - Number(String(a?.name || '').trim().toLocaleLowerCase() === currentKey));
+    const rows = [];
+    let used = 0;
+    for (const form of ordered.slice(0, 12)) {
+        const name = String(form?.name || '').trim();
+        const appearance = String(form?.appearance || '').trim().slice(0, 1200);
+        if (!name || !appearance) continue;
+        const row = name + (name.toLocaleLowerCase() === currentKey ? ' [CURRENT]' : '') + ': ' + appearance;
+        if (used + row.length > 6000) break;
+        rows.push(row);
+        used += row.length;
+    }
+    return rows.join(' | ');
+}
+
 function fullNpc(npc) {
     const rel = npc.relationship || {};
     return [
         'NPC ' + npc.id + ' | ' + npc.name + (npc.role ? ' | ' + npc.role : ''),
         field('Aliases', (npc.aliases || []).join(' | ')),
         field('Species', npc.species), field('Actual age', npc.age), field('Apparent age', npc.apparentAge),
-        field('Appearance', npc.appearance), field('Personality', npc.personality),
+        field('Appearance', npc.appearance), field('Current form', npc.currentForm), field('Known physical forms', appearanceFormsText(npc)), field('Personality', npc.personality),
         field('Behavior', (npc.behaviorProfile || []).join(' | ')), field('Speech', npc.speech),
         field('Mannerisms', (npc.mannerisms || []).join(' | ')), field('Background', npc.background),
         field('Mood', npc.mood), field('Location', npc.location), field('Goal', npc.goal), field('Status', npc.status),
@@ -65,6 +84,9 @@ export function buildInjection(state, settings = {}) {
         'worldActiveNpcIds: explicitly active off-screen NPCs; keep separate from in-chat.',
         'status is the NPC current concrete activity, immediate situation, or condition: what they are doing or undergoing now, for example standing watch at the gate, bandaging a wound, travelling toward Bluewatch, or asleep by the hearth. It is NOT lifecycle presence. Never use active, inactive, in chat, off-screen, present, archived, or equivalent lifecycle labels as status; those are tracked separately.',
         'age is ACTUAL chronological age only. Use one grounded numeric age. Years use N or ~N; when canon explicitly gives smaller units, use N days, N weeks, or N months. Never put child, teenager, adult, young adult, middle-aged, elder, elderly, old, or any other life-stage label in age. Never infer actual age from appearance. For an existing NPC, leave age empty unless this response explicitly establishes a more authoritative actual age; do not re-estimate it each turn. apparentAge is the separate visual estimate and uses ~N only.',
+        'appearance is shared/common physical description, or ordinary single-form appearance. currentForm is live physical-form state only; leave it empty for ordinary non-transforming NPCs. Clothing, disguises, poses, moods, and injuries are not forms.',
+        'appearanceForms is durable form-specific canon. For a NEW multi-form NPC include every grounded distinct physical form. For an EXISTING NPC return only genuinely NEW forms; never rewrite a known form from casual contradictory prose. Existing form dimensions/anatomy/colors/proportions are sticky.',
+        'appearanceFormChanges is the only scanner channel allowed to revise an existing form. Use it only for an explicit current-exchange correction or real persistent growth/change/evolution, and include concrete evidence. Otherwise omit/null it.',
         'Every new individually relevant NPC needs a full npcs entry with all grounded foundational information established by this response. Unknown biography stays empty/null; never invent facts to fill the schema.',
         'For NEW NPC identity: if a proper/personal name is known in this response, npcs.name MUST be that canonical name and nothing else. npcs.name is human-facing display text and MUST NEVER be an npc-* identifier, slug, key, or machine label, and MUST NEVER begin with npc-. Put occupation or function such as Clerk, Guard, Innkeeper, or Receptionist in role, not in name. Use a human-readable unique role label as name only while the NPC is genuinely unnamed. Always use id as an empty string for a new NPC; NPC State assigns the stable id locally. Never invent an npc-* id.',
         'For a NEW NPC, behaviorProfile, mannerisms, keyRelationships, and memories are bootstrap collections: return ARRAYS containing all grounded entries established by this response; use [] only when none are supported. Do not use null for those four fields on a new NPC. The current response alone can establish behavior or mannerisms when it explicitly describes or clearly demonstrates a characteristic pattern, gesture, habit, or social tendency; prior sightings are not required.',
@@ -77,7 +99,7 @@ export function buildInjection(state, settings = {}) {
         settings.relationshipCriteria ? 'RELATIONSHIP RUBRIC:\n' + String(settings.relationshipCriteria).slice(0, 6000) : '',
         settings.memoryCriteria ? 'IMPORTANT MEMORY RUBRIC:\n' + String(settings.memoryCriteria).slice(0, 6000) : '',
         'The PLAYER/current user persona is never an NPC. keyRelationships and socialEdges are NPC-to-NPC only.',
-        'OUTPUT JSON SHAPE: {"exchangeActiveNpcIds":[],"inChatNpcIds":[],"worldActiveNpcIds":[],"npcs":[{"id":"existing id or empty","name":"human-facing canonical proper name when known; readable role label only if genuinely unnamed; never npc-*","aliases":[],"role":"","species":"","age":"actual chronological numeric age only or empty","apparentAge":"~N or empty","appearance":"","personality":"","behaviorProfile":[],"speech":"","mannerisms":[],"background":"","keyRelationships":[],"memories":[],"relationshipSummary":"","mood":"","location":"","goal":"","status":"concrete current activity, situation, or condition; never lifecycle presence","importance":0,"lifeState":"alive|dead|unknown","lifeStateCertainty":"explicit|strong|uncertain","lifeStateReason":"","livingReturn":false,"relationshipChange":{"impact":"none|ordinary|meaningful|major|extreme","delta":{"trust":0,"affection":0,"desire":0,"tension":0},"evidence":"","reason":""}}],"socialEdges":[]}',
+        'OUTPUT JSON SHAPE: {"exchangeActiveNpcIds":[],"inChatNpcIds":[],"worldActiveNpcIds":[],"npcs":[{"id":"existing id or empty","name":"human-facing canonical proper name when known; readable role label only if genuinely unnamed; never npc-*","aliases":[],"role":"","species":"","age":"actual chronological numeric age only or empty","apparentAge":"~N or empty","appearance":"shared/common or ordinary single-form appearance","currentForm":"current physical form or empty","appearanceForms":[{"name":"new physical form","appearance":"durable canonical form appearance"}],"appearanceFormChanges":[{"name":"existing form explicitly changed","appearance":"replacement canonical form appearance","evidence":"explicit correction/growth/change evidence"}],"personality":"","behaviorProfile":[],"speech":"","mannerisms":[],"background":"","keyRelationships":[],"memories":[],"relationshipSummary":"","mood":"","location":"","goal":"","status":"concrete current activity, situation, or condition; never lifecycle presence","importance":0,"lifeState":"alive|dead|unknown","lifeStateCertainty":"explicit|strong|uncertain","lifeStateReason":"","livingReturn":false,"relationshipChange":{"impact":"none|ordinary|meaningful|major|extreme","delta":{"trust":0,"affection":0,"desire":0,"tension":0},"evidence":"","reason":""}}],"socialEdges":[]}',
         'Emit the machine block even when no NPC changed because an empty inChatNpcIds is meaningful. Do not use markdown fences.'
     );
     return parts.filter(Boolean).join('\n\n');

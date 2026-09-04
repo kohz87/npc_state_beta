@@ -37,6 +37,32 @@ function splitLines(value, max = 12) {
     return [...new Set(String(value || '').split(/\r?\n|\s*;\s*/).map(item => item.trim()).filter(Boolean))].slice(0, max);
 }
 
+function parseAppearanceForms(value, max = 12) {
+    const out = [];
+    const seen = new Set();
+    for (const raw of String(value || '').split(/\r?\n/)) {
+        const line = raw.trim();
+        if (!line) continue;
+        const split = line.indexOf('|');
+        if (split <= 0) continue;
+        const name = line.slice(0, split).trim().slice(0, 80);
+        const appearance = line.slice(split + 1).trim().slice(0, 1800);
+        const key = name.toLocaleLowerCase();
+        if (!name || !appearance || seen.has(key)) continue;
+        seen.add(key);
+        out.push({ name, appearance });
+        if (out.length >= max) break;
+    }
+    return out;
+}
+
+function appearanceFormsEditorText(npc = {}) {
+    return (Array.isArray(npc.appearanceForms) ? npc.appearanceForms : [])
+        .map(form => String(form?.name || '').trim() + ' | ' + String(form?.appearance || '').trim())
+        .filter(line => !/^\s*\|/.test(line))
+        .join('\n');
+}
+
 function latestAssistantMessageId(chat = []) {
     for (let i = chat.length - 1; i >= 0; i -= 1) {
         const message = chat[i];
@@ -360,7 +386,7 @@ export function createNpcStateUi(adapters = {}) {
         const field = (label, id, value, wide = false) => `<label class="${wide ? 'npc-state-v3-editor-wide' : ''}">${label}<input id="${id}" class="text_pole" value="${escapeHtml(value || '')}"></label>`;
         return `<div class="npc-state-v3-editor-shell" data-npc-id="${escapeHtml(npc.id)}" data-updated-at="${Number(npc.updatedAt) || 0}"><header><div><span class="npc-state-kicker">EDIT DOSSIER</span><h2>${escapeHtml(npc.name)}</h2></div><button class="npc-state-v3-editor-close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></header><div class="npc-state-v3-editor-grid">
           ${field('Name', 'npc_state_v3_edit_name', npc.name)}${field('Role', 'npc_state_v3_edit_role', npc.role)}${field('Species / race', 'npc_state_v3_edit_species', npc.species)}${field('Age', 'npc_state_v3_edit_age', npc.age)}${field('Apparent age', 'npc_state_v3_edit_apparent_age', npc.apparentAge)}
-          <label class="npc-state-v3-editor-wide">Personality<textarea id="npc_state_v3_edit_personality" class="text_pole" rows="3">${escapeHtml(npc.personality)}</textarea></label><label class="npc-state-v3-editor-wide">Behavioral profile · one per line<textarea id="npc_state_v3_edit_behavior" class="text_pole" rows="5">${escapeHtml((npc.behaviorProfile || []).join('\n'))}</textarea></label><label class="npc-state-v3-editor-wide">Speech<textarea id="npc_state_v3_edit_speech" class="text_pole" rows="3">${escapeHtml(npc.speech)}</textarea></label><label class="npc-state-v3-editor-wide">Appearance<textarea id="npc_state_v3_edit_appearance" class="text_pole" rows="5">${escapeHtml(npc.appearance)}</textarea></label><label class="npc-state-v3-editor-wide">Background<textarea id="npc_state_v3_edit_background" class="text_pole" rows="4">${escapeHtml(npc.background)}</textarea></label><label class="npc-state-v3-editor-wide">Mannerisms · one per line<textarea id="npc_state_v3_edit_mannerisms" class="text_pole" rows="4">${escapeHtml((npc.mannerisms || []).join('\n'))}</textarea></label><label class="npc-state-v3-editor-wide">Key relationships · one per line<textarea id="npc_state_v3_edit_key_relationships" class="text_pole" rows="4">${escapeHtml((npc.keyRelationships || []).join('\n'))}</textarea></label>
+          <label class="npc-state-v3-editor-wide">Personality<textarea id="npc_state_v3_edit_personality" class="text_pole" rows="3">${escapeHtml(npc.personality)}</textarea></label><label class="npc-state-v3-editor-wide">Behavioral profile · one per line<textarea id="npc_state_v3_edit_behavior" class="text_pole" rows="5">${escapeHtml((npc.behaviorProfile || []).join('\n'))}</textarea></label><label class="npc-state-v3-editor-wide">Speech<textarea id="npc_state_v3_edit_speech" class="text_pole" rows="3">${escapeHtml(npc.speech)}</textarea></label><label class="npc-state-v3-editor-wide">Appearance · shared/common or ordinary single form<textarea id="npc_state_v3_edit_appearance" class="text_pole" rows="5">${escapeHtml(npc.appearance)}</textarea></label>${field('Current physical form', 'npc_state_v3_edit_current_form', npc.currentForm)}<label class="npc-state-v3-editor-wide">Appearance forms · one per line as Form | description<textarea id="npc_state_v3_edit_appearance_forms" class="text_pole" rows="6">${escapeHtml(appearanceFormsEditorText(npc))}</textarea></label><label class="npc-state-v3-editor-wide">Background<textarea id="npc_state_v3_edit_background" class="text_pole" rows="4">${escapeHtml(npc.background)}</textarea></label><label class="npc-state-v3-editor-wide">Mannerisms · one per line<textarea id="npc_state_v3_edit_mannerisms" class="text_pole" rows="4">${escapeHtml((npc.mannerisms || []).join('\n'))}</textarea></label><label class="npc-state-v3-editor-wide">Key relationships · one per line<textarea id="npc_state_v3_edit_key_relationships" class="text_pole" rows="4">${escapeHtml((npc.keyRelationships || []).join('\n'))}</textarea></label>
           ${field('Mood', 'npc_state_v3_edit_mood', npc.mood)}${field('Location', 'npc_state_v3_edit_location', npc.location)}${field('Goal', 'npc_state_v3_edit_goal', npc.goal)}${field('Activity / condition', 'npc_state_v3_edit_status', npc.status)}<label class="npc-state-v3-editor-wide">Relationship summary<textarea id="npc_state_v3_edit_relationship_summary" class="text_pole" rows="3">${escapeHtml(npc.relationshipSummary)}</textarea></label><label class="npc-state-v3-editor-wide">Important memories · one per line<textarea id="npc_state_v3_edit_memories" class="text_pole" rows="5">${escapeHtml((npc.memories || []).join('\n'))}</textarea></label>
           ${field('Trust', 'npc_state_v3_edit_trust', rel.trust)}${field('Affection', 'npc_state_v3_edit_affection', rel.affection)}${field('Desire', 'npc_state_v3_edit_desire', rel.desire)}${field('Tension', 'npc_state_v3_edit_tension', rel.tension)}
           <label class="npc-state-v3-editor-wide"><input id="npc_state_v3_edit_lock" type="checkbox" ${npc.manualProfileFields?.length ? 'checked' : ''}> Protect stable profile fields from scanner rewrites</label><label class="npc-state-v3-editor-wide"><input id="npc_state_v3_edit_retention" type="checkbox" ${npc.retentionProtected ? 'checked' : ''}> Retention protected</label><label class="npc-state-v3-editor-wide"><input id="npc_state_v3_edit_minor" type="checkbox" ${npc.minor ? 'checked' : ''}> Minor NPC</label>
@@ -395,10 +421,10 @@ export function createNpcStateUi(adapters = {}) {
         const value = fieldId => overlay.querySelector(`#${fieldId}`)?.value ?? '';
         const clamp = fieldId => Math.max(-100, Math.min(100, Math.round(Number(value(fieldId)) || 0)));
         const limits = normalizeDossierLimits(getSettings().dossierLimits);
-        const stableFields = ['name', 'role', 'species', 'age', 'apparentAge', 'personality', 'behaviorProfile', 'speech', 'appearance', 'background', 'mannerisms', 'keyRelationships'];
+        const stableFields = ['name', 'role', 'species', 'age', 'apparentAge', 'personality', 'behaviorProfile', 'speech', 'appearance', 'appearanceForms', 'background', 'mannerisms', 'keyRelationships'];
         const patch = {
             name: value('npc_state_v3_edit_name').trim(), role: value('npc_state_v3_edit_role'), species: value('npc_state_v3_edit_species'), age: value('npc_state_v3_edit_age'), apparentAge: value('npc_state_v3_edit_apparent_age'),
-            personality: value('npc_state_v3_edit_personality'), behaviorProfile: splitLines(value('npc_state_v3_edit_behavior'), limits.behaviorProfile), speech: value('npc_state_v3_edit_speech'), appearance: value('npc_state_v3_edit_appearance'), background: value('npc_state_v3_edit_background'), mannerisms: splitLines(value('npc_state_v3_edit_mannerisms'), limits.mannerisms), keyRelationships: splitLines(value('npc_state_v3_edit_key_relationships'), limits.keyRelationships),
+            personality: value('npc_state_v3_edit_personality'), behaviorProfile: splitLines(value('npc_state_v3_edit_behavior'), limits.behaviorProfile), speech: value('npc_state_v3_edit_speech'), appearance: value('npc_state_v3_edit_appearance'), currentForm: value('npc_state_v3_edit_current_form').trim(), appearanceForms: parseAppearanceForms(value('npc_state_v3_edit_appearance_forms')), background: value('npc_state_v3_edit_background'), mannerisms: splitLines(value('npc_state_v3_edit_mannerisms'), limits.mannerisms), keyRelationships: splitLines(value('npc_state_v3_edit_key_relationships'), limits.keyRelationships),
             mood: value('npc_state_v3_edit_mood'), location: value('npc_state_v3_edit_location'), goal: value('npc_state_v3_edit_goal'), status: value('npc_state_v3_edit_status'), relationshipSummary: value('npc_state_v3_edit_relationship_summary'), memories: splitLines(value('npc_state_v3_edit_memories'), limits.memories),
             relationship: { trust: clamp('npc_state_v3_edit_trust'), affection: clamp('npc_state_v3_edit_affection'), desire: clamp('npc_state_v3_edit_desire'), tension: clamp('npc_state_v3_edit_tension') },
             manualProfileFields: overlay.querySelector('#npc_state_v3_edit_lock')?.checked ? stableFields : [], retentionProtected: Boolean(overlay.querySelector('#npc_state_v3_edit_retention')?.checked), minor: Boolean(overlay.querySelector('#npc_state_v3_edit_minor')?.checked),

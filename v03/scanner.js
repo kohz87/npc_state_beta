@@ -5,6 +5,7 @@ import {
     findNpcByReference,
     makeNpcId,
     normalizeActualAge,
+    normalizeAppearanceForms,
     normalizeApparentAge,
     normalizeCurrentStatus,
     normalizeDossierLimits,
@@ -147,6 +148,9 @@ function rosterForPrompt(state) {
         species: npc.species,
         age: npc.age,
         apparentAge: npc.apparentAge,
+        appearance: npc.appearance,
+        appearanceForms: npc.appearanceForms,
+        currentForm: npc.currentForm,
         archived: npc.archived,
         archiveReason: npc.archiveReason,
         present: npc.present,
@@ -189,7 +193,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         npcs: [{
             id: 'existing id when known, otherwise empty',
             name: 'human-facing canonical proper name when known; readable role label only if genuinely unnamed; never npc-*',
-            aliases: [], role: '', species: '', age: 'actual chronological numeric age only: N, ~N, or N days/weeks/months; never child/adult/elderly', apparentAge: '~N only, e.g. ~25, or empty', appearance: '', personality: '',
+            aliases: [], role: '', species: '', age: 'actual chronological numeric age only: N, ~N, or N days/weeks/months; never child/adult/elderly', apparentAge: '~N only, e.g. ~25, or empty', appearance: 'shared/common appearance, or ordinary single-form appearance', currentForm: 'current named physical form or empty', appearanceForms: [{ name: 'newly established physical form', appearance: 'durable canonical appearance for this form' }], appearanceFormChanges: [{ name: 'existing form explicitly corrected/changed', appearance: 'replacement canonical appearance', evidence: 'explicit current-exchange correction/growth/change evidence' }], personality: '',
             behaviorProfile: [], speech: '', mannerisms: [], background: '', keyRelationships: [], memories: [],
             relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0,
             lifeState: 'alive|dead|unknown', lifeStateCertainty: 'explicit|strong|uncertain', lifeStateReason: '', livingReturn: false,
@@ -222,6 +226,10 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- Only propose a relationshipChange when the current exchange contains concrete evidence. If unsure, use impact none and zero deltas.',
         '- age is ACTUAL chronological age only. Use one grounded numeric age. Years use N or ~N; if canon explicitly gives a smaller unit, use N days, N weeks, or N months. Never write child, teenager, adult, young adult, middle-aged, elder, elderly, old, or another life-stage label in age. Never infer actual age from appearance. For an EXISTING NPC, leave age empty unless the current exchange explicitly establishes a more authoritative actual age; do not re-estimate it from prose or appearance.',
         '- apparentAge is separate from actual age. When clearly supported, it MUST be one approximate integer written exactly as ~N, for example ~18 or ~25. Never output decade bands, prose bands, or ranges such as twenties, 20s, late twenties, 20-30, or twenties to thirties. If a single numeric apparent age is not supported, leave apparentAge empty.',
+        '- appearance remains the shared/common physical description, or the ordinary appearance for an NPC with no distinct transforming forms. Do not rewrite appearance merely because a multi-form NPC changed form.',
+        '- currentForm is live physical-form state only, such as Human, Demihuman, or Beast. Leave it empty for ordinary non-transforming NPCs. A temporary outfit, pose, disguise, mood, or condition is not a physical form.',
+        '- appearanceForms stores durable canonical descriptions of distinct physical forms. For a NEW multi-form NPC, return every grounded form established by the current exchange. For an EXISTING NPC, appearanceForms must contain only genuinely NEW forms not already present in EXISTING DOSSIERS; never resend an existing form with a newly guessed description.',
+        '- Existing form descriptions are sticky continuity facts. Never change an established form because later prose casually uses different dimensions, colors, anatomy, or proportions. Use appearanceFormChanges only when the CURRENT exchange explicitly corrects canon or establishes a real persistent physical change/growth/evolution. Every appearanceFormChanges entry requires concrete evidence; otherwise omit it.',
         ...dossierCollectionRules(limits),
         '- Do not infer romance, obedience, hostility, personality, motives, secrets, age, species, or relationships without evidence.',
         '- Confirmed death requires explicit current-timeline evidence. Ambiguous danger/injury is not death.',
@@ -256,12 +264,15 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
         'The PLAYER/current USER persona is not an NPC. relationshipSummary is this NPC toward the PLAYER; keyRelationships is NON-PLAYER ties only and must never duplicate the PLAYER.',
         'age is ACTUAL chronological age only. Use grounded numeric age data only: N or ~N years, or N days/weeks/months when explicitly established. Never use child, teenager, adult, young adult, middle-aged, elder, elderly, old, or another life-stage label. If the target already has an age and the chat does not explicitly correct it, leave age empty rather than re-estimating it.',
         'apparentAge must be one supported numeric approximation formatted exactly as ~N. Never use decade bands, worded age bands, or ranges. Leave it empty if no single numeric apparent age is supported.',
+        'appearance is shared/common physical description, or ordinary single-form appearance. currentForm is live physical-form state only and should stay empty for a non-transforming NPC.',
+        'appearanceForms contains only newly established distinct physical forms. Preserve every existing form shown in TARGET DOSSIER. Never rewrite a stored form from a casual contradictory description.',
+        'appearanceFormChanges may revise a stored form only when this chat explicitly corrects canon or establishes persistent physical growth/change/evolution; include concrete evidence for every revision.',
         ...dossierCollectionRules(limits),
         'Do NOT change relationship scores or propose relationship deltas in a targeted refresh. Do NOT change global in-chat state for other NPCs.',
         'If the chat does not establish a scalar field, leave it empty. Never invent facts.',
         memoryCriteria ? `IMPORTANT MEMORY RUBRIC:\n${compactText(memoryCriteria, 6000)}` : '',
         `CHAT WINDOW:\n${JSON.stringify(history)}`,
-        `OUTPUT CONTRACT:\n${JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id: npc.id, name: npc.name, aliases: [], role: '', species: '', age: 'actual chronological numeric age only or empty', apparentAge: '~N only or empty', appearance: '', personality: '', behaviorProfile: null, speech: '', mannerisms: null, background: '', keyRelationships: null, memories: null, relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0, lifeState: 'alive|dead|unknown', lifeStateCertainty: '', lifeStateReason: '', livingReturn: false, relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' } }], socialEdges: [] })}`,
+        `OUTPUT CONTRACT:\n${JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id: npc.id, name: npc.name, aliases: [], role: '', species: '', age: 'actual chronological numeric age only or empty', apparentAge: '~N only or empty', appearance: 'shared/common or ordinary single-form appearance', currentForm: 'current physical form or empty', appearanceForms: null, appearanceFormChanges: null, personality: '', behaviorProfile: null, speech: '', mannerisms: null, background: '', keyRelationships: null, memories: null, relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0, lifeState: 'alive|dead|unknown', lifeStateCertainty: '', lifeStateReason: '', livingReturn: false, relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' } }], socialEdges: [] })}`,
     ].filter(Boolean).join('\n\n');
 }
 
@@ -366,12 +377,43 @@ function createFromPatch(patch, sourceMessageId, referenceCandidates = []) {
     });
 }
 
+function mergeAppearanceFormPatch(existingValue, newValue, revisionValue) {
+    const out = normalizeAppearanceForms(existingValue);
+    const indexByName = () => new Map(out.map((form, index) => [normalizeName(form.name), index]));
+    let indices = indexByName();
+
+    // Ordinary scan output may only add genuinely new forms. Existing form descriptions
+    // are intentionally sticky so incidental prose cannot resize/recolor a known body.
+    for (const form of normalizeAppearanceForms(newValue)) {
+        const key = normalizeName(form.name);
+        if (!key || indices.has(key)) continue;
+        out.push(form);
+        indices.set(key, out.length - 1);
+        if (out.length >= 12) break;
+    }
+
+    // Existing forms can change only through the explicit revision channel with evidence.
+    for (const raw of Array.isArray(revisionValue) ? revisionValue : []) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+        const evidence = String(raw.evidence || raw.reason || '').trim();
+        if (!evidence) continue;
+        const revised = normalizeAppearanceForms([raw])[0];
+        if (!revised) continue;
+        const key = normalizeName(revised.name);
+        indices = indexByName();
+        const index = indices.get(key);
+        if (Number.isInteger(index)) out[index] = revised;
+        else if (out.length < 12) out.push(revised);
+    }
+    return normalizeAppearanceForms(out);
+}
+
 function applyStablePatch(npc, patch, options = {}) {
     const locked = new Set(npc.manualProfileFields || []);
     const next = structuredClone(npc);
     const limits = normalizeDossierLimits(options.dossierLimits);
     const canonicalName = canonicalPatchName(patch);
-    const stringFields = ['name', 'role', 'species', 'age', 'apparentAge', 'appearance', 'personality', 'speech', 'background'];
+    const stringFields = ['name', 'role', 'species', 'age', 'apparentAge', 'personality', 'speech', 'background'];
     for (const field of stringFields) {
         if (locked.has(field)) continue;
         const value = field === 'name'
@@ -391,6 +433,17 @@ function applyStablePatch(npc, patch, options = {}) {
         }
         if (field === 'name' && value !== next.name && next.name && !isTechnicalNpcIdentity(next.name)) next.aliases = appendUnique(next.aliases, [next.name], 10);
         next[field] = value;
+    }
+    if (!locked.has('appearance')) {
+        const appearance = String(patch?.appearance ?? '').trim();
+        const incomingForms = normalizeAppearanceForms(patch?.appearanceForms);
+        const formAware = Boolean((next.appearanceForms || []).length || incomingForms.length || String(patch?.currentForm || '').trim());
+        // Non-transforming NPCs keep the legacy behavior. Once an NPC is form-aware,
+        // shared appearance stops being rewritten merely because the current body changed.
+        if (appearance && (!formAware || !next.appearance)) next.appearance = appearance;
+    }
+    if (!locked.has('appearanceForms')) {
+        next.appearanceForms = mergeAppearanceFormPatch(next.appearanceForms, patch?.appearanceForms, patch?.appearanceFormChanges);
     }
     if (!locked.has('aliases')) {
         const safeAliases = (Array.isArray(patch?.aliases) ? patch.aliases : []).filter(alias => humanIdentityCandidate(alias, patch?.role));
@@ -418,6 +471,12 @@ function applyLivePatch(npc, patch) {
     }
     const status = normalizeCurrentStatus(patch?.status);
     if (status) next.status = status;
+    const requestedForm = String(patch?.currentForm || '').trim().slice(0, 80);
+    if (requestedForm) {
+        const matchedForm = normalizeAppearanceForms(next.appearanceForms)
+            .find(form => normalizeName(form.name) === normalizeName(requestedForm));
+        next.currentForm = matchedForm?.name || requestedForm;
+    }
     if (Number.isFinite(Number(patch?.importance))) next.importance = Math.max(next.importance || 0, Math.min(100, Math.max(0, Math.round(Number(patch.importance)))));
     return next;
 }
