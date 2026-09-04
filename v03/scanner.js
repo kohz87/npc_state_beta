@@ -13,6 +13,7 @@ import {
     normalizeApparentAge,
     normalizeCurrentStatus,
     normalizeDossierLimits,
+    normalizeFamilySlots,
     normalizeKeyRelationshipEntries,
     normalizeName,
     normalizeNpc,
@@ -175,15 +176,14 @@ function rosterForPrompt(state) {
 function dossierCollectionRules(limits) {
     return [
         `DOSSIER COLLECTION LIMITS: behaviorProfile=${limits.behaviorProfile}, mannerisms=${limits.mannerisms}, keyRelationships=${limits.keyRelationships}, memories=${limits.memories}.`,
-        '- behaviorProfile, mannerisms, keyRelationships, and memories are EVOLVING CURATED COLLECTIONS, not append-only logs.',
-        '- For each evolving collection, use null when nothing materially changed and the existing collection should be preserved exactly.',
-        '- When an evolving collection needs revision, return an array containing the COMPLETE authoritative replacement set, not only additions.',
-        '- A replacement array may rewrite, merge, retire, reorder, or displace older entries as the NPC grows and canon changes. Preserve still-relevant durable facts from EXISTING DOSSIERS even when the current exchange does not repeat them.',
+        '- behaviorProfile, mannerisms, and memories are EVOLVING CURATED COLLECTIONS. Use null when unchanged; when revised, return the COMPLETE authoritative replacement set.',
+        '- keyRelationships is counterpart-merge continuity, not a fragile whole-list replacement. Use null when unchanged. When a tie is newly established or materially revised, return only the affected canonical Other NPC - relationship entries; NPC State preserves omitted still-valid ties locally. Use keyRelationshipChanges only for an explicit supported removal.',
+        '- Replacement-array behavior applies to behaviorProfile, mannerisms, and memories. Key relationships instead merge by named counterpart so omission cannot silently erase family/friend/guardian continuity.',
         '- Prefer current canonical truth, lasting importance, and future usefulness over chronology. Merge redundant or overlapping entries instead of keeping old and rewritten duplicates beside each other.',
         '- Never exceed the configured limit for that collection. When full, a more important or more current entry should displace a lower-value one.',
-        '- Use [] only when the evidence supports deliberately clearing the whole collection. Do not clear a collection merely because the supplied chat window does not mention its existing entries.',
+        '- For behaviorProfile, mannerisms, and memories, use [] only when evidence supports deliberately clearing the whole collection. For keyRelationships, [] means no relationship additions/changes; it never clears existing ties.',
         '- Keep individual collection entries concise, grounded, and independently useful later.',
-        '- For significant NPC-to-NPC relationships, especially explicit family, kinship, spouse, guardian, or dependent ties, keyRelationships is mandatory dossier data. When such a tie is established, include the other NPC by name and the directional relationship from THIS NPC perspective in each involved NPC keyRelationships whenever that NPC has a returned dossier. socialEdges is complementary graph data and MUST NOT substitute for keyRelationships. For an EXISTING NPC, revealing or changing a significant tie is a material keyRelationships change: return the COMPLETE replacement array, preserving still-valid prior ties and adding or revising the newly established tie; do not return null.',
+        '- For significant NPC-to-NPC relationships, especially explicit family, kinship, spouse, guardian, or dependent ties, keyRelationships is mandatory dossier data. When such a tie is established, include the other NPC by name and the directional relationship from THIS NPC perspective in each involved NPC keyRelationships whenever that NPC has a returned dossier. socialEdges is complementary graph data and MUST NOT substitute for keyRelationships. For an EXISTING NPC, revealing or changing a significant tie is a material keyRelationships change: return the affected counterpart entry; omitted existing counterparts are preserved by NPC State. Remove an established tie only through keyRelationshipChanges with action remove and explicit evidence.',
         '- KeyRelationships entries MUST be strings, never objects. Use the canonical form Other NPC name - relationship from THIS NPC perspective, for example Mira - sister or Tomas - father. A short clarifying note may follow after a colon when useful.',
     ];
 }
@@ -202,12 +202,13 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
             id: 'existing id when known, otherwise empty',
             name: 'human-facing canonical proper name when known; readable role label only if genuinely unnamed; never npc-*',
             aliases: [], role: '', species: '', age: 'actual chronological numeric age only: N, ~N, or N days/weeks/months; never child/adult/elderly', apparentAge: '~N only, e.g. ~25, or empty', appearance: 'shared/common appearance, or ordinary single-form appearance', currentForm: 'current named physical form or empty', appearanceForms: [{ name: 'newly established physical form', appearance: 'durable canonical appearance for this form' }], appearanceFormChanges: [{ name: 'existing form explicitly corrected/changed', appearance: 'replacement canonical appearance', evidence: 'explicit current-exchange correction/growth/change evidence' }], personality: '',
-            behaviorProfile: [], speech: '', mannerisms: [], profileChanges: [{ field: 'personality|behaviorProfile|speech|mannerisms', mode: 'refine|gradual|explicit|batch', concept: 'short stable concept label', evidence: 'grounded evidence for this durable profile update' }], background: '', keyRelationships: [], memories: [],
+            behaviorProfile: [], speech: '', mannerisms: [], keyRelationshipChanges: [{ other: 'existing NPC name/id', action: 'remove', evidence: 'explicit evidence the durable tie no longer applies' }], profileChanges: [{ field: 'personality|behaviorProfile|speech|mannerisms', mode: 'refine|gradual|explicit|batch', concept: 'short stable concept label', evidence: 'grounded evidence for this durable profile update' }], background: '', keyRelationships: [], memories: [],
             relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0,
             lifeState: 'alive|dead|unknown', lifeStateCertainty: 'explicit|strong|uncertain', lifeStateReason: '', livingReturn: false,
             relationshipChange: { impact: 'none|ordinary|meaningful|major|extreme', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' },
         }],
-        socialEdges: [{ from: 'NPC id/name only', to: 'NPC id/name only', relation: '', summary: '' }],
+        socialEdges: [{ from: 'NPC id/name only', to: 'NPC id/name only', relation: '', summary: '', provenance: 'explicit|strong-context' }],
+        familyFacts: [{ owner: 'existing NPC id/name', relation: 'daughter|son|child|other countable family role', count: 2, descriptor: 'optional e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit countable family fact' }],
     };
     return [
         'You are NPC State v0.4.2, a private structured continuity scanner for a roleplay chat.',
@@ -284,7 +285,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
         'DURABLE PROFILE EVOLUTION: for established personality/behaviorProfile/speech/mannerisms, include a profileChanges entry only when the supplied chat actually supports refine, gradual, explicit, or batch development. refine must remain compatible with existing identity; gradual requires repeated same-concept evidence; explicit requires a lasting/correction cue; batch requires a real narrated time skip. One-off gestures are not mannerisms. Sparse blank fields may be seeded when the evidence directly establishes them.',
         memoryCriteria ? `IMPORTANT MEMORY RUBRIC:\n${compactText(memoryCriteria, 6000)}` : '',
         `CHAT WINDOW:\n${JSON.stringify(history)}`,
-        `OUTPUT CONTRACT:\n${JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id: npc.id, name: npc.name, aliases: [], role: '', species: '', age: 'actual chronological numeric age only or empty', apparentAge: '~N only or empty', appearance: 'shared/common or ordinary single-form appearance', currentForm: 'current physical form or empty', appearanceForms: null, appearanceFormChanges: null, personality: '', behaviorProfile: null, speech: '', mannerisms: null, profileChanges: null, background: '', keyRelationships: null, memories: null, relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0, lifeState: 'alive|dead|unknown', lifeStateCertainty: '', lifeStateReason: '', livingReturn: false, relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' } }], socialEdges: [] })}`,
+        `OUTPUT CONTRACT:\n${JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id: npc.id, name: npc.name, aliases: [], role: '', species: '', age: 'actual chronological numeric age only or empty', apparentAge: '~N only or empty', appearance: 'shared/common or ordinary single-form appearance', currentForm: 'current physical form or empty', appearanceForms: null, appearanceFormChanges: null, personality: '', behaviorProfile: null, speech: '', mannerisms: null, profileChanges: null, background: '', keyRelationships: null, keyRelationshipChanges: null, memories: null, relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0, lifeState: 'alive|dead|unknown', lifeStateCertainty: '', lifeStateReason: '', livingReturn: false, relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' } }], socialEdges: [] })}`,
     ].filter(Boolean).join('\n\n');
 }
 
@@ -305,6 +306,7 @@ export function parseScanJson(raw) {
         worldActiveNpcIds: uniqueStrings(parsed.worldActiveNpcIds),
         npcs: Array.isArray(parsed.npcs) ? parsed.npcs.filter(item => item && typeof item === 'object').slice(0, 100) : [],
         socialEdges: Array.isArray(parsed.socialEdges) ? parsed.socialEdges.filter(item => item && typeof item === 'object').slice(0, 100) : [],
+        familyFacts: Array.isArray(parsed.familyFacts) ? parsed.familyFacts.filter(item => item && typeof item === 'object').slice(0, 100) : [],
     };
 }
 
@@ -528,6 +530,160 @@ function profileEvolutionDecision(npc, patch, field, incomingValue, options = {}
     return { apply: Boolean(prior), queue: true, change };
 }
 
+function keyRelationshipParts(entry) {
+    const clean = String(entry || '').trim();
+    const match = clean.match(/^(.+?)\s+(?:-|–|—)\s+(.+)$/);
+    if (!match) return { other: '', relation: clean };
+    return { other: match[1].trim(), relation: match[2].trim() };
+}
+
+function keyRelationshipOtherKey(entry) {
+    return normalizeName(keyRelationshipParts(entry).other);
+}
+
+function mergeKeyRelationshipPatch(existingValue, incomingValue, changesValue, limit) {
+    const out = normalizeKeyRelationshipEntries(existingValue, Math.max(limit, 30), 500);
+    const indexFor = () => new Map(out.map((entry, index) => [keyRelationshipOtherKey(entry), index]).filter(([key]) => key));
+    let indices = indexFor();
+    for (const entry of normalizeKeyRelationshipEntries(incomingValue, limit, 500)) {
+        const key = keyRelationshipOtherKey(entry);
+        if (key && indices.has(key)) out[indices.get(key)] = entry;
+        else if (!out.some(item => normalizeName(item) === normalizeName(entry))) out.push(entry);
+        indices = indexFor();
+    }
+    for (const raw of Array.isArray(changesValue) ? changesValue : []) {
+        if (!raw || typeof raw !== 'object' || String(raw.action || '').trim() !== 'remove') continue;
+        const evidence = String(raw.evidence || raw.reason || '').trim();
+        const key = normalizeName(raw.other || raw.name || raw.target);
+        if (!evidence || !key) continue;
+        for (let i = out.length - 1; i >= 0; i -= 1) if (keyRelationshipOtherKey(out[i]) === key) out.splice(i, 1);
+    }
+    return normalizeKeyRelationshipEntries(out, limit, 500);
+}
+
+const FAMILY_CHILD_ROLES = new Set(['child', 'daughter', 'son', 'adopted child', 'stepchild']);
+const FAMILY_PARENT_ROLES = new Set(['parent', 'mother', 'father', 'guardian parent', 'adoptive parent', 'stepparent']);
+function familyRole(value) {
+    const text = normalizeName(String(value || '').split(':')[0]);
+    if (FAMILY_CHILD_ROLES.has(text)) return 'child';
+    if (FAMILY_PARENT_ROLES.has(text)) return 'parent';
+    if (/\b(?:daughter|son|child)\b/.test(text)) return 'child';
+    if (/\b(?:mother|father|parent)\b/.test(text)) return 'parent';
+    return '';
+}
+
+function familySlotKey(ownerId, relation, twinGroup = '') {
+    return String(ownerId || '') + '|' + familyRole(relation) + '|' + normalizeName(relation) + '|' + normalizeName(twinGroup);
+}
+
+function addFamilyFacts(state, facts, resolveReference, sourceMessageId) {
+    const slots = normalizeFamilySlots(state.familySlots, new Set(state.npcs.map(npc => npc.id)));
+    const byKey = new Map(slots.map((slot, index) => [familySlotKey(slot.ownerId, slot.relation, slot.twinGroup), index]));
+    for (const raw of Array.isArray(facts) ? facts : []) {
+        const owner = resolveReference(raw?.owner);
+        const relation = String(raw?.relation || '').trim().slice(0, 120);
+        const evidence = String(raw?.evidence || '').trim().slice(0, 600);
+        const role = familyRole(relation);
+        if (!owner || !role || !relation || !evidence) continue;
+        const count = Math.max(1, Math.min(20, Math.round(Number(raw?.count) || 1)));
+        const descriptor = String(raw?.descriptor || '').trim().slice(0, 240);
+        const twinGroup = String(raw?.twinGroup || '').trim().slice(0, 160);
+        const key = familySlotKey(owner.id, relation, twinGroup);
+        const index = byKey.get(key);
+        if (Number.isInteger(index)) {
+            const slot = slots[index];
+            slot.count = Math.max(slot.count, count);
+            if (descriptor) slot.descriptor = descriptor;
+            if (twinGroup) slot.twinGroup = twinGroup;
+            slot.evidence = evidence;
+            slot.sourceMessageId = sourceMessageId;
+            slot.updatedAt = Date.now();
+            continue;
+        }
+        slots.push({
+            id: 'family:' + owner.id + ':' + normalizeName(relation).replace(/\s+/g, '_') + ':' + normalizeName(twinGroup || descriptor).replace(/\s+/g, '_'),
+            ownerId: owner.id,
+            relation,
+            count,
+            resolvedNpcIds: [],
+            descriptor,
+            twinGroup,
+            evidence,
+            provenance: 'explicit',
+            confidence: 1,
+            sourceMessageId,
+            updatedAt: Date.now(),
+        });
+        byKey.set(key, slots.length - 1);
+    }
+    state.familySlots = normalizeFamilySlots(slots, new Set(state.npcs.map(npc => npc.id)));
+}
+
+function keyRelationshipToNpc(state, entry) {
+    const parts = keyRelationshipParts(entry);
+    if (!parts.other) return null;
+    return findNpcByReference(state, parts.other);
+}
+
+export function reconcileFamilyGraphState(stateInput, { sourceMessageId = null, dossierLimits = null } = {}) {
+    const state = normalizeState(stateInput, stateInput?.chatKey || '');
+    const validIds = new Set(state.npcs.map(npc => npc.id));
+    const slots = normalizeFamilySlots(state.familySlots, validIds);
+
+    for (const npc of state.npcs) {
+        for (const entry of npc.keyRelationships || []) {
+            const parts = keyRelationshipParts(entry);
+            const other = keyRelationshipToNpc(state, entry);
+            if (!other || other.id === npc.id) continue;
+            const role = familyRole(parts.relation);
+            if (role === 'child') {
+                for (const slot of slots) {
+                    if (slot.ownerId !== npc.id || familyRole(slot.relation) !== 'child' || slot.resolvedNpcIds.includes(other.id) || slot.resolvedNpcIds.length >= slot.count) continue;
+                    slot.resolvedNpcIds.push(other.id);
+                    slot.updatedAt = Date.now();
+                    break;
+                }
+            } else if (role === 'parent') {
+                for (const slot of slots) {
+                    if (slot.ownerId !== other.id || familyRole(slot.relation) !== 'child' || slot.resolvedNpcIds.includes(npc.id) || slot.resolvedNpcIds.length >= slot.count) continue;
+                    slot.resolvedNpcIds.push(npc.id);
+                    slot.updatedAt = Date.now();
+                    break;
+                }
+            }
+        }
+    }
+
+    const edgeMap = new Map((state.socialGraph || []).map(edge => [socialEdgeKey(edge), edge]));
+    const limit = normalizeDossierLimits(dossierLimits || {}).keyRelationships;
+    const byId = new Map(state.npcs.map(npc => [npc.id, npc]));
+    for (const slot of slots) {
+        const resolved = [...new Set(slot.resolvedNpcIds)].filter(id => byId.has(id)).slice(0, slot.count);
+        slot.resolvedNpcIds = resolved;
+        if (familyRole(slot.relation) !== 'child' || resolved.length < 2) continue;
+        const isTwin = Boolean(slot.twinGroup || /\btwins?\b/i.test(slot.descriptor));
+        const relation = isTwin ? 'twin sibling' : 'sibling';
+        for (let i = 0; i < resolved.length; i += 1) for (let j = i + 1; j < resolved.length; j += 1) {
+            const left = byId.get(resolved[i]);
+            const right = byId.get(resolved[j]);
+            if (!left || !right) continue;
+            const edge = { fromId: left.id, toId: right.id, relation, summary: 'Inferred from shared confirmed parent/family slot.', updatedAt: Date.now(), sourceMessageId, provenance: 'inferred', confidence: isTwin ? 0.9 : 0.75, inferred: true };
+            if (![...edgeMap.values()].some(existing => {
+                const ids = new Set([existing.fromId, existing.toId]);
+                return ids.has(left.id) && ids.has(right.id) && /sibling/i.test(existing.relation);
+            })) edgeMap.set(socialEdgeKey(edge), edge);
+            for (const [owner, other] of [[left, right], [right, left]]) {
+                const hasCounterpart = (owner.keyRelationships || []).some(entry => keyRelationshipOtherKey(entry) === normalizeName(other.name));
+                if (!hasCounterpart && (owner.keyRelationships || []).length < limit) owner.keyRelationships = normalizeKeyRelationshipEntries([...(owner.keyRelationships || []), other.name + ' - ' + relation], limit, 500);
+            }
+        }
+    }
+    state.familySlots = normalizeFamilySlots(slots, validIds);
+    state.socialGraph = [...edgeMap.values()].slice(-200);
+    state.npcs = state.npcs.map(npc => normalizeNpc(npc));
+    return normalizeState(state, state.chatKey);
+}
+
 function applyStablePatch(npc, patch, options = {}) {
     const locked = new Set(npc.manualProfileFields || []);
     const next = structuredClone(npc);
@@ -601,10 +757,10 @@ function applyStablePatch(npc, patch, options = {}) {
         if (decision.queue && decision.change) appendProfileEvolutionEvidence(next, decision.change, 'mannerisms', options);
         if (decision.apply) next.mannerisms = incoming;
     }
-    if (!locked.has('keyRelationships') && Array.isArray(patch?.keyRelationships)) {
+    if (!locked.has('keyRelationships') && (Array.isArray(patch?.keyRelationships) || Array.isArray(patch?.keyRelationshipChanges))) {
         const incoming = normalizeKeyRelationshipEntries(patch.keyRelationships, limits.keyRelationships, 500)
             .filter(item => !keyRelationshipReferencesPlayer(item, options.playerName));
-        next.keyRelationships = appendUnique([], incoming, limits.keyRelationships);
+        next.keyRelationships = mergeKeyRelationshipPatch(next.keyRelationships, incoming, patch?.keyRelationshipChanges, limits.keyRelationships);
     }
     return next;
 }
@@ -1111,10 +1267,16 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         if (!targetSet.has(from.id) && !targetSet.has(to.id) && !allowHistoricalProfilePatches && !returnedPair) continue;
         const relation = String(raw?.relation || '').trim().slice(0, 160);
         if (!relation) continue;
-        const edge = { fromId: from.id, toId: to.id, relation, summary: String(raw?.summary || '').trim().slice(0, 500), updatedAt: Date.now(), sourceMessageId };
+        const provenance = ['explicit', 'strong-context'].includes(String(raw?.provenance)) ? String(raw.provenance) : 'explicit';
+        const edge = { fromId: from.id, toId: to.id, relation, summary: String(raw?.summary || '').trim().slice(0, 500), updatedAt: Date.now(), sourceMessageId, provenance, confidence: provenance === 'explicit' ? 1 : 0.8, inferred: false };
         edgeMap.set(socialEdgeKey(edge), edge);
     }
     state.socialGraph = [...edgeMap.values()].slice(-200);
+    addFamilyFacts(state, result.familyFacts, resolveReturnedReference, sourceMessageId);
+    const familyReconciled = reconcileFamilyGraphState(state, { sourceMessageId, dossierLimits });
+    state.npcs = familyReconciled.npcs;
+    state.socialGraph = familyReconciled.socialGraph;
+    state.familySlots = familyReconciled.familySlots;
 
     if (options.preserveObservation !== true) {
         state.lastObservation = {

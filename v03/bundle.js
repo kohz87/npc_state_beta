@@ -1,6 +1,7 @@
 import {
     NPC_STATE_SCHEMA_VERSION,
     NPC_STATE_VERSION,
+    normalizeFamilySlots,
     normalizeName,
     normalizeNpc,
     normalizeState,
@@ -89,6 +90,7 @@ function normalizeBundleData(raw = {}, type = 'full-chat') {
         socialGraph: raw.socialGraph,
         suppressedNames: raw.suppressedNames,
         deletedNpcIds: raw.deletedNpcIds,
+        familySlots: Array.isArray(raw.familySlots) ? raw.familySlots : [],
     }, 'bundle');
     const deletedNpcIds = uniqueStrings(normalized.deletedNpcIds, 500);
     const npcIds = new Set(npcs.map(npc => npc.id));
@@ -98,6 +100,7 @@ function normalizeBundleData(raw = {}, type = 'full-chat') {
     return {
         npcs,
         socialGraph: normalized.socialGraph,
+        familySlots: normalized.familySlots,
         suppressedNames: type === 'full-chat' ? normalized.suppressedNames : [],
         deletedNpcIds: type === 'full-chat' ? deletedNpcIds : [],
     };
@@ -138,6 +141,7 @@ export function createNpcStateBundle(stateInput = {}, options = {}) {
         data: {
             npcs,
             socialGraph: exportedSocialGraph(state, ids, type === 'npc'),
+            familySlots: normalizeFamilySlots((state.familySlots || []).filter(slot => type === 'full-chat' || ids.includes(slot.ownerId)), new Set(ids)),
             suppressedNames: type === 'full-chat' ? structuredClone(state.suppressedNames || []) : [],
             deletedNpcIds: type === 'full-chat' ? structuredClone(state.deletedNpcIds || []) : [],
         },
@@ -337,6 +341,7 @@ export function applyNpcStateBundleImport(stateInput = {}, bundleInput, options 
             ...state,
             npcs,
             socialGraph,
+            familySlots: bundle.data.familySlots,
             suppressedNames: bundle.data.suppressedNames,
             deletedNpcIds: [...tombstones],
             lastObservation: emptyObservation(),
@@ -401,11 +406,15 @@ export function applyNpcStateBundleImport(stateInput = {}, bundleInput, options 
     }
     const validIds = new Set(nextNpcs.map(npc => npc.id));
     const socialGraph = mergedEdges(state.socialGraph || [], bundle.data.socialGraph, validIds, tombstones, sameChat, skippedNpcIds);
+    const familyMap = new Map(normalizeFamilySlots(state.familySlots || [], validIds).map(slot => [slot.id, slot]));
+    for (const slot of normalizeFamilySlots(bundle.data.familySlots || [], validIds)) familyMap.set(slot.id, slot);
+    const familySlots = [...familyMap.values()].slice(-100);
     const suppressedNames = [...new Set([...(state.suppressedNames || []), ...bundle.data.suppressedNames])].slice(0, 300);
     const next = normalizeState({
         ...state,
         npcs: nextNpcs,
         socialGraph,
+        familySlots,
         suppressedNames,
         deletedNpcIds: [...tombstones],
     }, state.chatKey);

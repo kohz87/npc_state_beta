@@ -27,6 +27,7 @@ import {
     buildTargetedRefreshPrompt,
     currentExchange,
     parseScanJson,
+    reconcileFamilyGraphState,
 } from './scanner.js';
 import {
     applyStaleLifecycle,
@@ -506,6 +507,12 @@ export function createNpcStateEngine(adapters = {}) {
             if (collision) return false;
             if (next.name !== current.name && current.name) next.aliases = [...new Set([...(next.aliases || []), current.name])].slice(0, 10);
             state.npcs[index] = normalizeNpc(next);
+            if (Object.prototype.hasOwnProperty.call(patch || {}, 'keyRelationships')) {
+                const reconciled = reconcileFamilyGraphState(state, { sourceMessageId: latestAssistantMessageId(getContext().chat || []), dossierLimits: getSettings().dossierLimits });
+                state.npcs = reconciled.npcs;
+                state.socialGraph = reconciled.socialGraph;
+                state.familySlots = reconciled.familySlots;
+            }
             return { npcId: current.id };
         }, { checkpointReason: 'manual-edit' });
     }
@@ -564,6 +571,7 @@ export function createNpcStateEngine(adapters = {}) {
             state.deletedNpcIds = [...new Set([...(state.deletedNpcIds || []), npc.id])];
             state.npcs = state.npcs.filter(item => item.id !== npc.id);
             state.socialGraph = (state.socialGraph || []).filter(edge => edge.fromId !== npc.id && edge.toId !== npc.id);
+            state.familySlots = (state.familySlots || []).filter(slot => slot.ownerId !== npc.id).map(slot => ({ ...slot, resolvedNpcIds: (slot.resolvedNpcIds || []).filter(id => id !== npc.id) }));
             return { npcId: npc.id, name: npc.name };
         }, { checkpointReason: 'manual-delete' });
     }

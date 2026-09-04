@@ -32,6 +32,7 @@ export const DOSSIER_LIMIT_MAXIMUMS = Object.freeze({
 export const CHECKPOINT_LIMIT = 48;
 export const APPEARANCE_FORM_LIMIT = 12;
 export const PROFILE_EVOLUTION_EVIDENCE_LIMIT = 12;
+export const FAMILY_SLOT_LIMIT = 100;
 
 function text(value, max = 1200) {
     return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -127,8 +128,47 @@ function normalizeSocialEdges(value) {
             summary: text(raw?.summary, 500),
             updatedAt: Number(raw?.updatedAt) || Date.now(),
             sourceMessageId: Number.isInteger(raw?.sourceMessageId) ? raw.sourceMessageId : null,
+            provenance: ['manual', 'explicit', 'strong-context', 'migration', 'inferred'].includes(String(raw?.provenance)) ? String(raw.provenance) : 'explicit',
+            confidence: Number.isFinite(Number(raw?.confidence)) ? Math.max(0, Math.min(1, Number(raw.confidence))) : 1,
+            inferred: raw?.inferred === true,
         });
         if (out.length >= 200) break;
+    }
+    return out;
+}
+
+export function normalizeFamilySlots(value = [], validNpcIds = null) {
+    const valid = validNpcIds instanceof Set ? validNpcIds : null;
+    const source = Array.isArray(value) ? value : [];
+    const out = [];
+    const seen = new Set();
+    for (const raw of source) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+        const ownerId = text(raw.ownerId, 160);
+        const relation = text(raw.relation, 120);
+        if (!ownerId || !relation || (valid && !valid.has(ownerId))) continue;
+        const count = Math.max(1, Math.min(20, Math.round(Number(raw.count) || 1)));
+        const descriptor = text(raw.descriptor, 240);
+        const twinGroup = text(raw.twinGroup, 160);
+        const id = text(raw.id, 260) || ('family:' + ownerId + ':' + normalizeName(relation).replace(/\s+/g, '_') + ':' + normalizeName(twinGroup || descriptor).replace(/\s+/g, '_'));
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const resolvedNpcIds = list(raw.resolvedNpcIds, count, 160).filter(item => item !== ownerId && (!valid || valid.has(item))).slice(0, count);
+        out.push({
+            id,
+            ownerId,
+            relation,
+            count,
+            resolvedNpcIds,
+            descriptor,
+            twinGroup,
+            evidence: text(raw.evidence, 600),
+            provenance: ['manual', 'explicit', 'strong-context', 'migration', 'inferred'].includes(String(raw.provenance)) ? String(raw.provenance) : 'explicit',
+            confidence: Number.isFinite(Number(raw.confidence)) ? Math.max(0, Math.min(1, Number(raw.confidence))) : 1,
+            sourceMessageId: Number.isInteger(raw.sourceMessageId) ? raw.sourceMessageId : null,
+            updatedAt: Number(raw.updatedAt) || Date.now(),
+        });
+        if (out.length >= FAMILY_SLOT_LIMIT) break;
     }
     return out;
 }
@@ -498,6 +538,7 @@ export function createEmptyState(chatKey = '') {
         lastScannedMessageId: null,
         npcs: [],
         socialGraph: [],
+        familySlots: [],
         suppressedNames: [],
         deletedNpcIds: [],
         lastObservation: {
@@ -526,6 +567,8 @@ export function normalizeState(input = {}, chatKey = '') {
         if (dedup.has(npc.id)) continue;
         dedup.set(npc.id, npc);
     }
+    const validNpcIds = new Set([...dedup.values()].map(npc => npc.id));
+    const familySlots = normalizeFamilySlots(input.familySlots, validNpcIds);
     const suppressedNames = list(input.suppressedNames || input.dismissed, 300, 160);
     const deletedNpcIds = list(input.deletedNpcIds, 500, 160);
     const observation = input.lastObservation && typeof input.lastObservation === 'object' ? input.lastObservation : {};
@@ -564,6 +607,7 @@ export function normalizeState(input = {}, chatKey = '') {
         lastScannedMessageId: Number.isInteger(input.lastScannedMessageId) ? input.lastScannedMessageId : null,
         npcs: [...dedup.values()],
         socialGraph: normalizeSocialEdges(input.socialGraph),
+        familySlots,
         suppressedNames,
         deletedNpcIds,
         lastObservation: {
