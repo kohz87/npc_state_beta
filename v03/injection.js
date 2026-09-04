@@ -1,4 +1,5 @@
 import { structuredEvidencePromptRules } from './evidence-adapter.js';
+import { resolvedCurrentAppearance } from './appearance.js';
 import { normalizeNpcAdmissionMode } from './schema.js';
 
 function foregroundAdmissionRule(mode = 'balanced') {
@@ -56,7 +57,8 @@ function npcContinuityLines(npc) {
     return [
         'NPC ' + npc.id + ' | ' + npc.name + (npc.role ? ' | ' + npc.role : ''),
         field('Species', npc.species), field('Actual age', npc.age), field('Apparent age', npc.apparentAge),
-        field('Current form', npc.currentForm), field('Appearance', npc.appearance), field('Known physical forms', appearanceFormsText(npc)),
+        field('Current form', npc.currentForm), field('Current appearance', resolvedCurrentAppearance(npc)),
+        field('Shared / ordinary appearance', npc.appearance), field('Known physical forms', appearanceFormsText(npc)),
         field('Personality', npc.personality), field('Behavior', (npc.behaviorProfile || []).join(' | ')), field('Speech', npc.speech),
         field('Goal', npc.goal), field('Status', npc.status), field('Key non-player relationships', (npc.keyRelationships || []).join(' | ')),
         'Player relationship lens: ' + qualitativeRelationshipLens(npc),

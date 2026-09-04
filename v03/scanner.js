@@ -1,4 +1,5 @@
 import { evidenceReferenceScope, hasRecognizedStructuredBlocks, scannerEvidenceText, structuredEvidencePromptRules } from './evidence-adapter.js';
+import { appearanceFormDescription, appearanceScalarIsLegacyBase } from './appearance.js';
 import {
     DEFAULT_RELATIONSHIP_CAPS,
     RELATIONSHIP_AXES,
@@ -913,13 +914,11 @@ function applyStablePatch(npc, patch, options = {}) {
     }
     if (!locked.has('appearance')) {
         const appearance = String(patch?.appearance ?? '').trim();
-        const incomingForms = normalizeAppearanceForms(patch?.appearanceForms);
-        const formAware = Boolean((next.appearanceForms || []).length || incomingForms.length || String(patch?.currentForm || '').trim());
-        // Ordinary appearance is durable canon too. Multi-form NPCs keep the shared/base
-        // summary, while non-transforming NPCs need grounded canonChanges to revise an
-        // already-established body description.
+        // appearance remains durable canon for both ordinary and form-aware NPCs. A form
+        // switch alone never reaches this branch, but a grounded canonChanges.appearance
+        // revision may update genuinely shared/common appearance even when forms exist.
         if (appearance && !next.appearance) next.appearance = appearance;
-        else if (appearance && !formAware && durableCanonDecision(npc, patch, 'appearance', appearance, options)) next.appearance = appearance;
+        else if (appearance && durableCanonDecision(npc, patch, 'appearance', appearance, options)) next.appearance = appearance;
     }
     if (!locked.has('appearanceForms')) {
         const incomingForms = normalizeAppearanceForms(patch?.appearanceForms);
@@ -927,6 +926,8 @@ function applyStablePatch(npc, patch, options = {}) {
         const hasBase = existingForms.some(form => normalizeName(form.name) === 'base');
         const wantsBase = normalizeName(patch?.currentForm) === 'base';
         const firstAlternate = !existingForms.length && incomingForms.length > 0;
+        const legacyBaseBefore = appearanceScalarIsLegacyBase(npc);
+        const previousBaseAppearance = appearanceFormDescription(npc, 'Base');
         // Preserve the legacy ordinary body as Base when alternates first appear. Also
         // repair an already-half-migrated dossier on rescan: if an older scan captured
         // only Beast/another alternate but the new scan explicitly says the NPC ended
@@ -935,6 +936,20 @@ function applyStablePatch(npc, patch, options = {}) {
             next.appearanceForms = [...existingForms, { name: 'Base', appearance: String(npc.appearance).trim() }];
         }
         next.appearanceForms = mergeAppearanceFormPatch(next.appearanceForms, incomingForms, patch?.appearanceFormChanges, String(options.profileContext || ''));
+
+        // v0.4.1 copied the old scalar ordinary appearance into Base for compatibility.
+        // If that duplicated Base is authoritatively revised later, keep the legacy scalar
+        // synchronized only while it is still the same old Base. Once the scalar diverges
+        // into genuine shared/common traits it becomes independent and is never overwritten.
+        const revisedBaseAppearance = appearanceFormDescription(next, 'Base');
+        if (!locked.has('appearance')
+            && legacyBaseBefore
+            && previousBaseAppearance
+            && revisedBaseAppearance
+            && normalizeName(previousBaseAppearance) !== normalizeName(revisedBaseAppearance)
+            && normalizeName(next.appearance) === normalizeName(previousBaseAppearance)) {
+            next.appearance = revisedBaseAppearance;
+        }
     }
     if (!locked.has('aliases')) {
         const safeAliases = (Array.isArray(patch?.aliases) ? patch.aliases : []).filter(alias => humanIdentityCandidate(alias, patch?.role));

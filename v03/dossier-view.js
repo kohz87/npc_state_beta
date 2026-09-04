@@ -1,3 +1,4 @@
+import { resolvedCurrentAppearance } from './appearance.js';
 function escapeHtml(value) {
     return String(value ?? '')
         .replaceAll('&', '&amp;')
@@ -179,6 +180,7 @@ export function dossierHtml(npc) {
             ${currentFact('Goal', npc.goal)}
             ${currentFact('Activity / condition', npc.status)}
             ${npc.currentForm ? currentFact('Current form', npc.currentForm) : ''}
+            ${currentFact('Current appearance', resolvedCurrentAppearance(npc))}
           </div>
         </section>
 
@@ -199,7 +201,7 @@ export function dossierHtml(npc) {
           <h3 class="npc-state-v3-group-title">Profile</h3>
           <div class="npc-state-v3-block-grid">
             ${block('Personality', paragraphHtml(npc.personality))}
-            ${block('Appearance', paragraphHtml(npc.appearance))}
+            ${block('Shared / ordinary appearance', paragraphHtml(npc.appearance))}
             ${(npc.appearanceForms || []).length ? block('Appearance forms', appearanceFormsHtml(npc), 'npc-state-v3-block-wide') : ''}
             ${block('Behavioral profile', listHtml(npc.behaviorProfile))}
             ${block('Speech', paragraphHtml(npc.speech))}

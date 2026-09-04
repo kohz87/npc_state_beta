@@ -1,3 +1,4 @@
+import { resolvedCurrentAppearance as currentFormAppearance } from './appearance.js';
 export const PORTRAIT_PROMPT_MODES = Object.freeze(['natural', 'tags', 'hybrid']);
 export const PORTRAIT_PRESET_LIMIT = 32;
 export const DEFAULT_PORTRAIT_PRESET_ID = 'preset-default';
@@ -150,15 +151,6 @@ function identityBits(npc = {}) {
     if (apparentAge) bits.push(`apparent age ${apparentAge}`);
     else if (age) bits.push(`age ${age}`);
     return bits;
-}
-
-function currentFormAppearance(npc = {}) {
-    const current = inlineText(npc.currentForm, 80).toLocaleLowerCase();
-    const forms = Array.isArray(npc.appearanceForms) ? npc.appearanceForms : [];
-    const form = current ? forms.find(item => inlineText(item?.name, 80).toLocaleLowerCase() === current) : null;
-    const general = inlineText(npc.appearance, 3000);
-    const specific = inlineText(form?.appearance, 3000);
-    return [general, specific].filter(Boolean).join('; ');
 }
 
 function appearanceFormsPromptText(npc = {}) {
