@@ -1287,13 +1287,15 @@ function applyLifeState(npc, patch, options = {}) {
         ? [policy.visibleText, policy.worldStateText].filter(Boolean).join('\n')
         : String(options.profileContext || '');
     const grounded = Boolean(reason && (!lifeContext.trim() || profileEvidenceGrounded(reason, lifeContext)));
+    const deathCue = /\b(?:dies?|died|dead|death|killed|slain|lifeless|no pulse|stopped breathing|ceased breathing)\b/i.test(lifeContext);
+    const livingReturnCue = /\b(?:alive|surviv(?:e|ed|es|ing)|resurrect(?:ed|s|ing)?|reviv(?:e|ed|es|ing)|not dead|wasn't dead|was not dead|death reports? (?:were|was) false|emerges? alive|returns? alive)\b/i.test(lifeContext);
     const wasDead = String(npc?.lifeState || '').toLocaleLowerCase() === 'dead'
         || (npc?.archived === true && String(npc?.archiveReason || '').toLocaleLowerCase() === 'deceased');
 
     // A dead/archived dossier may return only through the explicit livingReturn channel,
     // and that channel must point back to visible/world current-continuity evidence.
     if (patch?.livingReturn === true) {
-        if (!grounded) return next;
+        if (!grounded || !livingReturnCue) return next;
         next.archived = false;
         next.archiveReason = '';
         next.archivedAt = null;
@@ -1304,7 +1306,7 @@ function applyLifeState(npc, patch, options = {}) {
     }
 
     if (lifeState === 'dead') {
-        if (!['explicit', 'confirmed'].includes(certainty.toLocaleLowerCase()) || !grounded) return next;
+        if (!['explicit', 'confirmed'].includes(certainty.toLocaleLowerCase()) || !grounded || !deathCue) return next;
         next.lifeState = 'dead';
         next.lifeStateCertainty = certainty;
         next.lifeStateReason = reason;
