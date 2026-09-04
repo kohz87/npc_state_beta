@@ -79,3 +79,25 @@ export function resolveRenameLifecycleKeys(dataFiles = {}, eventData = {}) {
     if (!newKey || newKey === oldKey) return null;
     return { kind, ownerId: parsed.ownerId, oldId, newId, oldKey, newKey };
 }
+
+
+export function qualifiedChatKeysForOwner(dataFiles = {}, { kind = 'chat', ownerId = '' } = {}) {
+    const type = kind === 'group' ? 'group' : 'chat';
+    const owner = String(ownerId || '').trim();
+    if (!owner) return [];
+    return Object.keys(dataFiles || {}).filter(key => {
+        const parsed = parseQualifiedChatKey(key);
+        return parsed?.kind === type && parsed.ownerId === owner && Boolean(dataFiles?.[key]?.path);
+    }).sort();
+}
+
+export function characterOwnerRenamePairs(dataFiles = {}, oldOwnerId = '', newOwnerId = '') {
+    const oldOwner = String(oldOwnerId || '').trim();
+    const newOwner = String(newOwnerId || '').trim();
+    if (!oldOwner || !newOwner || oldOwner === newOwner) return [];
+    return qualifiedChatKeysForOwner(dataFiles, { kind: 'chat', ownerId: oldOwner }).map(oldKey => {
+        const parsed = parseQualifiedChatKey(oldKey);
+        const newKey = parsed ? buildQualifiedChatKey('chat', newOwner, parsed.chatId) : '';
+        return { oldKey, newKey, chatId: parsed?.chatId || '', oldOwnerId: oldOwner, newOwnerId: newOwner };
+    }).filter(pair => pair.newKey && pair.newKey !== pair.oldKey);
+}

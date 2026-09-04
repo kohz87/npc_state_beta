@@ -3,7 +3,7 @@ import { extension_settings, getContext } from '../../../../extensions.js';
 import { extension_prompt_types, extension_prompt_roles, getRequestHeaders } from '../../../../../script.js';
 import { createBundleManagementUi } from './bundle-ui.js';
 import { createNpcStateEngine } from './engine.js';
-import { getChatIdentity, resolveLifecycleChatKey, resolveRenameLifecycleKeys } from './identity.js';
+import { characterOwnerRenamePairs, getChatIdentity, qualifiedChatKeysForOwner, resolveLifecycleChatKey, resolveRenameLifecycleKeys } from './identity.js';
 import { buildInjection } from './injection.js';
 import { consumeNpcStateControl } from './foreground.js';
 import { hasRecognizedStructuredBlocks, profileEvidenceText } from './evidence-adapter.js';
@@ -521,6 +521,49 @@ async function handleChatDeleteLifecycle(chatId, kind = 'chat') {
     return result;
 }
 
+async function handleCharacterRenameLifecycle(oldAvatar, newAvatar) {
+    const pairs = characterOwnerRenamePairs(getSettings().dataFiles, oldAvatar, newAvatar);
+    if (!pairs.length) return { ok: true, moved: 0, failures: [] };
+    const failures = [];
+    let moved = 0;
+    for (const pair of pairs) {
+        try {
+            const result = await engine.renameChatKey(pair.oldKey, pair.newKey);
+            if (result?.ok) {
+                moved += 1;
+                if (activeChatKey === pair.oldKey) activeChatKey = pair.newKey;
+            } else failures.push({ oldKey: pair.oldKey, newKey: pair.newKey, reason: result?.reason || 'rename-rejected' });
+        } catch (error) {
+            failures.push({ oldKey: pair.oldKey, newKey: pair.newKey, reason: error?.code || error?.message || 'rename-failed' });
+        }
+    }
+    refreshSurfaces();
+    if (failures.length) console.warn('[NPC State Beta] Character-owner rename migrated the safe chats and preserved failed sources for retry.', failures);
+    return { ok: failures.length === 0, moved, failures };
+}
+
+async function handleCharacterDeleteLifecycle(eventData = {}) {
+    const avatar = String(eventData?.character?.avatar || eventData?.avatar || (typeof eventData === 'string' ? eventData : '') || '').trim();
+    if (!avatar) return { ok: false, reason: 'missing-owner' };
+    const keys = qualifiedChatKeysForOwner(getSettings().dataFiles, { kind: 'chat', ownerId: avatar });
+    const failures = [];
+    let retired = 0;
+    for (const key of keys) {
+        try {
+            const result = await engine.deleteChatKey(key);
+            if (result?.ok) {
+                retired += 1;
+                if (activeChatKey === key) activeChatKey = 'no-chat';
+            } else failures.push({ key, reason: result?.reason || 'delete-rejected' });
+        } catch (error) {
+            failures.push({ key, reason: error?.code || error?.message || 'delete-failed' });
+        }
+    }
+    refreshSurfaces();
+    if (failures.length) console.warn('[NPC State Beta] Character deletion retired the safe chats and preserved failed sources for retry.', failures);
+    return { ok: failures.length === 0, retired, failures };
+}
+
 function registerEvents() {
     if (eventsRegistered) return;
     const ctx = getContext();
@@ -568,6 +611,14 @@ function registerEvents() {
         runBoundedLifecycleEvent('chat deletion retirement', () => handleChatDeleteLifecycle(chatId, 'chat')));
     if (events.GROUP_CHAT_DELETED) source.on(events.GROUP_CHAT_DELETED, chatId =>
         runBoundedLifecycleEvent('group chat deletion retirement', () => handleChatDeleteLifecycle(chatId, 'group')));
+    // SillyTavern exposes the owner avatar pair on CHARACTER_RENAMED and the deleted
+    // character/avatar payload on CHARACTER_DELETED. These events are owner-authoritative,
+    // unlike filename-only CHAT_DELETED, so every beta sidecar in that character namespace
+    // can be migrated/retired without borrowing the currently open chat as evidence.
+    if (events.CHARACTER_RENAMED) source.on(events.CHARACTER_RENAMED, (oldAvatar, newAvatar) =>
+        runBoundedLifecycleEvent('character owner rename migration', () => handleCharacterRenameLifecycle(oldAvatar, newAvatar), 20000));
+    if (events.CHARACTER_DELETED) source.on(events.CHARACTER_DELETED, data =>
+        runBoundedLifecycleEvent('character owner deletion retirement', () => handleCharacterDeleteLifecycle(data), 20000));
 
     for (const event of [events.CHARACTER_MESSAGE_RENDERED, events.MESSAGE_UPDATED, events.MORE_MESSAGES_LOADED].filter(Boolean)) {
         source.on(event, () => ui.renderInline());

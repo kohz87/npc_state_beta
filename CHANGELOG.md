@@ -2,6 +2,7 @@
 
 ## v0.4.3
 
+- Phase 4 restores owner-wide character lifecycle handling for SillyTavern CHARACTER_RENAMED/CHARACTER_DELETED, adds bounded 1s/2s/5s retries for transient network/408/425/429/5xx sidecar mutations without ever retrying logical revision conflicts, and adds a 4 MiB serialized checkpoint-history pressure ceiling on top of the existing 48-global/4-sibling count limits.
 - Phase 3 adds deterministic semantic hygiene for Important Memories. Near-duplicate paraphrases of the same grounded event collapse to one richer concise entry during normalization and scan application, while separate events involving the same people/topic remain distinct. This is local token/event-concept matching only, with no embeddings or extra model calls.
 - Phase 2 makes ordinary Appearance, Species, Background, and Role durable scalar canon with an explicit evidence-backed canonChanges revision channel. Scanner-supplied importance can no longer ratchet dossier priority upward; stored importance remains user/editor-owned while foreground selection uses computed runtime salience from In-chat/current activity plus that manual preference.
 - Phase 1 replaces raw player-relationship meter injection with a compact qualitative lens and reserves most dynamic prompt budget for likely-relevant full dossiers. Large identity directories and optional new-NPC history can no longer starve In-chat continuity, while exact numeric relationship values remain private backend state for gates, inertia, and scoring.

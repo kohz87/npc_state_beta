@@ -1,5 +1,34 @@
 import { CHECKPOINT_LIMIT, normalizeState, snapshotForCheckpoint } from './schema.js';
 
+export const CHECKPOINT_BYTE_LIMIT = 4 * 1024 * 1024;
+
+function utf8Bytes(value) {
+    const text = String(value ?? '');
+    if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(text).length;
+    try { return unescape(encodeURIComponent(text)).length; } catch { return text.length * 2; }
+}
+
+export function checkpointStorageBytes(state = {}) {
+    try { return utf8Bytes(JSON.stringify({ branchBase: state?.branchBase || null, checkpoints: state?.checkpoints || [] })); }
+    catch { return Number.POSITIVE_INFINITY; }
+}
+
+export function pruneCheckpointPressure(state, byteLimit = CHECKPOINT_BYTE_LIMIT) {
+    const next = state;
+    const limit = Math.max(64 * 1024, Number(byteLimit) || CHECKPOINT_BYTE_LIMIT);
+    if (!Array.isArray(next?.checkpoints)) return next;
+    // Preserve at least the newest exact checkpoint plus the branch base. Oldest sibling/
+    // ancestor snapshots yield first when serialized history grows too large.
+    while (next.checkpoints.length > 1 && checkpointStorageBytes(next) > limit) {
+        let oldest = 0;
+        for (let i = 1; i < next.checkpoints.length; i += 1) {
+            if (Number(next.checkpoints[i]?.createdAt || 0) < Number(next.checkpoints[oldest]?.createdAt || 0)) oldest = i;
+        }
+        next.checkpoints.splice(oldest, 1);
+    }
+    return next;
+}
+
 function fnv1a(value) {
     let hash = 2166136261;
     const text = String(value ?? '');
@@ -164,6 +193,7 @@ export function recordCheckpoint(state, chat, messageId, reason = 'scan') {
     }
     next.checkpoints.sort((a, b) => a.lineage.length - b.lineage.length || a.createdAt - b.createdAt);
     if (next.checkpoints.length > CHECKPOINT_LIMIT) next.checkpoints.splice(0, next.checkpoints.length - CHECKPOINT_LIMIT);
+    pruneCheckpointPressure(next);
     next.branchHeadLineage = chatLineage(chat);
     return next;
 }

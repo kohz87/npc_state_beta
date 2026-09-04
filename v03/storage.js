@@ -78,6 +78,32 @@ export function decodeV3Payload(text, expectedChatKey = '') {
 
 function wait(ms) { return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms) || 0))); }
 
+export const TRANSIENT_WRITE_RETRY_DELAYS = Object.freeze([1000, 2000, 5000]);
+export function isTransientPersistenceStatus(status) {
+    return [408, 425, 429, 500, 502, 503, 504].includes(Number(status));
+}
+
+async function fetchPersistenceMutation(fetchFn, url, init, { label = 'persistence mutation', retryDelays = TRANSIENT_WRITE_RETRY_DELAYS } = {}) {
+    const delays = Array.isArray(retryDelays) ? retryDelays.map(value => Math.max(0, Number(value) || 0)).slice(0, 6) : [...TRANSIENT_WRITE_RETRY_DELAYS];
+    let lastError = null;
+    for (let attempt = 0; attempt <= delays.length; attempt += 1) {
+        try {
+            const response = await fetchFn(url, init);
+            if (response?.ok || !isTransientPersistenceStatus(response?.status) || attempt >= delays.length) return response;
+            lastError = new Error(label + ' received transient HTTP ' + response.status + '.');
+            lastError.status = Number(response.status);
+        } catch (error) {
+            lastError = error;
+            // Transport/network failures have no HTTP status and are retryable. Explicit
+            // conflict/retired/missing-sidecar errors are raised before this helper and are
+            // therefore never placed on the retry path.
+            if (attempt >= delays.length) throw error;
+        }
+        if (attempt < delays.length) await wait(delays[attempt]);
+    }
+    throw lastError || new Error(label + ' failed.');
+}
+
 async function withInProcessWriterLock(chatKey, task) {
     const key = String(chatKey || '');
     const previous = writerLocks.get(key) || Promise.resolve();
@@ -183,7 +209,7 @@ export async function readV3Sidecar({ chatKey, pointer, fetchFn = globalThis.fet
     return decodeV3Payload(await response.text(), chatKey);
 }
 
-export async function writeV3Sidecar({ chatKey, state, pointer = null, fetchFn = globalThis.fetch, headers = {} }) {
+export async function writeV3Sidecar({ chatKey, state, pointer = null, fetchFn = globalThis.fetch, headers = {}, retryDelays = TRANSIENT_WRITE_RETRY_DELAYS }) {
     if (typeof fetchFn !== 'function') throw new Error('fetch() is unavailable for NPC State v0.3 persistence.');
     return withWriterLock(chatKey, async () => {
         const hint = readV3PointerHint(chatKey);
@@ -218,11 +244,11 @@ export async function writeV3Sidecar({ chatKey, state, pointer = null, fetchFn =
         normalized.updatedAt = Date.now();
         const name = pointer?.name || makeV3FileName(chatKey);
         const json = encodeV3Payload(chatKey, normalized, revision);
-        const response = await fetchFn('/api/files/upload', {
+        const response = await fetchPersistenceMutation(fetchFn, '/api/files/upload', {
             method: 'POST',
             headers,
             body: JSON.stringify({ name, data: toBase64(json) }),
-        });
+        }, { label: 'NPC State beta sidecar write', retryDelays });
         if (!response?.ok) throw new Error(`NPC State v0.3 sidecar write failed with HTTP ${response?.status || 'error'}.`);
         const result = await response.json();
         if (!result?.path) throw new Error('NPC State v0.3 sidecar upload returned no path.');
@@ -233,7 +259,7 @@ export async function writeV3Sidecar({ chatKey, state, pointer = null, fetchFn =
 }
 
 
-export async function retireV3Sidecar({ chatKey, pointer, reason = 'retired', redirectChatKey = '', fetchFn = globalThis.fetch, headers = {} }) {
+export async function retireV3Sidecar({ chatKey, pointer, reason = 'retired', redirectChatKey = '', fetchFn = globalThis.fetch, headers = {}, retryDelays = TRANSIENT_WRITE_RETRY_DELAYS }) {
     if (!pointer?.path) return null;
     if (typeof fetchFn !== 'function') throw new Error('fetch() is unavailable for NPC State beta lifecycle persistence.');
     return withWriterLock(chatKey, async () => {
@@ -250,11 +276,11 @@ export async function retireV3Sidecar({ chatKey, pointer, reason = 'retired', re
         }
         const revision = expected + 1;
         const json = encodeV3RetiredPayload(chatKey, revision, { reason, redirectChatKey });
-        const response = await fetchFn('/api/files/upload', {
+        const response = await fetchPersistenceMutation(fetchFn, '/api/files/upload', {
             method: 'POST',
             headers,
             body: JSON.stringify({ name: pointer.name || makeV3FileName(chatKey), data: toBase64(json) }),
-        });
+        }, { label: 'NPC State beta sidecar retirement', retryDelays });
         if (!response?.ok) throw new Error('NPC State beta sidecar retirement failed with HTTP ' + (response?.status || 'error') + '.');
         const result = await response.json();
         if (!result?.path) throw new Error('NPC State beta sidecar retirement returned no path.');
@@ -264,14 +290,14 @@ export async function retireV3Sidecar({ chatKey, pointer, reason = 'retired', re
     });
 }
 
-export async function deleteV3SidecarFile(pointer, { fetchFn = globalThis.fetch, headers = {} } = {}) {
+export async function deleteV3SidecarFile(pointer, { fetchFn = globalThis.fetch, headers = {}, retryDelays = TRANSIENT_WRITE_RETRY_DELAYS } = {}) {
     if (!pointer?.path) return false;
     if (typeof fetchFn !== 'function') throw new Error('fetch() is unavailable for NPC State beta lifecycle persistence.');
-    const response = await fetchFn('/api/files/delete', {
+    const response = await fetchPersistenceMutation(fetchFn, '/api/files/delete', {
         method: 'POST',
         headers,
         body: JSON.stringify({ path: pointer.path }),
-    });
+    }, { label: 'NPC State beta sidecar deletion', retryDelays });
     if (response?.status === 404) return false;
     if (!response?.ok) throw new Error('NPC State beta sidecar delete failed with HTTP ' + (response?.status || 'error') + '.');
     return true;
