@@ -203,7 +203,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         npcs: [{
             id: 'existing id when known, otherwise empty',
             name: 'human-facing canonical proper name when known; readable role label only if genuinely unnamed; never npc-*',
-            aliases: [], role: '', species: '', age: 'actual chronological numeric age only: N, ~N, or N days/weeks/months; never child/adult/elderly', apparentAge: '~N only, e.g. ~25, or empty', appearance: 'shared/common appearance, or ordinary single-form appearance', currentForm: 'current named physical form or empty', appearanceForms: [{ name: 'newly established physical form', appearance: 'durable canonical appearance for this form' }], appearanceFormChanges: [{ name: 'existing form explicitly corrected/changed', appearance: 'replacement canonical appearance', evidence: 'explicit current-exchange correction/growth/change evidence' }], personality: '',
+            aliases: [], role: '', species: '', age: 'initial actual chronological numeric age only, or same-value refinement; use ageChange for an established age changing', ageChange: { age: 'new actual chronological age', kind: 'birthday|elapsed|correction', evidence: 'explicit grounded age-change evidence that states the new age' }, apparentAge: '~N only, e.g. ~25, or empty', appearance: 'shared/common appearance, or ordinary single-form appearance', currentForm: 'current named physical form or empty', appearanceForms: [{ name: 'newly established physical form', appearance: 'durable canonical appearance for this form' }], appearanceFormChanges: [{ name: 'existing form explicitly corrected/changed', appearance: 'replacement canonical appearance', evidence: 'explicit current-exchange correction/growth/change evidence' }], personality: '',
             behaviorProfile: [], speech: '', mannerisms: [], keyRelationshipChanges: [{ other: 'existing NPC name/id', action: 'remove', evidence: 'explicit evidence the durable tie no longer applies' }], profileChanges: [{ field: 'personality|behaviorProfile|speech|mannerisms', mode: 'refine|gradual|explicit|batch', concept: 'short stable concept label', evidence: 'grounded evidence for this durable profile update' }], background: '', keyRelationships: [], memories: [],
             relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0,
             lifeState: 'alive|dead|unknown', lifeStateCertainty: 'explicit|strong|uncertain', lifeStateReason: '', livingReturn: false,
@@ -237,7 +237,8 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- Only propose a relationshipChange when the current exchange contains concrete evidence. If unsure, use impact none and zero deltas.',
         '- RELATIONSHIP HARDENING: ordinary may affect at most 1 axis, meaningful 2, major 3, extreme 4. Repeated aftermath or semantically duplicate events must be zero. High relationship depth has increasing inertia, so raw deltas are evidence weights rather than guaranteed visible points. Desire requires explicit romantic/intimate/physical attraction evidence in the CURRENT narration, not friendship, gratitude, rescue, beauty, proximity, trust, or generic affection. Relationship Summary must describe only depth actually supported by the accepted relationship state.',
         '- RELATIONSHIP MILESTONE GATES are enforced by NPC State at absolute depth 25, 50, 75, and 90 independently for each axis and positive/negative polarity. Ordinary evidence may reach a locked boundary but cannot deepen beyond it. Crossing 25 requires meaningful-or-stronger evidence; crossing 50 requires a major-or-stronger event with at least 3 raw points on that axis; crossing 75 requires extreme evidence with at least 5 raw points; crossing 90 requires extreme relationship-defining evidence with at least 8 raw points. Movement back toward neutral is never gate-blocked. Classify impact and deltas from the story honestly; never inflate them merely to open a gate.',
-        '- age is ACTUAL chronological age only. Use one grounded numeric age. Years use N or ~N; if canon explicitly gives a smaller unit, use N days, N weeks, or N months. Never write child, teenager, adult, young adult, middle-aged, elder, elderly, old, or another life-stage label in age. Never infer actual age from appearance. For an EXISTING NPC, leave age empty unless the current exchange explicitly establishes a more authoritative actual age; do not re-estimate it from prose or appearance.',
+        '- age is ACTUAL chronological age only. Use one grounded numeric age. Years use N or ~N; if canon explicitly gives a smaller unit, use N days, N weeks, or N months. Never write child, teenager, adult, young adult, middle-aged, elder, elderly, old, or another life-stage label in age. Never infer actual age from appearance. For an EXISTING NPC with an established age, a different number MUST NOT be placed in age. Use ageChange instead.',
+        '- ageChange is the only automatic channel allowed to change an already-established chronological age. kind birthday requires explicit birthday/turned-N evidence; elapsed requires explicit elapsed-time narration that also states the resulting age; correction requires explicit correction/mistake evidence that states the corrected age. The evidence must contain the new numeric age. Casual contradictory age prose, appearance-based guesses, and unstated arithmetic are rejected by the backend. Leave ageChange null/omit when no authoritative chronological change occurred.',
         '- apparentAge is separate from actual age. When clearly supported, it MUST be one approximate integer written exactly as ~N, for example ~18 or ~25. Never output decade bands, prose bands, or ranges such as twenties, 20s, late twenties, 20-30, or twenties to thirties. If a single numeric apparent age is not supported, leave apparentAge empty.',
         '- appearance remains the shared/common physical description, or the ordinary baseline appearance for an NPC with no distinct transforming forms. Do not rewrite appearance merely because a multi-form NPC changed form. For an EXISTING NPC that already has ordinary appearance but no appearanceForms, that stored appearance represents the baseline body; when the first alternate form is discovered NPC State preserves it locally as a neutral Base form.',
         '- currentForm is live physical-form state only, such as Human, Demihuman, Beast, Partial manifestation, or another grounded freeform label. Leave it empty for ordinary non-transforming NPCs. A physical form MAY be temporary, reversible, magical, elemental, spectral, or energy-made when the NPC enters a coherent transformed body state that materially changes anatomy, body plan, or silhouette. Partial transformations count when they add form-defining anatomy such as horns, wings, tails, scales, feathers, claws, or a changed body shape, even when those parts are ethereal or made of energy. Mere aura, glow, weather effect, spell particles, outfit, pose, disguise, mood, or injury is not a form. If an EXISTING NPC first reveals alternate forms in this exchange and ends back in the ordinary body represented by its stored appearance, use currentForm Base.',
@@ -278,7 +279,8 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
         'Use the supplied chat window to reconcile grounded stable profile facts, current activity/situation/condition when supported, durable memories, and key relationships for THIS NPC only.',
         'status is the NPC current concrete activity, immediate situation, or condition: what they are doing or undergoing now. Never use active, inactive, in chat, off-screen, present, archived, or equivalent lifecycle labels as status; lifecycle presence is tracked separately.',
         'The PLAYER/current USER persona is not an NPC. relationshipSummary is this NPC toward the PLAYER; keyRelationships is NON-PLAYER ties only and must never duplicate the PLAYER.',
-        'age is ACTUAL chronological age only. Use grounded numeric age data only: N or ~N years, or N days/weeks/months when explicitly established. Never use child, teenager, adult, young adult, middle-aged, elder, elderly, old, or another life-stage label. If the target already has an age and the chat does not explicitly correct it, leave age empty rather than re-estimating it.',
+        'age is ACTUAL chronological age only. Use grounded numeric age data only: N or ~N years, or N days/weeks/months when explicitly established. Never use child, teenager, adult, young adult, middle-aged, elder, elderly, old, or another life-stage label. If the target already has an age, leave age empty for any different number and use ageChange only for an explicit birthday, elapsed-time update, or correction that states the resulting numeric age.',
+        'ageChange is the only automatic revision channel for an established chronological age: {age, kind birthday|elapsed|correction, evidence}. Evidence must explicitly state the new age and the birthday/elapsed/correction basis. Casual contradictions and appearance guesses are not revisions.',
         'apparentAge must be one supported numeric approximation formatted exactly as ~N. Never use decade bands, worded age bands, or ranges. Leave it empty if no single numeric apparent age is supported.',
         'appearance is shared/common physical description, or the ordinary baseline appearance. currentForm is live physical-form state only and should stay empty for a non-transforming NPC. A form may be temporary, reversible, magical, spectral, elemental, or energy-made if it is a coherent transformed body state with materially different anatomy/body plan/silhouette. Partial transformations with manifested horns, wings, tails, scales, feathers, claws, or other form-defining anatomy count; mere aura/glow/spell particles/outfit/pose/injury do not. If this existing NPC first reveals alternate forms and ends back in its stored ordinary body, use currentForm Base.',
         'appearanceForms contains only newly established distinct transformed body states. Capture multiple distinct states from the same scene when they are separately entered, including partial manifestation and full beast states. Durable refers to continuity of the stored description, not permanence of the transformation. Preserve every existing form shown in TARGET DOSSIER. Never rewrite a stored form from a casual contradictory description. If TARGET DOSSIER has alternate forms but no Base and the chat explicitly ends with the NPC back in its stored ordinary appearance, set currentForm to Base so NPC State can recover that baseline locally.',
@@ -290,7 +292,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
         ...(structuredDetected ? structuredEvidencePromptRules() : []),
         memoryCriteria ? `IMPORTANT MEMORY RUBRIC:\n${compactText(memoryCriteria, 6000)}` : '',
         `CHAT WINDOW:\n${JSON.stringify(history)}`,
-        `OUTPUT CONTRACT:\n${JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id: npc.id, name: npc.name, aliases: [], role: '', species: '', age: 'actual chronological numeric age only or empty', apparentAge: '~N only or empty', appearance: 'shared/common or ordinary single-form appearance', currentForm: 'current physical form or empty', appearanceForms: null, appearanceFormChanges: null, personality: '', behaviorProfile: null, speech: '', mannerisms: null, profileChanges: null, background: '', keyRelationships: null, keyRelationshipChanges: null, memories: null, relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0, lifeState: 'alive|dead|unknown', lifeStateCertainty: '', lifeStateReason: '', livingReturn: false, relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' } }], socialEdges: [] })}`,
+        `OUTPUT CONTRACT:\n${JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id: npc.id, name: npc.name, aliases: [], role: '', species: '', age: 'initial actual chronological numeric age only or empty', ageChange: { age: 'new actual chronological age', kind: 'birthday|elapsed|correction', evidence: 'explicit grounded age-change evidence' }, apparentAge: '~N only or empty', appearance: 'shared/common or ordinary single-form appearance', currentForm: 'current physical form or empty', appearanceForms: null, appearanceFormChanges: null, personality: '', behaviorProfile: null, speech: '', mannerisms: null, profileChanges: null, background: '', keyRelationships: null, keyRelationshipChanges: null, memories: null, relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0, lifeState: 'alive|dead|unknown', lifeStateCertainty: '', lifeStateReason: '', livingReturn: false, relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' } }], socialEdges: [] })}`,
     ].filter(Boolean).join('\n\n');
 }
 
@@ -689,6 +691,39 @@ export function reconcileFamilyGraphState(stateInput, { sourceMessageId = null, 
     return normalizeState(state, state.chatKey);
 }
 
+const AGE_CHANGE_KINDS = new Set(['birthday', 'elapsed', 'correction']);
+const AGE_BIRTHDAY_CUES = /\b(birthday|turned|turns|turning)\b/i;
+const AGE_ELAPSED_CUES = /\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|several)\s+(?:days?|weeks?|months?|years?)\s+(?:later|passed|have passed|had passed)|\bafter\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:days?|weeks?|months?|years?)\b/i;
+const AGE_CORRECTION_CUES = /\b(correct(?:s|ed|ion)?|actually|mistaken|mistake|wrong|misstated|rather than|not\s+\d{1,4}[^.!?]{0,30}\bbut\b)\b/i;
+
+function ageEvidenceMentionsTarget(evidence, targetAge) {
+    const target = normalizeActualAge(targetAge);
+    if (!target) return false;
+    const number = target.match(/\d{1,4}/)?.[0] || '';
+    if (!number) return false;
+    const unit = /\bdays?\b/i.test(target) ? 'day'
+        : (/\bweeks?\b/i.test(target) ? 'week'
+            : (/\bmonths?\b/i.test(target) ? 'month' : ''));
+    if (!unit) return new RegExp('(^|\\D)' + number + '(?!\\d)').test(String(evidence || ''));
+    return new RegExp('(^|\\D)' + number + '\\s+' + unit + 's?\\b', 'i').test(String(evidence || ''));
+}
+
+function explicitAgeChange(npc, patch, options = {}) {
+    const raw = patch?.ageChange;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return '';
+    const current = normalizeActualAge(npc?.age);
+    const age = normalizeActualAge(raw.age ?? raw.value);
+    const kind = String(raw.kind || '').trim().toLocaleLowerCase();
+    const evidence = String(raw.evidence || raw.reason || '').trim().slice(0, 600);
+    const context = String(options.profileContext || '');
+    if (!current || !age || age === current || !AGE_CHANGE_KINDS.has(kind) || !evidence) return '';
+    if (!profileEvidenceGrounded(evidence, context) || !ageEvidenceMentionsTarget(evidence, age)) return '';
+    if (kind === 'birthday' && !AGE_BIRTHDAY_CUES.test(evidence)) return '';
+    if (kind === 'elapsed' && !AGE_ELAPSED_CUES.test(evidence)) return '';
+    if (kind === 'correction' && !AGE_CORRECTION_CUES.test(evidence)) return '';
+    return age;
+}
+
 function applyStablePatch(npc, patch, options = {}) {
     const locked = new Set(npc.manualProfileFields || []);
     const next = structuredClone(npc);
@@ -714,6 +749,10 @@ function applyStablePatch(npc, patch, options = {}) {
         }
         if (field === 'name' && value !== next.name && next.name && !isTechnicalNpcIdentity(next.name)) next.aliases = appendUnique(next.aliases, [next.name], 10);
         next[field] = value;
+    }
+    if (!locked.has('age')) {
+        const changedAge = explicitAgeChange(npc, patch, options);
+        if (changedAge) next.age = changedAge;
     }
     for (const field of ['personality', 'speech']) {
         if (locked.has(field)) continue;
