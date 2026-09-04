@@ -958,7 +958,10 @@ function applyStablePatch(npc, patch, options = {}) {
         if (!hasBase && (firstAlternate || wantsBase) && String(npc.appearance || '').trim()) {
             next.appearanceForms = [...existingForms, { name: 'Base', appearance: String(npc.appearance).trim() }];
         }
-        next.appearanceForms = mergeAppearanceFormPatch(next.appearanceForms, incomingForms, patch?.appearanceFormChanges, String(options.profileContext || ''), ageProgression, npc, patch);
+        const effectiveFormChanges = legacyBaseBefore && locked.has('appearance')
+            ? (Array.isArray(patch?.appearanceFormChanges) ? patch.appearanceFormChanges : []).filter(raw => normalizeName(raw?.name) !== 'base')
+            : patch?.appearanceFormChanges;
+        next.appearanceForms = mergeAppearanceFormPatch(next.appearanceForms, incomingForms, effectiveFormChanges, String(options.profileContext || ''), ageProgression, npc, patch);
 
         // v0.4.1 copied the old scalar ordinary appearance into Base for compatibility.
         // If that duplicated Base is authoritatively revised later, keep the legacy scalar
