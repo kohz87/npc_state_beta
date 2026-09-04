@@ -866,7 +866,9 @@ function durableCanonDecision(npc, patch, field, incomingValue, options = {}) {
     const context = String(options.profileContext || '');
     if (!value || normalizeName(value) !== normalizeName(incoming) || !evidence || !profileEvidenceGrounded(evidence, context)) return false;
     if (field === 'birthday') {
-        return mode === 'correction' && CANON_CORRECTION_CUES.test(evidence + ' ' + context);
+        return mode === 'correction'
+            && birthdayEvidenceGrounded(incoming, context)
+            && CANON_CORRECTION_CUES.test(evidence + ' ' + context);
     }
     if (field === 'species') {
         if (mode === 'correction') return CANON_CORRECTION_CUES.test(evidence + ' ' + context);

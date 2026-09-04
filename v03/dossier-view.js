@@ -176,6 +176,9 @@ export function dossierHtml(npc) {
         <section class="npc-state-v3-dossier-group npc-state-v3-current-group">
           <h3 class="npc-state-v3-group-title">Current</h3>
           <div class="npc-state-v3-current-grid">
+            ${currentFact('Actual age', npc.age)}
+            ${currentFact('Apparent age', npc.apparentAge)}
+            ${currentFact('Birthday', npc.birthday ? npc.birthday + (npc.birthdayProvenance === 'generated' ? ' · generated placeholder' : '') : '')}
             ${currentFact('Mood', npc.mood)}
             ${currentFact('Location', npc.location)}
             ${currentFact('Goal', npc.goal)}
