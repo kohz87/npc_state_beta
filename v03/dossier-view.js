@@ -98,7 +98,7 @@ function identityText(npc = {}) {
         npc.role,
         npc.age ? `Actual age ${npc.age}` : '',
         npc.apparentAge ? `Looks ${npc.apparentAge}` : '',
-        npc.birthday ? `Birthday ${npc.birthday}${npc.birthdayProvenance === 'generated' ? ' · generated placeholder' : ''}` : '',
+        npc.birthday ? `Birthday ${npc.birthday}` : '',
     ].filter(Boolean).join(' · ');
 }
 
@@ -178,7 +178,7 @@ export function dossierHtml(npc) {
           <div class="npc-state-v3-current-grid">
             ${currentFact('Actual age', npc.age)}
             ${currentFact('Apparent age', npc.apparentAge)}
-            ${currentFact('Birthday', npc.birthday ? npc.birthday + (npc.birthdayProvenance === 'generated' ? ' · generated placeholder' : '') : '')}
+            ${currentFact('Birthday', npc.birthday)}
             ${currentFact('Mood', npc.mood)}
             ${currentFact('Location', npc.location)}
             ${currentFact('Goal', npc.goal)}
