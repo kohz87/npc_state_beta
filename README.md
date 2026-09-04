@@ -15,6 +15,14 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 - Stable v0.3.x sidecars can be cloned once into an independent beta sidecar. v0.2 migration is intentionally removed from the 0.4 line.
 - Beta settings, sidecar filenames, pointer hints, and writer locks remain isolated from stable NPC State.
 
+## Form-aware current appearance and age-linked maturation
+
+- `appearance` stores shared/common appearance, or ordinary appearance for a single-form NPC. `appearanceForms` stores durable named body forms and `currentForm` selects the active body. One shared resolver supplies **Current appearance** to dossiers, portrait prompts, and foreground continuity.
+- Legacy dossiers that copied ordinary `appearance` into `appearanceForms.Base` stay synchronized while those values are still duplicates. Once `appearance` becomes genuine cross-form shared canon, Base and shared appearance evolve independently.
+- A valid birthday or elapsed-time `ageChange` now asks the scanner to reconsider visual maturation in the same observation. Age parsing, normalization, units, storage, and existing age-continuity rules are unchanged. Corrections and manual age edits never fabricate maturation.
+- Maturation is conservative and lore-aware rather than species-name hard-coded: ordinary, accelerated, long-lived, ageless, or unknown. Unknown fantasy species do not silently inherit human aging. Insignificant adult birthdays, long-lived intervals, and ageless beings may correctly produce no visible change.
+- Age-linked revisions reuse `apparentAge`, `canonChanges` mode `age_progression`, and `appearanceFormChanges` mode `age_progression`. The backend requires an accepted forward age transition, a visually meaningful interval, the correct shared/form channel, and preservation of unrelated canonical traits.
+
 ## Testing beside stable NPC State
 
 Disable the stable NPC State extension while exercising this beta. Stable may remain installed and its settings/data remain untouched. On first load for a chat with no beta sidecar, 0.4.3 clones the stable v0.3 sidecar into a beta-owned sidecar and then diverges independently.
