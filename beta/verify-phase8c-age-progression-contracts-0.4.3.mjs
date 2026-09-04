@@ -9,6 +9,7 @@ import { dossierHtml } from '../v03/dossier-view.js';
 function assert(condition, message) { if (!condition) throw new Error(message); }
 function file(path) { return fs.readFileSync(new URL('../' + path, import.meta.url), 'utf8'); }
 function count(source, needle) { return source.split(needle).length - 1; }
+function includesCI(source, needle) { return source.toLocaleLowerCase().includes(needle.toLocaleLowerCase()); }
 
 const npc = normalizeNpc({
     id: 'npc-contract-age', name: 'Mira', species: 'Human', age: '6', apparentAge: '~6',
@@ -28,23 +29,29 @@ const chat = [
 
 const scan = buildScanPrompt({ state, chat, assistantMessageId: 1 });
 for (const needle of ['AGE-LINKED APPEARANCE EVOLUTION', 'ageProgression', 'ordinary|accelerated|long_lived|ageless|unknown', 'age_progression', 'unknown fantasy species', 'neutral and non-sexual']) {
-    assert(scan.includes(needle), 'Full recovery scanner missing maturation contract: ' + needle);
+    assert(includesCI(scan, needle), 'Full recovery scanner missing maturation contract: ' + needle);
 }
 assert(scan.includes('correction never causes physical maturation'), 'Full recovery scanner does not distinguish correction from maturation');
 assert(scan.includes('affectedForms'), 'Full recovery scanner lacks form-specific progression authority');
+assert(scan.includes('The only inferred exception is mode age_progression'), 'Full recovery form rules still contradict age progression authority');
+assert(scan.includes('appearance age_progression is allowed only by the accepted birthday/elapsed maturation gate above'), 'Full recovery scalar rules still contradict age progression authority');
 
 const injection = buildInjection(state, { enabled: true, autoScan: true, inject: true, injectLimit: 2, injectBudgetTokens: 3000 });
-for (const needle of ['AGE-LINKED APPEARANCE EVOLUTION', 'ageProgression', 'ordinary|accelerated|long_lived|ageless|unknown', 'age_progression', 'Unknown fantasy species', 'neutral and non-sexual']) {
-    assert(injection.includes(needle), 'Foreground capture missing maturation contract: ' + needle);
+for (const needle of ['AGE-LINKED APPEARANCE EVOLUTION', 'ageProgression', 'ordinary|accelerated|long_lived|ageless|unknown', 'age_progression', 'unknown fantasy species', 'neutral and non-sexual']) {
+    assert(includesCI(injection, needle), 'Foreground capture missing maturation contract: ' + needle);
 }
+assert(injection.includes('mode age_progression is the narrow inferred exception'), 'Foreground form rules still contradict age progression authority');
+assert(injection.includes('age_progression additionally allowed only for Appearance'), 'Foreground scalar rules still contradict age progression authority');
 assert(injection.includes('Current appearance: ' + resolvedCurrentAppearance(npc)), 'Foreground continuity does not use resolved current appearance');
 assert(injection.includes('Shared / ordinary appearance: ' + npc.appearance), 'Foreground continuity does not expose stored shared/ordinary appearance separately');
 
 const refresh = buildTargetedRefreshPrompt({ npc, chat, assistantMessageId: 1 });
 for (const needle of ['AGE-LINKED APPEARANCE EVOLUTION', 'ageProgression', 'ordinary|accelerated|long_lived|ageless|unknown', 'age_progression']) {
-    assert(refresh.includes(needle), 'Targeted Refresh missing maturation contract: ' + needle);
+    assert(includesCI(refresh, needle), 'Targeted Refresh missing maturation contract: ' + needle);
 }
 assert(refresh.includes('correction does not mature the body'), 'Targeted Refresh does not distinguish correction from maturation');
+assert(refresh.includes('mode age_progression is the narrow exception'), 'Targeted Refresh form rules still contradict age progression authority');
+assert(refresh.includes('plus age_progression only for Appearance'), 'Targeted Refresh scalar rules still contradict age progression authority');
 
 const structured = buildStructuredDossierImportPrompt({
     npc,
@@ -53,7 +60,8 @@ const structured = buildStructuredDossierImportPrompt({
 assert(structured.includes('accepted birthday/elapsed transition'), 'Structured import missing age-linked progression rule');
 assert(structured.includes('ageProgression'), 'Structured import output contract lacks ageProgression');
 assert(structured.includes('correction is bookkeeping only and never matures the body'), 'Structured import does not block correction maturation');
-assert(structured.includes('unknown fantasy species'), 'Structured import does not keep unknown fantasy maturation conservative');
+assert(includesCI(structured, 'unknown fantasy species'), 'Structured import does not keep unknown fantasy maturation conservative');
+assert(structured.includes('mode age_progression is the narrow exception'), 'Structured import form rules still contradict age progression authority');
 
 const portrait = buildPortraitCharacterBlock(npc, 'natural');
 const dossier = dossierHtml(npc);
