@@ -6,6 +6,7 @@ import { createNpcStateEngine } from './engine.js';
 import { getChatIdentity, resolveLifecycleChatKey, resolveRenameLifecycleKeys } from './identity.js';
 import { buildInjection } from './injection.js';
 import { consumeNpcStateControl } from './foreground.js';
+import { hasRecognizedStructuredBlocks } from './evidence-adapter.js';
 import { createMeguminBlockIntegration } from './megumin.js';
 import {
     DEFAULT_PORTRAIT_NEGATIVE_PROMPT,
@@ -159,7 +160,8 @@ function updateInjection() {
     const settings = getSettings();
     const key = getChatKey();
     const state = key === 'no-chat' ? null : engine.getState(key);
-    const prompt = state ? buildInjection(state, settings) : '';
+    const structuredEvidenceDetected = (ctx.chat || []).slice(-30).some(message => hasRecognizedStructuredBlocks(message?.mes));
+    const prompt = state ? buildInjection(state, { ...settings, structuredEvidenceDetected }) : '';
     ctx.setExtensionPrompt?.(
         PROMPT_KEY,
         prompt,

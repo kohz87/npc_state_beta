@@ -1,3 +1,4 @@
+import { evidenceReferenceScope, hasRecognizedStructuredBlocks, scannerEvidenceText, structuredEvidencePromptRules } from './evidence-adapter.js';
 import {
     DEFAULT_RELATIONSHIP_CAPS,
     RELATIONSHIP_AXES,
@@ -144,7 +145,7 @@ export function recentHistory(chat = [], assistantMessageId = null, depth = 8) {
         .map(message => ({
             id: message.id,
             role: message.is_user ? 'USER' : 'ASSISTANT',
-            text: compactText(message.mes, 7000),
+            text: compactText(scannerEvidenceText(message.mes), 7000),
         }));
 }
 
@@ -194,6 +195,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
+    const structuredDetected = [exchange.user?.mes, exchange.assistant?.mes, ...nonSystemMessages(chat).slice(-Math.max(2, Math.min(30, Number(scanDepth) || 8))).map(message => message.mes)].some(hasRecognizedStructuredBlocks);
     const contract = {
         exchangeActiveNpcIds: ['existing dossier id OR exact canonical name'],
         inChatNpcIds: ['existing dossier id OR exact canonical name'],
@@ -247,14 +249,15 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- livingReturn is true only when a previously archived/dead dossier is explicitly alive, surviving, resurrected, or physically returned.',
         '- Stable scalar profile fields should contain only newly established or clearly supported facts. Omit/empty scalar fields rather than guessing.',
         '- DURABLE PROFILE EVOLUTION: a new NPC may establish grounded foundational personality/behavior/speech/mannerisms from its first rich scene. For an EXISTING established field, never rewrite personality, behaviorProfile, speech, or mannerisms merely because one scene looks different. Any genuine change requires a matching profileChanges entry with field, mode, stable concept label, and concrete evidence. refine adds compatible detail only and must not smuggle no-longer/became/increasingly transitions or morality flips. gradual development requires the same concept to be independently supported on a later scan. explicit requires narration that clearly establishes a lasting/corrective change. batch requires an actual narrated time skip plus development across that skipped period. A one-off gesture is not a permanent mannerism; mannerism seeding needs recurring/habit language or repeated confirmation.',
+        ...(structuredDetected ? structuredEvidencePromptRules() : []),
         '',
         relationshipCriteria ? `RELATIONSHIP RUBRIC:\n${compactText(relationshipCriteria, 6000)}` : '',
         memoryCriteria ? `IMPORTANT MEMORY RUBRIC:\n${compactText(memoryCriteria, 6000)}` : '',
         '',
         `EXISTING DOSSIERS:\n${JSON.stringify(rosterForPrompt(state))}`,
         `OLDER CONTEXT FOR PROFILE/MEMORY ONLY:\n${JSON.stringify(history)}`,
-        `CURRENT USER MESSAGE:\n${compactText(exchange.user?.mes || '', 10000)}`,
-        `CURRENT ASSISTANT MESSAGE:\n${compactText(exchange.assistant?.mes || '', 14000)}`,
+        `CURRENT USER MESSAGE:\n${compactText(scannerEvidenceText(exchange.user?.mes || ''), 10000)}`,
+        `CURRENT ASSISTANT MESSAGE:\n${compactText(scannerEvidenceText(exchange.assistant?.mes || ''), 14000)}`,
         `OUTPUT CONTRACT:\n${JSON.stringify(contract)}`,
     ].filter(Boolean).join('\n\n');
 }
@@ -263,7 +266,8 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const history = nonSystemMessages(chat)
         .filter(message => !Number.isInteger(assistantMessageId) || message.id <= assistantMessageId)
         .slice(-Math.max(2, Math.min(30, Math.round(Number(scanDepth) || 12))))
-        .map(message => ({ id: message.id, role: message.is_user ? 'USER' : 'ASSISTANT', text: compactText(message.mes, 8000) }));
+        .map(message => ({ id: message.id, role: message.is_user ? 'USER' : 'ASSISTANT', text: compactText(scannerEvidenceText(message.mes), 8000) }));
+    const structuredDetected = nonSystemMessages(chat).slice(-Math.max(2, Math.min(30, Math.round(Number(scanDepth) || 12)))).some(message => hasRecognizedStructuredBlocks(message.mes));
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
@@ -283,6 +287,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
         'Do NOT change relationship scores or propose relationship deltas in a targeted refresh. Do NOT change global in-chat state for other NPCs.',
         'If the chat does not establish a scalar field, leave it empty. Never invent facts.',
         'DURABLE PROFILE EVOLUTION: for established personality/behaviorProfile/speech/mannerisms, include a profileChanges entry only when the supplied chat actually supports refine, gradual, explicit, or batch development. refine must remain compatible with existing identity; gradual requires repeated same-concept evidence; explicit requires a lasting/correction cue; batch requires a real narrated time skip. One-off gestures are not mannerisms. Sparse blank fields may be seeded when the evidence directly establishes them.',
+        ...(structuredDetected ? structuredEvidencePromptRules() : []),
         memoryCriteria ? `IMPORTANT MEMORY RUBRIC:\n${compactText(memoryCriteria, 6000)}` : '',
         `CHAT WINDOW:\n${JSON.stringify(history)}`,
         `OUTPUT CONTRACT:\n${JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id: npc.id, name: npc.name, aliases: [], role: '', species: '', age: 'actual chronological numeric age only or empty', apparentAge: '~N only or empty', appearance: 'shared/common or ordinary single-form appearance', currentForm: 'current physical form or empty', appearanceForms: null, appearanceFormChanges: null, personality: '', behaviorProfile: null, speech: '', mannerisms: null, profileChanges: null, background: '', keyRelationships: null, keyRelationshipChanges: null, memories: null, relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0, lifeState: 'alive|dead|unknown', lifeStateCertainty: '', lifeStateReason: '', livingReturn: false, relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' } }], socialEdges: [] })}`,
@@ -1114,6 +1119,36 @@ function socialEdgeKey(edge) {
     return `${ids[0]}\0${ids[1]}\0${normalizeName(edge.relation)}`;
 }
 
+function npcEvidenceVariants(npc, patch = null) {
+    return [...new Set([npc?.name, ...(npc?.aliases || []), patch?.name, ...(Array.isArray(patch?.aliases) ? patch.aliases : []), patch?.role].map(value => String(value || '').trim()).filter(Boolean))];
+}
+function restrictedEvidenceScope(state, patch, policy) {
+    if (!policy?.detected) return 'unrestricted';
+    const patchId = String(patch?.id || '').trim();
+    const existing = patchId ? state.npcs.find(npc => npc.id === patchId) : findNpcByReference(state, patch?.name || '');
+    return evidenceReferenceScope(policy, npcEvidenceVariants(existing, patch));
+}
+function referenceAllowedForActivity(state, reference, policy) {
+    if (!policy?.detected) return true;
+    const npc = findNpcByReference(state, reference);
+    const scope = evidenceReferenceScope(policy, npc ? npcEvidenceVariants(npc) : [reference]);
+    if (!['world', 'inner', 'excluded'].includes(scope)) return true;
+    return npc?.present === true;
+}
+function newPatchAllowedByEvidence(state, patch, policy) {
+    if (!policy?.detected || findNpcByReference(state, patch?.name || '')) return true;
+    const scope = restrictedEvidenceScope(state, patch, policy);
+    return !['world', 'inner', 'excluded'].includes(scope);
+}
+function applyPrivateEvidencePatch(npc, patch) {
+    const next = structuredClone(npc);
+    for (const field of ['mood', 'goal']) {
+        const value = String(patch?.[field] ?? '').trim();
+        if (value) next[field] = value;
+    }
+    return next;
+}
+
 export function applyScanResult(stateInput, resultInput, options = {}) {
     const state = normalizeState(stateInput, stateInput?.chatKey || '');
     const result = parseScanJson(typeof resultInput === 'string' ? resultInput : JSON.stringify(resultInput || {}));
@@ -1127,8 +1162,9 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
 
     state.npcs = state.npcs.map(npc => repairTechnicalStoredName(sanitizePlayerKeyRelationships(npc, playerName)));
 
-    const exchangeRefs = uniqueStrings(result.exchangeActiveNpcIds);
-    const presentRefs = uniqueStrings(result.finalPresentNpcIds);
+    const evidencePolicy = options.evidencePolicy && typeof options.evidencePolicy === 'object' ? options.evidencePolicy : null;
+    const exchangeRefs = uniqueStrings(result.exchangeActiveNpcIds).filter(ref => referenceAllowedForActivity(state, ref, evidencePolicy));
+    const presentRefs = uniqueStrings(result.finalPresentNpcIds).filter(ref => referenceAllowedForActivity(state, ref, evidencePolicy));
     const worldRefs = uniqueStrings(result.worldActiveNpcIds);
     const identityRefs = uniqueStrings([...exchangeRefs, ...presentRefs, ...worldRefs]);
     // A new returned dossier may contain a bad machine-shaped name even when the same
@@ -1139,7 +1175,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             const patchId = String(patch?.id || '').trim();
             const name = canonicalPatchName(patch, identityRefs);
             const knownId = Boolean(patchId && state.npcs.some(item => item.id === patchId));
-            return !knownId && name && !findNpcByReference(state, name);
+            return !knownId && name && !findNpcByReference(state, name) && newPatchAllowedByEvidence(state, patch, evidencePolicy);
         })
         .map(patch => canonicalPatchName(patch, identityRefs)));
     const targetRefs = [...new Set([...exchangeRefs, ...presentRefs, ...bootstrapRefs])];
@@ -1158,7 +1194,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             npc = findNpcByReference(state, canonicalName);
         }
         const referenced = targetRefs.some(ref => patchReferenceMatches(patch, ref)) || worldRefs.some(ref => patchReferenceMatches(patch, ref));
-        if (!npc && referenced) {
+        if (!npc && referenced && newPatchAllowedByEvidence(state, patch, evidencePolicy)) {
             const created = createFromPatch(patch, sourceMessageId, identityRefs);
             if (created && !deletedIds.has(created.id) && !(state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
                 state.npcs.push(created);
@@ -1180,7 +1216,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                     // locally allocated id. Resolve by its human-facing canonical name first.
                     const canonicalName = canonicalPatchName(patch, [...identityRefs, ref]);
                     npc = canonicalName ? findNpcByReference(state, canonicalName) : null;
-                    if (!npc) {
+                    if (!npc && newPatchAllowedByEvidence(state, patch, evidencePolicy)) {
                         const created = createFromPatch(patch, sourceMessageId, [...identityRefs, ref]);
                         if (created && !deletedIds.has(created.id) && !(state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
                             state.npcs.push(created);
@@ -1208,7 +1244,15 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     // caller, apply it even if the model imperfectly omitted this existing NPC from the
     // activity arrays. Keep world-only NPCs on their restricted live-state path unless they
     // are also an exchange/in-chat target. Relationship deltas remain exchange-gated.
-    const returnedPatchSet = new Set([...patchByNpcId.keys()].filter(id => !worldSet.has(id) || targetSet.has(id)));
+    const privateEvidenceSet = new Set();
+    const excludedEvidenceSet = new Set();
+    for (const [id, patch] of patchByNpcId.entries()) {
+        const existing = state.npcs.find(npc => npc.id === id);
+        const scope = evidenceReferenceScope(evidencePolicy, npcEvidenceVariants(existing, patch));
+        if (scope === 'inner' && !targetSet.has(id) && !worldSet.has(id)) privateEvidenceSet.add(id);
+        if (scope === 'excluded' && !targetSet.has(id) && !worldSet.has(id)) excludedEvidenceSet.add(id);
+    }
+    const returnedPatchSet = new Set([...patchByNpcId.keys()].filter(id => (!worldSet.has(id) || targetSet.has(id)) && !privateEvidenceSet.has(id) && !excludedEvidenceSet.has(id)));
 
     for (let i = 0; i < state.npcs.length; i += 1) {
         let npc = state.npcs[i];
@@ -1224,6 +1268,9 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                 sourceMessageId,
                 turn,
             });
+            npc.updatedAt = Math.max(Date.now(), Number(npc.updatedAt || 0) + 1);
+        } else if (patch && privateEvidenceSet.has(npc.id)) {
+            npc = applyPrivateEvidencePatch(npc, patch);
             npc.updatedAt = Math.max(Date.now(), Number(npc.updatedAt || 0) + 1);
         } else if (patch && worldSet.has(npc.id)) {
             // Off-screen activity may update current whereabouts/status and explicit life-state

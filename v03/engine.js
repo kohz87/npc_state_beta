@@ -1,4 +1,5 @@
 import { bestCheckpoint, ensureBranchBase, fingerprintMessage, rebaseToCurrentChat, reconcileToCurrentBranch, recordCheckpoint } from './branches.js';
+import { buildExchangeEvidencePolicy, profileEvidenceText, relationshipEvidenceText, retentionEvidenceText } from './evidence-adapter.js';
 import {
     applyNpcStateBundleImport,
     bundleSuggestedFilename,
@@ -45,14 +46,14 @@ function profileContextForWindow(chat = [], messageId = null, depth = 8) {
     for (let i = Math.max(0, end - Math.max(2, Number(depth) || 8) * 2); i <= end; i += 1) {
         const message = chat[i];
         if (!message || message.is_system) continue;
-        rows.push(String(message.mes || '').slice(0, 8000));
+        rows.push(profileEvidenceText(message.mes || '').slice(0, 8000));
     }
     return rows.join('\n');
 }
 
 function relationshipContextForExchange(exchange) {
     if (!exchange) return '';
-    return [exchange.user?.mes, exchange.assistant?.mes].map(value => String(value || '').trim()).filter(Boolean).join('\n');
+    return [exchange.user?.mes, exchange.assistant?.mes].map(value => relationshipEvidenceText(value).trim()).filter(Boolean).join('\n');
 }
 
 function latestAssistantMessageId(chat = []) {
@@ -272,13 +273,15 @@ export function createNpcStateEngine(adapters = {}) {
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 relationshipContext: relationshipContextForExchange(exchange),
-                profileContext: relationshipContextForExchange(exchange),
+                profileContext: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
+                evidencePolicy: buildExchangeEvidencePolicy(exchange),
                 dossierLimits: settings.dossierLimits,
                 applyReturnedNpcPatches: true,
                 applyRelationship: !alreadyScannedMessage,
             });
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
-            const referencedNpcIds = referencedNpcIdsFromExchange(applied.state, exchange);
+            const retentionExchange = { ...exchange, user: exchange.user ? { ...exchange.user, mes: retentionEvidenceText(exchange.user.mes) } : null, assistant: exchange.assistant ? { ...exchange.assistant, mes: retentionEvidenceText(exchange.assistant.mes) } : null };
+            const referencedNpcIds = referencedNpcIdsFromExchange(applied.state, retentionExchange);
             const stale = applyStaleLifecycle(applied.state, {
                 settings,
                 currentTurn: narrativeTurnForMessage(liveChat, messageId),
@@ -342,13 +345,15 @@ export function createNpcStateEngine(adapters = {}) {
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 relationshipContext: relationshipContextForExchange(exchange),
-                profileContext: relationshipContextForExchange(exchange),
+                profileContext: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
+                evidencePolicy: buildExchangeEvidencePolicy(exchange),
                 dossierLimits: settings.dossierLimits,
                 applyReturnedNpcPatches: true,
             });
             const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(settings.relationshipHistoryLimit);
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
-            const referencedNpcIds = referencedNpcIdsFromExchange(applied.state, exchange);
+            const retentionExchange = { ...exchange, user: exchange.user ? { ...exchange.user, mes: retentionEvidenceText(exchange.user.mes) } : null, assistant: exchange.assistant ? { ...exchange.assistant, mes: retentionEvidenceText(exchange.assistant.mes) } : null };
+            const referencedNpcIds = referencedNpcIdsFromExchange(applied.state, retentionExchange);
             const stale = applyStaleLifecycle(applied.state, {
                 settings,
                 currentTurn: narrativeTurnForMessage(chat, messageId),
