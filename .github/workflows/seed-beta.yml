@@ -1,4 +1,4 @@
-name: Build NPC State 0.4.1 Beta
+name: Build NPC State 0.4.2 Beta
 
 on:
   workflow_dispatch:
@@ -25,7 +25,9 @@ on:
       - beta/fix-0.4.1-form-capture-semantics.mjs
       - beta/fix-0.4.1-form-baseline-recovery.mjs
       - beta/fix-0.4.1-relationship-milestone-gates.mjs
-      - beta/verify-0.4.1.mjs
+      - beta/bump-0.4.2.mjs
+      - beta/phase1-relationship-hardening-0.4.2.mjs
+      - beta/phase1b-relationship-summary-gate-0.4.2.mjs
       - beta/verify-final-0.4.1.mjs
       - beta/verify-status-semantics-0.4.1.mjs
       - beta/verify-new-npc-id-authority-0.4.1.mjs
@@ -34,7 +36,7 @@ on:
       - beta/verify-form-aware-appearance-0.4.1.mjs
       - beta/verify-form-capture-semantics-0.4.1.mjs
       - beta/verify-form-baseline-recovery-0.4.1.mjs
-      - beta/verify-relationship-milestone-gates-0.4.1.mjs
+      - beta/verify-phase1-relationship-hardening-0.4.2.mjs
       - .github/workflows/seed-beta.yml
 
 permissions:
@@ -63,7 +65,7 @@ jobs:
           cp /tmp/npc-state-stable/manifest.json ./manifest.json
           cp /tmp/npc-state-stable/package.json ./package.json
 
-      - name: Apply 0.4.1 transformation
+      - name: Apply 0.4.2 transformation through phase 1
         run: |
           node beta/build-beta-v2.mjs
           node beta/post-build-patch.mjs
@@ -86,6 +88,9 @@ jobs:
           node beta/fix-0.4.1-form-capture-semantics.mjs
           node beta/fix-0.4.1-form-baseline-recovery.mjs
           node beta/fix-0.4.1-relationship-milestone-gates.mjs
+          node beta/bump-0.4.2.mjs
+          node beta/phase1-relationship-hardening-0.4.2.mjs
+          node beta/phase1b-relationship-summary-gate-0.4.2.mjs
 
       - name: Syntax gate
         run: |
@@ -95,7 +100,6 @@ jobs:
 
       - name: Consolidated behavior gate
         run: |
-          node beta/verify-0.4.1.mjs
           node beta/verify-final-0.4.1.mjs
           node beta/verify-status-semantics-0.4.1.mjs
           node beta/verify-new-npc-id-authority-0.4.1.mjs
@@ -104,7 +108,7 @@ jobs:
           node beta/verify-form-aware-appearance-0.4.1.mjs
           node beta/verify-form-capture-semantics-0.4.1.mjs
           node beta/verify-form-baseline-recovery-0.4.1.mjs
-          node beta/verify-relationship-milestone-gates-0.4.1.mjs
+          node beta/verify-phase1-relationship-hardening-0.4.2.mjs
 
       - name: Architecture and migration gate
         run: |
@@ -147,15 +151,23 @@ jobs:
           grep -q "RELATIONSHIP_MILESTONE_THRESHOLDS" v03/schema.js
           grep -q "relationshipMilestoneUnlocked" v03/scanner.js
           grep -q "RELATIONSHIP MILESTONE GATES" v03/injection.js
+          grep -q "relationshipProgress" v03/schema.js
+          grep -q "relationshipEvidenceHistory" v03/schema.js
+          grep -q "relationshipInertiaFactor" v03/scanner.js
+          grep -q "selectRelationshipAxes" v03/scanner.js
+          grep -q "DESIRE_EVIDENCE_CUES" v03/scanner.js
+          grep -q "relationshipSummarySupported" v03/scanner.js
+          grep -q "relationshipContextForExchange" v03/engine.js
+          grep -q "RELATIONSHIP HARDENING" v03/injection.js
           grep -q "PRE_GATE_RELATIONSHIP_CRITERIA" v03/index.js
           grep -q "includeBoundary: true" v03/engine.js
           grep -q "expectedMessageText" v03/engine.js
           grep -q "expectedMessageText: consumed.cleanedText" v03/index.js
           grep -q "applyRelationship: !alreadyScannedMessage" v03/engine.js
-          grep -q "Persistent NPC State 0.4.1 database" v03/ui.js
+          grep -q "Persistent NPC State 0.4.2 database" v03/ui.js
           ! grep -q "Persistent v0.3 database" v03/ui.js
           grep -q "branchFingerprintVersion: 3" v03/schema.js
-          grep -q '"version": "0.4.1"' manifest.json
+          grep -q '"version": "0.4.2"' manifest.json
 
       - name: Commit generated beta runtime
         run: |
@@ -165,6 +177,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add v03 bootstrap.js manifest.json package.json CHANGELOG.md
-          git commit -m "NPC State v0.4.1: deep hardening pass"
+          git add v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md
+          git commit -m "NPC State v0.4.2: phased hardening"
           git push
