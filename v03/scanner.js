@@ -1543,7 +1543,11 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             if (applyRelationship && exchangeSet.has(npc.id)) npc = applyRelationshipChange(npc, patch, {
                 relationshipCaps: options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 relationshipContext: String(options.relationshipContext || ''),
-                requireCurrentRelationshipEvidence: createdNpcIds.has(npc.id),
+                // Automatic relationship movement is always current-exchange evidence.
+                // Existing NPCs are not allowed to bypass grounding merely because their
+                // dossier already exists. Direct/manual relationship editing uses engine
+                // mutation and does not pass through this scanner path.
+                requireCurrentRelationshipEvidence: createdNpcIds.has(npc.id) || Boolean(String(options.relationshipContext || '').trim()),
                 sourceMessageId,
                 turn,
             });
