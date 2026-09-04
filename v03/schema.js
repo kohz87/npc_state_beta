@@ -66,6 +66,96 @@ function list(value, max = 12, itemMax = 500) {
     return out;
 }
 
+const MEMORY_STOP_WORDS = new Set([
+    'the','a','an','and','or','but','to','of','in','on','at','for','from','with','without','into','onto','by','as','is','was','were','be','been','being',
+    'he','she','they','them','his','her','their','this','that','these','those','when','while','after','before','during','then','later','still','very','really',
+    'npc','player','remember','remembers','remembered','memory','that','who','which','what','where','how','it','its',
+]);
+const MEMORY_EVENT_GROUPS = Object.freeze([
+    ['rescue', /\b(rescue(?:d|s|ing)?|sav(?:e|ed|es|ing)|protect(?:ed|s|ing)? from)\b/i],
+    ['promise', /\b(promis(?:e|ed|es|ing)|vow(?:ed|s|ing)?|swore|sworn)\b/i],
+    ['betray', /\b(betray(?:ed|s|ing|al)?|backstab(?:bed|s|bing)?)\b/i],
+    ['wound', /\b(wound(?:ed|s|ing)?|injur(?:e|ed|es|ing)|hurt)\b/i],
+    ['discover', /\b(discover(?:ed|s|ing|y)?|found|finds?|uncover(?:ed|s|ing)?)\b/i],
+    ['reveal', /\b(reveal(?:ed|s|ing)?|confess(?:ed|es|ing)?|admit(?:ted|s|ting)?)\b/i],
+    ['teach', /\b(teach(?:es|ing)?|taught|train(?:ed|s|ing)?)\b/i],
+    ['fight', /\b(fight(?:s|ing)?|fought|battle(?:d|s|ing)?|combat)\b/i],
+    ['heal', /\b(heal(?:ed|s|ing)?|treat(?:ed|s|ing)?|cure(?:d|s|ing)?)\b/i],
+    ['kill', /\b(kill(?:ed|s|ing)?|slay(?:s|ing)?|slew|slain)\b/i],
+    ['death', /\b(die(?:d|s|ing)?|dead|death|passed away)\b/i],
+    ['give', /\b(give(?:s|n|ing)?|gave|gift(?:ed|s|ing)?)\b/i],
+    ['return', /\b(return(?:ed|s|ing)?|gave back|brought back)\b/i],
+    ['marry', /\b(marry|married|marries|marriage|wed(?:ded|s|ding)?)\b/i],
+    ['separate', /\b(leave|left|depart(?:ed|s|ing)?|separat(?:e|ed|es|ing)|estrang(?:ed|ement))\b/i],
+]);
+
+function memorySemanticText(value) {
+    return String(value ?? '')
+        .normalize('NFKC')
+        .toLocaleLowerCase()
+        .replace(/[\p{P}\p{S}]+/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 1200);
+}
+
+function memorySemanticParts(value) {
+    const text = memorySemanticText(value);
+    const tokens = text.split(/\s+/).filter(token => token.length >= 2 && !MEMORY_STOP_WORDS.has(token));
+    const tokenSet = new Set(tokens);
+    const events = new Set(MEMORY_EVENT_GROUPS.filter(([, pattern]) => pattern.test(text)).map(([name]) => name));
+    return { text, tokens, tokenSet, events };
+}
+
+function memoryIntersectionSize(left, right) {
+    let count = 0;
+    for (const token of left) if (right.has(token)) count += 1;
+    return count;
+}
+
+export function memoriesSemanticallyDuplicate(a, b) {
+    const left = memorySemanticParts(a);
+    const right = memorySemanticParts(b);
+    if (!left.text || !right.text) return false;
+    if (left.text === right.text) return true;
+    if (Math.min(left.text.length, right.text.length) >= 28 && (left.text.includes(right.text) || right.text.includes(left.text))) return true;
+    const shared = memoryIntersectionSize(left.tokenSet, right.tokenSet);
+    const union = new Set([...left.tokenSet, ...right.tokenSet]).size || 1;
+    const jaccard = shared / union;
+    const sharedEvent = [...left.events].some(event => right.events.has(event));
+    const isEventToken = token => MEMORY_EVENT_GROUPS.some(([, pattern]) => pattern.test(token));
+    const sharedAnchors = [...left.tokenSet].filter(token => right.tokenSet.has(token) && !isEventToken(token)).length;
+    // A shared event verb plus three concrete anchors (typically actor/target/object/place)
+    // is strong enough to tolerate richer paraphrasing. Requiring three anchors avoids
+    // collapsing two separate rescues merely because the same pair of people is involved.
+    if (sharedEvent && sharedAnchors >= 3 && jaccard >= 0.28) return true;
+    return shared >= 4 && jaccard >= 0.70;
+}
+
+function memoryInformationScore(value) {
+    const parts = memorySemanticParts(value);
+    return parts.tokenSet.size * 8 + parts.events.size * 4 + Math.min(120, parts.text.length) / 20;
+}
+
+export function normalizeMemoryEntries(value, max = MEMORY_LIMIT, itemMax = 700) {
+    const input = Array.isArray(value) ? value : (value == null ? [] : [value]);
+    const out = [];
+    for (const raw of input) {
+        const clean = collectionEntry(raw, itemMax);
+        if (!clean) continue;
+        const duplicateIndex = out.findIndex(existing => memoriesSemanticallyDuplicate(existing, clean));
+        if (duplicateIndex >= 0) {
+            // Keep the richer of two paraphrases rather than spending two memory slots on
+            // the same event. Equal-information ties preserve the earlier established wording.
+            if (memoryInformationScore(clean) > memoryInformationScore(out[duplicateIndex]) + 1) out[duplicateIndex] = clean;
+            continue;
+        }
+        out.push(clean);
+        if (out.length >= max) break;
+    }
+    return out.slice(0, max);
+}
+
 function keyRelationshipEntry(value, itemMax = 500) {
     if (value && typeof value === 'object' && !Array.isArray(value)) {
         const pick = (keys, max = 240) => {
@@ -481,7 +571,7 @@ export function normalizeNpc(input = {}, options = {}) {
         profileEvolutionEvidence,
         background: text(input.background, 1600),
         keyRelationships: normalizeKeyRelationshipEntries(input.keyRelationships, DOSSIER_LIMIT_MAXIMUMS.keyRelationships, 500),
-        memories: list(input.memories, DOSSIER_LIMIT_MAXIMUMS.memories, 700),
+        memories: normalizeMemoryEntries(input.memories, DOSSIER_LIMIT_MAXIMUMS.memories, 700),
         relationship,
         relationshipProgress,
         relationshipEvidenceHistory,

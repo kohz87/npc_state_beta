@@ -16,6 +16,7 @@ import {
     normalizeDossierLimits,
     normalizeFamilySlots,
     normalizeKeyRelationshipEntries,
+    normalizeMemoryEntries,
     normalizeName,
     normalizeNpc,
     normalizeProfileEvolutionEvidence,
@@ -184,6 +185,7 @@ function dossierCollectionRules(limits) {
         '- Never exceed the configured limit for that collection. When full, a more important or more current entry should displace a lower-value one.',
         '- For behaviorProfile, mannerisms, and memories, use [] only when evidence supports deliberately clearing the whole collection. For keyRelationships, [] means no relationship additions/changes; it never clears existing ties.',
         '- Keep individual collection entries concise, grounded, and independently useful later.',
+        '- MEMORY SEMANTIC HYGIENE: Important Memories represent distinct durable events/facts, not paraphrase logs. If two candidate memories describe the same event with the same participants/outcome, return one concise richest version. Do not merge merely because the same people or topic recur: rescue and later training, two different promises, or separate injuries remain separate memories.',
         '- For significant NPC-to-NPC relationships, especially explicit family, kinship, spouse, guardian, or dependent ties, keyRelationships is mandatory dossier data. When such a tie is established, include the other NPC by name and the directional relationship from THIS NPC perspective in each involved NPC keyRelationships whenever that NPC has a returned dossier. socialEdges is complementary graph data and MUST NOT substitute for keyRelationships. For an EXISTING NPC, revealing or changing a significant tie is a material keyRelationships change: return the affected counterpart entry; omitted existing counterparts are preserved by NPC State. Remove an established tie only through keyRelationshipChanges with action remove and explicit evidence.',
         '- KeyRelationships entries MUST be strings, never objects. Use the canonical form Other NPC name - relationship from THIS NPC perspective, for example Mira - sister or Tomas - father. A short clarifying note may follow after a colon when useful.',
     ];
@@ -907,7 +909,7 @@ function applyDynamicPatch(npc, patch, options = {}) {
     // applyRelationshipChange so a blocked/duplicate/unsupported event cannot rewrite it.
     if (Array.isArray(patch?.memories)) {
         const limits = normalizeDossierLimits(options.dossierLimits);
-        next.memories = appendUnique([], patch.memories, limits.memories);
+        next.memories = normalizeMemoryEntries(patch.memories, limits.memories, 700);
     }
     return next;
 }
