@@ -158,7 +158,7 @@ jobs:
 
       - name: Commit generated beta runtime
         run: |
-          if git diff --quiet; then
+          if git diff --quiet -- v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md; then
             echo "Generated beta runtime already matches build output."
             exit 0
           fi
