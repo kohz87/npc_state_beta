@@ -135,7 +135,9 @@ const mira = state => state.npcs.find(npc => npc.id === 'npc-mira-p3');
     const engine = fs.readFileSync(new URL('../v03/engine.js', import.meta.url), 'utf8');
     assert(schema.includes('normalizeProfileEvolutionEvidence'), 'Profile evidence normalizer missing');
     assert(scanner.includes('profileEvolutionDecision') && scanner.includes('PROFILE_TIME_SKIP_CUES'), 'Profile evolution backend gates missing');
-    assert(engine.includes('profileContextForWindow') && engine.includes('profileContext: relationshipContextForExchange(exchange)'), 'Profile grounding context is not wired');
+    const currentProfileContextWired = engine.includes('profileContext: relationshipContextForExchange(exchange)')
+        || engine.includes('profileContext: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value))');
+    assert(engine.includes('profileContextForWindow') && currentProfileContextWired, 'Profile grounding context is not wired');
 }
 
 console.log('NPC State 0.4.2 phase 3 durable profile evolution verification passed');
