@@ -18,9 +18,11 @@ on:
       - beta/fix-0.4.1-prelock-stale-embedded.mjs
       - beta/fix-0.4.1-missing-embedded-fallback.mjs
       - beta/fix-0.4.1-status-semantics.mjs
+      - beta/fix-0.4.1-new-npc-id-authority.mjs
       - beta/verify-0.4.1.mjs
       - beta/verify-final-0.4.1.mjs
       - beta/verify-status-semantics-0.4.1.mjs
+      - beta/verify-new-npc-id-authority-0.4.1.mjs
       - .github/workflows/seed-beta.yml
 
 permissions:
@@ -65,6 +67,7 @@ jobs:
           node beta/fix-0.4.1-prelock-stale-embedded.mjs
           node beta/fix-0.4.1-missing-embedded-fallback.mjs
           node beta/fix-0.4.1-status-semantics.mjs
+          node beta/fix-0.4.1-new-npc-id-authority.mjs
 
       - name: Syntax gate
         run: |
@@ -77,6 +80,7 @@ jobs:
           node beta/verify-0.4.1.mjs
           node beta/verify-final-0.4.1.mjs
           node beta/verify-status-semantics-0.4.1.mjs
+          node beta/verify-new-npc-id-authority-0.4.1.mjs
 
       - name: Architecture and migration gate
         run: |
@@ -98,6 +102,8 @@ jobs:
           grep -q "status is the NPC current concrete activity" v03/injection.js
           grep -q "normalizeCurrentStatus" v03/schema.js
           grep -q "Activity / condition" v03/dossier-view.js
+          grep -q "Never invent an npc-\* id" v03/injection.js
+          grep -q "id: makeNpcId(name" v03/scanner.js
           grep -q "expectedMessageText" v03/engine.js
           grep -q "expectedMessageText: consumed.cleanedText" v03/index.js
           grep -q "applyRelationship: !alreadyScannedMessage" v03/engine.js
