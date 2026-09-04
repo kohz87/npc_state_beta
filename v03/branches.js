@@ -144,10 +144,21 @@ export function recordCheckpoint(state, chat, messageId, reason = 'scan') {
         createdAt: Date.now(),
         snapshot: snapshotForCheckpoint(next),
     };
-    // One current rollback snapshot per assistant message id. Swipe/regeneration variants
-    // replace that message's checkpoint instead of consuming the entire 48-entry window.
-    next.checkpoints = next.checkpoints.filter(item => item.messageId !== messageId);
-    next.checkpoints.push(checkpoint);
+    // Keep several exact content-lineage siblings for one assistant message instead of
+    // collapsing every swipe/regeneration onto a single rollback slot. The cap prevents a
+    // swipe-heavy message from consuming the whole global checkpoint window. The embedded
+    // per-swipe payload remains the fallback after an older sibling snapshot is evicted.
+    const siblingLimit = 4;
+    const exact = next.checkpoints.findIndex(item => item.messageId === messageId && arraysEqual(item.lineage || [], lineage));
+    if (exact >= 0) next.checkpoints[exact] = checkpoint;
+    else next.checkpoints.push(checkpoint);
+    const siblings = next.checkpoints
+        .filter(item => item.messageId === messageId)
+        .sort((a, b) => b.createdAt - a.createdAt);
+    const evictedSiblingKeys = new Set(siblings.slice(siblingLimit).map(item => JSON.stringify(item.lineage || [])));
+    if (evictedSiblingKeys.size) {
+        next.checkpoints = next.checkpoints.filter(item => item.messageId !== messageId || !evictedSiblingKeys.has(JSON.stringify(item.lineage || [])));
+    }
     next.checkpoints.sort((a, b) => a.lineage.length - b.lineage.length || a.createdAt - b.createdAt);
     if (next.checkpoints.length > CHECKPOINT_LIMIT) next.checkpoints.splice(0, next.checkpoints.length - CHECKPOINT_LIMIT);
     next.branchHeadLineage = chatLineage(chat);
