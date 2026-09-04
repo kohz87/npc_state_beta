@@ -49,4 +49,18 @@ replaceRequired(
     '0.4.1 dossier form presentation assertions',
 );
 
-console.log('Made legacy appearance verifiers compatible with 0.4.5 two-surface presentation');
+const settingsVerifier = 'beta/verify-phase9-settings-categories-0.4.4.mjs';
+replaceRequired(
+    settingsVerifier,
+    "assert(manifest.version === '0.4.4', 'Manifest was not bumped to 0.4.4');\nassert(ui.includes('NPC State <span class=\"npc-state-version\">0.4.4</span>'), 'Settings header does not show v0.4.4');",
+    "assert(/^0\\.4\\.(?:[4-9]|[1-9]\\d+)$/.test(manifest.version), 'Manifest is older than the v0.4.4 settings release');\nassert(ui.includes('NPC State <span class=\"npc-state-version\">' + manifest.version + '</span>'), 'Settings header does not match current manifest version');",
+    '0.4.4 manifest/header version assertions',
+);
+replaceRequired(
+    settingsVerifier,
+    "assert(readme.startsWith('# NPC State Beta 0.4.4'), 'README version header was not bumped');",
+    "assert(readme.startsWith('# NPC State Beta ' + manifest.version), 'README version header does not match current manifest version');",
+    '0.4.4 README version assertion',
+);
+
+console.log('Made legacy appearance and settings verifiers compatible with 0.4.5');
