@@ -15,7 +15,7 @@ import {
     normalizePortraitPromptSettings,
 } from './portrait-prompt.js';
 import { createPortraitPromptUi } from './portrait-ui.js';
-import { DEFAULT_RELATIONSHIP_CAPS, DOSSIER_LIMIT_DEFAULTS, NPC_STATE_VERSION, normalizeDossierLimits, normalizeNpcAdmissionMode } from './schema.js';
+import { DEFAULT_BIRTHDAY_RANDOM_CALENDAR, DEFAULT_RELATIONSHIP_CAPS, DOSSIER_LIMIT_DEFAULTS, NPC_STATE_VERSION, normalizeBirthdayFillMode, normalizeDossierLimits, normalizeNpcAdmissionMode } from './schema.js';
 import { runSharedQuietGeneration } from './shared-generation-queue.js';
 import { checkpointStorageBytes } from './branches.js';
 import { createStaleManagementUi } from './stale-ui.js';
@@ -62,6 +62,9 @@ const V3_DEFAULTS = Object.freeze({
     fallbackScan: false,
     newNpcHistoryEnrichment: true,
     newNpcAdmissionMode: 'balanced',
+    birthdayFillMode: 'off',
+    birthdayRandomCalendar: DEFAULT_BIRTHDAY_RANDOM_CALENDAR,
+    birthdayRandomDaysPerMonth: 30,
     staleManagementEnabled: true,
     staleArchiveAfter: 30,
     staleDeleteAfter: 50,
@@ -98,6 +101,9 @@ function getSettings() {
     settings.schemaVersion = SETTINGS_SCHEMA;
     settings.scanDepth = Math.max(2, Math.min(30, Math.round(Number(settings.scanDepth) || 8)));
     settings.newNpcAdmissionMode = normalizeNpcAdmissionMode(settings.newNpcAdmissionMode);
+    settings.birthdayFillMode = normalizeBirthdayFillMode(settings.birthdayFillMode);
+    settings.birthdayRandomCalendar = String(settings.birthdayRandomCalendar ?? DEFAULT_BIRTHDAY_RANDOM_CALENDAR).slice(0, 6000);
+    settings.birthdayRandomDaysPerMonth = Math.max(1, Math.min(999, Math.round(Number(settings.birthdayRandomDaysPerMonth) || 30)));
     settings.injectDepth = Math.max(0, Math.min(20, Math.round(Number(settings.injectDepth) || 1)));
     settings.injectLimit = Math.max(1, Math.min(20, Math.round(Number(settings.injectLimit) || 6)));
     settings.injectBudgetTokens = Math.max(256, Math.min(8000, Math.round(Number(settings.injectBudgetTokens) || 1800)));

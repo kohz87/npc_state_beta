@@ -8,11 +8,13 @@ import {
 } from './bundle.js';
 import {
     DEFAULT_RELATIONSHIP_CAPS,
+    applyBirthdayFill,
     createEmptyState,
     findNpcByReference,
     makeNpcId,
     normalizeName,
     normalizeNpc,
+    normalizeBirthdayFillMode,
     normalizeRelationship,
     normalizeRelationshipMilestones,
     normalizeState,
@@ -622,6 +624,28 @@ export function createNpcStateEngine(adapters = {}) {
         }, { checkpointReason: 'manual-edit' });
     }
 
+    async function fillMissingBirthdays() {
+        const settings = getSettings();
+        const mode = normalizeBirthdayFillMode(settings.birthdayFillMode);
+        if (mode === 'off') return { ok: false, reason: 'fill-disabled' };
+        return mutate('birthday-fill', state => {
+            let filled = 0;
+            state.npcs = state.npcs.map(raw => {
+                if (String(raw?.birthday || '').trim()
+                    || (raw?.manualProfileFields || []).includes('birthday')
+                    || String(raw?.birthdayProvenance || '').toLocaleLowerCase() === 'manual') return raw;
+                const next = normalizeNpc(applyBirthdayFill(raw, {
+                    mode,
+                    calendar: settings.birthdayRandomCalendar,
+                    fallbackDays: settings.birthdayRandomDaysPerMonth,
+                }));
+                if (!String(raw?.birthday || '').trim() && String(next?.birthday || '').trim()) filled += 1;
+                return next;
+            });
+            return { filled };
+        }, { checkpointReason: 'birthday-fill' });
+    }
+
     async function archiveNpc(reference, archived = true, reason = 'manual') {
         return mutate(archived ? 'archive' : 'restore', state => {
             const npc = findNpcByReference(state, reference);
@@ -917,6 +941,7 @@ export function createNpcStateEngine(adapters = {}) {
         importStructuredDossier,
         addNpc,
         updateNpc,
+        fillMissingBirthdays,
         archiveNpc,
         resetNpcStaleness,
         deleteNpc,

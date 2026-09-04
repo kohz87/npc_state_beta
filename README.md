@@ -23,6 +23,13 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 - Maturation is conservative and lore-aware rather than species-name hard-coded: ordinary, accelerated, long-lived, ageless, or unknown. Unknown fantasy species do not silently inherit human aging. Insignificant adult birthdays, long-lived intervals, and ageless beings may correctly produce no visible change.
 - Age-linked revisions reuse `apparentAge`, `canonChanges` mode `age_progression`, and `appearanceFormChanges` mode `age_progression`. The backend requires an accepted forward age transition, a visually meaningful interval, the correct shared/form channel, and preservation of unrelated canonical traits.
 
+## Passive birthday continuity
+
+- Dossiers may store an optional freeform `birthday` such as `14 Frostwane`, `March 12`, or `Unknown`. It is continuity metadata only: NPC State never derives it from age, derives age from it, watches the calendar, increments age when it passes, or lets it trigger maturation without an independently accepted birthday/elapsed age transition in narration.
+- Grounded story canon may establish a blank birthday. Explicit/manual birthdays are durable scalar canon; later correction requires evidence-backed `canonChanges` with `field: "birthday"` and `mode: "correction"`. Manual stable-profile locks include Birthday.
+- **Birthday fill** is optional and defaults Off. `Unknown` fills blank participating dossiers with `Unknown`; `Random` assigns one deterministic stable date from the configured calendar. The default calendar is an editable Gregorian month pool, and fantasy calendars can replace it line-by-line as `Frostwane:30`, `Rainmoot:28`, etc. Lines without `:days` use the configurable fallback month length.
+- Generated birthdays are tagged internally as generated placeholders. They remain stable for continuity but yield to a later explicitly grounded birthday. A local **Fill missing birthdays** action can populate existing blank dossiers without an LLM call. Generated or manually entered birthday metadata never changes chronological age by itself.
+
 ## Testing beside stable NPC State
 
 Disable the stable NPC State extension while exercising this beta. Stable may remain installed and its settings/data remain untouched. On first load for a chat with no beta sidecar, 0.4.3 clones the stable v0.3 sidecar into a beta-owned sidecar and then diverges independently.
