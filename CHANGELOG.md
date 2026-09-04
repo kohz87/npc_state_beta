@@ -2,6 +2,7 @@
 
 ## v0.4.1
 
+- Baseline form recovery: rescanning a previously half-captured multi-form NPC can recover the legacy ordinary appearance as Base when the exchange explicitly ends back in that body, even if an alternate form such as Beast was already stored by an older scan.
 - Multi-stage form capture hardening: temporary/reversible magical or spectral body transformations can now be recorded as forms when they materially change anatomy, partial manifestation and full-beast states can both be captured from one exchange, and an existing single-form appearance is preserved as a neutral Base form when alternates first appear.
 - Form-aware appearance: multi-form NPCs now track currentForm plus durable named appearanceForms, preserve unrelated/established forms across transformations, require evidence-gated revisions for explicit physical changes, inject known forms back into relevant turns, expose form editing in dossiers, and use the current form for portrait prompts while ordinary NPC appearance remains backward-compatible.
 - Age semantics hardening: actual age is now numeric chronological data only, existing numeric ages are scanner-sticky instead of being re-estimated, recovery/Refresh prompts receive the stored age, and life-stage labels such as child/adult/elderly are rejected from age fields.
