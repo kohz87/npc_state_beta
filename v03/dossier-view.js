@@ -98,6 +98,7 @@ function identityText(npc = {}) {
         npc.role,
         npc.age ? `Actual age ${npc.age}` : '',
         npc.apparentAge ? `Looks ${npc.apparentAge}` : '',
+        npc.birthday ? `Birthday ${npc.birthday}${npc.birthdayProvenance === 'generated' ? ' · generated placeholder' : ''}` : '',
     ].filter(Boolean).join(' · ');
 }
 

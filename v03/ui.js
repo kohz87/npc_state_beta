@@ -124,6 +124,10 @@ export function createNpcStateUi(adapters = {}) {
               <label class="npc-state-setting-row"><span><b>Context depth</b><small>Older messages are profile/memory context only; relationship deltas remain current-exchange-only.</small></span><input id="npc_state_v3_scan_depth" class="text_pole npc-state-number" type="number" min="2" max="30"></label>
               <label class="npc-state-setting-row"><span><b>Enrich new NPCs from recent history</b><small>Adds a small visible-history capsule to the same foreground generation. Current exchange still decides admission, live state, and relationship changes. No extra model call.</small></span><input id="npc_state_v04_new_npc_history" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>New NPC admission</b><small>Balanced keeps current behavior. Named preferred ignores first-seen unnamed role labels. Manual prevents scanner-created dossiers while existing NPCs still update.</small></span><select id="npc_state_v04_admission" class="text_pole"><option value="balanced">Balanced</option><option value="named_preferred">Named preferred</option><option value="manual">Manual</option></select></label>
+              <label class="npc-state-setting-row"><span><b>Birthday fill</b><small>Passive metadata only. Off leaves blanks; Unknown stores Unknown; Random assigns one stable configured-calendar date. It never advances age.</small></span><select id="npc_state_v04_birthday_fill" class="text_pole"><option value="off">Off</option><option value="unknown">Unknown</option><option value="random">Random</option></select></label>
+              <label class="npc-state-setting-row"><span><b>Birthday random calendar</b><small>One month/season per line as Name or Name:days. Fantasy names are preserved exactly.</small></span><textarea id="npc_state_v04_birthday_calendar" class="text_pole" rows="5"></textarea></label>
+              <label class="npc-state-setting-row"><span><b>Fallback days per month</b><small>Used only for random-calendar lines without :days.</small></span><input id="npc_state_v04_birthday_days" class="text_pole npc-state-number" type="number" min="1" max="999"></label>
+              <div class="npc-state-setting-row"><span><b>Fill existing blanks</b><small>Populate currently blank dossiers locally with the selected policy. No model call.</small></span><button id="npc_state_v04_birthday_fill_now" class="menu_button" type="button">Fill missing birthdays</button></div>
               <label class="npc-state-setting-row"><span><b>Inject in-chat NPCs</b><small>Injects individually relevant in-chat NPCs, not incidental background bodies.</small></span><input id="npc_state_v3_inject" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Injection budget</b><small>Approximate token budget.</small></span><input id="npc_state_v3_inject_budget" class="text_pole npc-state-number" type="number" min="256" max="8000" step="100"></label>
               <label class="npc-state-setting-row"><span><b>Rescan changed branches</b><small>Restores tracked swipes locally from checkpoints/payloads. Edited or untracked branches use the separate recovery scanner when needed.</small></span><input id="npc_state_v3_branch_rescan" type="checkbox"></label>
@@ -155,6 +159,9 @@ export function createNpcStateUi(adapters = {}) {
         panel.querySelector('#npc_state_v3_scan_depth').value = settings.scanDepth;
         panel.querySelector('#npc_state_v04_new_npc_history').checked = settings.newNpcHistoryEnrichment !== false;
         panel.querySelector('#npc_state_v04_admission').value = settings.newNpcAdmissionMode || 'balanced';
+        panel.querySelector('#npc_state_v04_birthday_fill').value = settings.birthdayFillMode || 'off';
+        panel.querySelector('#npc_state_v04_birthday_calendar').value = settings.birthdayRandomCalendar || '';
+        panel.querySelector('#npc_state_v04_birthday_days').value = settings.birthdayRandomDaysPerMonth || 30;
         panel.querySelector('#npc_state_v3_inject').checked = settings.inject !== false;
         panel.querySelector('#npc_state_v3_inject_budget').value = settings.injectBudgetTokens;
         panel.querySelector('#npc_state_v3_branch_rescan').checked = settings.branchRescan !== false;
@@ -185,6 +192,32 @@ export function createNpcStateUi(adapters = {}) {
             getSettings().newNpcAdmissionMode = ['balanced', 'named_preferred', 'manual'].includes(value) ? value : 'balanced';
             event.target.value = getSettings().newNpcAdmissionMode;
             persistSettings(); onSettingsChanged();
+        });
+        panel.querySelector('#npc_state_v04_birthday_fill')?.addEventListener('change', event => {
+            const value = String(event.target.value || 'off');
+            getSettings().birthdayFillMode = ['off', 'unknown', 'random'].includes(value) ? value : 'off';
+            event.target.value = getSettings().birthdayFillMode;
+            persistSettings(); onSettingsChanged();
+        });
+        panel.querySelector('#npc_state_v04_birthday_calendar')?.addEventListener('change', event => {
+            getSettings().birthdayRandomCalendar = String(event.target.value || '').slice(0, 6000);
+            event.target.value = getSettings().birthdayRandomCalendar;
+            persistSettings();
+        });
+        panel.querySelector('#npc_state_v04_birthday_days')?.addEventListener('change', event => {
+            getSettings().birthdayRandomDaysPerMonth = Math.max(1, Math.min(999, Math.round(Number(event.target.value) || 30)));
+            event.target.value = getSettings().birthdayRandomDaysPerMonth;
+            persistSettings();
+        });
+        panel.querySelector('#npc_state_v04_birthday_fill_now')?.addEventListener('click', async event => {
+            event.currentTarget.disabled = true;
+            const result = await safely('birthday fill', () => engine.fillMissingBirthdays());
+            event.currentTarget.disabled = false;
+            if (result.ok) {
+                const filled = Number(result.result?.filled) || 0;
+                notify('success', 'NPC State: filled ' + filled + ' missing birthday' + (filled === 1 ? '' : 's') + ' locally.');
+            } else if (result.reason === 'fill-disabled') notify('info', 'NPC State: choose Unknown or Random birthday fill first.');
+            refresh();
         });
         bindCheck('#npc_state_v3_inject', 'inject');
         bindCheck('#npc_state_v3_branch_rescan', 'branchRescan');
@@ -406,7 +439,7 @@ export function createNpcStateUi(adapters = {}) {
         const rel = npc.relationship || {};
         const field = (label, id, value, wide = false) => `<label class="${wide ? 'npc-state-v3-editor-wide' : ''}">${label}<input id="${id}" class="text_pole" value="${escapeHtml(value || '')}"></label>`;
         return `<div class="npc-state-v3-editor-shell" data-npc-id="${escapeHtml(npc.id)}" data-updated-at="${Number(npc.updatedAt) || 0}"><header><div><span class="npc-state-kicker">EDIT DOSSIER</span><h2>${escapeHtml(npc.name)}</h2></div><button class="npc-state-v3-editor-close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></header><div class="npc-state-v3-editor-grid">
-          ${field('Name', 'npc_state_v3_edit_name', npc.name)}${field('Role', 'npc_state_v3_edit_role', npc.role)}${field('Species / race', 'npc_state_v3_edit_species', npc.species)}${field('Age', 'npc_state_v3_edit_age', npc.age)}${field('Apparent age', 'npc_state_v3_edit_apparent_age', npc.apparentAge)}
+          ${field('Name', 'npc_state_v3_edit_name', npc.name)}${field('Role', 'npc_state_v3_edit_role', npc.role)}${field('Species / race', 'npc_state_v3_edit_species', npc.species)}${field('Age', 'npc_state_v3_edit_age', npc.age)}${field('Apparent age', 'npc_state_v3_edit_apparent_age', npc.apparentAge)}${field('Birthday', 'npc_state_v3_edit_birthday', npc.birthday)}
           <label class="npc-state-v3-editor-wide">Personality<textarea id="npc_state_v3_edit_personality" class="text_pole" rows="3">${escapeHtml(npc.personality)}</textarea></label><label class="npc-state-v3-editor-wide">Behavioral profile · one per line<textarea id="npc_state_v3_edit_behavior" class="text_pole" rows="5">${escapeHtml((npc.behaviorProfile || []).join('\n'))}</textarea></label><label class="npc-state-v3-editor-wide">Speech<textarea id="npc_state_v3_edit_speech" class="text_pole" rows="3">${escapeHtml(npc.speech)}</textarea></label><label class="npc-state-v3-editor-wide">Appearance · shared/common or ordinary single form<textarea id="npc_state_v3_edit_appearance" class="text_pole" rows="5">${escapeHtml(npc.appearance)}</textarea></label>${field('Current physical form', 'npc_state_v3_edit_current_form', npc.currentForm)}<label class="npc-state-v3-editor-wide">Appearance forms · one per line as Form | description<textarea id="npc_state_v3_edit_appearance_forms" class="text_pole" rows="6">${escapeHtml(appearanceFormsEditorText(npc))}</textarea></label><label class="npc-state-v3-editor-wide">Background<textarea id="npc_state_v3_edit_background" class="text_pole" rows="4">${escapeHtml(npc.background)}</textarea></label><label class="npc-state-v3-editor-wide">Mannerisms · one per line<textarea id="npc_state_v3_edit_mannerisms" class="text_pole" rows="4">${escapeHtml((npc.mannerisms || []).join('\n'))}</textarea></label><label class="npc-state-v3-editor-wide">Key relationships · one per line<textarea id="npc_state_v3_edit_key_relationships" class="text_pole" rows="4">${escapeHtml((npc.keyRelationships || []).join('\n'))}</textarea></label>
           ${field('Mood', 'npc_state_v3_edit_mood', npc.mood)}${field('Location', 'npc_state_v3_edit_location', npc.location)}${field('Goal', 'npc_state_v3_edit_goal', npc.goal)}${field('Activity / condition', 'npc_state_v3_edit_status', npc.status)}<label class="npc-state-v3-editor-wide">Relationship summary<textarea id="npc_state_v3_edit_relationship_summary" class="text_pole" rows="3">${escapeHtml(npc.relationshipSummary)}</textarea></label><label class="npc-state-v3-editor-wide">Important memories · one per line<textarea id="npc_state_v3_edit_memories" class="text_pole" rows="5">${escapeHtml((npc.memories || []).join('\n'))}</textarea></label>
           ${field('Trust', 'npc_state_v3_edit_trust', rel.trust)}${field('Affection', 'npc_state_v3_edit_affection', rel.affection)}${field('Desire', 'npc_state_v3_edit_desire', rel.desire)}${field('Tension', 'npc_state_v3_edit_tension', rel.tension)}
@@ -442,9 +475,9 @@ export function createNpcStateUi(adapters = {}) {
         const value = fieldId => overlay.querySelector(`#${fieldId}`)?.value ?? '';
         const clamp = fieldId => Math.max(-100, Math.min(100, Math.round(Number(value(fieldId)) || 0)));
         const limits = normalizeDossierLimits(getSettings().dossierLimits);
-        const stableFields = ['name', 'role', 'species', 'age', 'apparentAge', 'personality', 'behaviorProfile', 'speech', 'appearance', 'appearanceForms', 'background', 'mannerisms', 'keyRelationships'];
+        const stableFields = ['name', 'role', 'species', 'age', 'apparentAge', 'birthday', 'personality', 'behaviorProfile', 'speech', 'appearance', 'appearanceForms', 'background', 'mannerisms', 'keyRelationships'];
         const patch = {
-            name: value('npc_state_v3_edit_name').trim(), role: value('npc_state_v3_edit_role'), species: value('npc_state_v3_edit_species'), age: value('npc_state_v3_edit_age'), apparentAge: value('npc_state_v3_edit_apparent_age'),
+            name: value('npc_state_v3_edit_name').trim(), role: value('npc_state_v3_edit_role'), species: value('npc_state_v3_edit_species'), age: value('npc_state_v3_edit_age'), apparentAge: value('npc_state_v3_edit_apparent_age'), birthday: value('npc_state_v3_edit_birthday').trim(), birthdayProvenance: 'manual',
             personality: value('npc_state_v3_edit_personality'), behaviorProfile: splitLines(value('npc_state_v3_edit_behavior'), limits.behaviorProfile), speech: value('npc_state_v3_edit_speech'), appearance: value('npc_state_v3_edit_appearance'), currentForm: value('npc_state_v3_edit_current_form').trim(), appearanceForms: parseAppearanceForms(value('npc_state_v3_edit_appearance_forms')), background: value('npc_state_v3_edit_background'), mannerisms: splitLines(value('npc_state_v3_edit_mannerisms'), limits.mannerisms), keyRelationships: splitLines(value('npc_state_v3_edit_key_relationships'), limits.keyRelationships),
             mood: value('npc_state_v3_edit_mood'), location: value('npc_state_v3_edit_location'), goal: value('npc_state_v3_edit_goal'), status: value('npc_state_v3_edit_status'), relationshipSummary: value('npc_state_v3_edit_relationship_summary'), memories: splitLines(value('npc_state_v3_edit_memories'), limits.memories),
             relationship: { trust: clamp('npc_state_v3_edit_trust'), affection: clamp('npc_state_v3_edit_affection'), desire: clamp('npc_state_v3_edit_desire'), tension: clamp('npc_state_v3_edit_tension') },
