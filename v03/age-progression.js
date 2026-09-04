@@ -111,7 +111,8 @@ function signature(value) {
         }
         const descriptors = new Set();
         for (const index of positions) {
-            for (let j = Math.max(0, index - 2); j <= Math.min(tokens.length - 1, index + 3); j += 1) {
+            const afterWindow = name === 'scar' ? 4 : 3;
+            for (let j = Math.max(0, index - 2); j <= Math.min(tokens.length - 1, index + afterWindow); j += 1) {
                 if (j === index) continue;
                 const token = tokens[j];
                 if (token.length < 3 || connectorWords.has(token) || sizeWords.has(token) || COLORS.has(token) || TARGETS.has(token)) continue;
