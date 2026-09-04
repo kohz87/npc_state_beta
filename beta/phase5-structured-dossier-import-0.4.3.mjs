@@ -222,17 +222,9 @@ fs.writeFileSync('v03/engine.js', engine);
 
 // 5D: expose the deliberate operation in the dossier More menu and public API.
 let dossier = fs.readFileSync('v03/dossier-view.js', 'utf8');
-dossier = replaceRequired(
-    dossier,
-`          <details class="npc-state-v3-dossier-more"><summary><i class="fa-solid fa-ellipsis"></i><span>More</span></summary><div>
-            <button class="menu_button npc-state-v3-generate-image-prompt" data-npc-id="${escapeHtml(npc.id)}"><i class="fa-solid fa-image"></i> Generate image prompt</button>
-`,
-`          <details class="npc-state-v3-dossier-more"><summary><i class="fa-solid fa-ellipsis"></i><span>More</span></summary><div>
-            <button class="menu_button npc-state-v3-import-structured" data-npc-id="${escapeHtml(npc.id)}"><i class="fa-solid fa-file-import"></i> Import New_NPC / NPC_Update</button>
-            <button class="menu_button npc-state-v3-generate-image-prompt" data-npc-id="${escapeHtml(npc.id)}"><i class="fa-solid fa-image"></i> Generate image prompt</button>
-`,
-    'dossier import button',
-);
+const dossierOld = '          <details class="npc-state-v3-dossier-more"><summary><i class="fa-solid fa-ellipsis"></i><span>More</span></summary><div>\n            <button class="menu_button npc-state-v3-generate-image-prompt" data-npc-id="${escapeHtml(npc.id)}"><i class="fa-solid fa-image"></i> Generate image prompt</button>\n';
+const dossierNew = '          <details class="npc-state-v3-dossier-more"><summary><i class="fa-solid fa-ellipsis"></i><span>More</span></summary><div>\n            <button class="menu_button npc-state-v3-import-structured" data-npc-id="${escapeHtml(npc.id)}"><i class="fa-solid fa-file-import"></i> Import New_NPC / NPC_Update</button>\n            <button class="menu_button npc-state-v3-generate-image-prompt" data-npc-id="${escapeHtml(npc.id)}"><i class="fa-solid fa-image"></i> Generate image prompt</button>\n';
+dossier = replaceRequired(dossier, dossierOld, dossierNew, 'dossier import button');
 fs.writeFileSync('v03/dossier-view.js', dossier);
 
 let ui = fs.readFileSync('v03/ui.js', 'utf8');
