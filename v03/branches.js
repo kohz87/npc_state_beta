@@ -226,7 +226,7 @@ function preserveCurrentPresentation(restored, current) {
         for (const field of locked) {
             if (stableFields.has(field)) next[field] = structuredClone(live[field]);
         }
-        // Importance became editor-owned in 0.4.5, so branch history must not undo it.
+        // Importance became editor-owned in 0.4.6, so branch history must not undo it.
         next.importance = Number(live.importance) || 0;
         return next;
     });

@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.4.6
+
+- Fixes the timeline-rebase recovery control after the categorized settings redesign. When branch safety requires an explicit rebase, the warning and **Rebase to current chat** action now mount inside **Recovery & Branch Safety**, which is opened automatically while recovery is required.
+
 ## v0.4.5
 
 - Simplifies appearance presentation to two authoritative reader-facing surfaces: resolved Current appearance and the complete Appearance forms registry. Redundant standalone Current form and Shared / ordinary appearance lines are removed from dossier display and foreground continuity while all underlying storage, editing, form synchronization, age progression, portrait, and scanner safeguards remain unchanged.

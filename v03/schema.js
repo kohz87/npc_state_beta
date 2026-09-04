@@ -1,4 +1,4 @@
-export const NPC_STATE_VERSION = '0.4.5';
+export const NPC_STATE_VERSION = '0.4.6';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export const NPC_ADMISSION_MODES = Object.freeze(['balanced', 'named_preferred', 'manual']);
 export function normalizeNpcAdmissionMode(value) {

@@ -32,16 +32,22 @@ function ensureStyles() {
     globalThis.document.head?.appendChild?.(style);
 }
 
+function recoveryGroup() {
+    return globalThis.document?.getElementById?.('npc_state_v04_recovery_branch') || null;
+}
+
 function hostForBanner() {
     const panel = globalThis.document?.getElementById?.(PANEL_ID);
-    return panel?.querySelector?.('.npc-state-v3-tracking-section') || panel?.querySelector?.('.npc-state-drawer') || null;
+    const recovery = recoveryGroup();
+    return recovery?.querySelector?.('.npc-state-v3-settings-group-body')
+        || recovery
+        || panel?.querySelector?.('.npc-state-drawer')
+        || null;
 }
 
 function placeBanner(host, banner) {
     if (!host || !banner || banner.parentElement === host) return;
-    const heading = host.querySelector?.('.npc-state-v3-settings-card-title');
-    if (heading?.nextSibling) host.insertBefore(banner, heading.nextSibling);
-    else host.prepend?.(banner);
+    host.prepend?.(banner);
 }
 
 async function rebaseCurrentChat() {
@@ -65,10 +71,10 @@ async function rebaseCurrentChat() {
     } catch (error) {
         const rebasedState = state();
         if (rebasedState?.branchSafety?.status === 'safe') {
-            console.warn('[NPC State v0.4.5] timeline rebase committed, but the follow-up scan failed', error);
+            console.warn('[NPC State v0.4.6] timeline rebase committed, but the follow-up scan failed', error);
             globalThis.toastr?.warning?.(`NPC State: timeline rebased successfully, but the latest exchange scan failed. Use Scan current cast to retry. ${error?.message || error}`);
         } else {
-            console.error('[NPC State v0.4.5] timeline rebase failed safely', error);
+            console.error('[NPC State v0.4.6] timeline rebase failed safely', error);
             globalThis.toastr?.error?.(`NPC State: timeline rebase failed without replacing your durable dossiers. ${error?.message || error}`);
         }
     } finally {
@@ -87,6 +93,9 @@ export function renderBranchRecoveryUi() {
         existing?.remove?.();
         return false;
     }
+
+    const recovery = recoveryGroup();
+    if (recovery && 'open' in recovery) recovery.open = true;
 
     const kind = String(current.branchSafety?.kind || '');
     let banner = existing;
