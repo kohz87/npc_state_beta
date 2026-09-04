@@ -21,6 +21,20 @@ replaceRequired(
     'phase8 dossier appearance assertion',
 );
 
+const phase8ContractVerifier = 'beta/verify-phase8c-age-progression-contracts-0.4.3.mjs';
+replaceRequired(
+    phase8ContractVerifier,
+    "assert(injection.includes('Shared / ordinary appearance: ' + npc.appearance), 'Foreground continuity does not expose stored shared/ordinary appearance separately');",
+    "assert(!injection.includes('Shared / ordinary appearance:'), 'Foreground continuity still exposes redundant stored shared/ordinary appearance');\nassert(injection.includes('Appearance forms:'), 'Foreground continuity lost the form registry while compacting appearance');",
+    'phase8C foreground shared appearance assertion',
+);
+replaceRequired(
+    phase8ContractVerifier,
+    "assert(dossier.includes('Shared / ordinary appearance'), 'Dossier missing Shared / ordinary appearance label');\nassert(dossier.includes('Appearance forms'), 'Dossier missing Appearance forms registry');",
+    "assert(!dossier.includes('Shared / ordinary appearance'), 'Dossier still exposes redundant Shared / ordinary appearance label');\nassert(dossier.includes('Appearance forms'), 'Dossier missing Appearance forms registry');",
+    'phase8C dossier shared appearance assertion',
+);
+
 const legacyFormVerifier = 'beta/verify-form-aware-appearance-0.4.1.mjs';
 replaceRequired(
     legacyFormVerifier,
