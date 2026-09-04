@@ -2,6 +2,7 @@
 
 ## v0.4.3
 
+- Phase 2 makes ordinary Appearance, Species, Background, and Role durable scalar canon with an explicit evidence-backed canonChanges revision channel. Scanner-supplied importance can no longer ratchet dossier priority upward; stored importance remains user/editor-owned while foreground selection uses computed runtime salience from In-chat/current activity plus that manual preference.
 - Phase 1 replaces raw player-relationship meter injection with a compact qualitative lens and reserves most dynamic prompt budget for likely-relevant full dossiers. Large identity directories and optional new-NPC history can no longer starve In-chat continuity, while exact numeric relationship values remain private backend state for gates, inertia, and scoring.
 - Begins the phased v0.4.3 continuity, durability, structured-source, and observability pass. Each phase is applied and verified independently on top of the complete v0.4.2 chain.
 

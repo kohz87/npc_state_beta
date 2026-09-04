@@ -204,7 +204,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
             id: 'existing id when known, otherwise empty',
             name: 'human-facing canonical proper name when known; readable role label only if genuinely unnamed; never npc-*',
             aliases: [], role: '', species: '', age: 'initial actual chronological numeric age only, or same-value refinement; use ageChange for an established age changing', ageChange: { age: 'new actual chronological age', kind: 'birthday|elapsed|correction', evidence: 'explicit grounded age-change evidence that states the new age' }, apparentAge: '~N only, e.g. ~25, or empty', appearance: 'shared/common appearance, or ordinary single-form appearance', currentForm: 'current named physical form or empty', appearanceForms: [{ name: 'newly established physical form', appearance: 'durable canonical appearance for this form' }], appearanceFormChanges: [{ name: 'existing form explicitly corrected/changed', appearance: 'replacement canonical appearance', evidence: 'explicit current-exchange correction/growth/change evidence' }], personality: '',
-            behaviorProfile: [], speech: '', mannerisms: [], keyRelationshipChanges: [{ other: 'existing NPC name/id', action: 'remove', evidence: 'explicit evidence the durable tie no longer applies' }], profileChanges: [{ field: 'personality|behaviorProfile|speech|mannerisms', mode: 'refine|gradual|explicit|batch', concept: 'short stable concept label', evidence: 'grounded evidence for this durable profile update' }], background: '', keyRelationships: [], memories: [],
+            behaviorProfile: [], speech: '', mannerisms: [], keyRelationshipChanges: [{ other: 'existing NPC name/id', action: 'remove', evidence: 'explicit evidence the durable tie no longer applies' }], profileChanges: [{ field: 'personality|behaviorProfile|speech|mannerisms', mode: 'refine|gradual|explicit|batch', concept: 'short stable concept label', evidence: 'grounded evidence for this durable profile update' }], canonChanges: [{ field: 'appearance|species|background|role', mode: 'refine|change|correction|revelation', value: 'replacement durable canon', evidence: 'grounded evidence for this durable scalar revision' }], background: '', keyRelationships: [], memories: [],
             relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0,
             lifeState: 'alive|dead|unknown', lifeStateCertainty: 'explicit|strong|uncertain', lifeStateReason: '', livingReturn: false,
             relationshipChange: { impact: 'none|ordinary|meaningful|major|extreme', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' },
@@ -249,6 +249,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- Confirmed death requires explicit current-timeline evidence. Ambiguous danger/injury is not death.',
         '- livingReturn is true only when a previously archived/dead dossier is explicitly alive, surviving, resurrected, or physically returned.',
         '- Stable scalar profile fields should contain only newly established or clearly supported facts. Omit/empty scalar fields rather than guessing.',
+        '- DURABLE SCALAR CANON: established ordinary Appearance, Species, Background, and Role are sticky. Do not restate them with a different value merely because wording drifts. Any real revision must include canonChanges with the same field/value plus grounded evidence. appearance refine adds compatible lasting detail; appearance change needs a lasting physical change; species accepts explicit correction/revelation or a genuine permanent species change; background accepts grounded refinement/revelation/correction; role change needs an actual promotion/reassignment/retirement/etc. Scanner importance is non-authoritative and must not be used to raise dossier priority.',
         '- DURABLE PROFILE EVOLUTION: a new NPC may establish grounded foundational personality/behavior/speech/mannerisms from its first rich scene. For an EXISTING established field, never rewrite personality, behaviorProfile, speech, or mannerisms merely because one scene looks different. Any genuine change requires a matching profileChanges entry with field, mode, stable concept label, and concrete evidence. refine adds compatible detail only and must not smuggle no-longer/became/increasingly transitions or morality flips. gradual development requires the same concept to be independently supported on a later scan. explicit requires narration that clearly establishes a lasting/corrective change. batch requires an actual narrated time skip plus development across that skipped period. A one-off gesture is not a permanent mannerism; mannerism seeding needs recurring/habit language or repeated confirmation.',
         ...(structuredDetected ? structuredEvidencePromptRules() : []),
         '',
@@ -289,10 +290,11 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
         'Do NOT change relationship scores or propose relationship deltas in a targeted refresh. Do NOT change global in-chat state for other NPCs.',
         'If the chat does not establish a scalar field, leave it empty. Never invent facts.',
         'DURABLE PROFILE EVOLUTION: for established personality/behaviorProfile/speech/mannerisms, include a profileChanges entry only when the supplied chat actually supports refine, gradual, explicit, or batch development. refine must remain compatible with existing identity; gradual requires repeated same-concept evidence; explicit requires a lasting/correction cue; batch requires a real narrated time skip. One-off gestures are not mannerisms. Sparse blank fields may be seeded when the evidence directly establishes them.',
+        'DURABLE SCALAR CANON: preserve established ordinary Appearance, Species, Background, and Role unless this window explicitly supports a canonChanges revision. Use canonChanges with field/value/evidence and mode refine|change|correction|revelation. Never use scanner importance to reprioritize the dossier.',
         ...(structuredDetected ? structuredEvidencePromptRules() : []),
         memoryCriteria ? `IMPORTANT MEMORY RUBRIC:\n${compactText(memoryCriteria, 6000)}` : '',
         `CHAT WINDOW:\n${JSON.stringify(history)}`,
-        `OUTPUT CONTRACT:\n${JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id: npc.id, name: npc.name, aliases: [], role: '', species: '', age: 'initial actual chronological numeric age only or empty', ageChange: { age: 'new actual chronological age', kind: 'birthday|elapsed|correction', evidence: 'explicit grounded age-change evidence' }, apparentAge: '~N only or empty', appearance: 'shared/common or ordinary single-form appearance', currentForm: 'current physical form or empty', appearanceForms: null, appearanceFormChanges: null, personality: '', behaviorProfile: null, speech: '', mannerisms: null, profileChanges: null, background: '', keyRelationships: null, keyRelationshipChanges: null, memories: null, relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0, lifeState: 'alive|dead|unknown', lifeStateCertainty: '', lifeStateReason: '', livingReturn: false, relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' } }], socialEdges: [] })}`,
+        `OUTPUT CONTRACT:\n${JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id: npc.id, name: npc.name, aliases: [], role: '', species: '', age: 'initial actual chronological numeric age only or empty', ageChange: { age: 'new actual chronological age', kind: 'birthday|elapsed|correction', evidence: 'explicit grounded age-change evidence' }, apparentAge: '~N only or empty', appearance: 'shared/common or ordinary single-form appearance', currentForm: 'current physical form or empty', appearanceForms: null, appearanceFormChanges: null, personality: '', behaviorProfile: null, speech: '', mannerisms: null, profileChanges: null, canonChanges: null, background: '', keyRelationships: null, keyRelationshipChanges: null, memories: null, relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0, lifeState: 'alive|dead|unknown', lifeStateCertainty: '', lifeStateReason: '', livingReturn: false, relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' } }], socialEdges: [] })}`,
     ].filter(Boolean).join('\n\n');
 }
 
@@ -447,9 +449,20 @@ function profileChangeForField(patch, field) {
     return changes.find(raw => raw && typeof raw === 'object' && String(raw.field || '').trim() === field) || null;
 }
 
+function evidenceTextKey(value, max = 20000) {
+    return String(value ?? '')
+        .normalize('NFKC')
+        .toLocaleLowerCase()
+        .replace(/[\s\p{P}\p{S}]+/gu, ' ')
+        .trim()
+        .slice(0, max);
+}
+
 function profileEvidenceGrounded(evidence, context) {
-    const proof = normalizeName(evidence);
-    const source = normalizeName(context);
+    // Identity normalization is intentionally short (160 chars); evidence grounding is not.
+    // Using normalizeName() here silently hid evidence appearing later in a normal scene.
+    const proof = evidenceTextKey(evidence, 1200);
+    const source = evidenceTextKey(context, 20000);
     if (!proof || !source) return false;
     if (source.includes(proof)) return true;
     const stop = new Set(['the','and','that','this','with','from','into','their','they','them','then','when','while','because','after','before','more','less','very','some','current','exchange','npc','player']);
@@ -724,12 +737,65 @@ function explicitAgeChange(npc, patch, options = {}) {
     return age;
 }
 
+const DURABLE_CANON_FIELDS = new Set(['appearance', 'species', 'background', 'role']);
+const CANON_CORRECTION_CUES = /\b(actually|correction|corrected|mistaken|mistake|wrong|misidentified|misstated|in fact|rather than|true (?:species|identity|origin))\b/i;
+const CANON_REVELATION_CUES = /\b(reveal(?:s|ed)?|turns out|true (?:species|identity|origin)|secretly|had always been|was born|comes from|originally from|confesses?|admits?)\b/i;
+const CANON_ROLE_CHANGE_CUES = /\b(promot(?:ed|ion)|demot(?:ed|ion)|appointed|assigned|reassigned|retired|resigned|dismissed|became|becomes|now serves?|takes? the role|takes? over as|elected|installed as)\b/i;
+const CANON_APPEARANCE_CHANGE_CUES = /\b(permanent(?:ly)?|lasting|scar(?:red|ring)?|lost|gained|grew|growth|cut (?:her|his|their) hair|hair (?:was|is) cut|dyed|tattoo(?:ed)?|branded|aged|rejuvenat(?:ed|ion)|transformed permanently|body changed|now has|no longer has)\b/i;
+const CANON_SPECIES_CHANGE_CUES = /\b(became|becomes|transformed into|turned into|reborn as|ascended into|changed species|permanently transformed)\b/i;
+
+function canonChangeForField(patch, field) {
+    if (!DURABLE_CANON_FIELDS.has(field)) return null;
+    return (Array.isArray(patch?.canonChanges) ? patch.canonChanges : []).find(raw =>
+        raw && typeof raw === 'object' && !Array.isArray(raw) && String(raw.field || '').trim() === field) || null;
+}
+
+function durableCanonDecision(npc, patch, field, incomingValue, options = {}) {
+    const incoming = String(incomingValue ?? '').trim();
+    const current = String(npc?.[field] ?? '').trim();
+    if (!incoming) return false;
+    if (options.isBootstrap === true || !current) return true;
+    if (normalizeName(incoming) === normalizeName(current)) return false;
+    const change = canonChangeForField(patch, field);
+    if (!change) return false;
+    const value = String(change.value ?? change[field] ?? incoming).trim();
+    const evidence = String(change.evidence || change.reason || '').trim().slice(0, 700);
+    const mode = String(change.mode || '').trim().toLocaleLowerCase();
+    const context = String(options.profileContext || '');
+    if (!value || normalizeName(value) !== normalizeName(incoming) || !evidence || !profileEvidenceGrounded(evidence, context)) return false;
+    if (field === 'species') {
+        if (mode === 'correction') return CANON_CORRECTION_CUES.test(evidence + ' ' + context);
+        if (mode === 'revelation') return CANON_REVELATION_CUES.test(evidence + ' ' + context);
+        if (mode === 'change') return CANON_SPECIES_CHANGE_CUES.test(evidence + ' ' + context);
+        return false;
+    }
+    if (field === 'role') {
+        if (mode === 'correction') return CANON_CORRECTION_CUES.test(evidence + ' ' + context);
+        if (mode === 'change') return CANON_ROLE_CHANGE_CUES.test(evidence + ' ' + context);
+        if (mode === 'refine') return true;
+        return false;
+    }
+    if (field === 'appearance') {
+        if (mode === 'correction') return CANON_CORRECTION_CUES.test(evidence + ' ' + context);
+        if (mode === 'refine') return true;
+        if (mode === 'change') return CANON_APPEARANCE_CHANGE_CUES.test(evidence + ' ' + context);
+        return false;
+    }
+    if (field === 'background') {
+        if (mode === 'correction') return CANON_CORRECTION_CUES.test(evidence + ' ' + context);
+        if (mode === 'revelation') return CANON_REVELATION_CUES.test(evidence + ' ' + context);
+        if (mode === 'refine') return true;
+        return false;
+    }
+    return false;
+}
+
 function applyStablePatch(npc, patch, options = {}) {
     const locked = new Set(npc.manualProfileFields || []);
     const next = structuredClone(npc);
     const limits = normalizeDossierLimits(options.dossierLimits);
     const canonicalName = canonicalPatchName(patch);
-    const stringFields = ['name', 'role', 'species', 'age', 'apparentAge', 'background'];
+    const stringFields = ['name', 'age', 'apparentAge'];
     for (const field of stringFields) {
         if (locked.has(field)) continue;
         const value = field === 'name'
@@ -754,6 +820,11 @@ function applyStablePatch(npc, patch, options = {}) {
         const changedAge = explicitAgeChange(npc, patch, options);
         if (changedAge) next.age = changedAge;
     }
+    for (const field of ['role', 'species', 'background']) {
+        if (locked.has(field)) continue;
+        const value = String(patch?.[field] ?? '').trim();
+        if (durableCanonDecision(npc, patch, field, value, options)) next[field] = value;
+    }
     for (const field of ['personality', 'speech']) {
         if (locked.has(field)) continue;
         const value = String(patch?.[field] ?? '').trim();
@@ -766,9 +837,11 @@ function applyStablePatch(npc, patch, options = {}) {
         const appearance = String(patch?.appearance ?? '').trim();
         const incomingForms = normalizeAppearanceForms(patch?.appearanceForms);
         const formAware = Boolean((next.appearanceForms || []).length || incomingForms.length || String(patch?.currentForm || '').trim());
-        // Non-transforming NPCs keep the legacy behavior. Once an NPC is form-aware,
-        // shared appearance stops being rewritten merely because the current body changed.
-        if (appearance && (!formAware || !next.appearance)) next.appearance = appearance;
+        // Ordinary appearance is durable canon too. Multi-form NPCs keep the shared/base
+        // summary, while non-transforming NPCs need grounded canonChanges to revise an
+        // already-established body description.
+        if (appearance && !next.appearance) next.appearance = appearance;
+        else if (appearance && !formAware && durableCanonDecision(npc, patch, 'appearance', appearance, options)) next.appearance = appearance;
     }
     if (!locked.has('appearanceForms')) {
         const incomingForms = normalizeAppearanceForms(patch?.appearanceForms);
@@ -823,7 +896,8 @@ function applyLivePatch(npc, patch) {
             .find(form => normalizeName(form.name) === normalizeName(requestedForm));
         next.currentForm = matchedForm?.name || requestedForm;
     }
-    if (Number.isFinite(Number(patch?.importance))) next.importance = Math.max(next.importance || 0, Math.min(100, Math.max(0, Math.round(Number(patch.importance)))));
+    // importance is user/editor-owned durable prioritization. Scanner proposals are ignored;
+    // runtime relevance is computed separately and never ratchets this stored value upward.
     return next;
 }
 
