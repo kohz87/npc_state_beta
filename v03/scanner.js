@@ -184,7 +184,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         worldActiveNpcIds: ['existing dossier id OR exact canonical name'],
         npcs: [{
             id: 'existing id when known, otherwise empty',
-            name: 'canonical proper name when known; unique role label only if genuinely unnamed',
+            name: 'human-facing canonical proper name when known; readable role label only if genuinely unnamed; never npc-*',
             aliases: [], role: '', species: '', age: '', apparentAge: '~N only, e.g. ~25, or empty', appearance: '', personality: '',
             behaviorProfile: [], speech: '', mannerisms: [], background: '', keyRelationships: [], memories: [],
             relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0,
@@ -206,7 +206,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- worldActiveNpcIds: NPCs explicitly active off-screen in the current world state. Keep this separate from in-chat participation.',
         '- status is the NPC current concrete activity, immediate situation, or condition: what they are doing or undergoing now, for example standing watch at the gate, bandaging a wound, travelling toward Bluewatch, or asleep by the hearth. It is NOT lifecycle presence. Never use active, inactive, in chat, off-screen, present, archived, or equivalent lifecycle labels as status; those are tracked separately.',
         '- Every new NPC referenced by those arrays must also have one npcs entry so identity can be created safely.',
-        '- For NEW NPC identity: if a proper/personal name is established anywhere in the current exchange, npcs.name MUST be that canonical name and nothing else. Put occupation/function such as Clerk, Guard, Innkeeper, or Receptionist in role, not in name. Use a unique role label as name only while the NPC is genuinely unnamed. Always return id as an empty string for a new NPC; NPC State assigns the stable id locally. Never invent an npc-* id.',
+        '- For NEW NPC identity: if a proper/personal name is established anywhere in the current exchange, npcs.name MUST be that canonical name and nothing else. npcs.name is human-facing display text and MUST NEVER be an npc-* identifier, slug, key, or machine label, and MUST NEVER begin with npc-. Put occupation/function such as Clerk, Guard, Innkeeper, or Receptionist in role, not in name. Use a human-readable unique role label as name only while the NPC is genuinely unnamed. Always return id as an empty string for a new NPC; NPC State assigns the stable id locally. Never invent an npc-* id.',
         '- For a NEW NPC, behaviorProfile, mannerisms, keyRelationships, and memories are bootstrap collections: return arrays containing all grounded entries established by the CURRENT exchange; use [] only when none are supported. Do not use null for those four fields on a new NPC. A first scene can establish behavior or mannerisms when the text explicitly describes or clearly demonstrates a characteristic pattern, gesture, habit, or social tendency; prior sightings are not required.',
         '- A single scan may introduce MULTIPLE new individually relevant NPCs. Do not stop after the first. Return one separate npcs object for every such NPC. For every NEW NPC use id as an empty string; never invent a stable ID. Reference each new NPC in exchangeActiveNpcIds, inChatNpcIds, or worldActiveNpcIds by the exact canonical name or unique role label that appears in its npcs object. Do not add new npcs entries for named-only mentions, crowds, background workers, incidental guards, or other non-individually-relevant characters.',
         '- A single scan may update MULTIPLE existing NPCs in the same response. Do not stop after the first and do not omit a dossier patch merely because another NPC is more prominent. Return one separate npcs object for every individually relevant existing NPC whose grounded dossier data is established, corrected, or materially changed in this response. Keep exchangeActiveNpcIds, inChatNpcIds, and worldActiveNpcIds complete for their own semantics.',
@@ -279,20 +279,80 @@ export function parseScanJson(raw) {
     };
 }
 
+function isTechnicalNpcIdentity(value) {
+    return /^npc(?:[-_:]|$)/i.test(String(value ?? '').trim());
+}
+
+function humanIdentityCandidate(value, role = '') {
+    const clean = String(value ?? '').trim();
+    if (!clean || isTechnicalNpcIdentity(clean) || GENERIC_REFERENCES.has(normalizeName(clean))) return '';
+    if (role && normalizeName(clean) === normalizeName(role)) return '';
+    return clean;
+}
+
+function machineIdentityContainsCandidate(machineValue, candidate) {
+    const machine = normalizeName(String(machineValue ?? '').replace(/^npc[-_:]*/i, ''));
+    const human = normalizeName(candidate);
+    return Boolean(machine && human && (machine === human || ` ${machine} `.includes(` ${human} `)));
+}
+
+function canonicalPatchName(patch = {}, referenceCandidates = []) {
+    const direct = humanIdentityCandidate(patch?.name, patch?.role);
+    if (direct) return direct;
+
+    const machine = String(patch?.name || patch?.id || '').trim();
+    const candidates = [];
+    const push = (value, requireMachineMatch = false) => {
+        const clean = humanIdentityCandidate(value, patch?.role);
+        if (!clean) return;
+        if (requireMachineMatch && machine && !machineIdentityContainsCandidate(machine, clean)) return;
+        if (!candidates.some(item => normalizeName(item) === normalizeName(clean))) candidates.push(clean);
+    };
+    for (const alias of Array.isArray(patch?.aliases) ? patch.aliases : []) push(alias);
+    for (const reference of Array.isArray(referenceCandidates) ? referenceCandidates : []) push(reference, true);
+    candidates.sort((a, b) => {
+        const aWords = normalizeName(a).split(/\s+/).filter(Boolean).length;
+        const bWords = normalizeName(b).split(/\s+/).filter(Boolean).length;
+        return bWords - aWords || b.length - a.length;
+    });
+    return candidates[0] || '';
+}
+
+function repairTechnicalStoredName(npc) {
+    if (!isTechnicalNpcIdentity(npc?.name)) return npc;
+    if (npc?.manual === true || (npc?.manualProfileFields || []).includes('name')) return npc;
+    const candidates = (Array.isArray(npc?.aliases) ? npc.aliases : [])
+        .map(alias => humanIdentityCandidate(alias, npc?.role))
+        .filter(Boolean)
+        .sort((a, b) => b.length - a.length);
+    const name = candidates[0] || '';
+    if (!name) return npc;
+    const next = structuredClone(npc);
+    next.name = name;
+    next.aliases = (next.aliases || []).filter(alias => {
+        const key = normalizeName(alias);
+        return key && key !== normalizeName(name) && !isTechnicalNpcIdentity(alias);
+    });
+    next.updatedAt = Math.max(Date.now(), Number(next.updatedAt || 0) + 1);
+    return normalizeNpc(next);
+}
+
 function patchReferenceMatches(patch, reference) {
     const key = normalizeName(reference);
     if (!key) return false;
     if (String(patch?.id || '').trim() === String(reference || '').trim()) return true;
     if (normalizeName(patch?.name) === key) return true;
-    return (Array.isArray(patch?.aliases) ? patch.aliases : []).some(alias => normalizeName(alias) === key);
+    if ((Array.isArray(patch?.aliases) ? patch.aliases : []).some(alias => normalizeName(alias) === key)) return true;
+    return normalizeName(canonicalPatchName(patch, [reference])) === key;
 }
 
-function createFromPatch(patch, sourceMessageId) {
-    const name = String(patch?.name || '').trim();
-    if (!name || GENERIC_REFERENCES.has(normalizeName(name))) return null;
+function createFromPatch(patch, sourceMessageId, referenceCandidates = []) {
+    const name = canonicalPatchName(patch, referenceCandidates);
+    // Never persist an LLM transport key as a human-facing dossier name. If no grounded
+    // human identity can be recovered from the patch/aliases/activity references, fail
+    // closed and let a later scan recover it rather than poisoning canonical identity.
+    if (!name || isTechnicalNpcIdentity(name) || GENERIC_REFERENCES.has(normalizeName(name))) return null;
     return normalizeNpc({
-        // Never trust a model-supplied id for a dossier that does not already exist.
-        // Stable ids are allocated by NPC State itself from the canonical returned name.
         id: makeNpcId(name, `${sourceMessageId}-${Math.random()}`),
         name,
         firstSeenMessageId: Number.isInteger(sourceMessageId) ? sourceMessageId : null,
@@ -304,17 +364,21 @@ function applyStablePatch(npc, patch, options = {}) {
     const locked = new Set(npc.manualProfileFields || []);
     const next = structuredClone(npc);
     const limits = normalizeDossierLimits(options.dossierLimits);
+    const canonicalName = canonicalPatchName(patch);
     const stringFields = ['name', 'role', 'species', 'age', 'apparentAge', 'appearance', 'personality', 'speech', 'background'];
     for (const field of stringFields) {
         if (locked.has(field)) continue;
-        const value = field === 'apparentAge'
-            ? normalizeApparentAge(patch?.[field])
-            : String(patch?.[field] ?? '').trim();
+        const value = field === 'name'
+            ? canonicalName
+            : (field === 'apparentAge' ? normalizeApparentAge(patch?.[field]) : String(patch?.[field] ?? '').trim());
         if (!value) continue;
-        if (field === 'name' && value !== next.name && next.name) next.aliases = appendUnique(next.aliases, [next.name], 10);
+        if (field === 'name' && value !== next.name && next.name && !isTechnicalNpcIdentity(next.name)) next.aliases = appendUnique(next.aliases, [next.name], 10);
         next[field] = value;
     }
-    if (!locked.has('aliases')) next.aliases = appendUnique(next.aliases, patch?.aliases, 10);
+    if (!locked.has('aliases')) {
+        const safeAliases = (Array.isArray(patch?.aliases) ? patch.aliases : []).filter(alias => humanIdentityCandidate(alias, patch?.role));
+        next.aliases = appendUnique(next.aliases, safeAliases, 10);
+    }
     if (!locked.has('behaviorProfile') && Array.isArray(patch?.behaviorProfile)) {
         next.behaviorProfile = appendUnique([], patch.behaviorProfile, limits.behaviorProfile);
     }
@@ -433,23 +497,23 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     const playerName = resolvePlayerName(options.playerName);
     const dossierLimits = normalizeDossierLimits(options.dossierLimits);
 
-    state.npcs = state.npcs.map(npc => sanitizePlayerKeyRelationships(npc, playerName));
+    state.npcs = state.npcs.map(npc => repairTechnicalStoredName(sanitizePlayerKeyRelationships(npc, playerName)));
 
     const exchangeRefs = uniqueStrings(result.exchangeActiveNpcIds);
     const presentRefs = uniqueStrings(result.finalPresentNpcIds);
     const worldRefs = uniqueStrings(result.worldActiveNpcIds);
-    // New idless patches are themselves explicit bootstrap observations. Trust them as
-    // bootstrap candidates so an imperfect reference array cannot silently discard the
-    // second or third new NPC from an otherwise valid embedded scan. The prompt forbids
-    // background/mentioned-only characters from being emitted as new npcs entries.
+    const identityRefs = uniqueStrings([...exchangeRefs, ...presentRefs, ...worldRefs]);
+    // A new returned dossier may contain a bad machine-shaped name even when the same
+    // payload also contains its real human name in aliases/activity references. Resolve the
+    // human-facing identity first and bootstrap only from that canonical display name.
     const bootstrapRefs = uniqueStrings(result.npcs
         .filter(patch => {
             const patchId = String(patch?.id || '').trim();
-            const name = String(patch?.name || '').trim();
+            const name = canonicalPatchName(patch, identityRefs);
             const knownId = Boolean(patchId && state.npcs.some(item => item.id === patchId));
-            return !knownId && name && !GENERIC_REFERENCES.has(normalizeName(name)) && !findNpcByReference(state, name);
+            return !knownId && name && !findNpcByReference(state, name);
         })
-        .map(patch => String(patch.name).trim()));
+        .map(patch => canonicalPatchName(patch, identityRefs)));
     const targetRefs = [...new Set([...exchangeRefs, ...presentRefs, ...bootstrapRefs])];
 
     const deletedIds = new Set(state.deletedNpcIds || []);
@@ -457,15 +521,16 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     for (const patch of result.npcs) {
         const patchId = String(patch?.id || '').trim();
         if (patchId && deletedIds.has(patchId)) continue;
+        const canonicalName = canonicalPatchName(patch, identityRefs);
         let npc = patchId ? state.npcs.find(item => item.id === patchId) || null : null;
-        if (!npc && patch?.name) {
-            // Unknown model ids are never authoritative. Exact canonical name/alias may
-            // still reconcile the returned patch to an existing dossier safely.
-            npc = findNpcByReference(state, String(patch.name));
+        if (!npc && canonicalName) {
+            // Unknown model ids are never authoritative. Resolve through the grounded
+            // human-facing canonical name/alias instead of the model's transport key.
+            npc = findNpcByReference(state, canonicalName);
         }
         const referenced = targetRefs.some(ref => patchReferenceMatches(patch, ref)) || worldRefs.some(ref => patchReferenceMatches(patch, ref));
         if (!npc && referenced) {
-            const created = createFromPatch(patch, sourceMessageId);
+            const created = createFromPatch(patch, sourceMessageId, identityRefs);
             if (created && !deletedIds.has(created.id) && !(state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
                 state.npcs.push(created);
                 npc = created;
@@ -482,10 +547,11 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                 const patch = result.npcs.find(item => patchReferenceMatches(item, ref));
                 if (patch) {
                     // The first bootstrap pass may already have created this patch under a
-                    // locally allocated id. Resolve by its canonical returned name first.
-                    npc = patch?.name ? findNpcByReference(state, String(patch.name)) : null;
+                    // locally allocated id. Resolve by its human-facing canonical name first.
+                    const canonicalName = canonicalPatchName(patch, [...identityRefs, ref]);
+                    npc = canonicalName ? findNpcByReference(state, canonicalName) : null;
                     if (!npc) {
-                        const created = createFromPatch(patch, sourceMessageId);
+                        const created = createFromPatch(patch, sourceMessageId, [...identityRefs, ref]);
                         if (created && !deletedIds.has(created.id) && !(state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
                             state.npcs.push(created);
                             npc = created;
@@ -556,7 +622,8 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         const direct = findNpcByReference(state, reference);
         if (direct) return direct;
         const patch = result.npcs.find(item => patchReferenceMatches(item, reference));
-        return patch?.name ? findNpcByReference(state, String(patch.name)) : null;
+        const canonicalName = patch ? canonicalPatchName(patch, [...identityRefs, reference]) : '';
+        return canonicalName ? findNpcByReference(state, canonicalName) : null;
     };
     const edgeMap = new Map((state.socialGraph || []).map(edge => [socialEdgeKey(edge), edge]));
     for (const raw of result.socialEdges) {
