@@ -59,5 +59,7 @@ assert(layout.includes("legacyGrid && legacyGrid.children.length === 0"), 'Empty
 assert(readme.startsWith('# NPC State Beta 0.4.4'), 'README version header was not bumped');
 assert(readme.includes('## Settings organization') && readme.includes('Tracking') && readme.includes('Birthday controls are progressive'), 'README settings organization documentation missing');
 assert(changelog.includes('## v0.4.4') && changelog.includes('semantic collapsible categories'), 'v0.4.4 changelog entry missing');
+const birthdayBullet = '- Adds optional passive Birthday continuity metadata with durable evidence-backed correction';
+assert(changelog.split(birthdayBullet).length - 1 === 1, 'Replayed build duplicated the historical v0.4.3 Birthday changelog entry');
 
 console.log('NPC State 0.4.4 categorized settings verification passed');
