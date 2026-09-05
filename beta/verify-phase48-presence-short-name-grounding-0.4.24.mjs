@@ -97,12 +97,22 @@ function scan(state, evidencePolicy, refs = ['Brina Cole'], messageId = 12) {
     assert.deepEqual(result.finalPresentNpcIds, [], 'World-only Brina reference survived presence filtering');
 }
 
+// A short name found only in World_State must also remain structured-only evidence.
+{
+    const state = createEmptyState('brina-world-short-only');
+    state.npcs = [normalizeNpc({ id: 'npc-brina', name: 'Brina Cole', present: false })];
+    const evidence = policy('The guild hall hearth burned low as Lucien waited alone at the counter.', '**NPCs Present:**\n**Brina:** Behind the reception counter.');
+    const result = scan(state, evidence, ['Brina Cole'], 15);
+    assert.equal(result.state.npcs[0].present, false, 'World_State short name bypassed the in-chat evidence firewall');
+    assert.deepEqual(result.finalPresentNpcIds, [], 'World-only short Brina reference survived presence filtering');
+}
+
 // Private inner chatter alone is still not proof of in-chat presence.
 {
     const state = createEmptyState('brina-inner-only');
     state.npcs = [normalizeNpc({ id: 'npc-brina', name: 'Brina Cole', present: false })];
     const evidence = policy('Lucien stood alone near the guild hearth.', '', '"BRINA: He should rest that ankle before tomorrow."');
-    const result = scan(state, evidence, ['Brina Cole'], 15);
+    const result = scan(state, evidence, ['Brina Cole'], 16);
     assert.equal(result.state.npcs[0].present, false, 'NPC_Inner_Chatter alone bypassed the in-chat evidence firewall');
     assert.deepEqual(result.finalPresentNpcIds, [], 'Inner-only Brina reference survived presence filtering');
 }
@@ -115,7 +125,7 @@ function scan(state, evidencePolicy, refs = ['Brina Cole'], messageId = 12) {
         normalizeNpc({ id: 'npc-brina-vane', name: 'Brina Vane', present: false }),
     ];
     const evidence = policy('Brina looked up from the ledger.', '**NPCs Present:**\n**Brina Cole:** Behind the reception counter.');
-    const result = scan(state, evidence, ['Brina Cole'], 16);
+    const result = scan(state, evidence, ['Brina Cole'], 17);
     assert.equal(result.state.npcs.find(npc => npc.id === 'npc-brina').present, false, 'Ambiguous shared first name selected Brina Cole');
     assert.equal(result.state.npcs.find(npc => npc.id === 'npc-brina-vane').present, false, 'Ambiguous short-name repair changed another Brina');
     assert.deepEqual(result.finalPresentNpcIds, [], 'Ambiguous short-name reference did not fail closed');
@@ -131,8 +141,8 @@ function scan(state, evidencePolicy, refs = ['Brina Cole'], messageId = 12) {
         inChatNpcIds: ['Mira'],
         npcs: [noChangePatch('npc-mira', 'Mira')],
     }), {
-        sourceMessageId: 17,
-        turn: 17,
+        sourceMessageId: 18,
+        turn: 18,
         evidencePolicy: evidence,
         currentAdmissionText: evidence.visibleText,
         applyReturnedNpcPatches: true,
