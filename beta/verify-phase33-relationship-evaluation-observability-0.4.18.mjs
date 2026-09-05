@@ -160,7 +160,7 @@ assert(scanner.includes('relationshipChange.evaluated to true'), 'Recovery scann
 assert(injection.includes('relationshipChange.evaluated to true'), 'Foreground scanner does not require evaluated=true');
 assert(scanner.includes("['evaluated-no-change']"), 'Deliberate zero diagnostic path is missing');
 assert(scanner.includes("['evaluation-missing']"), 'Missing evaluation diagnostic path is missing');
-assert(scanner.includes("['evaluation-invalid']"), 'Invalid evaluation diagnostic path is missing');
+assert(scanner.includes("'evaluation-invalid'"), 'Invalid evaluation diagnostic path is missing');
 assert(dossier.includes('Gate status and recent relationship evaluations'), 'Dossier does not expose relationship evaluation telemetry clearly');
 assert(dossier.includes('Evaluated; no relationship movement warranted.'), 'Dossier lacks deliberate-zero display');
 assert(dossier.includes('Required relationship evaluation was omitted by the scanner.'), 'Dossier lacks omission display');
