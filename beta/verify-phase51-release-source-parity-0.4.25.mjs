@@ -8,6 +8,7 @@ const schema = read('v03/schema.js');
 const injection = read('v03/injection.js');
 const phase50 = read('beta/phase50-named-family-key-relationships-0.4.25.mjs');
 const verify50 = read('beta/verify-phase50-named-family-key-relationships-0.4.25.mjs');
+const legacyFamilyVerifier = read('beta/verify-phase4-family-graph-and-key-merge-0.4.2.mjs');
 const workflow = read('.github/workflows/seed-beta.yml');
 
 assert.equal(manifest.version, '0.4.25', 'Release source is not v0.4.25');
@@ -45,6 +46,7 @@ assert(scanner.includes('visibleShortActivityIdentityMention'), 'v0.4.24 short-n
 assert(scanner.includes('shortActivityIdentityUnique'), 'v0.4.24 short-name ambiguity guard regressed');
 assert(scanner.includes('normalizeFamilySlots'), 'Existing family slot reconciliation disappeared');
 assert(scanner.includes("const relation = isTwin ? 'twin sibling' : 'sibling';"), 'Existing sibling/twin inference disappeared');
+assert(legacyFamilyVerifier.includes("injection.includes('COUNTABLE UNNAMED FAMILY') || injection.includes('COUNTABLE FAMILY FACTS')"), 'Historical family verifier is not descendant-compatible with named family facts');
 
 assert(phase50.includes('memberNames'), 'v0.4.25 transform source does not persist named family members');
 assert(phase50.includes('projectFamilySlotMembers'), 'v0.4.25 transform source lacks owner relationship projection');
