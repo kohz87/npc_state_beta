@@ -13,8 +13,9 @@ const verify22 = read('beta/verify-phase22-settings-ui-cleanup-0.4.14.mjs');
 const verify24 = read('beta/verify-phase24-release-source-parity-0.4.14.mjs');
 const workflow = read('.github/workflows/seed-beta.yml');
 
-assert.equal(manifest.version, '0.4.15', 'Release source is not v0.4.15');
-assert(ui.includes('NPC State <span class="npc-state-version">0.4.15</span>'), 'Committed runtime UI version is not v0.4.15');
+const manifestMatch = String(manifest.version || '').match(/^0\.4\.(\d+)$/);
+assert(manifestMatch && Number(manifestMatch[1]) >= 15, 'Release source regressed below v0.4.15');
+assert(ui.includes(`NPC State <span class="npc-state-version">${manifest.version}</span>`), 'Committed runtime UI version does not match manifest');
 
 assert(scanner.includes('function visibleRoleIntroductionForPatch'), 'Committed scanner lacks visible-role identity matching');
 assert(scanner.includes('function worldStateIdentityBridgesVisibleIntroduction'), 'Committed scanner lacks World_State identity bridging');
@@ -33,11 +34,12 @@ assert(verify25.includes('Manual new-NPC admission was weakened'), 'Manual-admis
 // Descendant compatibility must already be committed rather than appearing only after CI mutates fixtures.
 assert(verify22.includes('Manifest regressed below v0.4.14'), 'v0.4.14 settings verifier descendant compatibility is not persisted');
 assert(verify24.includes('Manifest regressed below v0.4.14'), 'v0.4.14 parity verifier descendant compatibility is not persisted');
+assert(verify25.includes('Manifest regressed below v0.4.15'), 'v0.4.15 identity verifier descendant compatibility is not persisted');
 
-assert(workflow.includes('Build NPC State 0.4.15 Beta'), 'Workflow is not versioned for v0.4.15');
-assert(workflow.includes('node beta/bump-0.4.15.mjs'), 'Workflow does not apply the v0.4.15 bump');
-assert(workflow.includes("-name 'phase*-0.4.15.mjs'"), 'Workflow does not apply v0.4.15 phases');
+assert(/Build NPC State 0\.4\.\d+ Beta/.test(workflow), 'Workflow is not versioned for an NPC State 0.4.x release');
+assert(workflow.includes('node beta/bump-0.4.15.mjs'), 'Workflow no longer applies the v0.4.15 bump');
+assert(workflow.includes("-name 'phase*-0.4.15.mjs'"), 'Workflow no longer applies v0.4.15 phases');
 assert(workflow.includes('worldStateIdentityBridgesVisibleIntroduction'), 'Architecture gate does not guard the identity bridge');
 assert(workflow.includes('Generated beta runtime already matches build output.'), 'Workflow lacks source/runtime parity detection');
 
-console.log('NPC State 0.4.15 release source parity verified');
+console.log('NPC State 0.4.15+ release source parity verified');
