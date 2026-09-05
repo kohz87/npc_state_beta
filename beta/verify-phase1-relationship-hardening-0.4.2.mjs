@@ -57,15 +57,15 @@ function apply(state, { impact = 'ordinary', delta = {}, evidence = 'Fresh groun
 const mira = state => state.npcs.find(npc => npc.id === 'npc-mira-phase1');
 
 // Fractional evidence + inertia: at 30, two ordinary +1 events yield +1 visible total,
-// with 0.5 evidence retained after the second event.
+// with 0.6 evidence retained after the second event under the v0.4.17 aligned curve.
 {
     let state = stateWithRelationship({ trust: 30, affection: 0, desire: 0, tension: 0 }, [milestone('trust', 1, 25)]);
     state = apply(state, { delta: { trust: 1 }, evidence: 'Mira sees the player keep a small promise.', reason: 'A small promise is kept.', sourceMessageId: 2 });
     assert(mira(state).relationship.trust === 30, 'First weighted ordinary event at 30 moved a visible point too early');
-    assert(near(mira(state).relationshipProgress.trust, 0.75), 'First weighted ordinary event did not retain 0.75 fractional progress');
+    assert(near(mira(state).relationshipProgress.trust, 0.8), 'First weighted ordinary event did not retain 0.8 fractional progress');
     state = apply(state, { delta: { trust: 1 }, evidence: 'Mira sees the player return borrowed tools on time.', reason: 'Borrowed tools are returned reliably.', sourceMessageId: 3 });
     assert(mira(state).relationship.trust === 31, 'Second distinct ordinary event did not convert accumulated evidence into one point');
-    assert(near(mira(state).relationshipProgress.trust, 0.5), 'Fractional remainder after second event is incorrect');
+    assert(near(mira(state).relationshipProgress.trust, 0.6), 'Fractional remainder after second event is incorrect');
 }
 
 // Very high relationship depth is strongly resistant to further deepening.
@@ -75,7 +75,7 @@ const mira = state => state.npcs.find(npc => npc.id === 'npc-mira-phase1');
         [25, 50, 75, 90].map(point => milestone('trust', 1, point)),
     );
     state = apply(state, { impact: 'extreme', delta: { trust: 10 }, evidence: 'Mira entrusts the player with her life during a decisive crisis.', reason: 'A relationship-defining act of trust occurs.' });
-    assert(mira(state).relationship.trust === 96, 'Trust 95 incorrectly received the full extreme raw weight instead of 10% inertia');
+    assert(mira(state).relationship.trust === 97 && near(mira(state).relationshipProgress.trust, 0.5), 'Trust 95 did not apply the v0.4.17 25% final-band inertia');
 }
 
 // Tier axis-count limits are deterministic. Meaningful accepts at most two strongest axes.
@@ -165,7 +165,7 @@ const mira = state => state.npcs.find(npc => npc.id === 'npc-mira-phase1');
 }
 
 // Milestones still work on top of inertia. At 50, a qualifying major +3 opens the gate,
-// while resistance means only one visible point is earned immediately.
+// and the inclusive 26–50 band applies ×0.80 before fractional accumulation.
 {
     let state = stateWithRelationship({ trust: 50, affection: 0, desire: 0, tension: 0 }, [milestone('trust', 1, 25)]);
     state = apply(state, {
@@ -174,8 +174,8 @@ const mira = state => state.npcs.find(npc => npc.id === 'npc-mira-phase1');
         evidence: 'Mira entrusts the player with a dangerous secret at personal risk.',
         reason: 'A major act of vulnerability establishes deeper trust.',
     });
-    assert(mira(state).relationship.trust === 51, 'Major +3 at 50 ignored restored relationship inertia');
-    assert(near(mira(state).relationshipProgress.trust, 0.5), 'Major +3 at 50 did not retain its fractional remainder');
+    assert(mira(state).relationship.trust === 52, 'Major +3 at 50 did not apply the v0.4.17 80% boundary-band inertia');
+    assert(near(mira(state).relationshipProgress.trust, 0.4), 'Major +3 at 50 did not retain its v0.4.17 fractional remainder');
     assert(relationshipMilestoneUnlocked(mira(state).relationshipMilestones, 'trust', 1, 50), 'Qualifying event did not unlock the 50 milestone');
 }
 

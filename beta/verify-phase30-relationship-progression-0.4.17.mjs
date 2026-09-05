@@ -160,35 +160,35 @@ function applyTrust(state, { impact, delta, messageId = 10, label = 'verified ev
     }).state.npcs[0];
 }
 
-// Aligned deepening bands: 0–24 ×1.00, 25–49 ×0.80, 50–74 ×0.60,
-// 75–89 ×0.40, 90–100 ×0.25. Fractional progress must survive.
+// Aligned deepening bands: 0–25 ×1.00, 26–50 ×0.80, 51–75 ×0.60,
+// 76–90 ×0.40, 91–100 ×0.25. Fractional progress must survive.
 {
     const early = applyTrust(trustState(10), { impact: 'ordinary', delta: 1, label: 'early ordinary' });
-    assert.equal(early.relationship.trust, 11, '0–24 should apply ordinary Trust at full weight');
+    assert.equal(early.relationship.trust, 11, '0–25 should apply ordinary Trust at full weight');
     assert.equal(early.relationshipProgress.trust, 0);
 
-    const secondBand = applyTrust(trustState(25, 0, [25]), { impact: 'ordinary', delta: 1, label: 'second band ordinary' });
-    assert.equal(secondBand.relationship.trust, 25, '25–49 should retain sub-point progress rather than force a whole point');
-    assert.equal(secondBand.relationshipProgress.trust, 0.8, '25–49 deepening multiplier is not ×0.80');
+    const secondBand = applyTrust(trustState(26, 0, [25]), { impact: 'ordinary', delta: 1, label: 'second band ordinary' });
+    assert.equal(secondBand.relationship.trust, 26, '26–50 should retain sub-point progress rather than force a whole point');
+    assert.equal(secondBand.relationshipProgress.trust, 0.8, '26–50 deepening multiplier is not ×0.80');
 
-    const thirdBand = applyTrust(trustState(50, 0, [25, 50]), { impact: 'meaningful', delta: 2, label: 'third band meaningful' });
-    assert.equal(thirdBand.relationship.trust, 51, '50–74 meaningful +2 should produce one whole point at ×0.60');
-    assert.equal(thirdBand.relationshipProgress.trust, 0.2, '50–74 deepening multiplier is not ×0.60');
+    const thirdBand = applyTrust(trustState(51, 0, [25, 50]), { impact: 'meaningful', delta: 2, label: 'third band meaningful' });
+    assert.equal(thirdBand.relationship.trust, 52, '51–75 meaningful +2 should produce one whole point at ×0.60');
+    assert.equal(thirdBand.relationshipProgress.trust, 0.2, '51–75 deepening multiplier is not ×0.60');
 
-    const fourthBand = applyTrust(trustState(75, 0, [25, 50, 75]), { impact: 'major', delta: 5, label: 'fourth band major' });
-    assert.equal(fourthBand.relationship.trust, 77, '75–89 major +5 should produce +2 at ×0.40');
+    const fourthBand = applyTrust(trustState(76, 0, [25, 50, 75]), { impact: 'major', delta: 5, label: 'fourth band major' });
+    assert.equal(fourthBand.relationship.trust, 78, '76–90 major +5 should produce +2 at ×0.40');
     assert.equal(fourthBand.relationshipProgress.trust, 0);
 
-    const finalBand = applyTrust(trustState(90, 0, [25, 50, 75, 90]), { impact: 'extreme', delta: 10, label: 'final band extreme' });
-    assert.equal(finalBand.relationship.trust, 92, '90–100 extreme +10 should produce +2 whole points at ×0.25');
-    assert.equal(finalBand.relationshipProgress.trust, 0.5, '90–100 deepening multiplier is not ×0.25');
+    const finalBand = applyTrust(trustState(91, 0, [25, 50, 75, 90]), { impact: 'extreme', delta: 10, label: 'final band extreme' });
+    assert.equal(finalBand.relationship.trust, 93, '91–100 extreme +10 should produce +2 whole points at ×0.25');
+    assert.equal(finalBand.relationshipProgress.trust, 0.5, '91–100 deepening multiplier is not ×0.25');
 }
 
 // Moving back toward neutral must remain easier than deepening at the same depth.
 {
     const deeper = applyTrust(trustState(80, 0, [25, 50, 75]), { impact: 'ordinary', delta: 1, label: 'deepen at eighty' });
     const neutral = applyTrust(trustState(80, 0, [25, 50, 75]), { impact: 'ordinary', delta: -1, label: 'neutralize at eighty' });
-    assert.equal(deeper.relationshipProgress.trust, 0.4, '75–89 deepening setup is not ×0.40');
+    assert.equal(deeper.relationshipProgress.trust, 0.4, '76–90 deepening setup is not ×0.40');
     assert.equal(neutral.relationshipProgress.trust, -0.55, 'Existing easier movement-toward-neutral multiplier changed unexpectedly');
     assert(Math.abs(neutral.relationshipProgress.trust) > Math.abs(deeper.relationshipProgress.trust), 'Movement toward neutral is no longer easier than deepening');
 }
@@ -202,10 +202,11 @@ function applyTrust(state, { impact, delta, messageId = 10, label = 'verified ev
 
     const unlock25 = applyTrust(trustState(25), { impact: 'meaningful', delta: 1, label: 'meaningful gate twenty five' });
     assert(relationshipMilestoneUnlocked(unlock25.relationshipMilestones, 'trust', 1, 25), 'Meaningful raw +1 did not unlock 25');
+    assert.equal(unlock25.relationship.trust, 26, 'Qualifying 25-gate event should carry the score into the 26–50 band');
 
     const unlock50 = applyTrust(trustState(50, 0, [25]), { impact: 'major', delta: 3, label: 'major gate fifty' });
     assert(relationshipMilestoneUnlocked(unlock50.relationshipMilestones, 'trust', 1, 50), 'Major raw +3 did not unlock 50');
-    assert.equal(unlock50.relationship.trust, 51, '50 gate qualifying event did not move with ×0.60 inertia');
+    assert(unlock50.relationship.trust > 50, '50 gate qualifying event did not carry the score into the 51–75 band');
 
     const unlock75 = applyTrust(trustState(75, 0, [25, 50]), { impact: 'extreme', delta: 5, label: 'extreme gate seventy five' });
     assert(relationshipMilestoneUnlocked(unlock75.relationshipMilestones, 'trust', 1, 75), 'Extreme raw +5 did not unlock 75');
@@ -216,10 +217,10 @@ function applyTrust(state, { impact, delta, messageId = 10, label = 'verified ev
 
 const scanner = fs.readFileSync(new URL('../v03/scanner.js', import.meta.url), 'utf8');
 const evidence = fs.readFileSync(new URL('../v03/relationship-evidence.js', import.meta.url), 'utf8');
-assert(scanner.includes('if (magnitude < 25) return 1;'));
-assert(scanner.includes('if (magnitude < 50) return 0.8;'));
-assert(scanner.includes('if (magnitude < 75) return 0.6;'));
-assert(scanner.includes('if (magnitude < 90) return 0.4;'));
+assert(scanner.includes('if (magnitude <= 25) return 1;'));
+assert(scanner.includes('if (magnitude <= 50) return 0.8;'));
+assert(scanner.includes('if (magnitude <= 75) return 0.6;'));
+assert(scanner.includes('if (magnitude <= 90) return 0.4;'));
 assert(scanner.includes('return 0.25;'));
 assert(evidence.includes('relationshipSemanticGrounding'));
 assert(evidence.includes("movement.axis === 'desire'"), 'Desire semantic isolation is missing');

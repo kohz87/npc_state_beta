@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.17
+
+- Aligns deepening relationship inertia with the actual milestone bands: 0–25 ×1.00, 26–50 ×0.80, 51–75 ×0.60, 76–90 ×0.40, and 91–100 ×0.25. Fractional accumulation and easier movement back toward neutral are preserved.
+- Keeps the 25/50/75/90 milestone gates and raw evidence minima unchanged, so difficulty comes from the progression curve plus narrative gates rather than mismatched overlapping thresholds.
+- Separates semantic evidence validity from impact difficulty: single-axis Trust, Affection, and Tension paraphrases can be grounded across impact tiers when a concrete player-attributed event for the target NPC is present.
+- Keeps broad Desire inference disabled and preserves actor ownership, target direction, polarity, contradiction, failure, and multi-axis ambiguity safeguards.
+
 ## v0.4.16
 
 - Fixes ordinary Trust changes being rejected as `ungrounded` when the scanner described a real current-exchange event with a reasonable paraphrase instead of reusing the narration's exact words.

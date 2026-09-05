@@ -105,14 +105,14 @@ const groundedPerformance = 'Lucien delivered three intact pairs of lower tusks 
     );
 }
 
-// The semantic fallback is intentionally ordinary-only. Stronger movement still requires the
-// existing stricter grounding path and milestone evidence.
+// v0.4.17+ separates grounding validity from progression difficulty. A stronger impact
+// may use the same grounded event; inertia and milestone gates still decide movement.
 {
     const stronger = { ...expectations, impact: 'meaningful', delta: { trust: 2, affection: 0, desire: 0, tension: 0 } };
     assert.equal(
         relationshipEvidenceGrounding('Lucien demonstrated straightforward competence and reliability.', groundedPerformance, stronger),
-        'ungrounded',
-        'Meaningful Trust improperly inherited the ordinary semantic fallback',
+        '',
+        'Meaningful Trust paraphrase regressed after grounding/difficulty separation',
     );
 }
 
@@ -129,10 +129,11 @@ const groundedPerformance = 'Lucien delivered three intact pairs of lower tusks 
 const scanner = fs.readFileSync(new URL('../v03/scanner.js', import.meta.url), 'utf8');
 const evidenceSource = fs.readFileSync(new URL('../v03/relationship-evidence.js', import.meta.url), 'utf8');
 assert(scanner.includes('impact: change.impact') && scanner.includes('delta: change.delta'), 'Scanner does not pass movement semantics into relationship grounding');
-assert(evidenceSource.includes('ordinaryTrustSemanticGrounding'), 'Runtime relationship evidence lacks the ordinary Trust semantic fallback');
+assert(evidenceSource.includes('ordinaryTrustSemanticGrounding') || evidenceSource.includes('relationshipSemanticGrounding'), 'Runtime relationship evidence lacks semantic relationship grounding');
 assert(evidenceSource.includes('TRUST_PERFORMANCE_FAILURE'), 'Runtime relationship evidence lacks negative performance fail-closed protection');
 
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
-assert.equal(manifest.version, '0.4.16');
+const [major, minor, patch] = String(manifest.version).split('.').map(Number);
+assert(major === 0 && minor === 4 && patch >= 16, 'Manifest regressed below v0.4.16');
 
 console.log('NPC State 0.4.16 ordinary Trust semantic grounding verified');

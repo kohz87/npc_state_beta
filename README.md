@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.16
+# NPC State Beta 0.4.17
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -7,7 +7,7 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 - Normal turns use the same foreground RP inference for NPC State capture. No mandatory second scanner request.
 - The model emits one hidden `<npc_state_v1>...</npc_state_v1>` observation block; NPC State validates it, applies deterministic state rules, stores per-message/per-swipe metadata, and strips the transport from chat.
 - With current Inventory Block transports, NPC State yields the terminal position: the NPC payload comes first and Inventory keeps its own final `INVENTORY_BLOCK_V05` / legacy `INVENTORY_BLOCK_UPDATE` control.
-- `present` remains the internal v0.3-compatible storage field, but its v0.4.16 meaning is **in chat**: individually relevant NPC participants at exchange end, not everyone physically nearby.
+- `present` remains the internal v0.3-compatible storage field, but its v0.4.17 meaning is **in chat**: individually relevant NPC participants at exchange end, not everyone physically nearby.
 - New NPCs use the same full semantic scan and receive all grounded foundational information established by the exchange. Unknown biography stays unknown.
 - The full separate v0.3-style scanner is retained as a contingency for manual Scan current cast, dossier Refresh, timeline rebase, edited/untracked branch recovery, and optional foreground failure fallback.
 - When embedded capture is enabled, a completely missing `<npc_state_v1>` block automatically triggers one recovery scan. Recovery for a malformed block remains separately optional/configurable.
@@ -51,7 +51,7 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 
 ## Testing beside stable NPC State
 
-Disable the stable NPC State extension while exercising this beta. Stable may remain installed and its settings/data remain untouched. On first load for a chat with no beta sidecar, 0.4.16 clones the stable v0.3 sidecar into a beta-owned sidecar and then diverges independently.
+Disable the stable NPC State extension while exercising this beta. Stable may remain installed and its settings/data remain untouched. On first load for a chat with no beta sidecar, 0.4.17 clones the stable v0.3 sidecar into a beta-owned sidecar and then diverges independently.
 
 ## Scanner output and relationship diagnostics
 
@@ -61,9 +61,15 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 
 ## Relationship evidence grounding
 
-- v0.4.16 keeps strict target-direction and polarity checks, but ordinary Trust evidence no longer depends only on near-verbatim token overlap with one narration clause.
-- A narrow semantic fallback can ground a small Trust change when the scanner paraphrases a clearly player-attributed task result, such as reliable bounty completion, timely delivery, competent work, or a fulfilled responsibility. The original lexical grounding path remains the first choice.
-- The fallback is fail-closed: it applies only to ordinary single-axis Trust movement, requires a player-attributed concrete event, rejects conflicting/failed performance, does not weaken Desire evidence, and does not relax meaningful/major/extreme relationship gates.
+- v0.4.17 separates evidence validity from progression difficulty. The lexical path remains first choice, while the semantic fallback may ground a single-axis Trust, Affection, or Tension change at any impact tier when the current exchange independently proves the concrete player-attributed event behind the scanner's paraphrase.
+- Semantic grounding validates that the event happened, belongs to the player, concerns the target NPC, and plausibly supports the proposed axis/direction. It does not make meaningful/major/extreme events easier and it never bypasses relationship inertia or milestone requirements.
+- The fallback remains fail-closed: wrong actors, actorless events, contradictory outcomes, failed positive-performance claims, unrelated NPCs, and ambiguous multi-axis paraphrases are rejected. Desire remains outside broad semantic inference and still requires explicit attraction/intimacy evidence in both scanner evidence and narration.
+
+## Relationship progression curve
+
+Deepening movement uses the same bands as the milestone system: **0–25 = ×1.00, 26–50 = ×0.80, 51–75 = ×0.60, 76–90 = ×0.40, 91–100 = ×0.25**. Fractional progress is retained between accepted events. Movement back toward neutral keeps its easier recovery multipliers instead of inheriting the deepening curve.
+
+The milestone boundaries remain narrative locks rather than extra friction inside the band: **25 = meaningful with at least 1 raw point, 50 = major with at least 3 raw points, 75 = extreme with at least 5 raw points, 90 = extreme with at least 8 raw points.** Ordinary history may accumulate up to a locked boundary, but a qualifying event is required to establish movement beyond it.
 
 ## Relationship milestone gate invariants
 

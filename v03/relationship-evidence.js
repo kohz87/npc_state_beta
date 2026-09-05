@@ -189,9 +189,14 @@ const RELATIONSHIP_SEMANTIC_GROUPS = Object.freeze([
     ['promise', /\b(?:promis\w*|vow\w*|commitment|committed|gave\s+(?:his|her|their|your|my)\s+word)\b/i],
     ['honesty', /\b(?:honest\w*|truthful\w*|told\s+the\s+truth|admit\w*|confess\w*)\b/i],
     ['protection', /\b(?:protect\w*|defend\w*|rescu\w*|sav(?:e|ed|es|ing)|shield\w*)\b/i],
+    ['care-positive', /\b(?:kind\w*|care\w*|help\w*|aid\w*|assist\w*|support\w*|comfort\w*|tend\w*|nurs\w*|heal\w*|gift\w*|gave|gives|giving|lend\w*|share\w*)\b/i],
+    ['care-negative', /\b(?:cruel\w*|mock\w*|insult\w*|humiliat\w*|belittl\w*|betray\w*|abandon\w*|hurt\w*|harm\w*|deceiv\w*|\blie\b|lied|lying)\b/i],
+    ['threat', /\b(?:threat\w*|intimidat\w*|menac\w*|attack\w*|brandish\w*|hostil\w*|snarl\w*|yell\w*|shout\w*|corner\w*|coerc\w*)\b/i],
+    ['reassurance', /\b(?:reassur\w*|de[- ]?escalat\w*|calm\w*|sooth\w*|relax\w*|comfort\w*|safe\w*|lower(?:ed|s|ing)?\s+(?:his|her|their|the)\s+(?:weapon|blade|voice))\b/i],
+    ['failure', /\b(?:fail\w*|botch\w*|bungl\w*|late|overdue|miss(?:ed|es|ing)?\s+(?:the\s+)?deadline|damag\w*|broken|broke|lost|incomplete|incompetent|unreliable|careless\w*|negligen\w*)\b/i],
 ]);
 const TRUST_PERFORMANCE_FAILURE = /\b(?:fail\w*|botch\w*|bungl\w*|late|overdue|miss(?:ed|es|ing)?\s+(?:the\s+)?deadline|damag\w*|broken|broke|lost|incomplete|incompetent|unreliable|careless\w*|negligen\w*)\b/i;
-const RELATIONSHIP_SEMANTIC_EVENT_CUE = /\b(?:complet\w*|finish\w*|fulfill\w*|accomplish\w*|deliver\w*|return\w*|brought\s+back|bring\w*\s+back|hand(?:ed|s|ing)?\s+over|laid\s+(?:down|out)|set\s+down|submit\w*|turn(?:ed|s|ing)?\s+in|protect\w*|defend\w*|rescu\w*|sav(?:e|ed|es|ing)|kept\s+(?:his|her|their|your|my|the)\s+word|told\s+the\s+truth)\b/i;
+const RELATIONSHIP_SEMANTIC_EVENT_CUE = /\b(?:complet\w*|finish\w*|fulfill\w*|accomplish\w*|deliver\w*|return\w*|brought\s+back|bring\w*\s+back|hand(?:ed|s|ing)?\s+over|laid\s+(?:down|out)|set\s+down|submit\w*|turn(?:ed|s|ing)?\s+in|protect\w*|defend\w*|rescu\w*|sav(?:e|ed|es|ing)|promis\w*|vow\w*|kept\s+(?:his|her|their|your|my|the)\s+word|told\s+the\s+truth|gave|gives|giving|gift\w*|help\w*|aid\w*|assist\w*|support\w*|comfort\w*|tend\w*|nurs\w*|heal\w*|mock\w*|insult\w*|humiliat\w*|belittl\w*|betray\w*|abandon\w*|hurt\w*|harm\w*|threat\w*|intimidat\w*|menac\w*|attack\w*|brandish\w*|reassur\w*|de[- ]?escalat\w*|lower(?:ed|s|ing)?\s+(?:his|her|their|the)\s+(?:weapon|blade|voice)|fail\w*|botch\w*|bungl\w*)\b/i;
 
 function relationshipSemanticGroups(value) {
     const text = normalized(value);
@@ -199,6 +204,7 @@ function relationshipSemanticGroups(value) {
     for (const [name, pattern] of RELATIONSHIP_SEMANTIC_GROUPS) if (pattern.test(text)) groups.add(name);
     if ((groups.has('task') || groups.has('completion')) && (groups.has('completion') || groups.has('delivery')) && groups.has('timeliness')) groups.add('reliability');
     if (groups.has('promise') && groups.has('completion')) groups.add('reliability');
+    if (groups.has('protection')) groups.add('care-positive');
     return groups;
 }
 function semanticSharedCount(left, right) {
@@ -228,28 +234,67 @@ function semanticEventActorKind(value, expectations = {}) {
     if (/\b(?:you|your|yourself)\b/.test(prefix)) return 'expected';
     return '';
 }
-function ordinaryTrustSemanticMatch(proof, clause, expectations = {}) {
-    if (String(expectations.impact || '').trim().toLocaleLowerCase() !== 'ordinary') return false;
+function semanticMentionsTarget(value, expectations = {}) {
+    const text = normalized(value);
+    return normalizedNames(expectations.subjectNames).some(name => phrasePositions(text, name).length > 0);
+}
+function semanticMovingAxis(expectations = {}) {
     const delta = expectations.delta && typeof expectations.delta === 'object' ? expectations.delta : {};
-    const moving = Object.entries(delta).filter(([, value]) => Number(value));
-    if (moving.length !== 1 || moving[0][0] !== 'trust' || Number(moving[0][1]) <= 0) return false;
-    if (TRUST_PERFORMANCE_FAILURE.test(clause)) return false;
+    const moving = Object.entries(delta).filter(([axis, value]) => ['trust', 'affection', 'desire', 'tension'].includes(axis) && Number(value));
+    if (moving.length !== 1) return null;
+    return { axis: moving[0][0], direction: Math.sign(Number(moving[0][1])) };
+}
+function relationshipSemanticMatch(proof, clause, expectations = {}) {
+    const movement = semanticMovingAxis(expectations);
+    if (!movement || !movement.direction || movement.axis === 'desire') return false;
+    if (!semanticMentionsTarget(clause, expectations)) return false;
     if (semanticEventActorKind(clause, expectations) !== 'expected') return false;
 
     const proofGroups = relationshipSemanticGroups(proof);
     const clauseGroups = relationshipSemanticGroups(clause);
-    if (semanticSharedCount(proofGroups, clauseGroups) >= 2) return true;
+    const shared = semanticSharedCount(proofGroups, clauseGroups);
 
-    const proofEvaluatesPerformance = proofGroups.has('quality') && proofGroups.has('reliability');
-    const concretePerformance = clauseGroups.has('task')
-        && (clauseGroups.has('completion') || clauseGroups.has('delivery'))
-        && (clauseGroups.has('timeliness') || clauseGroups.has('quality'));
-    return proofEvaluatesPerformance && concretePerformance;
+    if (movement.axis === 'trust') {
+        if (movement.direction > 0) {
+            if (TRUST_PERFORMANCE_FAILURE.test(clause) || clauseGroups.has('care-negative') || clauseGroups.has('threat')) return false;
+            const proofPerformance = (proofGroups.has('quality') && proofGroups.has('reliability'))
+                || proofGroups.has('promise') || proofGroups.has('honesty') || proofGroups.has('protection');
+            const concretePerformance = (clauseGroups.has('task') && (clauseGroups.has('completion') || clauseGroups.has('delivery'))
+                && (clauseGroups.has('timeliness') || clauseGroups.has('quality') || clauseGroups.has('reliability')))
+                || clauseGroups.has('promise') || clauseGroups.has('honesty') || clauseGroups.has('protection');
+            return concretePerformance && (proofPerformance || shared >= 2);
+        }
+        const clauseBad = clauseGroups.has('failure') || clauseGroups.has('care-negative') || clauseGroups.has('threat');
+        const proofBad = proofGroups.has('failure') || proofGroups.has('care-negative') || proofGroups.has('threat');
+        return clauseBad && (proofBad || shared >= 1);
+    }
+
+    if (movement.axis === 'affection') {
+        if (movement.direction > 0) {
+            const clauseGood = clauseGroups.has('care-positive') || clauseGroups.has('protection');
+            const proofGood = proofGroups.has('care-positive') || proofGroups.has('protection');
+            return clauseGood && proofGood;
+        }
+        const clauseBad = clauseGroups.has('care-negative') || clauseGroups.has('threat');
+        const proofBad = proofGroups.has('care-negative') || proofGroups.has('threat');
+        return clauseBad && proofBad;
+    }
+
+    if (movement.axis === 'tension') {
+        if (movement.direction > 0) {
+            const clauseStrain = clauseGroups.has('threat') || clauseGroups.has('care-negative');
+            const proofStrain = proofGroups.has('threat') || proofGroups.has('care-negative');
+            return clauseStrain && proofStrain;
+        }
+        return clauseGroups.has('reassurance') && proofGroups.has('reassurance');
+    }
+    return false;
 }
-function ordinaryTrustSemanticGrounding(proof, context, expectations = {}) {
+function relationshipSemanticGrounding(proof, context, expectations = {}) {
     for (const clause of semanticContextWindows(context)) {
-        if (!ordinaryTrustSemanticMatch(proof, clause, expectations)) continue;
-        if (directionConflict(clause, expectations)) continue;
+        if (!relationshipSemanticMatch(proof, clause, expectations)) continue;
+        // The clause is the causal player action, so reverse relationship-direction checks
+        // do not apply here. Actor ownership + target mention bind the event instead.
         if (relationshipOutcomesConflict(proof, clause)) continue;
         return clause;
     }
@@ -276,6 +321,6 @@ export function relationshipEvidenceGrounding(evidence, context, expectations = 
         if (directedMatches.some(item => relationshipOutcomesConflict(proof, item.clause))) return 'contradictory';
         return '';
     }
-    if (ordinaryTrustSemanticGrounding(proof, context, expectations)) return '';
+    if (relationshipSemanticGrounding(proof, context, expectations)) return '';
     return 'ungrounded';
 }

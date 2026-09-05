@@ -17,10 +17,10 @@ assert.equal(manifest.version, '0.4.17', 'Release source is not v0.4.17');
 assert(ui.includes('NPC State <span class="npc-state-version">0.4.17</span>'), 'Committed runtime UI version is not v0.4.17');
 
 const deepeningBlock = scanner.slice(scanner.indexOf('function relationshipInertiaFactor'), scanner.indexOf("    if (impact === 'extreme') return 1;", scanner.indexOf('function relationshipInertiaFactor')));
-assert(deepeningBlock.includes('if (magnitude < 25) return 1;'), '0–24 inertia band is not ×1.00');
-assert(deepeningBlock.includes('if (magnitude < 50) return 0.8;'), '25–49 inertia band is not ×0.80');
-assert(deepeningBlock.includes('if (magnitude < 75) return 0.6;'), '50–74 inertia band is not ×0.60');
-assert(deepeningBlock.includes('if (magnitude < 90) return 0.4;'), '75–89 inertia band is not ×0.40');
+assert(deepeningBlock.includes('if (magnitude <= 25) return 1;'), '0–25 inertia band is not ×1.00');
+assert(deepeningBlock.includes('if (magnitude <= 50) return 0.8;'), '26–50 inertia band is not ×0.80');
+assert(deepeningBlock.includes('if (magnitude <= 75) return 0.6;'), '51–75 inertia band is not ×0.60');
+assert(deepeningBlock.includes('if (magnitude <= 90) return 0.4;'), '76–90 inertia band is not ×0.40');
 assert(deepeningBlock.includes('return 0.25;'), '90–100 inertia band is not ×0.25');
 assert(scanner.includes("if (impact === 'major')") && scanner.includes("if (impact === 'meaningful')"), 'Movement-toward-neutral recovery curve was removed');
 assert(scanner.includes('RELATIONSHIP_MILESTONE_MIN_RAW'), 'Milestone raw evidence minima disappeared');
@@ -37,9 +37,9 @@ assert(phase30.includes('relationshipSemanticGrounding'), 'v0.4.17 transform sou
 assert(phase30.includes('semanticMentionsTarget'), 'v0.4.17 transform source lacks target binding');
 assert(phase31.includes('v0.4.16 relationship verifiers forward-compatible'), 'v0.4.16 verifier compatibility transform is missing');
 
-assert(verify30.includes('25–49 deepening multiplier is not ×0.80'), 'Second-band progression regression is not persisted');
-assert(verify30.includes('50–74 deepening multiplier is not ×0.60'), 'Third-band progression regression is not persisted');
-assert(verify30.includes('90–100 deepening multiplier is not ×0.25'), 'Final-band progression regression is not persisted');
+assert(verify30.includes('26–50 deepening multiplier is not ×0.80'), 'Second-band progression regression is not persisted');
+assert(verify30.includes('51–75 deepening multiplier is not ×0.60'), 'Third-band progression regression is not persisted');
+assert(verify30.includes('91–100 deepening multiplier is not ×0.25'), 'Final-band progression regression is not persisted');
 assert(verify30.includes('Movement toward neutral is no longer easier than deepening'), 'Neutral-recovery regression is not persisted');
 assert(verify30.includes('Ordinary evidence crossed a locked 25 gate'), 'Milestone-lock regression is not persisted');
 assert(verify30.includes('Another NPC performance was credited to Lucien'), 'Wrong-actor semantic regression is not persisted');

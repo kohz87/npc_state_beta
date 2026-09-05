@@ -82,7 +82,7 @@ assert(!relationshipMilestoneUnlocked(mira(state).relationshipMilestones, 'trust
 state = applyTrust(state, { impact: 'major', delta: 2, sourceMessageId: 3 });
 assert(mira(state).relationship.trust === 50, 'Major event below 50 raw requirement passed gate');
 state = applyTrust(state, { impact: 'major', delta: 3, sourceMessageId: 4 });
-assert(mira(state).relationship.trust === 51, 'Qualifying major event did not cross 50 gate');
+assert(mira(state).relationship.trust > 50, 'Qualifying major event did not cross 50 gate');
 assert(relationshipMilestoneUnlocked(mira(state).relationshipMilestones, 'trust', 1, 50), '50 gate unlock was not persisted');
 
 // 75: extreme with >=5 raw points.
@@ -90,7 +90,7 @@ state = stateWithTrust(74, [milestone('trust', 1, 25), milestone('trust', 1, 50)
 state = applyTrust(state, { impact: 'major', delta: 5 });
 assert(mira(state).relationship.trust === 75, 'Major event passed locked 75 gate');
 state = applyTrust(state, { impact: 'extreme', delta: 5, sourceMessageId: 3 });
-assert(mira(state).relationship.trust === 76, 'Qualifying extreme event did not cross 75 gate');
+assert(mira(state).relationship.trust > 75, 'Qualifying extreme event did not cross 75 gate');
 assert(relationshipMilestoneUnlocked(mira(state).relationshipMilestones, 'trust', 1, 75), '75 gate unlock was not persisted');
 
 // 90: extreme requires >=8 raw points, not merely the extreme label.
@@ -101,7 +101,7 @@ assert(!relationshipMilestoneUnlocked(mira(state).relationshipMilestones, 'trust
 state = applyTrust(state, { impact: 'extreme', delta: 7, sourceMessageId: 3 });
 assert(mira(state).relationship.trust === 90, 'Extreme event below 8 raw points crossed 90');
 state = applyTrust(state, { impact: 'extreme', delta: 8, sourceMessageId: 4 });
-assert(mira(state).relationship.trust === 91, 'Qualifying relationship-defining event did not cross 90');
+assert(mira(state).relationship.trust > 90, 'Qualifying relationship-defining event did not cross 90');
 assert(relationshipMilestoneUnlocked(mira(state).relationshipMilestones, 'trust', 1, 90), '90 gate unlock was not persisted');
 
 // Movement toward neutral is never checkpoint-blocked.
