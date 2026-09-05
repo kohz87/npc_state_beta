@@ -29,6 +29,14 @@ for (const path of [
         "    assert(mira.relationshipDiagnostics.at(-1)?.reasons?.includes('trust:wrong-direction'));",
         path + ' wrong-direction diagnostic',
     );
+    if (path.includes('phase17')) {
+        source = replaceRequired(
+            source,
+            "    assert(mira.relationshipDiagnostics.at(-1)?.reasons?.includes('evidence-polarity'));",
+            "    assert(mira.relationshipDiagnostics.at(-1)?.reasons?.includes('affection:evidence-polarity'));",
+            'phase17 affection polarity diagnostic',
+        );
+    }
     fs.writeFileSync(path, source);
 }
 
