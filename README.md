@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.9
+# NPC State Beta 0.4.10
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -7,7 +7,7 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 - Normal turns use the same foreground RP inference for NPC State capture. No mandatory second scanner request.
 - The model emits one hidden `<npc_state_v1>...</npc_state_v1>` observation block; NPC State validates it, applies deterministic state rules, stores per-message/per-swipe metadata, and strips the transport from chat.
 - With current Inventory Block transports, NPC State yields the terminal position: the NPC payload comes first and Inventory keeps its own final `INVENTORY_BLOCK_V05` / legacy `INVENTORY_BLOCK_UPDATE` control.
-- `present` remains the internal v0.3-compatible storage field, but its v0.4.9 meaning is **in chat**: individually relevant NPC participants at exchange end, not everyone physically nearby.
+- `present` remains the internal v0.3-compatible storage field, but its v0.4.10 meaning is **in chat**: individually relevant NPC participants at exchange end, not everyone physically nearby.
 - New NPCs use the same full semantic scan and receive all grounded foundational information established by the exchange. Unknown biography stays unknown.
 - The full separate v0.3-style scanner is retained as a contingency for manual Scan current cast, dossier Refresh, timeline rebase, edited/untracked branch recovery, and optional foreground failure fallback.
 - When embedded capture is enabled, a completely missing `<npc_state_v1>` block automatically triggers one recovery scan. Recovery for a malformed block remains separately optional/configurable.
@@ -32,7 +32,7 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 
 ## Settings organization
 
-- v0.4.9 groups the growing settings surface into semantic collapsible sections while preserving the existing setting IDs, values, defaults, and listeners. **Tracking** opens by default; Continuity Injection, Birthday Continuity, Dossier Evolution, Recovery & Branch Safety, Advanced Rubrics, Maintenance, and Portraits remain collapsed until needed.
+- v0.4.10 groups the growing settings surface into semantic collapsible sections while preserving the existing setting IDs, values, defaults, and listeners. **Tracking** opens by default; Continuity Injection, Birthday Continuity, Dossier Evolution, Recovery & Branch Safety, Advanced Rubrics, Maintenance, and Portraits remain collapsed until needed.
 - Birthday controls are progressive: Off shows only the fill policy, Unknown also exposes the local fill action, and Random additionally exposes the calendar and fallback-days controls. This changes presentation only; birthday provenance, age behavior, and scanner authority are unchanged.
 
 ## Compact appearance presentation
@@ -42,7 +42,7 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 
 ## Testing beside stable NPC State
 
-Disable the stable NPC State extension while exercising this beta. Stable may remain installed and its settings/data remain untouched. On first load for a chat with no beta sidecar, 0.4.9 clones the stable v0.3 sidecar into a beta-owned sidecar and then diverges independently.
+Disable the stable NPC State extension while exercising this beta. Stable may remain installed and its settings/data remain untouched. On first load for a chat with no beta sidecar, 0.4.10 clones the stable v0.3 sidecar into a beta-owned sidecar and then diverges independently.
 
 ## Scanner output and relationship diagnostics
 
@@ -59,3 +59,9 @@ Relationship milestone gates are fixed evidence thresholds, independently for ea
 Relationship deltas and milestone breakthroughs are timeline-sensitive rather than timeless dossier canon. When an explicit rebase accepts a surviving chat after a pre-baseline truncation or rewrite, NPC State now rolls back non-manual relationship events attributed to discarded message ids before establishing the new branch base. Recent scoring diagnostics are used to restore exact score/fractional state when possible; older visible deltas are reversed as a fallback. Discarded milestone unlocks are removed, and if older history is no longer sufficient to reconstruct an over-gate score exactly, that axis is conservatively clamped back to the first now-locked boundary. Manual relationship edits remain authoritative.
 
 After rebase, surviving relationship history and milestone provenance becomes part of the accepted baseline and its old message references are cleared. Recent relationship evidence/diagnostics are also cleared so discarded text cannot participate in future deduplication or scoring. Durable profile canon, memories, portraits, manual profile locks, archives, social ties, and deletion tombstones continue to survive rebase.
+
+## Manual force timeline rebase
+
+Recovery & Branch Safety includes a **Force rebase to current chat** action even when NPC State currently considers the branch safe. This is an explicit recovery tool for cases where external edits, extension lifecycle events, or other unusual state leave the user wanting to accept the currently visible chat as a fresh branch baseline. When a rebase is already required, the normal warning banner remains the primary action instead of showing a duplicate force control.
+
+A force rebase uses the same durable-state and discarded-branch relationship rollback safeguards as an ordinary required rebase. If the visible lineage is already the exact tracked lineage and its latest assistant exchange was already scanned, NPC State carries that scan marker through the baseline reset. The follow-up scan can therefore rebuild live continuity without applying the already-consumed relationship delta a second time. If the visible lineage actually diverged, the marker is cleared and the surviving latest exchange is treated normally.

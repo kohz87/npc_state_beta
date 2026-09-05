@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.4.10
+
+- Adds an explicit **Force rebase to current chat** recovery action under Recovery & Branch Safety, available even when branch safety is currently marked safe. Safe same-lineage force rebases preserve the latest already-scanned marker so the follow-up continuity refresh cannot score the same relationship event twice; genuine divergences continue to clear that marker and use the existing rollback/recovery path.
+
 ## v0.4.9
 
 - Fixes explicit timeline rebase retaining relationship changes and 25/50/75/90 gate breakthroughs from discarded branch messages. Rebase now reverses attributable non-manual relationship changes where recoverable, removes stale milestone unlocks, restores fractional state from recent scoring diagnostics when available, and clamps unrecoverable over-gate residue back to the first now-locked boundary. Manual relationship edits remain authoritative.

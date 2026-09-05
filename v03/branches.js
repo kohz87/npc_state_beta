@@ -228,6 +228,10 @@ export function rebaseToCurrentChat(state, chat = []) {
     const currentTurn = narrativeTurnFromLineage(currentLineage);
     const sourceTurn = latestKnownNarrativeTurn(source);
     const divergenceMessageId = branchDivergenceMessageId(source, chat);
+    const latestAssistantId = latestAssistantMessageId(chat);
+    const preserveLatestScannedMessage = divergenceMessageId === null
+        && Number.isInteger(source.lastScannedMessageId)
+        && source.lastScannedMessageId === latestAssistantId;
     const next = normalizeState(source, source.chatKey);
 
     next.npcs = next.npcs.map(npc => {
@@ -262,7 +266,7 @@ export function rebaseToCurrentChat(state, chat = []) {
         worldActiveNpcIds: [],
         targetNpcIds: [],
     };
-    next.lastScannedMessageId = null;
+    next.lastScannedMessageId = preserveLatestScannedMessage ? source.lastScannedMessageId : null;
     next.checkpoints = [];
     next.branchBase = null;
     next.branchHeadLineage = [];
@@ -369,7 +373,7 @@ function preserveCurrentPresentation(restored, current) {
         for (const field of locked) {
             if (stableFields.has(field)) next[field] = structuredClone(live[field]);
         }
-        // Importance became editor-owned in 0.4.9, so branch history must not undo it.
+        // Importance became editor-owned in 0.4.10, so branch history must not undo it.
         next.importance = Number(live.importance) || 0;
         return next;
     });
