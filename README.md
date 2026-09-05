@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.12
+# NPC State Beta 0.4.13
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -7,7 +7,7 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 - Normal turns use the same foreground RP inference for NPC State capture. No mandatory second scanner request.
 - The model emits one hidden `<npc_state_v1>...</npc_state_v1>` observation block; NPC State validates it, applies deterministic state rules, stores per-message/per-swipe metadata, and strips the transport from chat.
 - With current Inventory Block transports, NPC State yields the terminal position: the NPC payload comes first and Inventory keeps its own final `INVENTORY_BLOCK_V05` / legacy `INVENTORY_BLOCK_UPDATE` control.
-- `present` remains the internal v0.3-compatible storage field, but its v0.4.12 meaning is **in chat**: individually relevant NPC participants at exchange end, not everyone physically nearby.
+- `present` remains the internal v0.3-compatible storage field, but its v0.4.13 meaning is **in chat**: individually relevant NPC participants at exchange end, not everyone physically nearby.
 - New NPCs use the same full semantic scan and receive all grounded foundational information established by the exchange. Unknown biography stays unknown.
 - The full separate v0.3-style scanner is retained as a contingency for manual Scan current cast, dossier Refresh, timeline rebase, edited/untracked branch recovery, and optional foreground failure fallback.
 - When embedded capture is enabled, a completely missing `<npc_state_v1>` block automatically triggers one recovery scan. Recovery for a malformed block remains separately optional/configurable.
@@ -32,7 +32,7 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 
 ## Settings organization
 
-- v0.4.12 groups the growing settings surface into semantic collapsible sections while preserving the existing setting IDs, values, defaults, and listeners. **Tracking** opens by default; Continuity Injection, Birthday Continuity, Dossier Evolution, Recovery & Branch Safety, Advanced Rubrics, Maintenance, and Portraits remain collapsed until needed.
+- v0.4.13 groups the growing settings surface into semantic collapsible sections while preserving the existing setting IDs, values, defaults, and listeners. **Tracking** opens by default; Continuity Injection, Birthday Continuity, Dossier Evolution, Recovery & Branch Safety, Advanced Rubrics, Maintenance, and Portraits remain collapsed until needed.
 - Birthday controls are progressive: Off shows only the fill policy, Unknown also exposes the local fill action, and Random additionally exposes the calendar and fallback-days controls. This changes presentation only; birthday provenance, age behavior, and scanner authority are unchanged.
 
 ## Compact appearance presentation
@@ -42,7 +42,7 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 
 ## Testing beside stable NPC State
 
-Disable the stable NPC State extension while exercising this beta. Stable may remain installed and its settings/data remain untouched. On first load for a chat with no beta sidecar, 0.4.12 clones the stable v0.3 sidecar into a beta-owned sidecar and then diverges independently.
+Disable the stable NPC State extension while exercising this beta. Stable may remain installed and its settings/data remain untouched. On first load for a chat with no beta sidecar, 0.4.13 clones the stable v0.3 sidecar into a beta-owned sidecar and then diverges independently.
 
 ## Scanner output and relationship diagnostics
 
@@ -68,8 +68,12 @@ A force rebase uses the same durable-state and discarded-branch relationship rol
 
 ## Scanner edge-case hardening
 
-NPC State 0.4.12 hardens automatic reconciliation around malformed scanner payloads, identity collisions, life-state evidence, long canonical appearance text, cumulative visual maturation, family/manual-lock boundaries, Targeted Refresh isolation, and directional relationship evidence. Invalid foreground payloads now fail before state mutation or scan-marker advancement; automatic identity updates fail closed when a returned name/alias belongs to another dossier; death archiving requires affirmative target-attributed evidence rather than a bare death keyword; appearance synchronization compares full canonical descriptions rather than 160-character identity keys; small birthday/elapsed transitions accumulate from a persisted visual-aging baseline; family inference respects manual Key Relationship locks; Targeted Refresh discards non-target family facts; and relationship grounding uses predicate-local negation plus expected actor direction.
+NPC State 0.4.13 hardens automatic reconciliation around malformed scanner payloads, identity collisions, life-state evidence, long canonical appearance text, cumulative visual maturation, family/manual-lock boundaries, Targeted Refresh isolation, and directional relationship evidence. Invalid foreground payloads now fail before state mutation or scan-marker advancement; automatic identity updates fail closed when a returned name/alias belongs to another dossier; death archiving requires affirmative target-attributed evidence rather than a bare death keyword; appearance synchronization compares full canonical descriptions rather than 160-character identity keys; small birthday/elapsed transitions accumulate from a persisted visual-aging baseline; family inference respects manual Key Relationship locks; Targeted Refresh discards non-target family facts; and relationship grounding uses predicate-local negation plus expected actor direction.
 
 ## Second-order scanner hardening
 
-NPC State 0.4.12 closes follow-on edge cases discovered after the 0.4.11 scanner pass. Scanner observations now validate member types transactionally even when passed as already-parsed objects; same-observation identity reservations prevent two pending renames from claiming the same canonical identity; death archiving requires a completed assertion that the tracked NPC is actually the victim rather than merely appearing near a death verb; directional relationship evidence rejects another known NPC as the experiencer and relationship delta polarity must agree with locally negated predicates. Timeline rebase now treats manual relationship edits as chronological anchors instead of shielding an entire axis, so later discarded automatic gains roll back without undoing the manual value. Manual Actual/Apparent Age edits reset the maturation baseline, and Targeted Refresh disables global family reconciliation so unrelated dossiers cannot change as a side effect.
+NPC State 0.4.13 closes follow-on edge cases discovered after the 0.4.11 scanner pass. Scanner observations now validate member types transactionally even when passed as already-parsed objects; same-observation identity reservations prevent two pending renames from claiming the same canonical identity; death archiving requires a completed assertion that the tracked NPC is actually the victim rather than merely appearing near a death verb; directional relationship evidence rejects another known NPC as the experiencer and relationship delta polarity must agree with locally negated predicates. Timeline rebase now treats manual relationship edits as chronological anchors instead of shielding an entire axis, so later discarded automatic gains roll back without undoing the manual value. Manual Actual/Apparent Age edits reset the maturation baseline, and Targeted Refresh disables global family reconciliation so unrelated dossiers cannot change as a side effect.
+
+## Semantic evidence isolation
+
+NPC State 0.4.13 binds destructive life-state transitions and relationship movement to the actual target predicate instead of accepting nearby names or cue words. Death and living-return evidence now resolve the tracked NPC specifically, preserve possessive boundaries, scope negation/modality to the target assertion, and ignore another character's survival or resurrection. Relationship evidence binds each directional predicate to its nearest named actor and evaluates polarity within the predicate rather than a broad token window. Scanner dossier identities are strongly typed strings at the payload boundary. Structured dossier import now disables global family reconciliation, matching Targeted Refresh isolation. The release build also persists the legacy verifier compatibility fixtures used by CI so a fresh checkout runs the same test surface as the build pipeline.

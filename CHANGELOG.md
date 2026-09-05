@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.13
+
+- Binds death and resurrection evidence to the tracked NPC and the matched life-state predicate. Possessive references such as "Mira's attacker" no longer identify Mira as the victim, another NPC's survival no longer cancels Mira's death, and negated/other-person alive statements cannot resurrect an archived dossier.
+- Replaces whole-evidence relationship actor checks with predicate-local nearest-actor binding, so mentioning Mira before a later Sora-to-player trust predicate cannot move Mira's relationship state.
+- Narrows relationship polarity handling to the relevant predicate and adds composite decrease handling such as "tension easing", while preserving legitimate statements such as "no longer afraid and trusts Lucien" and "less trusting".
+- Requires scanner NPC id/name/alias identity values to be actual strings rather than stringifying nested objects or other invalid types.
+- Makes Structured Dossier Import skip global family reconciliation, preventing an import for one NPC from mutating unrelated family dossiers or graph edges.
+- Persists the forward-compatible verifier fixtures used during release builds so a fresh checkout and CI execute the same regression suite without hidden test-source rewrites.
+
 ## v0.4.12
 
 - Makes scanner validation transactional for both JSON text and already-parsed objects: activity arrays require non-empty strings, dossier/edge/family arrays require valid object members, malformed members reject the whole observation, and pending same-scan identity changes reserve names/aliases before any state mutation.

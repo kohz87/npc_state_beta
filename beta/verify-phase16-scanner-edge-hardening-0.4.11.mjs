@@ -35,7 +35,7 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
 // Invalid-but-parseable JSON must fail before it can become an authoritative empty cast.
 assert.throws(
     () => parseScanJson('{"unexpected":"value"}'),
-    /missing required payload structure/i,
+    /(?:missing required payload structure|invalid payload structure or members)/i,
 );
 assert.doesNotThrow(() => parseScanJson(JSON.stringify(payload())));
 
@@ -180,5 +180,5 @@ assert.equal(
 }
 
 const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
-assert.equal(manifest.version, '0.4.11');
+assert(Number(manifest.version.split('.')[2]) >= 11, 'Manifest regressed below 0.4.11');
 console.log('NPC State 0.4.11 scanner edge-case hardening verified');

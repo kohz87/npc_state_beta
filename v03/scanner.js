@@ -205,7 +205,7 @@ function dossierCollectionRules(limits) {
 
 export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State v0.4.12 recovery scanner requires an assistant message and its preceding user exchange.');
+    if (!exchange) throw new Error('NPC State v0.4.13 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
@@ -228,7 +228,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         familyFacts: [{ owner: 'existing NPC id/name', relation: 'daughter|son|child|other countable family role', count: 2, descriptor: 'optional e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit countable family fact' }],
     };
     return [
-        'You are NPC State v0.4.12, a private structured continuity scanner for a roleplay chat.',
+        'You are NPC State v0.4.13, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
         '',
         `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
@@ -308,7 +308,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         body: compactText(block?.body, 12000),
     }));
     return [
-        'You are NPC State v0.4.12 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
+        'You are NPC State v0.4.13 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
         'Return JSON only. This is reference-data reconciliation, NOT a current scene/event scan.',
         'Only the supplied Megumin New_NPC / NPC_Update blocks are authoritative sources for this operation.',
         'TARGET DOSSIER: ' + JSON.stringify(rosterForPrompt({ npcs: [npc] })[0]),
@@ -347,7 +347,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State v0.4.12 performing a targeted dossier reconciliation.',
+        'You are NPC State v0.4.13 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
@@ -383,15 +383,22 @@ function scannerStringArrayValid(value) {
 function scannerObjectArrayValid(value) {
     return Array.isArray(value) && value.every(isPlainScannerObject);
 }
+function scannerIdentityString(value) {
+    return typeof value === 'string' && Boolean(value.trim());
+}
 function scannerNpcArrayValid(value) {
     return scannerObjectArrayValid(value) && value.every(item => {
-        const direct = String(item?.id || item?.name || '').trim();
-        const alias = Array.isArray(item?.aliases) && item.aliases.some(value => typeof value === 'string' && value.trim());
+        const has = key => Object.prototype.hasOwnProperty.call(item, key);
+        if (has('id') && typeof item.id !== 'string') return false;
+        if (has('name') && typeof item.name !== 'string') return false;
+        if (has('aliases') && (!Array.isArray(item.aliases) || !item.aliases.every(alias => typeof alias === 'string'))) return false;
+        const direct = scannerIdentityString(item.id) || scannerIdentityString(item.name);
+        const alias = Array.isArray(item.aliases) && item.aliases.some(scannerIdentityString);
         return Boolean(direct || alias);
     });
 }
 function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupplemental = false } = {}) {
-    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.12 recovery scanner JSON must be an object.');
+    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.13 recovery scanner JSON must be an object.');
     const has = key => Object.prototype.hasOwnProperty.call(parsed, key);
     const presentKey = has('inChatNpcIds') ? 'inChatNpcIds' : (has('finalPresentNpcIds') ? 'finalPresentNpcIds' : '');
     if (requireContract) {
@@ -399,10 +406,10 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
         if (!scannerStringArrayValid(parsed.exchangeActiveNpcIds)) invalid.push('exchangeActiveNpcIds[string]');
         if (!presentKey || !scannerStringArrayValid(parsed[presentKey])) invalid.push('inChatNpcIds[string]');
         if ((!allowOmittedSupplemental || has('worldActiveNpcIds')) && !scannerStringArrayValid(parsed.worldActiveNpcIds)) invalid.push('worldActiveNpcIds[string]');
-        if (!scannerNpcArrayValid(parsed.npcs)) invalid.push('npcs[object-with-identity]');
+        if (!scannerNpcArrayValid(parsed.npcs)) invalid.push('npcs[object-with-string-identity]');
         if ((!allowOmittedSupplemental || has('socialEdges')) && !scannerObjectArrayValid(parsed.socialEdges)) invalid.push('socialEdges[object]');
         if (has('familyFacts') && !scannerObjectArrayValid(parsed.familyFacts)) invalid.push('familyFacts[object]');
-        if (invalid.length) throw new Error('NPC State v0.4.12 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
+        if (invalid.length) throw new Error('NPC State v0.4.13 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
     }
     return {
         exchangeActiveNpcIds: uniqueStrings(parsed.exchangeActiveNpcIds),
@@ -416,14 +423,14 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
 
 export function parseScanJson(raw) {
     const text = String(raw ?? '').trim();
-    if (!text) throw new Error('NPC State v0.4.12 recovery scanner returned an empty response.');
+    if (!text) throw new Error('NPC State v0.4.13 recovery scanner returned an empty response.');
     const unfenced = text.replace(/^\x60\x60\x60(?:json)?\s*/i, '').replace(/\s*\x60\x60\x60$/i, '').trim();
     const first = unfenced.indexOf('{');
     const last = unfenced.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('NPC State v0.4.12 recovery scanner returned no JSON object.');
+    if (first < 0 || last <= first) throw new Error('NPC State v0.4.13 recovery scanner returned no JSON object.');
     let parsed;
     try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
-    catch (error) { throw new Error('NPC State v0.4.12 recovery scanner returned malformed JSON: ' + error.message); }
+    catch (error) { throw new Error('NPC State v0.4.13 recovery scanner returned malformed JSON: ' + error.message); }
     return normalizeScanPayload(parsed, { requireContract: true });
 }
 
@@ -512,7 +519,7 @@ function preflightAutomaticIdentityPatches(state, patches = [], referenceCandida
                 // handled by automaticIdentityPatchConflicts() as a local patch rejection.
                 // A newly claimed key is a same-observation conflict and invalidates the payload.
                 if (!initialIdentityKeys.has(key)) {
-                    throw new Error('NPC State v0.4.12 scanner identity collision inside one observation: ' + value + '.');
+                    throw new Error('NPC State v0.4.13 scanner identity collision inside one observation: ' + value + '.');
                 }
             }
         }
@@ -1498,44 +1505,89 @@ function applyRelationshipChange(npc, patch, options = {}) {
     return relationshipDiagnostic(npc, next, change, options, reasons, crossings);
 }
 const AFFIRMATIVE_DEATH_CUE = /\b(?:dies|died|dead|killed|slew|slain|murdered|lifeless|no pulse|stopped breathing|ceased breathing)\b/i;
-const DEATH_DENIAL_CUE = /\b(?:not|never)\b(?:\s+\w+){0,4}\s+\b(?:dead|dying|died|die|dies|killed|slain|murdered|lifeless)\b|\b(?:is|are|was|were|did|does|do|has|have|had)\s+not\s+(?:die|died|dead|dying|killed|slain|murdered|lifeless)\b/i;
-const DEATH_RETRACTION_CUE = /\b(?:alive|surviv(?:e|ed|es|ing)|resurrect(?:ed|s|ing)?|reviv(?:e|ed|es|ing)|death reports? (?:were|was) false|falsely reported dead|mistakenly reported dead|emerges? alive|returns? alive)\b|\b(?:almost|nearly)\s+(?:died|dead)|\bnear[- ]death\b|\b(?:escaped?|avoided?|survived?)\s+(?:certain\s+)?death\b/i;
-const DEATH_NONFINAL_CUE = /\b(?:might|may|could|would|will|shall|should|perhaps|possibly|likely|expected|expects?|predicted|predicts?|if|unless|threatens?|threatened|plans?|planned|intends?|intended|attempts?|attempted|tries?|tried|risks?|risked|about to|going to)\b/i;
+const AFFIRMATIVE_LIVING_CUE = /\b(?:alive|surviv(?:e|ed|es|ing)|resurrect(?:ed|s|ing)?|reviv(?:e|ed|es|ing)|not dead|was not dead|did not die|never died|returns? alive|returned alive|emerges? alive|emerged alive)\b/i;
+const LIFE_ASSERTION_BLOCKER = new Set(['if', 'unless', 'whether', 'might', 'may', 'could', 'would', 'will', 'shall', 'should', 'perhaps', 'possibly', 'maybe', 'likely', 'expected', 'expect', 'expects', 'predicted', 'predicts', 'almost', 'nearly', 'not', 'never']);
 function lifeEvidenceText(value) {
-    return String(value || '').normalize('NFKC').replace(/\b(\w+)n[’']t\b/gi, '$1 not');
+    return String(value || '').normalize('NFKC')
+        .replace(/[’]/g, "'")
+        .replace(/\b(\w+)n['’]t\b/gi, '$1 not')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+function lifeEvidenceComparable(value) {
+    return lifeEvidenceText(value).toLocaleLowerCase();
 }
 function lifeEvidenceKey(value) {
-    return lifeEvidenceText(value).toLocaleLowerCase().replace(/[^\p{L}\p{N}\s]+/gu, ' ').replace(/\s+/g, ' ').trim();
+    return lifeEvidenceComparable(value).replace(/[^\p{L}\p{N}\s]+/gu, ' ').replace(/\s+/g, ' ').trim();
 }
 function escapedLifeName(value) {
-    return lifeEvidenceKey(value).split(/\s+/).filter(Boolean).map(token => token.replace(/[.*+?^$(){}|[\]\\]/g, '\\$&')).join('\\s+');
+    return lifeEvidenceKey(value).split(/\s+/).filter(Boolean)
+        .map(token => token.replace(/[.*+?^$()|[\]\\]/g, '\\$&')).join('\\s+');
+}
+function lifeAssertionBlocked(text, index) {
+    const prefix = text.slice(0, Math.max(0, index)).trim().split(/\s+/).filter(Boolean).slice(-6);
+    return prefix.some(word => LIFE_ASSERTION_BLOCKER.has(word.replace(/[^\p{L}\p{N}]+/gu, '')));
+}
+function clauseAssertsNpcLiving(clause, variant) {
+    const text = lifeEvidenceComparable(clause);
+    const name = escapedLifeName(variant);
+    if (!text || !name) return false;
+    const patterns = [
+        new RegExp('\\b' + name + '\\b\\s+(?:is|was|remains|remained|appears|appeared)\\s+(?:still\\s+)?alive\\b', 'i'),
+        new RegExp('\\b' + name + '\\b\\s+(?:(?:has|had)\\s+)?surviv(?:ed|es)\\b', 'i'),
+        new RegExp('\\b' + name + '\\b\\s+(?:is|was|has\\s+been|had\\s+been)\\s+(?:revived|resurrected)\\b', 'i'),
+        new RegExp('\\b' + name + '\\b\\s+(?:returns?|returned|emerges?|emerged)\\s+alive\\b', 'i'),
+        new RegExp('\\b' + name + '\\b\\s+(?:is|was)\\s+not\\s+dead\\b', 'i'),
+        new RegExp('\\b' + name + '\\b\\s+(?:did|does)\\s+not\\s+die\\b', 'i'),
+        new RegExp('\\b' + name + '\\b\\s+never\\s+died\\b', 'i'),
+    ];
+    for (const pattern of patterns) {
+        const match = pattern.exec(text);
+        if (match && !lifeAssertionBlocked(text, match.index || 0)) return true;
+    }
+    return false;
 }
 function clauseAssertsNpcDeath(clause, variant) {
-    const text = lifeEvidenceKey(clause);
+    const text = lifeEvidenceComparable(clause);
     const name = escapedLifeName(variant);
-    if (!text || !name || DEATH_DENIAL_CUE.test(text) || DEATH_RETRACTION_CUE.test(text)) return false;
-    const withoutTarget = text.replace(new RegExp('\\b' + name + '\\b', 'gi'), ' ');
-    if (DEATH_NONFINAL_CUE.test(withoutTarget)) return false;
+    if (!text || !name || clauseAssertsNpcLiving(clause, variant)) return false;
     const patterns = [
         new RegExp('\\b' + name + '\\b\\s+(?:(?:has|had)\\s+)?(?:died|dies)\\b', 'i'),
         new RegExp('\\b' + name + '\\b\\s+(?:is|was|lay|lies|remained|remains|appeared|appears)\\s+(?:already\\s+)?(?:dead|lifeless)\\b', 'i'),
         new RegExp('\\b' + name + '\\b\\s+(?:has|had)\\s+no\\s+pulse\\b', 'i'),
         new RegExp('\\b' + name + '\\b\\s+(?:stopped|ceased)\\s+breathing\\b', 'i'),
         new RegExp('\\b' + name + '\\b\\s+(?:was|is|has\\s+been|had\\s+been)\\s+(?:killed|slain|murdered)\\b', 'i'),
-        new RegExp('\\b(?:killed|slew|slain|murdered)\\s+(?:the\\s+)?' + name + '\\b', 'i'),
+        new RegExp("\\b(?:killed|slew|slain|murdered)\\s+(?:the\\s+)?" + name + "\\b(?!\\s*'s\\b)", 'i'),
     ];
-    return patterns.some(pattern => pattern.test(text));
+    for (const pattern of patterns) {
+        const match = pattern.exec(text);
+        if (match && !lifeAssertionBlocked(text, match.index || 0)) return true;
+    }
+    return false;
+}
+function npcLifeVariants(npc) {
+    return [npc?.name, ...(npc?.aliases || [])].map(value => String(value || '').trim()).filter(Boolean);
+}
+function lifeEvidenceClauses(value) {
+    return lifeEvidenceText(value).split(/[.!?;\n]+|\b(?:but|however|although|yet)\b/i).map(item => item.trim()).filter(Boolean);
 }
 function affirmativeDeathEvidence(npc, evidence, context) {
     const proof = lifeEvidenceText(evidence);
-    const variants = [npc?.name, ...(npc?.aliases || [])].map(value => String(value || '').trim()).filter(Boolean);
+    const variants = npcLifeVariants(npc);
     if (!proof || !variants.length || !AFFIRMATIVE_DEATH_CUE.test(proof)) return false;
     if (!variants.some(value => clauseAssertsNpcDeath(proof, value))) return false;
-    const clauses = lifeEvidenceText(context).split(/[.!?;\n]+|\b(?:but|however|although|yet)\b/i).map(value => value.trim()).filter(Boolean);
-    return clauses.some(clause =>
-        AFFIRMATIVE_DEATH_CUE.test(clause)
-        && variants.some(value => clauseAssertsNpcDeath(clause, value))
-        && profileEvidenceGrounded(proof, clause));
+    const clauses = lifeEvidenceClauses(context);
+    if (!clauses.length) return true;
+    return clauses.some(clause => variants.some(value => clauseAssertsNpcDeath(clause, value)) && profileEvidenceGrounded(proof, clause));
+}
+function affirmativeLivingReturnEvidence(npc, evidence, context) {
+    const proof = lifeEvidenceText(evidence);
+    const variants = npcLifeVariants(npc);
+    if (!proof || !variants.length || !AFFIRMATIVE_LIVING_CUE.test(proof)) return false;
+    if (!variants.some(value => clauseAssertsNpcLiving(proof, value))) return false;
+    const clauses = lifeEvidenceClauses(context);
+    if (!clauses.length) return true;
+    return clauses.some(clause => variants.some(value => clauseAssertsNpcLiving(clause, value)) && profileEvidenceGrounded(proof, clause));
 }
 
 
@@ -1550,7 +1602,7 @@ function applyLifeState(npc, patch, options = {}) {
         : String(options.profileContext || '');
     const grounded = Boolean(reason && (!lifeContext.trim() || profileEvidenceGrounded(reason, lifeContext)));
     const deathCue = affirmativeDeathEvidence(npc, reason, lifeContext);
-    const livingReturnCue = /\b(?:alive|surviv(?:e|ed|es|ing)|resurrect(?:ed|s|ing)?|reviv(?:e|ed|es|ing)|not dead|wasn't dead|was not dead|death reports? (?:were|was) false|emerges? alive|returns? alive)\b/i.test(lifeContext);
+    const livingReturnCue = affirmativeLivingReturnEvidence(npc, reason, lifeContext);
     const wasDead = String(npc?.lifeState || '').toLocaleLowerCase() === 'dead'
         || (npc?.archived === true && String(npc?.archiveReason || '').toLocaleLowerCase() === 'deceased');
 

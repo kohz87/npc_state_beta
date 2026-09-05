@@ -66,7 +66,7 @@ test('token setting clamps safely and preserves the 7000 default', () => {
 test('scan and malformed JSON retry use the same chosen budget', async () => {
     const calls = [];
     let h;
-    h = await harness({}, async request => { calls.push(request); h.config.scannerResponseTokens = 7000; return calls.length === 1 ? 'malformed' : '{}'; }, { scannerResponseTokens: 15000 });
+    h = await harness({}, async request => { calls.push(request); h.config.scannerResponseTokens = 7000; return calls.length === 1 ? 'malformed' : JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [], socialEdges: [] }); }, { scannerResponseTokens: 15000 });
     const result = await h.engine.scan(1, { manual: true });
     assert.equal(result.ok, true);
     assert.deepEqual(calls.map(call => call.responseLength), [15000, 15000]);
@@ -177,9 +177,13 @@ test('cross-chat import and rebase clear timeline-local evidence, preserve durab
         assert.deepEqual(npc(next).relationshipEvidenceHistory, []);
         assert.deepEqual(npc(next).relationshipDiagnostics, []);
         assert.deepEqual(npc(next).relationship, npc(state).relationship);
-        assert.deepEqual(npc(next).relationshipMilestones, npc(state).relationshipMilestones);
         assert.equal(npc(next).relationshipHistory[0].sourceMessageId, null);
     }
+    assert.deepEqual(npc(imported.state).relationshipMilestones, npc(state).relationshipMilestones);
+    assert.deepEqual(
+        npc(rebased).relationshipMilestones,
+        npc(state).relationshipMilestones.map(entry => ({ ...entry, sourceMessageId: null, turn: null })),
+    );
 });
 
 test('embedded replay is idempotent across paraphrases and reloads', async () => {

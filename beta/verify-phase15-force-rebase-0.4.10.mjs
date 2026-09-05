@@ -58,6 +58,6 @@ assert(branches.includes('preserveLatestScannedMessage'), 'Branch rebase lacks s
 assert(branches.includes('divergenceMessageId === null'), 'Scan-marker preservation is not gated to a non-divergent lineage');
 
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
-assert.equal(manifest.version, '0.4.10', 'Manifest was not bumped to 0.4.10');
+assert(/^0\.4\.(?:10|1[1-9]|[2-9]\d)$/.test(manifest.version), 'Manifest is older than the 0.4.10 force-rebase baseline');
 
 console.log('NPC State 0.4.10 manual force rebase verification passed');

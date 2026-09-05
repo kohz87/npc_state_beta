@@ -116,7 +116,8 @@ assert(!scannerSource.includes('Math.min(tierCap, stockMinimum)'), 'Legacy cap-d
 assert(scannerSource.includes('Milestone minima are evidence invariants'), 'Invariant gate rationale is missing from scanner implementation');
 
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
-assert.equal(manifest.version, '0.4.8', 'Manifest was not bumped to 0.4.8');
+const manifestMatch = String(manifest.version || '').match(/^0\.4\.(\d+)$/);
+assert(manifestMatch && Number(manifestMatch[1]) >= 8, 'Manifest is not a 0.4.8+ descendant');
 const readme = fs.readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 assert(readme.includes('25 = meaningful-or-stronger with at least 1 raw point'), 'README does not document the 25 gate invariant');
 assert(readme.includes('50 = major-or-stronger with at least 3 raw points'), 'README does not document the 50 gate invariant');
