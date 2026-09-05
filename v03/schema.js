@@ -1,4 +1,4 @@
-export const NPC_STATE_VERSION = '0.4.17';
+export const NPC_STATE_VERSION = '0.4.18';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     const number = Number(value);

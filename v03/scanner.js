@@ -205,7 +205,7 @@ function dossierCollectionRules(limits) {
 
 export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State v0.4.17 recovery scanner requires an assistant message and its preceding user exchange.');
+    if (!exchange) throw new Error('NPC State v0.4.18 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
@@ -222,13 +222,13 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
             behaviorProfile: [], speech: '', mannerisms: [], keyRelationshipChanges: [{ other: 'existing NPC name/id', action: 'remove', evidence: 'explicit evidence the durable tie no longer applies' }], profileChanges: [{ field: 'personality|behaviorProfile|speech|mannerisms', mode: 'refine|gradual|explicit|batch', concept: 'short stable concept label', evidence: 'grounded evidence for this durable profile update' }], canonChanges: [{ field: 'appearance|species|background|role|birthday', mode: 'refine|change|correction|revelation|age_progression', value: 'replacement durable canon', evidence: 'grounded evidence for this durable scalar revision' }], background: '', keyRelationships: [], memories: [],
             relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0,
             lifeState: 'alive|dead|unknown', lifeStateCertainty: 'explicit|strong|uncertain', lifeStateReason: '', livingReturn: false,
-            relationshipChange: { impact: 'none|ordinary|meaningful|major|extreme', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' },
+            relationshipChange: { evaluated: true, impact: 'none|ordinary|meaningful|major|extreme', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: 'required even when impact is none' },
         }],
         socialEdges: [{ from: 'NPC id/name only', to: 'NPC id/name only', relation: '', summary: '', provenance: 'explicit|strong-context' }],
         familyFacts: [{ owner: 'existing NPC id/name', relation: 'daughter|son|child|other countable family role', count: 2, descriptor: 'optional e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit countable family fact' }],
     };
     return [
-        'You are NPC State v0.4.17, a private structured continuity scanner for a roleplay chat.',
+        'You are NPC State v0.4.18, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
         '',
         `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
@@ -244,13 +244,14 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- For NEW NPC identity: if a proper/personal name is established anywhere in the current exchange, npcs.name MUST be that canonical name and nothing else. npcs.name is human-facing display text and MUST NEVER be an npc-* identifier, slug, key, or machine label, and MUST NEVER begin with npc-. Put occupation/function such as Clerk, Guard, Innkeeper, or Receptionist in role, not in name. Use a human-readable unique role label as name only while the NPC is genuinely unnamed. Always return id as an empty string for a new NPC; NPC State assigns the stable id locally. Never invent an npc-* id.',
         '- For a NEW NPC, behaviorProfile, mannerisms, keyRelationships, and memories are bootstrap collections: return arrays containing all grounded entries established by the CURRENT exchange; use [] only when none are supported. Do not use null for those four fields on a new NPC. A first scene can establish behavior or mannerisms when the text explicitly describes or clearly demonstrates a characteristic pattern, gesture, habit, or social tendency; prior sightings are not required.',
         '- A single scan may introduce MULTIPLE new individually relevant NPCs. Do not stop after the first. Return one separate npcs object for every such NPC. For every NEW NPC use id as an empty string; never invent a stable ID. Reference each new NPC in exchangeActiveNpcIds, inChatNpcIds, or worldActiveNpcIds by the exact canonical name or unique role label that appears in its npcs object. Do not add new npcs entries for named-only mentions, crowds, background workers, incidental guards, or other non-individually-relevant characters.',
-        '- A single scan may update MULTIPLE existing NPCs in the same response. Do not stop after the first and do not omit a dossier patch merely because another NPC is more prominent. Return one separate npcs object for every individually relevant existing NPC whose grounded dossier data is established, corrected, or materially changed in this response. Keep exchangeActiveNpcIds, inChatNpcIds, and worldActiveNpcIds complete for their own semantics.',
+        '- A single scan may update MULTIPLE existing NPCs in the same response. Do not stop after the first and do not omit a dossier patch merely because another NPC is more prominent. Return one separate npcs object for EVERY exchange-active existing NPC so relationship evaluation is explicit, plus any other individually relevant existing NPC whose grounded dossier data is established, corrected, or materially changed. Keep exchangeActiveNpcIds, inChatNpcIds, and worldActiveNpcIds complete for their own semantics.',
         '- The PLAYER/current USER persona is not an NPC for this scanner, even when named in narration. Never create the PLAYER as an npcs entry.',
         '- relationship, relationshipSummary, and relationshipChange describe THIS NPC toward the PLAYER. They are the dedicated player-relationship channel.',
         '- keyRelationships contains significant NON-PLAYER ties only, such as family, friends, rivals, patrons, dependents, or other NPCs. Never include the PLAYER/current USER persona there.',
         '- socialEdges are NPC-to-NPC only. Never use the PLAYER/current USER persona as an endpoint.',
         '- Current exchange decides relationship changes. Older history may recover stable profile facts and durable memories, but must NEVER replay relationship deltas.',
-        '- Only propose a relationshipChange when the current exchange contains concrete evidence. If unsure, use impact none and zero deltas.',
+        '- RELATIONSHIP EVALUATION IS REQUIRED for every NPC in exchangeActiveNpcIds. Return an npcs patch for each such NPC even when no other dossier field changed. Set relationshipChange.evaluated to true. Most ordinary interactions may correctly produce no movement; for that case use impact none, all-zero deltas, empty evidence, and a concise reason explaining why no player-relationship shift is warranted. Never omit relationshipChange for an exchange-active NPC.',
+        '- Use a non-none relationshipChange only when the current exchange contains concrete evidence. If unsure whether movement is warranted, evaluate it explicitly as impact none rather than omitting the channel.',
         '- RELATIONSHIP HARDENING: ordinary may affect at most 1 axis, meaningful 2, major 3, extreme 4. Repeated aftermath or semantically duplicate events must be zero. High relationship depth has increasing inertia, so raw deltas are evidence weights rather than guaranteed visible points. Desire requires explicit romantic/intimate/physical attraction evidence in the CURRENT narration, not friendship, gratitude, rescue, beauty, proximity, trust, or generic affection. Relationship Summary must describe only depth actually supported by the accepted relationship state.',
         '- RELATIONSHIP EVIDENCE: quote a short concrete event from the current exchange; preserve who acted, negation, and the outcome. Do not replace a quote with an inferred absolute trust/affection claim. Opposite outcomes are new events, while repeated aftermath earns zero. RELATIONSHIP MILESTONE GATES are enforced by NPC State at absolute depth 25, 50, 75, and 90 independently for each axis and positive/negative polarity. Ordinary evidence may reach a locked boundary but cannot deepen beyond it. Crossing 25 requires meaningful-or-stronger evidence; crossing 50 requires a major-or-stronger event with at least 3 raw points on that axis; crossing 75 requires extreme evidence with at least 5 raw points; crossing 90 requires extreme relationship-defining evidence with at least 8 raw points. Movement back toward neutral is never gate-blocked. Classify impact and deltas from the story honestly; never inflate them merely to open a gate.',
         '- age is ACTUAL chronological age only. Use one grounded numeric age. Years use N or ~N; if canon explicitly gives a smaller unit, use N days, N weeks, or N months. Never write child, teenager, adult, young adult, middle-aged, elder, elderly, old, or another life-stage label in age. Never infer actual age from appearance. For an EXISTING NPC with an established age, a different number MUST NOT be placed in age. Use ageChange instead.',
@@ -308,7 +309,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         body: compactText(block?.body, 12000),
     }));
     return [
-        'You are NPC State v0.4.17 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
+        'You are NPC State v0.4.18 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
         'Return JSON only. This is reference-data reconciliation, NOT a current scene/event scan.',
         'Only the supplied Megumin New_NPC / NPC_Update blocks are authoritative sources for this operation.',
         'TARGET DOSSIER: ' + JSON.stringify(rosterForPrompt({ npcs: [npc] })[0]),
@@ -347,7 +348,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State v0.4.17 performing a targeted dossier reconciliation.',
+        'You are NPC State v0.4.18 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
@@ -398,7 +399,7 @@ function scannerNpcArrayValid(value) {
     });
 }
 function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupplemental = false } = {}) {
-    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.17 recovery scanner JSON must be an object.');
+    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.18 recovery scanner JSON must be an object.');
     const has = key => Object.prototype.hasOwnProperty.call(parsed, key);
     const presentKey = has('inChatNpcIds') ? 'inChatNpcIds' : (has('finalPresentNpcIds') ? 'finalPresentNpcIds' : '');
     if (requireContract) {
@@ -409,7 +410,7 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
         if (!scannerNpcArrayValid(parsed.npcs)) invalid.push('npcs[object-with-string-identity]');
         if ((!allowOmittedSupplemental || has('socialEdges')) && !scannerObjectArrayValid(parsed.socialEdges)) invalid.push('socialEdges[object]');
         if (has('familyFacts') && !scannerObjectArrayValid(parsed.familyFacts)) invalid.push('familyFacts[object]');
-        if (invalid.length) throw new Error('NPC State v0.4.17 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
+        if (invalid.length) throw new Error('NPC State v0.4.18 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
     }
     return {
         exchangeActiveNpcIds: uniqueStrings(parsed.exchangeActiveNpcIds),
@@ -423,14 +424,14 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
 
 export function parseScanJson(raw) {
     const text = String(raw ?? '').trim();
-    if (!text) throw new Error('NPC State v0.4.17 recovery scanner returned an empty response.');
+    if (!text) throw new Error('NPC State v0.4.18 recovery scanner returned an empty response.');
     const unfenced = text.replace(/^\x60\x60\x60(?:json)?\s*/i, '').replace(/\s*\x60\x60\x60$/i, '').trim();
     const first = unfenced.indexOf('{');
     const last = unfenced.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('NPC State v0.4.17 recovery scanner returned no JSON object.');
+    if (first < 0 || last <= first) throw new Error('NPC State v0.4.18 recovery scanner returned no JSON object.');
     let parsed;
     try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
-    catch (error) { throw new Error('NPC State v0.4.17 recovery scanner returned malformed JSON: ' + error.message); }
+    catch (error) { throw new Error('NPC State v0.4.18 recovery scanner returned malformed JSON: ' + error.message); }
     return normalizeScanPayload(parsed, { requireContract: true });
 }
 
@@ -519,7 +520,7 @@ function preflightAutomaticIdentityPatches(state, patches = [], referenceCandida
                 // handled by automaticIdentityPatchConflicts() as a local patch rejection.
                 // A newly claimed key is a same-observation conflict and invalidates the payload.
                 if (!initialIdentityKeys.has(key)) {
-                    throw new Error('NPC State v0.4.17 scanner identity collision inside one observation: ' + value + '.');
+                    throw new Error('NPC State v0.4.18 scanner identity collision inside one observation: ' + value + '.');
                 }
             }
         }
@@ -1363,10 +1364,38 @@ function relationshipDiagnostic(npc, next, change, options, reasons = [], unlock
     return { ...next, relationshipDiagnostics: normalizeRelationshipDiagnostics([...(npc.relationshipDiagnostics || []), event]) };
 }
 
+function relationshipEvaluationDiagnostic(npc, patch, options = {}) {
+    const raw = patch?.relationshipChange && typeof patch.relationshipChange === 'object' && !Array.isArray(patch.relationshipChange)
+        ? patch.relationshipChange
+        : null;
+    const zero = { trust: 0, affection: 0, desire: 0, tension: 0 };
+    if (!raw) {
+        return relationshipDiagnostic(npc, npc, {
+            impact: 'none', delta: zero, evidence: '',
+            reason: 'Scanner omitted relationship evaluation for an exchange-active NPC.',
+        }, options, ['evaluation-missing']);
+    }
+    const rawImpactText = String(raw.impact || '').trim();
+    const impactValid = IMPACTS.has(rawImpactText);
+    const rawImpact = impactValid ? rawImpactText : 'none';
+    const rawDelta = raw.delta && typeof raw.delta === 'object' && !Array.isArray(raw.delta) ? raw.delta : {};
+    const hasRawDelta = RELATIONSHIP_AXES.some(axis => Number(rawDelta?.[axis]) !== 0);
+    const evaluated = raw.evaluated === true;
+    const reason = String(raw.reason || '').trim().slice(0, 800);
+    const evidence = String(raw.evidence || '').trim().slice(0, 800);
+    if (evaluated && impactValid && rawImpact === 'none' && !hasRawDelta && reason) {
+        return relationshipDiagnostic(npc, npc, { impact: 'none', delta: zero, evidence: '', reason }, options, ['evaluated-no-change']);
+    }
+    const diagnosticReason = evaluated
+        ? (reason || 'Scanner returned an incomplete relationship evaluation.')
+        : 'Scanner omitted the required relationshipChange.evaluated flag for an exchange-active NPC.';
+    return relationshipDiagnostic(npc, npc, { impact: rawImpact, delta: zero, evidence, reason: diagnosticReason }, options, [evaluated ? 'evaluation-invalid' : 'evaluation-missing']);
+}
+
 function applyRelationshipChange(npc, patch, options = {}) {
     const caps = options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS;
     const change = relationshipDeltaForPatch(patch, caps);
-    if (change.impact === 'none') return npc;
+    if (change.impact === 'none') return relationshipEvaluationDiagnostic(npc, patch, options);
     if (options.requireCurrentRelationshipEvidence === true) {
         const rejection = relationshipEvidenceGrounding(change.evidence, options.relationshipContext, {
             subjectNames: npcEvidenceVariants(npc),
@@ -1949,6 +1978,9 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             npc = applyLivePatch(npc, patch);
             npc = applyLifeState(npc, patch, options);
             npc.updatedAt = Math.max(Date.now(), Number(npc.updatedAt || 0) + 1);
+        }
+        if (applyRelationship && exchangeSet.has(npc.id) && !patch) {
+            npc = relationshipEvaluationDiagnostic(npc, null, { sourceMessageId, turn });
         }
         if (exchangeSet.has(npc.id)) npc.lastInteractionMessageId = sourceMessageId;
         if (presentIds.includes(npc.id)) {

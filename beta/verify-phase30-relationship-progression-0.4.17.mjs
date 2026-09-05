@@ -227,6 +227,7 @@ assert(evidence.includes("movement.axis === 'desire'"), 'Desire semantic isolati
 assert(evidence.includes('semanticMentionsTarget'), 'Target binding is missing from semantic grounding');
 
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
-assert.equal(manifest.version, '0.4.17');
+const manifestPatch = Number(String(manifest.version || '').split('.')[2]);
+assert(String(manifest.version || '').startsWith('0.4.') && Number.isInteger(manifestPatch) && manifestPatch >= 17, 'Manifest regressed below v0.4.17');
 
 console.log('NPC State 0.4.17 relationship progression curve verified');

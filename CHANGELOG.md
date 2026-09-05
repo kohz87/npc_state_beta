@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.18
+
+- Requires explicit player-relationship evaluation for every exchange-active NPC, including deliberate no-change results.
+- Records bounded diagnostic telemetry for `evaluated-no-change`, `evaluation-missing`, and `evaluation-invalid` without polluting actual relationship history or changing scores.
+- Makes foreground and recovery scanner prompts require `relationshipChange.evaluated: true` and a concise reason when impact is `none`.
+- Keeps existing relationship grounding, progression inertia, milestone gates, Desire isolation, and rescan duplicate-safety behavior unchanged.
+
 ## v0.4.17
 
 - Aligns deepening relationship inertia with the actual milestone bands: 0–25 ×1.00, 26–50 ×0.80, 51–75 ×0.60, 76–90 ×0.40, and 91–100 ×0.25. Fractional accumulation and easier movement back toward neutral are preserved.

@@ -144,10 +144,15 @@ function relationshipDiagnosticsHtml(npc = {}) {
             axis + ': ' + event.before[axis] + ' → ' + event.after[axis] + '; requested ' + signed(event.proposed[axis])
             + ', applied ' + signed(event.applied[axis]) + '; fraction ' + signed(event.progressBefore[axis]) + ' → ' + signed(event.progressAfter[axis])).join(' · ');
         const unlocks = (event.unlocks || []).map(entry => entry.axis + ' ' + signed(entry.polarity * entry.threshold) + ' unlocked').join(', ');
-        return '<li><b>' + escapeHtml(event.impact + ' — ' + event.reasons.join(', ')) + '</b><p>' + escapeHtml(changes)
+        const detail = changes || (event.reasons || []).includes('evaluated-no-change')
+            ? (changes || 'Evaluated; no relationship movement warranted.')
+            : ((event.reasons || []).includes('evaluation-missing')
+                ? 'Required relationship evaluation was omitted by the scanner.'
+                : ((event.reasons || []).includes('evaluation-invalid') ? 'Scanner returned an invalid relationship evaluation.' : 'No score change.'));
+        return '<li><b>' + escapeHtml(event.impact + ' — ' + event.reasons.join(', ')) + '</b><p>' + escapeHtml(detail)
             + (unlocks ? '<br>' + escapeHtml(unlocks) : '') + '</p><small>' + escapeHtml(event.reason || event.evidence) + '</small></li>';
     }).join('');
-    return '<details><summary>Gate status and recent scoring attempts</summary><ul>' + axes + '</ul>'
+    return '<details><summary>Gate status and recent relationship evaluations</summary><ul>' + axes + '</ul>'
         + (attempts ? '<ol class="npc-state-v3-history-list">' + attempts + '</ol>' : '<p>No scoring diagnostics recorded yet.</p>') + '</details>';
 }
 
@@ -234,7 +239,7 @@ export function dossierHtml(npc) {
             ${block('Important memories', listHtml(npc.memories, 'No persistent memories recorded yet.'), 'npc-state-v3-block-wide')}
             ${block('Background', paragraphHtml(npc.background), 'npc-state-v3-block-wide')}
             ${block('Recent relationship changes', relationshipHistoryHtml(npc), 'npc-state-v3-block-wide')}
-            ${block('Relationship scoring', relationshipDiagnosticsHtml(npc), 'npc-state-v3-block-wide')}
+            ${block('Relationship evaluation & scoring', relationshipDiagnosticsHtml(npc), 'npc-state-v3-block-wide')}
           </div>
         </section>
       </main>

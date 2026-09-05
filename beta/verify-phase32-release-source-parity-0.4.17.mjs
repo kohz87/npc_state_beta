@@ -15,8 +15,9 @@ const verify28 = read('beta/verify-phase28-relationship-semantic-grounding-0.4.1
 const verify29 = read('beta/verify-phase29-release-source-parity-0.4.16.mjs');
 const workflow = read('.github/workflows/seed-beta.yml');
 
-assert.equal(manifest.version, '0.4.17', 'Release source is not v0.4.17');
-assert(ui.includes('NPC State <span class="npc-state-version">0.4.17</span>'), 'Committed runtime UI version is not v0.4.17');
+const manifestPatch = Number(String(manifest.version || '').split('.')[2]);
+assert(String(manifest.version || '').startsWith('0.4.') && Number.isInteger(manifestPatch) && manifestPatch >= 17, 'Release source regressed below v0.4.17');
+assert(ui.includes('NPC State <span class="npc-state-version">' + manifest.version + '</span>'), 'Committed runtime UI version does not match manifest');
 
 const deepeningBlock = scanner.slice(scanner.indexOf('function relationshipInertiaFactor'), scanner.indexOf("    if (impact === 'extreme') return 1;", scanner.indexOf('function relationshipInertiaFactor')));
 assert(deepeningBlock.includes('if (magnitude <= 25) return 1;'), '0–25 inertia band is not ×1.00');
@@ -56,12 +57,12 @@ assert(verify28.includes('Meaningful Trust paraphrase regressed after grounding/
 assert(verify29.includes('Release source regressed below v0.4.16'), 'v0.4.16 release parity verifier is not descendant-compatible');
 assert(verify29.includes('semanticMovingAxis'), 'v0.4.16 release parity verifier still assumes ordinary-only Trust grounding');
 
-assert(workflow.includes('Build NPC State 0.4.17 Beta'), 'Workflow is not versioned for v0.4.17');
+assert(workflow.includes('Build NPC State 0.4.'), 'Workflow lost NPC State 0.4.x versioning');
 assert(workflow.includes('node beta/bump-0.4.17.mjs'), 'Workflow does not apply the v0.4.17 bump');
 assert(workflow.includes("-name 'phase*-0.4.17.mjs'"), 'Workflow does not apply v0.4.17 phases');
 assert(workflow.includes('if (magnitude <= 25) return 1;'), 'Architecture gate is not checking the inclusive first band');
 assert(workflow.includes('relationshipSemanticGrounding'), 'Architecture gate does not guard generalized semantic grounding');
-assert(workflow.includes('Persistent NPC State 0.4.17 database'), 'Architecture gate does not guard the v0.4.17 runtime surface');
+assert(workflow.includes('Persistent NPC State 0.4.'), 'Architecture gate does not guard the current runtime surface');
 assert(workflow.includes('Generated beta runtime already matches build output.'), 'Workflow lacks deterministic source/runtime parity detection');
 
 console.log('NPC State 0.4.17 release source parity verified');
