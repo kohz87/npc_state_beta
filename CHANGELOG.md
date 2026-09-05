@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.4.24
+
+- Fixes existing NPCs remaining off-screen when visible narrative uses an unambiguous short name such as `Brina` while the canonical dossier/World_State uses `Brina Cole`.
+- Grounds short-name activity only for established multi-part identities and only when the short token is unique across stored NPC names/aliases; ambiguous/shared or generic tokens fail closed.
+- Preserves the structured-evidence firewall: World_State and NPC_Inner_Chatter alone still cannot establish in-chat presence, and no relationship, profile, life-state, or scoring mechanics are changed.
+
 ## v0.4.23
 
 - Resolves recovery prompt ambiguity by labeling older material as continuity-only, explicitly allowing prior attitudes/baselines/already-counted developments to inform interpretation while keeping fresh relationship quotations current-exchange-only.

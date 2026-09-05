@@ -209,7 +209,7 @@ function dossierCollectionRules(limits) {
 
 export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', relationshipCaps = DEFAULT_RELATIONSHIP_CAPS, memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State v0.4.23 recovery scanner requires an assistant message and its preceding user exchange.');
+    if (!exchange) throw new Error('NPC State v0.4.24 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
@@ -232,7 +232,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         familyFacts: [{ owner: 'existing NPC id/name', relation: 'daughter|son|child|other countable family role', count: 2, descriptor: 'optional e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit countable family fact' }],
     };
     return [
-        'You are NPC State v0.4.23, a private structured continuity scanner for a roleplay chat.',
+        'You are NPC State v0.4.24, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
         '',
         `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
@@ -314,7 +314,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         body: compactText(block?.body, 12000),
     }));
     return [
-        'You are NPC State v0.4.23 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
+        'You are NPC State v0.4.24 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
         'Return JSON only. This is reference-data reconciliation, NOT a current scene/event scan.',
         'Only the supplied Megumin New_NPC / NPC_Update blocks are authoritative sources for this operation.',
         'TARGET DOSSIER: ' + JSON.stringify(rosterForPrompt({ npcs: [npc] })[0]),
@@ -353,7 +353,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State v0.4.23 performing a targeted dossier reconciliation.',
+        'You are NPC State v0.4.24 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
@@ -404,7 +404,7 @@ function scannerNpcArrayValid(value) {
     });
 }
 function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupplemental = false } = {}) {
-    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.23 recovery scanner JSON must be an object.');
+    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.24 recovery scanner JSON must be an object.');
     const has = key => Object.prototype.hasOwnProperty.call(parsed, key);
     const presentKey = has('inChatNpcIds') ? 'inChatNpcIds' : (has('finalPresentNpcIds') ? 'finalPresentNpcIds' : '');
     if (requireContract) {
@@ -415,7 +415,7 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
         if (!scannerNpcArrayValid(parsed.npcs)) invalid.push('npcs[object-with-string-identity]');
         if ((!allowOmittedSupplemental || has('socialEdges')) && !scannerObjectArrayValid(parsed.socialEdges)) invalid.push('socialEdges[object]');
         if (has('familyFacts') && !scannerObjectArrayValid(parsed.familyFacts)) invalid.push('familyFacts[object]');
-        if (invalid.length) throw new Error('NPC State v0.4.23 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
+        if (invalid.length) throw new Error('NPC State v0.4.24 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
     }
     return {
         exchangeActiveNpcIds: uniqueStrings(parsed.exchangeActiveNpcIds),
@@ -429,14 +429,14 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
 
 export function parseScanJson(raw) {
     const text = String(raw ?? '').trim();
-    if (!text) throw new Error('NPC State v0.4.23 recovery scanner returned an empty response.');
+    if (!text) throw new Error('NPC State v0.4.24 recovery scanner returned an empty response.');
     const unfenced = text.replace(/^\x60\x60\x60(?:json)?\s*/i, '').replace(/\s*\x60\x60\x60$/i, '').trim();
     const first = unfenced.indexOf('{');
     const last = unfenced.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('NPC State v0.4.23 recovery scanner returned no JSON object.');
+    if (first < 0 || last <= first) throw new Error('NPC State v0.4.24 recovery scanner returned no JSON object.');
     let parsed;
     try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
-    catch (error) { throw new Error('NPC State v0.4.23 recovery scanner returned malformed JSON: ' + error.message); }
+    catch (error) { throw new Error('NPC State v0.4.24 recovery scanner returned malformed JSON: ' + error.message); }
     return normalizeScanPayload(parsed, { requireContract: true });
 }
 
@@ -525,7 +525,7 @@ function preflightAutomaticIdentityPatches(state, patches = [], referenceCandida
                 // handled by automaticIdentityPatchConflicts() as a local patch rejection.
                 // A newly claimed key is a same-observation conflict and invalidates the payload.
                 if (!initialIdentityKeys.has(key)) {
-                    throw new Error('NPC State v0.4.23 scanner identity collision inside one observation: ' + value + '.');
+                    throw new Error('NPC State v0.4.24 scanner identity collision inside one observation: ' + value + '.');
                 }
             }
         }
@@ -1823,6 +1823,64 @@ function socialEdgeKey(edge) {
 function npcEvidenceVariants(npc, patch = null) {
     return [...new Set([npc?.name, ...(npc?.aliases || []), patch?.name, ...(Array.isArray(patch?.aliases) ? patch.aliases : []), patch?.role].map(value => String(value || '').trim()).filter(Boolean))];
 }
+
+const ACTIVITY_SHORT_IDENTITY_STOP = new Set([
+    'a', 'an', 'the', 'of', 'de', 'da', 'del', 'di', 'la', 'le', 'van', 'von',
+    'mr', 'mrs', 'ms', 'miss', 'sir', 'dame', 'lady', 'lord', 'dr', 'doctor',
+    'captain', 'commander', 'lieutenant', 'sergeant', 'master', 'mistress',
+    'father', 'mother', 'sister', 'brother', 'elder', 'saint', 'st',
+    'may', 'will', 'can', 'shall',
+]);
+function shortActivityIdentityTokens(value) {
+    return String(value || '').normalize('NFKC').match(/[\p{L}\p{N}]+(?:[’'\-][\p{L}\p{N}]+)*/gu) || [];
+}
+function shortActivityIdentityCandidates(npc) {
+    const out = [];
+    const seen = new Set();
+    for (const value of [npc?.name, ...(Array.isArray(npc?.aliases) ? npc.aliases : [])]) {
+        const tokens = shortActivityIdentityTokens(value);
+        if (tokens.length < 2) continue;
+        for (const token of tokens) {
+            const key = normalizeName(token);
+            if (!key || key.length < 3 || GENERIC_REFERENCES.has(key) || ACTIVITY_SHORT_IDENTITY_STOP.has(key) || seen.has(key)) continue;
+            seen.add(key);
+            out.push(token);
+        }
+    }
+    return out;
+}
+function shortActivityIdentityUnique(state, npc, candidate) {
+    const key = normalizeName(candidate);
+    if (!key) return false;
+    return !(state?.npcs || []).some(other => {
+        if (!other || other.id === npc?.id) return false;
+        return [other.name, ...(Array.isArray(other.aliases) ? other.aliases : [])].some(value =>
+            shortActivityIdentityTokens(value).some(token => normalizeName(token) === key));
+    });
+}
+function identityTokenMention(text, candidate) {
+    const clean = String(candidate || '').trim();
+    if (!clean) return false;
+    const upper = clean.toLocaleUpperCase();
+    return shortActivityIdentityTokens(text).some(observed => observed === clean || observed === upper);
+}
+function visibleShortActivityIdentityMention(state, npc, visibleText = '') {
+    for (const candidate of shortActivityIdentityCandidates(npc)) {
+        if (!shortActivityIdentityUnique(state, npc, candidate)) continue;
+        if (identityTokenMention(visibleText, candidate)) return true;
+    }
+    return false;
+}
+function shortActivityIdentityScope(state, npc, policy) {
+    for (const candidate of shortActivityIdentityCandidates(npc)) {
+        if (!shortActivityIdentityUnique(state, npc, candidate)) continue;
+        if (identityTokenMention(policy?.visibleText, candidate)) return 'visible';
+        if (identityTokenMention(policy?.worldStateText, candidate)) return 'world';
+        if (identityTokenMention(policy?.innerChatterText, candidate)) return 'inner';
+        if (identityTokenMention(policy?.excludedText, candidate)) return 'excluded';
+    }
+    return '';
+}
 function restrictedEvidenceScope(state, patch, policy) {
     if (!policy?.detected) return 'unrestricted';
     const patchId = String(patch?.id || '').trim();
@@ -1832,7 +1890,14 @@ function restrictedEvidenceScope(state, patch, policy) {
 function referenceAllowedForActivity(state, reference, policy) {
     if (!policy?.detected) return true;
     const npc = findNpcByReference(state, reference);
-    const scope = evidenceReferenceScope(policy, npc ? npcEvidenceVariants(npc) : [reference]);
+    const exactScope = evidenceReferenceScope(policy, npc ? npcEvidenceVariants(npc) : [reference]);
+    const shortScope = npc ? shortActivityIdentityScope(state, npc, policy) : '';
+    // A unique short identity in public narrative can recover a full canonical identity even
+    // when World_State/private/reference material contains the full name. Conversely, a short
+    // identity found only inside structured material must not turn an otherwise unmentioned
+    // scanner claim into public activity evidence.
+    if (exactScope === 'visible' || shortScope === 'visible') return true;
+    const scope = exactScope === 'unmentioned' && shortScope ? shortScope : exactScope;
     if (!['world', 'inner', 'excluded'].includes(scope)) return true;
     return npc?.present === true;
 }
