@@ -63,8 +63,12 @@ function replaceRequired(source, from, to, label) {
         "const finalBand = applyTrust(trustState(91, 0, [25, 50, 75, 90]), { impact: 'extreme', delta: 10, label: 'final band extreme' });\n    assert.equal(finalBand.relationship.trust, 93, '91–100 extreme +10 should produce +2 whole points at ×0.25');\n    assert.equal(finalBand.relationshipProgress.trust, 0.5, '91–100 deepening multiplier is not ×0.25');");
     source = source.replace("assert.equal(deeper.relationshipProgress.trust, 0.4, '75–89 deepening setup is not ×0.40');",
         "assert.equal(deeper.relationshipProgress.trust, 0.4, '76–90 deepening setup is not ×0.40');");
-    source = source.replace("assert(relationshipMilestoneUnlocked(unlock25.relationshipMilestones, 'trust', 1, 25), 'Meaningful raw +1 did not unlock 25');",
-        "assert(relationshipMilestoneUnlocked(unlock25.relationshipMilestones, 'trust', 1, 25), 'Meaningful raw +1 did not unlock 25');\n    assert.equal(unlock25.relationship.trust, 26, 'Qualifying 25-gate event should carry the score into the 26–50 band');");
+    const gate25Crossing = "assert.equal(unlock25.relationship.trust, 26, 'Qualifying 25-gate event should carry the score into the 26–50 band');";
+    if (!source.includes(gate25Crossing)) {
+        const gate25Unlock = "assert(relationshipMilestoneUnlocked(unlock25.relationshipMilestones, 'trust', 1, 25), 'Meaningful raw +1 did not unlock 25');";
+        if (!source.includes(gate25Unlock)) throw new Error('Missing v0.4.17 verifier marker: 25 gate unlock');
+        source = source.replace(gate25Unlock, gate25Unlock + '\n    ' + gate25Crossing);
+    }
     source = source.replace("assert.equal(unlock50.relationship.trust, 51, '50 gate qualifying event did not move with ×0.60 inertia');",
         "assert(unlock50.relationship.trust > 50, '50 gate qualifying event did not carry the score into the 51–75 band');");
     source = source.replace("assert(scanner.includes('if (magnitude < 25) return 1;'));\nassert(scanner.includes('if (magnitude < 50) return 0.8;'));\nassert(scanner.includes('if (magnitude < 75) return 0.6;'));\nassert(scanner.includes('if (magnitude < 90) return 0.4;'));",
