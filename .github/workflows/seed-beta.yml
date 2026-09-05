@@ -149,13 +149,21 @@ jobs:
           grep -q "normalizeAppearanceForms" v03/schema.js
           grep -q "RELATIONSHIP_MILESTONE_THRESHOLDS" v03/schema.js
           grep -q "relationshipMilestoneUnlocked" v03/scanner.js
+          grep -q "RELATIONSHIP REPEATS AND GATES" v03/injection.js
           grep -q "relationshipProgress" v03/schema.js
           grep -q "relationshipEvidenceHistory" v03/schema.js
           grep -q "relationshipInertiaFactor" v03/scanner.js
+          grep -q "if (magnitude <= 25) return 1;" v03/scanner.js
           grep -q "selectRelationshipAxes(delta, axisLimit, priority = \[\])" v03/scanner.js
           grep -q "relationshipSummarySupported" v03/scanner.js
           grep -q "relationshipContextForExchange" v03/engine.js
           grep -q "relationshipEvidenceExcerptMatch" v03/relationship-evidence.js
+          grep -q "relationshipSources" v03/evidence-adapter.js
+          grep -q "relationshipSemanticGrounding" v03/relationship-evidence.js
+          grep -q "relationshipEvaluationDiagnostic" v03/scanner.js
+          grep -q "evaluated-no-change" v03/scanner.js
+          grep -q "relationshipJudgmentRubricPrompt" v03/relationship-policy.js
+          grep -q "LEGACY_DEFAULT_RELATIONSHIP_CRITERIA_V0421" v03/index.js
           grep -q "function relationshipAxisProvenance" v03/scanner.js
           grep -q "function relationshipAxisLooksDuplicate" v03/scanner.js
           grep -q "function relationshipDuplicateEvidenceKey" v03/scanner.js
@@ -163,6 +171,8 @@ jobs:
           ! grep -q "relationshipEvidenceGrounding(" v03/scanner.js
           ! grep -q "relationshipEvidencePolarityConflict(" v03/scanner.js
           grep -q "relationshipHistoryRemarkHtml" v03/dossier-view.js
+          grep -q "relationshipHistoryRecoveredAxisEvidence" v03/dossier-view.js
+          grep -q "No explanation recorded." v03/dossier-view.js
           grep -q "const siblingLimit = 4" v03/branches.js
           grep -q "preserveLatestScannedMessage" v03/branches.js
           grep -q "rollbackRebasedRelationship" v03/branches.js
@@ -182,15 +192,20 @@ jobs:
           grep -q "normalizeRelationshipCaps" v03/schema.js
           grep -q "OLDER CONTEXT — CONTINUITY ONLY; NOT NEW EVENT EVIDENCE" v03/scanner.js
           grep -q "visibleShortActivityIdentityMention" v03/scanner.js
+          grep -q "shortActivityIdentityUnique" v03/scanner.js
           grep -q "groundedFamilyMemberNames" v03/scanner.js
           grep -q "projectFamilySlotMembers" v03/scanner.js
+          grep -q "memberNames" v03/schema.js
           grep -q "FAMILY_KINSHIP_GROUPS" v03/scanner.js
           grep -q "reciprocalFamilyRelation" v03/scanner.js
+          grep -q "resolveFamilySlotMember" v03/scanner.js
+          grep -q "upsertFamilyRelationship" v03/scanner.js
           grep -q "splitWorldStatePresenceSections" v03/evidence-adapter.js
           grep -q "identityPresencePromptRules" v03/evidence-adapter.js
           grep -q "identityEvidenceVerified" v03/scanner.js
           grep -q "activityEvidenceVerified" v03/scanner.js
           grep -q "filter(id => !presentIds.includes(id))" v03/scanner.js
+          grep -q "Persistent NPC State 0.4." v03/ui.js
 
           # v0.4.28 recovery/rebuild invariants.
           grep -q "normalizeRecoveryState" v03/schema.js
