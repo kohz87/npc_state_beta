@@ -1,4 +1,4 @@
-name: Build NPC State 0.4.9 Beta
+name: Build NPC State 0.4.10 Beta
 
 on:
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
           cp /tmp/npc-state-stable/manifest.json ./manifest.json
           cp /tmp/npc-state-stable/package.json ./package.json
 
-      - name: Apply 0.4.9 transformation in ordered phases
+      - name: Apply 0.4.10 transformation in ordered phases
         run: |
           node beta/build-beta-v2.mjs
           node beta/post-build-patch.mjs
@@ -94,6 +94,11 @@ jobs:
           done
           node beta/bump-0.4.9.mjs
           for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.9.mjs' -print | sort); do
+            echo "Applying $phase"
+            node "$phase"
+          done
+          node beta/bump-0.4.10.mjs
+          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.10.mjs' -print | sort); do
             echo "Applying $phase"
             node "$phase"
           done
@@ -169,7 +174,7 @@ jobs:
           grep -q "Player relationship lens" v03/injection.js
           ! grep -q "Relationship toward PLAYER: trust" v03/injection.js
           grep -q "const dossierBudget = Math.max(0, Math.floor(maxChars \* 0.68))" v03/injection.js
-          grep -q "Persistent NPC State 0.4.9 database" v03/ui.js
+          grep -q "Persistent NPC State 0.4.10 database" v03/ui.js
           ! grep -q "Persistent v0.3 database" v03/ui.js
           grep -q "branchFingerprintVersion: 3" v03/schema.js
           grep -q "Continuity Injection" v03/settings-layout.js
@@ -180,13 +185,17 @@ jobs:
           grep -q "recovery.open = true" v03/branch-recovery-ui.js
           ! grep -q "host.insertBefore(banner, heading.nextSibling)" v03/branch-recovery-ui.js
           grep -q "Rebase to current chat" v03/branch-recovery-ui.js
+          grep -q "Force timeline rebase" v03/branch-recovery-ui.js
+          grep -q "Force rebase to current chat" v03/branch-recovery-ui.js
+          grep -q "rebaseCurrentChat(true)" v03/branch-recovery-ui.js
+          grep -q "preserveLatestScannedMessage" v03/branches.js
           grep -q "startBranchRecoveryUi" bootstrap.js
           grep -q "Milestone minima are evidence invariants" v03/scanner.js
           ! grep -q "Math.min(tierCap, stockMinimum)" v03/scanner.js
           grep -q "rollbackRebasedRelationship" v03/branches.js
           grep -q "branchDivergenceMessageId" v03/branches.js
           grep -q "Relationship changes and milestone breakthroughs attributable to discarded branch messages are rolled back" v03/branch-recovery-ui.js
-          grep -q '"version": "0.4.9"' manifest.json
+          grep -q '"version": "0.4.10"' manifest.json
 
       - name: Commit generated beta runtime
         run: |
@@ -197,5 +206,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md
-          git commit -m "NPC State v0.4.9: rollback discarded relationship breakthroughs"
+          git commit -m "NPC State v0.4.10: add manual force rebase"
           git push
