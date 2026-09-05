@@ -1,4 +1,4 @@
-name: Build NPC State 0.4.17 Beta
+name: Build NPC State 0.4.18 Beta
 
 on:
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
           cp /tmp/npc-state-stable/manifest.json ./manifest.json
           cp /tmp/npc-state-stable/package.json ./package.json
 
-      - name: Apply 0.4.17 transformation in ordered phases
+      - name: Apply 0.4.18 transformation in ordered phases
         run: |
           node beta/build-beta-v2.mjs
           node beta/post-build-patch.mjs
@@ -137,6 +137,11 @@ jobs:
             echo "Applying $phase"
             node "$phase"
           done
+          node beta/bump-0.4.18.mjs
+          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.18.mjs' -print | sort); do
+            echo "Applying $phase"
+            node "$phase"
+          done
 
       - name: Syntax gate
         run: |
@@ -203,6 +208,12 @@ jobs:
           grep -q "relationshipSummarySupported" v03/scanner.js
           grep -q "relationshipContextForExchange" v03/engine.js
           grep -q "RELATIONSHIP HARDENING" v03/injection.js
+          grep -q "RELATIONSHIP EVALUATION IS REQUIRED for every NPC in exchangeActiveNpcIds" v03/injection.js
+          grep -q "RELATIONSHIP EVALUATION IS REQUIRED for every NPC in exchangeActiveNpcIds" v03/scanner.js
+          grep -q "relationshipEvaluationDiagnostic" v03/scanner.js
+          grep -q "evaluated-no-change" v03/scanner.js
+          grep -q "evaluation-missing" v03/scanner.js
+          grep -q "Gate status and recent relationship evaluations" v03/dossier-view.js
           grep -q "const siblingLimit = 4" v03/branches.js
           grep -q "arraysEqual(item.lineage || \[\], lineage)" v03/branches.js
           grep -q "PRE_GATE_RELATIONSHIP_CRITERIA" v03/index.js
@@ -213,7 +224,7 @@ jobs:
           grep -q "Player relationship lens" v03/injection.js
           ! grep -q "Relationship toward PLAYER: trust" v03/injection.js
           grep -q "const dossierBudget = Math.max(0, Math.floor(maxChars \* 0.68))" v03/injection.js
-          grep -q "Persistent NPC State 0.4.17 database" v03/ui.js
+          grep -q "Persistent NPC State 0.4.18 database" v03/ui.js
           ! grep -q "Persistent v0.3 database" v03/ui.js
           grep -q "branchFingerprintVersion: 3" v03/schema.js
           grep -q "Scanning & Capture" v03/settings-layout.js
@@ -258,16 +269,16 @@ jobs:
           grep -q "worldStateIdentityBridgesVisibleIntroduction" v03/scanner.js
           grep -q "newReferenceAllowedByWorldIdentityBridge" v03/scanner.js
           grep -q "IDENTITY BRIDGE" v03/evidence-adapter.js
-          grep -q '"version": "0.4.17"' manifest.json
+          grep -q '"version": "0.4.18"' manifest.json
 
       - name: Commit generated beta runtime
         run: |
-          if git diff --quiet -- v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-relationship-milestone-gates-0.4.1.mjs beta/verify-phase1-relationship-hardening-0.4.2.mjs beta/verify-phase9-settings-categories-0.4.4.mjs beta/verify-phase12-relationship-recovery-0.4.7.mjs beta/verify-phase13-milestone-gate-invariants-0.4.8.mjs beta/verify-phase15-force-rebase-0.4.10.mjs beta/verify-phase16-scanner-edge-hardening-0.4.11.mjs beta/verify-phase17-second-order-hardening-0.4.12.mjs beta/verify-phase20-semantic-isolation-0.4.13.mjs beta/verify-phase21-release-source-parity-0.4.13.mjs beta/verify-phase22-settings-ui-cleanup-0.4.14.mjs beta/verify-phase24-release-source-parity-0.4.14.mjs beta/verify-phase28-relationship-semantic-grounding-0.4.16.mjs beta/verify-phase29-release-source-parity-0.4.16.mjs beta/verify-phase30-relationship-progression-0.4.17.mjs beta/verify-phase32-release-source-parity-0.4.17.mjs; then
+          if git diff --quiet -- v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-relationship-milestone-gates-0.4.1.mjs beta/verify-phase1-relationship-hardening-0.4.2.mjs beta/verify-phase9-settings-categories-0.4.4.mjs beta/verify-phase12-relationship-recovery-0.4.7.mjs beta/verify-phase13-milestone-gate-invariants-0.4.8.mjs beta/verify-phase15-force-rebase-0.4.10.mjs beta/verify-phase16-scanner-edge-hardening-0.4.11.mjs beta/verify-phase17-second-order-hardening-0.4.12.mjs beta/verify-phase20-semantic-isolation-0.4.13.mjs beta/verify-phase21-release-source-parity-0.4.13.mjs beta/verify-phase22-settings-ui-cleanup-0.4.14.mjs beta/verify-phase24-release-source-parity-0.4.14.mjs beta/verify-phase28-relationship-semantic-grounding-0.4.16.mjs beta/verify-phase29-release-source-parity-0.4.16.mjs beta/verify-phase30-relationship-progression-0.4.17.mjs beta/verify-phase32-release-source-parity-0.4.17.mjs beta/verify-phase33-relationship-evaluation-observability-0.4.18.mjs; then
             echo "Generated beta runtime already matches build output."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-relationship-milestone-gates-0.4.1.mjs beta/verify-phase1-relationship-hardening-0.4.2.mjs beta/verify-phase9-settings-categories-0.4.4.mjs beta/verify-phase12-relationship-recovery-0.4.7.mjs beta/verify-phase13-milestone-gate-invariants-0.4.8.mjs beta/verify-phase15-force-rebase-0.4.10.mjs beta/verify-phase16-scanner-edge-hardening-0.4.11.mjs beta/verify-phase17-second-order-hardening-0.4.12.mjs beta/verify-phase20-semantic-isolation-0.4.13.mjs beta/verify-phase21-release-source-parity-0.4.13.mjs beta/verify-phase22-settings-ui-cleanup-0.4.14.mjs beta/verify-phase24-release-source-parity-0.4.14.mjs beta/verify-phase28-relationship-semantic-grounding-0.4.16.mjs beta/verify-phase29-release-source-parity-0.4.16.mjs beta/verify-phase30-relationship-progression-0.4.17.mjs beta/verify-phase32-release-source-parity-0.4.17.mjs
-          git commit -m "NPC State v0.4.17: align relationship progression curve"
+          git add v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-relationship-milestone-gates-0.4.1.mjs beta/verify-phase1-relationship-hardening-0.4.2.mjs beta/verify-phase9-settings-categories-0.4.4.mjs beta/verify-phase12-relationship-recovery-0.4.7.mjs beta/verify-phase13-milestone-gate-invariants-0.4.8.mjs beta/verify-phase15-force-rebase-0.4.10.mjs beta/verify-phase16-scanner-edge-hardening-0.4.11.mjs beta/verify-phase17-second-order-hardening-0.4.12.mjs beta/verify-phase20-semantic-isolation-0.4.13.mjs beta/verify-phase21-release-source-parity-0.4.13.mjs beta/verify-phase22-settings-ui-cleanup-0.4.14.mjs beta/verify-phase24-release-source-parity-0.4.14.mjs beta/verify-phase28-relationship-semantic-grounding-0.4.16.mjs beta/verify-phase29-release-source-parity-0.4.16.mjs beta/verify-phase30-relationship-progression-0.4.17.mjs beta/verify-phase32-release-source-parity-0.4.17.mjs beta/verify-phase33-relationship-evaluation-observability-0.4.18.mjs
+          git commit -m "NPC State v0.4.18: require explicit relationship evaluation"
           git push
