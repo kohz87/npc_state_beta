@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.4.16
+
+- Fixes ordinary Trust changes being rejected as `ungrounded` when the scanner described a real current-exchange event with a reasonable paraphrase instead of reusing the narration's exact words.
+- Adds a narrow semantic grounding fallback for player-attributed task completion, timely delivery, competent execution, and reliability evidence while preserving the existing lexical match path.
+- Keeps actor-direction, polarity, Desire, milestone, and higher-impact evidence protections unchanged; unrelated NPC performance, passive task completion, failed work, and generic praise still fail closed.
+
 ## v0.4.15
 
 - Fixes new-NPC admission when visible prose introduces a specific character by role while the same current World_State supplies that character's canonical proper name.
