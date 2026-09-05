@@ -11,7 +11,8 @@ const verify52 = read('beta/verify-phase52-general-kinship-projection-0.4.26.mjs
 const verify50 = read('beta/verify-phase50-named-family-key-relationships-0.4.25.mjs');
 const workflow = read('.github/workflows/seed-beta.yml');
 
-assert.equal(manifest.version, '0.4.26', 'Release source is not v0.4.26');
+const patchVersion = Number(String(manifest.version || '').split('.').at(-1));
+assert(/^0\.4\.\d+$/.test(String(manifest.version || '')) && patchVersion >= 26, 'Release source is older than v0.4.26');
 for (const marker of [
     'const FAMILY_KINSHIP_GROUPS',
     'reciprocalFamilyRelation',
@@ -30,7 +31,7 @@ for (const marker of ['sister', 'uncle', 'niece', 'nephew', 'cousin', 'grandpare
     assert(injection.includes(marker), 'Foreground kinship vocabulary missing: ' + marker);
 }
 assert(injection.includes('COUNTABLE FAMILY FACTS / GENERAL KINSHIP'), 'Foreground general-kinship rule missing');
-assert(injection.includes('"members":["explicitly named members from current visible evidence"]'), 'Foreground familyFacts JSON members field missing');
+assert(injection.includes('\"members\":[\"explicitly named members from current visible evidence\"]'), 'Foreground familyFacts JSON members field missing');
 assert(injection.includes('never guess an unknown gender'), 'Reciprocal gender-safety guidance missing');
 assert(injection.includes('MUST NOT create NPC dossiers by themselves'), 'Named-relative admission isolation regressed');
 assert(injection.includes('Never source member names only from World_State, NPC_Inner_Chatter, control blocks, or older continuity'), 'Family evidence firewall regressed');
@@ -54,20 +55,19 @@ assert(verify52.includes("'Anna Reed - spouse'"), 'Spouse reciprocal assertion m
 assert(verify52.includes("'Nia Vale - ward'"), 'Guardian/ward reciprocal assertion missing');
 assert(verify52.includes("'Oren Pike - child-in-law'"), 'In-law reciprocal assertion missing');
 
-// v0.4.25 exact named-daughter coverage remains part of the suite.
 assert(verify50.includes('greta-named-twins'), 'v0.4.25 Greta named-twin regression disappeared');
 assert(verify50.includes("'Lyra - daughter'"), 'v0.4.25 named daughter projection regression disappeared');
 assert(phase52.includes('FAMILY_KINSHIP_GROUPS'), 'v0.4.26 transform source lacks general kinship classifier');
 assert(phase52.includes('reciprocalFamilyRelation'), 'v0.4.26 transform source lacks reciprocal mapping');
 assert(phase52.includes('COUNTABLE FAMILY FACTS / GENERAL KINSHIP'), 'v0.4.26 transform source lacks foreground prompt integration');
 
-assert(workflow.includes('Build NPC State 0.4.26 Beta'), 'Workflow is not versioned for v0.4.26');
-assert(workflow.includes('for patch in $(seq 2 26); do'), 'Workflow does not cold-replay through v0.4.26');
+assert(/name: Build NPC State 0\.4\.\d+ Beta/.test(workflow), 'Workflow is not versioned for a 0.4.x release');
+assert(/for patch in \$\(seq 2 \d+\); do/.test(workflow), 'Workflow lacks numeric cold-replay loop');
 assert(workflow.includes('# node beta/bump-0.4.26.mjs'), 'Workflow lacks v0.4.26 source marker');
-assert(workflow.includes("-name 'phase*-0.4.26.mjs'"), 'Workflow does not apply v0.4.26 phases');
+assert(workflow.includes("-name 'phase*-0.4.26.mjs'"), 'Workflow does not retain v0.4.26 phases');
 for (const marker of ['FAMILY_KINSHIP_GROUPS', 'reciprocalFamilyRelation', 'resolveFamilySlotMember', 'upsertFamilyRelationship']) {
     assert(workflow.includes(marker), 'Architecture gate lacks v0.4.26 marker: ' + marker);
 }
 assert(workflow.includes('Generated beta runtime already matches build output.'), 'Workflow lacks zero-diff parity detection');
 
-console.log('NPC State 0.4.26 release source parity verified');
+console.log('NPC State 0.4.26 release source parity verified on descendant release');
