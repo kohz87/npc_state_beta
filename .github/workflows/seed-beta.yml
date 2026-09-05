@@ -226,12 +226,12 @@ jobs:
 
       - name: Commit generated beta runtime
         run: |
-          if git diff --quiet -- v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-phase12-relationship-recovery-0.4.7.mjs beta/verify-phase13-milestone-gate-invariants-0.4.8.mjs beta/verify-phase15-force-rebase-0.4.10.mjs beta/verify-phase16-scanner-edge-hardening-0.4.11.mjs; then
+          if git diff --quiet -- v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-phase12-relationship-recovery-0.4.7.mjs beta/verify-phase13-milestone-gate-invariants-0.4.8.mjs beta/verify-phase15-force-rebase-0.4.10.mjs beta/verify-phase16-scanner-edge-hardening-0.4.11.mjs beta/verify-phase17-second-order-hardening-0.4.12.mjs; then
             echo "Generated beta runtime already matches build output."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-phase12-relationship-recovery-0.4.7.mjs beta/verify-phase13-milestone-gate-invariants-0.4.8.mjs beta/verify-phase15-force-rebase-0.4.10.mjs beta/verify-phase16-scanner-edge-hardening-0.4.11.mjs
+          git add v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-phase12-relationship-recovery-0.4.7.mjs beta/verify-phase13-milestone-gate-invariants-0.4.8.mjs beta/verify-phase15-force-rebase-0.4.10.mjs beta/verify-phase16-scanner-edge-hardening-0.4.11.mjs beta/verify-phase17-second-order-hardening-0.4.12.mjs
           git commit -m "NPC State v0.4.13: isolate semantic evidence and imports"
           git push
