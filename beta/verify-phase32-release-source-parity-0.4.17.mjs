@@ -7,7 +7,9 @@ const ui = read('v03/ui.js');
 const scanner = read('v03/scanner.js');
 const evidence = read('v03/relationship-evidence.js');
 const phase30 = read('beta/phase30-relationship-progression-0.4.17.mjs');
+const phase30b = read('beta/phase30b-inclusive-progression-bands-0.4.17.mjs');
 const phase31 = read('beta/phase31-legacy-v0416-verifier-compat-0.4.17.mjs');
+const phase31c = read('beta/phase31c-final-inertia-verifier-compat-0.4.17.mjs');
 const verify30 = read('beta/verify-phase30-relationship-progression-0.4.17.mjs');
 const verify28 = read('beta/verify-phase28-relationship-semantic-grounding-0.4.16.mjs');
 const verify29 = read('beta/verify-phase29-release-source-parity-0.4.16.mjs');
@@ -21,7 +23,7 @@ assert(deepeningBlock.includes('if (magnitude <= 25) return 1;'), '0–25 inerti
 assert(deepeningBlock.includes('if (magnitude <= 50) return 0.8;'), '26–50 inertia band is not ×0.80');
 assert(deepeningBlock.includes('if (magnitude <= 75) return 0.6;'), '51–75 inertia band is not ×0.60');
 assert(deepeningBlock.includes('if (magnitude <= 90) return 0.4;'), '76–90 inertia band is not ×0.40');
-assert(deepeningBlock.includes('return 0.25;'), '90–100 inertia band is not ×0.25');
+assert(deepeningBlock.includes('return 0.25;'), '91–100 inertia band is not ×0.25');
 assert(scanner.includes("if (impact === 'major')") && scanner.includes("if (impact === 'meaningful')"), 'Movement-toward-neutral recovery curve was removed');
 assert(scanner.includes('RELATIONSHIP_MILESTONE_MIN_RAW'), 'Milestone raw evidence minima disappeared');
 
@@ -32,10 +34,13 @@ assert(evidence.includes("movement.axis === 'desire'"), 'Desire is no longer iso
 assert(evidence.includes('TRUST_PERFORMANCE_FAILURE'), 'Positive Trust failure guard disappeared');
 assert(evidence.includes('relationshipOutcomesConflict(proof, clause)'), 'Semantic contradiction guard disappeared');
 
-assert(phase30.includes('magnitude < 25') && phase30.includes('return 0.25'), 'v0.4.17 transform source lacks aligned inertia');
+assert(phase30.includes('magnitude < 25') && phase30.includes('return 0.25'), 'v0.4.17 base transform source lacks aligned inertia');
+assert(phase30b.includes('magnitude <= 25') && phase30b.includes('magnitude <= 90'), 'Inclusive band transform source is missing');
+assert(phase30b.includes('0–25/26–50/51–75/76–90/91–100'), 'Inclusive progression contract is not persisted in transform source');
 assert(phase30.includes('relationshipSemanticGrounding'), 'v0.4.17 transform source lacks generalized semantic grounding');
 assert(phase30.includes('semanticMentionsTarget'), 'v0.4.17 transform source lacks target binding');
 assert(phase31.includes('v0.4.16 relationship verifiers forward-compatible'), 'v0.4.16 verifier compatibility transform is missing');
+assert(phase31c.includes('80% boundary-band inertia'), 'Final historical inertia compatibility is not persisted');
 
 assert(verify30.includes('26–50 deepening multiplier is not ×0.80'), 'Second-band progression regression is not persisted');
 assert(verify30.includes('51–75 deepening multiplier is not ×0.60'), 'Third-band progression regression is not persisted');
@@ -54,6 +59,7 @@ assert(verify29.includes('semanticMovingAxis'), 'v0.4.16 release parity verifier
 assert(workflow.includes('Build NPC State 0.4.17 Beta'), 'Workflow is not versioned for v0.4.17');
 assert(workflow.includes('node beta/bump-0.4.17.mjs'), 'Workflow does not apply the v0.4.17 bump');
 assert(workflow.includes("-name 'phase*-0.4.17.mjs'"), 'Workflow does not apply v0.4.17 phases');
+assert(workflow.includes('if (magnitude <= 25) return 1;'), 'Architecture gate is not checking the inclusive first band');
 assert(workflow.includes('relationshipSemanticGrounding'), 'Architecture gate does not guard generalized semantic grounding');
 assert(workflow.includes('Persistent NPC State 0.4.17 database'), 'Architecture gate does not guard the v0.4.17 runtime surface');
 assert(workflow.includes('Generated beta runtime already matches build output.'), 'Workflow lacks deterministic source/runtime parity detection');
