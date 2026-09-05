@@ -15,7 +15,7 @@ import {
     normalizePortraitPromptSettings,
 } from './portrait-prompt.js';
 import { createPortraitPromptUi } from './portrait-ui.js';
-import { DEFAULT_BIRTHDAY_RANDOM_CALENDAR, DEFAULT_RELATIONSHIP_CAPS, DOSSIER_LIMIT_DEFAULTS, NPC_STATE_VERSION, normalizeScannerResponseTokens, normalizeBirthdayFillMode, normalizeDossierLimits, normalizeNpcAdmissionMode } from './schema.js';
+import { DEFAULT_BIRTHDAY_RANDOM_CALENDAR, DEFAULT_RELATIONSHIP_CAPS, DOSSIER_LIMIT_DEFAULTS, NPC_STATE_VERSION, normalizeScannerResponseTokens, normalizeBirthdayFillMode, normalizeDossierLimits, normalizeNpcAdmissionMode, normalizeRelationshipCaps } from './schema.js';
 import { runSharedQuietGeneration } from './shared-generation-queue.js';
 import { checkpointStorageBytes } from './branches.js';
 import { createStaleManagementUi } from './stale-ui.js';
@@ -123,7 +123,7 @@ function getSettings() {
     delete settings.portraitGenerationPrompt;
     delete settings.portraitPositivePreset;
     delete settings.portraitNegativePreset;
-    settings.relationshipCaps = { ...DEFAULT_RELATIONSHIP_CAPS, ...(settings.relationshipCaps || {}) };
+    settings.relationshipCaps = normalizeRelationshipCaps(settings.relationshipCaps);
     if (!settings.dataFiles || typeof settings.dataFiles !== 'object' || Array.isArray(settings.dataFiles)) settings.dataFiles = {};
     return settings;
 }

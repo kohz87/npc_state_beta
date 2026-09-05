@@ -17,15 +17,16 @@ const verify44 = read('beta/verify-phase44-relationship-judgment-rubric-0.4.22.m
 const fixtures = read('beta/relationship-judgment-eval-fixtures-0.4.22.mjs');
 const workflow = read('.github/workflows/seed-beta.yml');
 
-assert.equal(manifest.version, '0.4.22', 'Release source is not v0.4.22');
+const manifestPatch = Number(String(manifest.version || '').split('.')[2]);
+assert(String(manifest.version || '').startsWith('0.4.') && Number.isInteger(manifestPatch) && manifestPatch >= 22, 'Release source regressed below v0.4.22');
 assert(policy.includes('export function relationshipJudgmentRubricPrompt()'), 'Shared relationship judgment rubric helper is missing');
-assert(policy.includes('export function relationshipMechanicsPrompt()'), 'Shared relationship numeric contract helper is missing');
+assert(policy.includes('export function relationshipMechanicsPrompt('), 'Shared relationship numeric contract helper is missing');
 assert(policy.includes('export function relationshipCustomCriteriaPrompt'), 'Shared custom-criteria integration helper is missing');
 for (const marker of ['NEW CHANGE & CONTINUITY', 'ATTRIBUTION', 'EVIDENCE & INFERENCE', 'AMBIGUITY WITHOUT FREEZING', 'AXIS INDEPENDENCE', 'PROPORTIONALITY', 'MIXED EVIDENCE & CHRONOLOGY', 'BALANCED DIRECTION', 'NO CIRCULAR JUSTIFICATION']) {
     assert(policy.includes(marker), 'Release source lacks relationship rubric marker: ' + marker);
 }
-assert(injection.includes('relationshipJudgmentRubricPrompt()') && injection.includes('relationshipMechanicsPrompt()'), 'Foreground does not use shared relationship guidance');
-assert(scanner.includes('relationshipJudgmentRubricPrompt()') && scanner.includes('relationshipMechanicsPrompt()'), 'Recovery scanner does not use shared relationship guidance');
+assert(injection.includes('relationshipJudgmentRubricPrompt()') && injection.includes('relationshipMechanicsPrompt('), 'Foreground does not use shared relationship guidance');
+assert(scanner.includes('relationshipJudgmentRubricPrompt()') && scanner.includes('relationshipMechanicsPrompt('), 'Recovery scanner does not use shared relationship guidance');
 assert(injection.includes('relationshipCustomCriteriaPrompt(settings.relationshipCriteria)'), 'Foreground custom criteria are not routed through additive integration');
 assert(scanner.includes('relationshipCustomCriteriaPrompt(relationshipCriteria)'), 'Recovery custom criteria are not routed through additive integration');
 assert(!engine.includes('relationshipAxisIndependencePrompt()'), 'Recovery engine still appends a duplicate relationship rubric');
@@ -54,7 +55,7 @@ assert(verify44.includes('Anti-freezing fixture coverage'), 'Anti-freezing deter
 assert(fixtures.includes('ambiguous-small-or-zero') && fixtures.includes('clear-move') && fixtures.includes('justified-zero'), 'Evaluation fixtures lack the required calibration classes');
 assert(fixtures.includes('Same relationship meaning expressed differently'), 'Keyword-independence paraphrase fixture is missing');
 
-assert(workflow.includes('Build NPC State 0.4.22 Beta'), 'Workflow is not versioned for v0.4.22');
+assert(workflow.includes('Build NPC State 0.4.'), 'Workflow lost NPC State 0.4.x versioning');
 assert(workflow.includes('node beta/bump-0.4.22.mjs'), 'Workflow does not apply the v0.4.22 bump');
 assert(workflow.includes("-name 'phase*-0.4.22.mjs'"), 'Workflow does not apply v0.4.22 phases');
 assert(workflow.includes('relationshipJudgmentRubricPrompt'), 'Architecture gate does not guard shared relationship judgment guidance');

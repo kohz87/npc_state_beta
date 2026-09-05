@@ -1,3 +1,5 @@
+import { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps } from './schema.js';
+
 export const RELATIONSHIP_HISTORY_DEFAULT = 8;
 export const RELATIONSHIP_HISTORY_MIN = 1;
 export const RELATIONSHIP_HISTORY_MAX = 24;
@@ -50,10 +52,12 @@ export function relationshipJudgmentRubricPrompt() {
     ].join('\n');
 }
 
-export function relationshipMechanicsPrompt() {
+export function relationshipMechanicsPrompt(caps = DEFAULT_RELATIONSHIP_CAPS) {
+    const effectiveCaps = normalizeRelationshipCaps(caps);
+    const ordinaryUnit = effectiveCaps.ordinary === 1 ? 'point' : 'points';
     return [
         'RELATIONSHIP NUMERIC CONTRACT:',
-        '- ordinary: at most 1 raw point on at most 1 supported axis; meaningful: at most 2 per supported axis and at most 2 axes; major: at most 5 per supported axis and at most 3 axes; extreme: at most 10 per supported axis and at most 4 axes. These are ceilings, not targets.',
+        `- ordinary: at most ${effectiveCaps.ordinary} raw ${ordinaryUnit} on at most 1 supported axis; meaningful: at most ${effectiveCaps.meaningful} per supported axis and at most 2 axes; major: at most ${effectiveCaps.major} per supported axis and at most 3 axes; extreme: at most ${effectiveCaps.extreme} per supported axis and at most 4 axes. These are the effective configured ceilings, not targets.`,
         '- priority orders only supported nonzero axes from strongest/most central to weakest so impact-tier overflow can be resolved. Do not list unsupported or zero axes.',
         '- RELATIONSHIP REPEATS AND GATES: repeated aftermath/restatement is zero unless a genuinely new relationship-changing development occurs. Runtime checkpoints outward depth at 25/50/75/90 independently by axis and direction: crossing 25 needs meaningful+, 50 major+ with raw 3, 75 extreme with raw 5, and 90 extreme relationship-defining with raw 8. Movement toward neutral is not gate-blocked. Never inflate impact/delta to force a gate.',
         '- Raw deltas are pre-inertia evidence weights. Runtime applies the existing depth resistance and retains accepted fractional progress; do not pre-discount raw deltas for inertia.',

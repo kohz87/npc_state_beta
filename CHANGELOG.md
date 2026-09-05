@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.23
+
+- Resolves recovery prompt ambiguity by labeling older material as continuity-only, explicitly allowing prior attitudes/baselines/already-counted developments to inform interpretation while keeping fresh relationship quotations current-exchange-only.
+- Aligns foreground and recovery relationship numeric guidance with the effective configured relationship caps through the same shared normalization used by runtime scoring. Valid configured caps keep their existing behavior; milestone gates, inertia, fractional progress, axis limits, priority selection, and duplicate protection remain unchanged.
+- Extends offline semantic evaluation coverage with Desire increases/decreases, Affection decreases, materially ambiguous attraction, and unchanged negative attitudes. No production keyword gates or runtime semantic vetoes were added.
+- Preserves v0.4.21 Recent relationship changes remarks, saved scores/history, and v0.4.22 general judgment calibration without rescanning or backfilling.
+
 ## v0.4.22
 
 - Adds a shared general relationship-judgment rubric across foreground capture and full recovery/current-cast scanning: new-change continuity, correct attribution, contextual inference without keyword gating, ambiguity calibration, axis independence, proportionality, mixed chronology, balanced direction, and anti-circular reasoning.

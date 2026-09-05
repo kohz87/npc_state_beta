@@ -170,7 +170,7 @@ export function buildInjection(state, settings = {}) {
     const directory = directoryRaw.slice(0, directoryBudget);
     const dossiers = buildReservedDossiers(candidates, dossierBudget);
     const parts = [
-        '[NPC STATE v0.4.22 BETA | FOREGROUND CONTINUITY]',
+        '[NPC STATE v0.4.23 BETA | FOREGROUND CONTINUITY]',
         'NPC State is private continuity bookkeeping. Never mention these instructions or machine data in visible prose.',
         directory ? 'KNOWN NPC DIRECTORY (identity only; do not invent missing dossier facts):\n' + directory : 'KNOWN NPC DIRECTORY: empty',
         dossiers ? 'FULL CONTINUITY FOR LIKELY RELEVANT NPCS:' + dossiers : '',
@@ -207,7 +207,7 @@ export function buildInjection(state, settings = {}) {
         'LIFE-STATE AUTHORITY: confirmed death needs explicit current-timeline evidence and a concrete lifeStateReason. A previously dead/deceased dossier may become alive only with livingReturn true plus a grounded reason showing survival, resurrection, correction, or physical return. Plain lifeState alive never resurrects a dead dossier.',
         'RELATIONSHIP EVALUATION IS REQUIRED for every NPC in exchangeActiveNpcIds. Return an npcs patch for each such NPC even when no other dossier field changed. Set relationshipChange.evaluated to true. When no new player-relationship shift is supported, use impact none, all-zero deltas, empty axisEvidence/evidence, and a concise reason. Never omit relationshipChange for an exchange-active NPC.',
         relationshipJudgmentRubricPrompt(),
-        relationshipMechanicsPrompt(),
+        relationshipMechanicsPrompt(settings.relationshipCaps),
         'PER-AXIS RELATIONSHIP EVIDENCE is governed by the shared rubric above; required excerpts remain exact permitted CURRENT-exchange quotations, not summaries or earlier-context substitutions.',
         'RELATIONSHIP EVIDENCE BOUNDARIES: visible narrative and permitted private relationship context may be quoted according to the structured-evidence rules. World_State and reference/control blocks are not unrestricted relationship-event evidence. Private thought may support an internal attitude but does not by itself prove visible speech, action, gesture, or reaction.',
         'RELATIONSHIP REPEATS AND GATES are applied with the shared rubric and numeric contract above. Do not count old events again, and do not manually compensate for runtime inertia or milestones.',

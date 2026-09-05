@@ -1,4 +1,4 @@
-export const NPC_STATE_VERSION = '0.4.22';
+export const NPC_STATE_VERSION = '0.4.23';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     const number = Number(value);
@@ -88,6 +88,14 @@ export const STABLE_PROFILE_FIELDS = Object.freeze([
 ]);
 export const DEFAULT_RELATIONSHIP = Object.freeze({ trust: 0, affection: 0, desire: 0, tension: 0 });
 export const DEFAULT_RELATIONSHIP_CAPS = Object.freeze({ ordinary: 1, meaningful: 2, major: 5, extreme: 10 });
+export function normalizeRelationshipCaps(value = {}) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    return Object.fromEntries(Object.entries(DEFAULT_RELATIONSHIP_CAPS).map(([impact, fallback]) => {
+        const raw = source[impact] ?? fallback;
+        const number = Number(raw);
+        return [impact, Number.isFinite(number) ? Math.max(0, number) : fallback];
+    }));
+}
 export const DEFAULT_RELATIONSHIP_PROGRESS = Object.freeze({ trust: 0, affection: 0, desire: 0, tension: 0 });
 export const RELATIONSHIP_EVIDENCE_HISTORY_LIMIT = 6;
 export const RELATIONSHIP_MILESTONE_THRESHOLDS = Object.freeze([25, 50, 75, 90]);
