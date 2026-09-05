@@ -69,6 +69,30 @@ assert(layout.includes("ensureParentDetails(drawer, RECOVERY_GROUP_ID, 'Recovery
 }
 
 {
+    const path = 'beta/verify-phase15-force-rebase-0.4.10.mjs';
+    let source = fs.readFileSync(path, 'utf8');
+    source = replaceRequired(
+        source,
+        "assert(recoveryUi.includes('Force timeline rebase'), 'Recovery settings do not expose the force rebase action');",
+        "assert(recoveryUi.includes('Force Timeline Rebase'), 'Recovery settings do not expose the force rebase action');",
+        'force rebase heading assertion',
+    );
+    source = replaceRequired(
+        source,
+        "assert(recoveryUi.includes('Force rebase to current chat'), 'Force rebase button label is missing');",
+        "assert(recoveryUi.includes('Force Timeline Rebase...'), 'Force rebase button label is missing');",
+        'force rebase button assertion',
+    );
+    source = replaceRequired(
+        source,
+        "assert(recoveryUi.includes('ensureForceControl(host)'), 'Safe branch state does not render the force rebase action');",
+        "assert(recoveryUi.includes('ensureForceControl(forceHost || host)'), 'Safe branch state does not render the force rebase action inside Advanced Recovery');",
+        'force rebase placement assertion',
+    );
+    fs.writeFileSync(path, source);
+}
+
+{
     const path = 'beta/verify-phase20-semantic-isolation-0.4.13.mjs';
     let source = fs.readFileSync(path, 'utf8');
     source = replaceRequired(
