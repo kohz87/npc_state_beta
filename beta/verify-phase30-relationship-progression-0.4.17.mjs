@@ -141,22 +141,18 @@ function trustState(score, progress = 0, unlocked = []) {
 function applyTrust(state, { impact, delta, messageId = 10, label = 'verified event' }) {
     return applyScanResult(state, {
         exchangeActiveNpcIds: ['npc-kora'], inChatNpcIds: ['npc-kora'], worldActiveNpcIds: [],
-        npcs: [{
-            id: 'npc-kora', name: 'Kora Lind',
-            relationshipChange: {
-                impact,
-                delta: { trust: delta, affection: 0, desire: 0, tension: 0 },
-                evidence: label,
-                reason: label,
-            },
-        }],
+        npcs: [{ id: 'npc-kora', name: 'Kora Lind', relationshipChange: {
+            evaluated: true, impact,
+            delta: { trust: delta, affection: 0, desire: 0, tension: 0 },
+            priority: ['trust'],
+            axisEvidence: { trust: { excerpts: [label], explanation: 'Verifier trust judgment for progression mechanics.' } },
+            evidence: label, reason: label,
+        } }],
         socialEdges: [], familyFacts: [],
     }, {
-        sourceMessageId: messageId,
-        turn: messageId,
-        playerName: 'Lucien',
-        requireCurrentRelationshipEvidence: false,
-        applyReturnedNpcPatches: true,
+        sourceMessageId: messageId, turn: messageId, playerName: 'Lucien',
+        relationshipContext: label,
+        requireCurrentRelationshipEvidence: false, applyReturnedNpcPatches: true,
     }).state.npcs[0];
 }
 

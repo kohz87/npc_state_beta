@@ -1,4 +1,4 @@
-import { relationshipEvidenceGrounding, relationshipEvidencePolarityConflict, relationshipOutcomesConflict } from './relationship-evidence.js';
+import { relationshipEvidenceExcerptMatch } from './relationship-evidence.js';
 import { evidenceReferenceScope, hasRecognizedStructuredBlocks, scannerEvidenceText, structuredEvidencePromptRules } from './evidence-adapter.js';
 import { appearanceFormDescription, appearanceScalarIsLegacyBase } from './appearance.js';
 import { AGE_PROGRESSION_MODE, ageProgressionAppearanceSafe, apparentAgeProgressionAllowed, authorizeAgeProgression, progressionEvidence, sharedAgeProgressionAllowed } from './age-progression.js';
@@ -30,6 +30,8 @@ import {
     normalizeRelationship,
     normalizeRelationshipEvidenceHistory,
     normalizeRelationshipDiagnostics,
+    normalizeRelationshipAxisEvidence,
+    normalizeRelationshipPriority,
     normalizeRelationshipProgress,
     normalizeState,
     relationshipMilestoneUnlocked,
@@ -205,7 +207,7 @@ function dossierCollectionRules(limits) {
 
 export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State v0.4.19 recovery scanner requires an assistant message and its preceding user exchange.');
+    if (!exchange) throw new Error('NPC State v0.4.20 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
@@ -222,13 +224,13 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
             behaviorProfile: [], speech: '', mannerisms: [], keyRelationshipChanges: [{ other: 'existing NPC name/id', action: 'remove', evidence: 'explicit evidence the durable tie no longer applies' }], profileChanges: [{ field: 'personality|behaviorProfile|speech|mannerisms', mode: 'refine|gradual|explicit|batch', concept: 'short stable concept label', evidence: 'grounded evidence for this durable profile update' }], canonChanges: [{ field: 'appearance|species|background|role|birthday', mode: 'refine|change|correction|revelation|age_progression', value: 'replacement durable canon', evidence: 'grounded evidence for this durable scalar revision' }], background: '', keyRelationships: [], memories: [],
             relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0,
             lifeState: 'alive|dead|unknown', lifeStateCertainty: 'explicit|strong|uncertain', lifeStateReason: '', livingReturn: false,
-            relationshipChange: { evaluated: true, impact: 'none|ordinary|meaningful|major|extreme', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: 'required even when impact is none' },
+            relationshipChange: { evaluated: true, impact: 'none|ordinary|meaningful|major|extreme', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, priority: ['supported nonzero axes strongest/most central first'], axisEvidence: { trust: { excerpts: ['1-3 exact current-exchange quotations'], explanation: 'why this changes Trust toward the PLAYER' }, affection: { excerpts: [], explanation: '' }, desire: { excerpts: [], explanation: '' }, tension: { excerpts: [], explanation: '' } }, evidence: 'optional compact overall event summary', reason: 'overall evaluation; required concise reason when impact is none' },
         }],
         socialEdges: [{ from: 'NPC id/name only', to: 'NPC id/name only', relation: '', summary: '', provenance: 'explicit|strong-context' }],
         familyFacts: [{ owner: 'existing NPC id/name', relation: 'daughter|son|child|other countable family role', count: 2, descriptor: 'optional e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit countable family fact' }],
     };
     return [
-        'You are NPC State v0.4.19, a private structured continuity scanner for a roleplay chat.',
+        'You are NPC State v0.4.20, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
         '',
         `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
@@ -252,7 +254,10 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- Current exchange decides relationship changes. Older history may recover stable profile facts and durable memories, but must NEVER replay relationship deltas.',
         '- RELATIONSHIP EVALUATION IS REQUIRED for every NPC in exchangeActiveNpcIds. Return an npcs patch for each such NPC even when no other dossier field changed. Set relationshipChange.evaluated to true. Most ordinary interactions may correctly produce no movement; for that case use impact none, all-zero deltas, empty evidence, and a concise reason explaining why no player-relationship shift is warranted. Never omit relationshipChange for an exchange-active NPC.',
         '- Use a non-none relationshipChange only when the current exchange contains concrete evidence. If unsure whether movement is warranted, evaluate it explicitly as impact none rather than omitting the channel.',
-        '- MULTI-AXIS RELATIONSHIP EVIDENCE: each nonzero axis must be independently supported by the current exchange. Make evidence/reason concrete enough to justify every proposed axis separately. Runtime may discard an unsupported axis while preserving independently grounded axes; never inflate extra axes merely because one part of the interaction was intense.',
+        '- PER-AXIS RELATIONSHIP EVIDENCE: for every nonzero axis, return axisEvidence[axis] with 1-3 short VERBATIM excerpts copied from permitted CURRENT-exchange relationship evidence and a concise explanation connecting those facts to that axis toward the PLAYER. Runtime verifies quotation provenance only; your contextual judgment decides meaning.',
+        '- Decide who acted, who reacted or experienced the feeling, and toward whom. Distinguish events that occurred now from hypotheticals, negations, remembered history, proposals, or reports about another person.',
+        '- Financial relief does not automatically establish Trust or Affection. Intimacy does not automatically establish Desire toward the player. General relaxation does not automatically mean reduced interpersonal Tension toward the player. Grief about another person must not be attributed to the player.',
+        '- priority must order supported nonzero axes from strongest/most central to weakest. Repeated aftermath or restatement of an already-scored event is zero unless something genuinely new happens.',
         '- RELATIONSHIP HARDENING: ordinary may affect at most 1 axis, meaningful 2, major 3, extreme 4. Repeated aftermath or semantically duplicate events must be zero. High relationship depth has increasing inertia, so raw deltas are evidence weights rather than guaranteed visible points. Desire requires explicit romantic/intimate/physical attraction evidence in the CURRENT narration, not friendship, gratitude, rescue, beauty, proximity, trust, or generic affection. Relationship Summary must describe only depth actually supported by the accepted relationship state.',
         '- RELATIONSHIP EVIDENCE: quote a short concrete event from the current exchange; preserve who acted, negation, and the outcome. Do not replace a quote with an inferred absolute trust/affection claim. Opposite outcomes are new events, while repeated aftermath earns zero. RELATIONSHIP MILESTONE GATES are enforced by NPC State at absolute depth 25, 50, 75, and 90 independently for each axis and positive/negative polarity. Ordinary evidence may reach a locked boundary but cannot deepen beyond it. Crossing 25 requires meaningful-or-stronger evidence; crossing 50 requires a major-or-stronger event with at least 3 raw points on that axis; crossing 75 requires extreme evidence with at least 5 raw points; crossing 90 requires extreme relationship-defining evidence with at least 8 raw points. Movement back toward neutral is never gate-blocked. Classify impact and deltas from the story honestly; never inflate them merely to open a gate.',
         '- age is ACTUAL chronological age only. Use one grounded numeric age. Years use N or ~N; if canon explicitly gives a smaller unit, use N days, N weeks, or N months. Never write child, teenager, adult, young adult, middle-aged, elder, elderly, old, or another life-stage label in age. Never infer actual age from appearance. For an EXISTING NPC with an established age, a different number MUST NOT be placed in age. Use ageChange instead.',
@@ -289,7 +294,7 @@ export function sanitizeStructuredDossierPatch(patch = {}, npc = {}) {
     const out = {
         id: String(npc?.id || patch?.id || '').trim(),
         name: String(npc?.name || patch?.name || '').trim(),
-        relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' },
+        relationshipChange: { evaluated: true, impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, priority: [], axisEvidence: {}, evidence: '', reason: '' },
     };
     for (const field of [
         'aliases', 'role', 'species', 'age', 'ageChange', 'ageProgression', 'apparentAge', 'birthday', 'appearance', 'appearanceForms', 'appearanceFormChanges',
@@ -310,7 +315,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         body: compactText(block?.body, 12000),
     }));
     return [
-        'You are NPC State v0.4.19 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
+        'You are NPC State v0.4.20 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
         'Return JSON only. This is reference-data reconciliation, NOT a current scene/event scan.',
         'Only the supplied Megumin New_NPC / NPC_Update blocks are authoritative sources for this operation.',
         'TARGET DOSSIER: ' + JSON.stringify(rosterForPrompt({ npcs: [npc] })[0]),
@@ -334,7 +339,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
                 appearance: '', appearanceForms: null, appearanceFormChanges: null,
                 personality: '', behaviorProfile: null, speech: '', mannerisms: null, profileChanges: null,
                 canonChanges: null, background: '', keyRelationships: null, keyRelationshipChanges: null, memories: null,
-                relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' },
+                relationshipChange: { evaluated: true, impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, priority: [], axisEvidence: {}, evidence: '', reason: '' },
             }], socialEdges: [], familyFacts: [],
         }),
     ].filter(Boolean).join('\n\n');
@@ -349,7 +354,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State v0.4.19 performing a targeted dossier reconciliation.',
+        'You are NPC State v0.4.20 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
@@ -372,7 +377,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
         ...(structuredDetected ? structuredEvidencePromptRules() : []),
         memoryCriteria ? `IMPORTANT MEMORY RUBRIC:\n${compactText(memoryCriteria, 6000)}` : '',
         `CHAT WINDOW:\n${JSON.stringify(history)}`,
-        `OUTPUT CONTRACT:\n${JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id: npc.id, name: npc.name, aliases: [], role: '', species: '', age: 'initial actual chronological numeric age only or empty', ageChange: { age: 'new actual chronological age', kind: 'birthday|elapsed|correction', evidence: 'explicit grounded age-change evidence' }, ageProgression: { maturation: 'ordinary|accelerated|long_lived|ageless|unknown', meaningful: false, basis: '', evidence: '', affectsShared: false, affectedForms: [] }, apparentAge: '~N only or empty', birthday: 'explicit freeform birthday or empty', appearance: 'shared/common or ordinary single-form appearance', currentForm: 'current physical form or empty', appearanceForms: null, appearanceFormChanges: null, personality: '', behaviorProfile: null, speech: '', mannerisms: null, profileChanges: null, canonChanges: null, background: '', keyRelationships: null, keyRelationshipChanges: null, memories: null, relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0, lifeState: 'alive|dead|unknown', lifeStateCertainty: '', lifeStateReason: '', livingReturn: false, relationshipChange: { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' } }], socialEdges: [] })}`,
+        `OUTPUT CONTRACT:\n${JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id: npc.id, name: npc.name, aliases: [], role: '', species: '', age: 'initial actual chronological numeric age only or empty', ageChange: { age: 'new actual chronological age', kind: 'birthday|elapsed|correction', evidence: 'explicit grounded age-change evidence' }, ageProgression: { maturation: 'ordinary|accelerated|long_lived|ageless|unknown', meaningful: false, basis: '', evidence: '', affectsShared: false, affectedForms: [] }, apparentAge: '~N only or empty', birthday: 'explicit freeform birthday or empty', appearance: 'shared/common or ordinary single-form appearance', currentForm: 'current physical form or empty', appearanceForms: null, appearanceFormChanges: null, personality: '', behaviorProfile: null, speech: '', mannerisms: null, profileChanges: null, canonChanges: null, background: '', keyRelationships: null, keyRelationshipChanges: null, memories: null, relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0, lifeState: 'alive|dead|unknown', lifeStateCertainty: '', lifeStateReason: '', livingReturn: false, relationshipChange: { evaluated: true, impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, priority: [], axisEvidence: {}, evidence: '', reason: '' } }], socialEdges: [] })}`,
     ].filter(Boolean).join('\n\n');
 }
 
@@ -400,7 +405,7 @@ function scannerNpcArrayValid(value) {
     });
 }
 function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupplemental = false } = {}) {
-    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.19 recovery scanner JSON must be an object.');
+    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.20 recovery scanner JSON must be an object.');
     const has = key => Object.prototype.hasOwnProperty.call(parsed, key);
     const presentKey = has('inChatNpcIds') ? 'inChatNpcIds' : (has('finalPresentNpcIds') ? 'finalPresentNpcIds' : '');
     if (requireContract) {
@@ -411,7 +416,7 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
         if (!scannerNpcArrayValid(parsed.npcs)) invalid.push('npcs[object-with-string-identity]');
         if ((!allowOmittedSupplemental || has('socialEdges')) && !scannerObjectArrayValid(parsed.socialEdges)) invalid.push('socialEdges[object]');
         if (has('familyFacts') && !scannerObjectArrayValid(parsed.familyFacts)) invalid.push('familyFacts[object]');
-        if (invalid.length) throw new Error('NPC State v0.4.19 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
+        if (invalid.length) throw new Error('NPC State v0.4.20 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
     }
     return {
         exchangeActiveNpcIds: uniqueStrings(parsed.exchangeActiveNpcIds),
@@ -425,14 +430,14 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
 
 export function parseScanJson(raw) {
     const text = String(raw ?? '').trim();
-    if (!text) throw new Error('NPC State v0.4.19 recovery scanner returned an empty response.');
+    if (!text) throw new Error('NPC State v0.4.20 recovery scanner returned an empty response.');
     const unfenced = text.replace(/^\x60\x60\x60(?:json)?\s*/i, '').replace(/\s*\x60\x60\x60$/i, '').trim();
     const first = unfenced.indexOf('{');
     const last = unfenced.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('NPC State v0.4.19 recovery scanner returned no JSON object.');
+    if (first < 0 || last <= first) throw new Error('NPC State v0.4.20 recovery scanner returned no JSON object.');
     let parsed;
     try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
-    catch (error) { throw new Error('NPC State v0.4.19 recovery scanner returned malformed JSON: ' + error.message); }
+    catch (error) { throw new Error('NPC State v0.4.20 recovery scanner returned malformed JSON: ' + error.message); }
     return normalizeScanPayload(parsed, { requireContract: true });
 }
 
@@ -521,7 +526,7 @@ function preflightAutomaticIdentityPatches(state, patches = [], referenceCandida
                 // handled by automaticIdentityPatchConflicts() as a local patch rejection.
                 // A newly claimed key is a same-observation conflict and invalidates the payload.
                 if (!initialIdentityKeys.has(key)) {
-                    throw new Error('NPC State v0.4.19 scanner identity collision inside one observation: ' + value + '.');
+                    throw new Error('NPC State v0.4.20 scanner identity collision inside one observation: ' + value + '.');
                 }
             }
         }
@@ -1252,62 +1257,74 @@ function relationshipAxisLimit(impact) {
     return 0;
 }
 
-function selectRelationshipAxes(delta, axisLimit) {
-    const ranked = RELATIONSHIP_AXES
-        .filter(axis => Number(delta?.[axis]) !== 0)
-        .map(axis => ({ axis, magnitude: Math.abs(Number(delta[axis]) || 0) }))
-        .sort((a, b) => b.magnitude - a.magnitude || RELATIONSHIP_AXES.indexOf(a.axis) - RELATIONSHIP_AXES.indexOf(b.axis));
-    if (!axisLimit || !ranked.length) return new Set();
-    if (ranked.length <= axisLimit) return new Set(ranked.map(item => item.axis));
-    const cutoff = ranked[axisLimit - 1]?.magnitude ?? Infinity;
-    const above = ranked.filter(item => item.magnitude > cutoff);
-    const tied = ranked.filter(item => item.magnitude === cutoff);
-    const slots = Math.max(0, axisLimit - above.length);
-    // Do not create a fixed Trust/Affection bias when too many equal axes compete for
-    // too few legal slots. Ambiguous tied overflow is rejected as a group.
-    const acceptedTied = tied.length <= slots ? tied : [];
-    return new Set([...above, ...acceptedTied].map(item => item.axis));
+function selectRelationshipAxes(delta, axisLimit, priority = []) {
+    if (!axisLimit) return new Set();
+    const moving = RELATIONSHIP_AXES.filter(axis => Number(delta?.[axis]) !== 0);
+    if (!moving.length) return new Set();
+    const ordered = [];
+    for (const axis of normalizeRelationshipPriority(priority)) {
+        if (moving.includes(axis) && !ordered.includes(axis)) ordered.push(axis);
+    }
+    const remainder = moving.filter(axis => !ordered.includes(axis)).sort((left, right) =>
+        Math.abs(Number(delta[right]) || 0) - Math.abs(Number(delta[left]) || 0)
+        || RELATIONSHIP_AXES.indexOf(left) - RELATIONSHIP_AXES.indexOf(right));
+    // Legacy/fallback order is deterministic: raw magnitude, then canonical axis order.
+    // Equal candidates always fill available slots instead of being rejected as a tied group.
+    return new Set([...ordered, ...remainder].slice(0, axisLimit));
 }
 
-const DESIRE_EVIDENCE_CUES = /\b(desire|desires|desired|desiring|attract|attracts|attracted|attraction|romantic|romance|intimacy|intimate|kiss|kisses|kissed|kissing|sexual|sexually|lust|longing|yearn|yearns|yearned|yearning|flirt|flirts|flirted|flirting|date|dating|lover|physical closeness|physical contact|physically drawn|wants? (?:him|her|them|the player) physically|drawn to)\b/i;
-
-function relationshipTextTokens(value) {
-    return evidenceTextKey(value, 1600).split(/\s+/).filter(token => token.length >= 3);
+function relationshipAxisEvidenceText(change, axis) {
+    return (change?.axisEvidence?.[axis]?.excerpts || []).join(' ');
 }
 
-function relationshipTextSimilarity(a, b) {
-    const leftText = evidenceTextKey(a, 1600);
-    const rightText = evidenceTextKey(b, 1600);
-    if (!leftText || !rightText) return 0;
-    if (leftText === rightText) return 1;
-    const left = new Set(relationshipTextTokens(leftText));
-    const right = new Set(relationshipTextTokens(rightText));
-    if (!left.size || !right.size) return 0;
-    let intersection = 0;
-    for (const token of left) if (right.has(token)) intersection += 1;
-    const union = new Set([...left, ...right]).size;
-    const jaccard = union ? intersection / union : 0;
-    const containment = intersection / Math.min(left.size, right.size);
-    return Math.max(jaccard, containment * 0.85);
+function relationshipDuplicateEvidenceKey(value) {
+    return String(value || '')
+        .normalize('NFKC')
+        .replace(/\r\n?/g, '\n')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLocaleLowerCase()
+        .slice(0, 2400);
 }
 
-function relationshipChangeLooksDuplicate(npc, change, { sourceMessageId = null, turn = null } = {}) {
-    const currentText = [change?.reason, change?.evidence].filter(Boolean).join(' ');
-    if (!currentText) return false;
+function relationshipAxisLooksDuplicate(npc, change, axis, { sourceMessageId = null, turn = null } = {}) {
+    const currentEvidence = relationshipDuplicateEvidenceKey(relationshipAxisEvidenceText(change, axis));
     const history = normalizeRelationshipEvidenceHistory(npc?.relationshipEvidenceHistory);
     return history.some(previous => {
-        const priorTurn = previous.turn;
-        const currentTurn = turn;
-        const recentByTurn = Number.isInteger(priorTurn) && Number.isInteger(currentTurn) && currentTurn >= priorTurn && currentTurn - priorTurn <= 8;
-        const recentByMessage = Number.isInteger(sourceMessageId) && Number.isInteger(previous.sourceMessageId)
-            && sourceMessageId >= previous.sourceMessageId && sourceMessageId - previous.sourceMessageId <= 10;
-        if (!recentByTurn && !recentByMessage) return false;
-        if (evidenceTextKey(previous.evidence) === evidenceTextKey(change.evidence)) return true;
-        if (RELATIONSHIP_AXES.some(axis => previous.delta?.[axis] && change.delta?.[axis]
-            && Math.sign(previous.delta[axis]) !== Math.sign(change.delta[axis]))) return false;
-        if (relationshipOutcomesConflict(previous.evidence, change.evidence)) return false;
-        return relationshipTextSimilarity(previous.evidence, change.evidence) >= 0.68;
+        if (Number.isInteger(sourceMessageId) && Number.isInteger(previous.sourceMessageId)
+            && previous.sourceMessageId === sourceMessageId) return true;
+        if (Number.isInteger(turn) && Number.isInteger(previous.turn) && previous.turn === turn) return true;
+        if (!currentEvidence) return false;
+        const previousEvidence = relationshipDuplicateEvidenceKey(
+            (previous.axisEvidence?.[axis]?.excerpts || []).join(' ') || previous.evidence,
+        );
+        return Boolean(previousEvidence && previousEvidence === currentEvidence);
     });
+}
+
+function relationshipEvidenceSourcesForOptions(options = {}) {
+    const explicit = Array.isArray(options.relationshipEvidenceSources) ? options.relationshipEvidenceSources : [];
+    if (explicit.length) return explicit.slice(0, 8);
+    // Compatibility for direct deterministic callers that predate evidencePolicy plumbing.
+    // The new per-axis excerpt contract is still mandatory, and production engine paths pass
+    // bounded user/assistant visible/private sources so this fallback cannot cross real source boundaries.
+    const legacy = String(options.relationshipContext || '').trim();
+    return legacy ? [{ id: 'legacy-context', kind: 'visible', text: legacy }] : [];
+}
+
+function relationshipAcceptedEvidenceSummary(change, allowedAxes) {
+    const rows = [];
+    for (const axis of RELATIONSHIP_AXES) {
+        if (!allowedAxes.has(axis)) continue;
+        for (const excerpt of change?.axisEvidence?.[axis]?.excerpts || []) if (!rows.includes(excerpt)) rows.push(excerpt);
+    }
+    return rows.join(' | ').slice(0, 800);
+}
+
+function relationshipAcceptedAxisEvidence(change, allowedAxes) {
+    return Object.fromEntries(RELATIONSHIP_AXES
+        .filter(axis => allowedAxes.has(axis) && change?.axisEvidence?.[axis])
+        .map(axis => [axis, change.axisEvidence[axis]]));
 }
 
 function relationshipSummarySupported(value, relationship, milestones) {
@@ -1338,28 +1355,108 @@ function relationshipSummarySupported(value, relationship, milestones) {
 }
 
 function relationshipDeltaForPatch(patch, caps = DEFAULT_RELATIONSHIP_CAPS) {
-    const change = patch?.relationshipChange && typeof patch.relationshipChange === 'object' ? patch.relationshipChange : {};
-    const impact = IMPACTS.has(String(change.impact)) ? String(change.impact) : 'none';
-    const evidence = String(change.evidence || '').trim();
-    const reason = String(change.reason || '').trim();
-    if (impact === 'none' || !evidence || !reason) return { impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, evidence: '', reason: '' };
+    const raw = patch?.relationshipChange && typeof patch.relationshipChange === 'object' && !Array.isArray(patch.relationshipChange)
+        ? patch.relationshipChange : null;
+    const reasons = [];
+    const zero = { trust: 0, affection: 0, desire: 0, tension: 0 };
+    if (!raw) return { evaluated: false, impactValid: false, impact: 'none', proposed: zero, delta: zero, axisEvidence: {}, priority: [], evidence: '', reason: '', reasons, hasRawMovement: false };
+    const impactText = String(raw.impact || '').trim();
+    const impactValid = IMPACTS.has(impactText);
+    const impact = impactValid ? impactText : 'none';
+    const proposedRaw = raw.delta && typeof raw.delta === 'object' && !Array.isArray(raw.delta) ? raw.delta : {};
+    const proposed = { ...zero };
+    const delta = { ...zero };
     const cap = Math.max(0, Number(caps?.[impact] ?? DEFAULT_RELATIONSHIP_CAPS[impact] ?? 0));
-    const proposed = change.delta && typeof change.delta === 'object' ? change.delta : {};
-    const delta = {};
-    for (const axis of RELATIONSHIP_AXES) {
-        const number = Number(proposed[axis]);
-        delta[axis] = Number.isFinite(number) ? Math.max(-cap, Math.min(cap, Math.round(number))) : 0;
+    let hasRawMovement = false;
+    for (const key of Object.keys(proposedRaw)) {
+        if (!RELATIONSHIP_AXES.includes(String(key))) reasons.push('proposal:unknown-axis:' + String(key).slice(0, 40));
     }
-    if (!Object.values(delta).some(Boolean)) return { impact: 'none', delta, evidence: '', reason: '' };
-    return { impact, delta, evidence: evidence.slice(0, 800), reason: reason.slice(0, 800) };
+    for (const axis of RELATIONSHIP_AXES) {
+        if (!Object.prototype.hasOwnProperty.call(proposedRaw, axis)) continue;
+        const number = Number(proposedRaw[axis]);
+        if (!Number.isFinite(number)) {
+            hasRawMovement = true;
+            reasons.push(axis + ':non-finite');
+            continue;
+        }
+        const rounded = Math.round(number);
+        proposed[axis] = rounded;
+        if (!rounded) continue;
+        hasRawMovement = true;
+        delta[axis] = Math.max(-cap, Math.min(cap, rounded));
+        if (delta[axis] !== rounded) reasons.push(axis + ':cap-clamped');
+    }
+
+    const rawAxisEvidence = raw.axisEvidence && typeof raw.axisEvidence === 'object' && !Array.isArray(raw.axisEvidence) ? raw.axisEvidence : {};
+    for (const key of Object.keys(rawAxisEvidence)) if (!RELATIONSHIP_AXES.includes(String(key))) reasons.push('proposal:unknown-axis-evidence:' + String(key).slice(0, 40));
+    const axisEvidence = {};
+    const axisEvidenceStatus = {};
+    for (const axis of RELATIONSHIP_AXES) {
+        if (!delta[axis]) continue;
+        const item = rawAxisEvidence[axis];
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+            axisEvidenceStatus[axis] = 'missing-axis-evidence';
+            continue;
+        }
+        const rawExcerpts = item.excerpts;
+        const explanation = String(item.explanation || '').trim().slice(0, 800);
+        if (!Array.isArray(rawExcerpts) || rawExcerpts.length < 1 || rawExcerpts.length > 3
+            || rawExcerpts.some(excerpt => typeof excerpt !== 'string' || !excerpt.trim())) {
+            axisEvidenceStatus[axis] = 'malformed-axis-evidence';
+            axisEvidence[axis] = { excerpts: [], explanation };
+            continue;
+        }
+        const excerpts = rawExcerpts.map(excerpt => String(excerpt).trim().slice(0, 800));
+        axisEvidence[axis] = { excerpts, explanation };
+        axisEvidenceStatus[axis] = explanation ? 'valid' : 'missing-explanation';
+    }
+
+    let priority = [];
+    if (raw.priority != null) {
+        if (!Array.isArray(raw.priority)) reasons.push('priority:malformed');
+        else {
+            for (const entry of raw.priority) {
+                const axis = String(entry || '').trim().toLocaleLowerCase();
+                if (!RELATIONSHIP_AXES.includes(axis)) { reasons.push('priority:unknown-axis:' + axis.slice(0, 40)); continue; }
+                if (!delta[axis]) { reasons.push('priority:nonmoving-axis:' + axis); continue; }
+                if (!priority.includes(axis)) priority.push(axis);
+            }
+        }
+    }
+    priority = normalizeRelationshipPriority(priority);
+    return {
+        evaluated: raw.evaluated === true,
+        impactValid,
+        impact,
+        proposed,
+        delta,
+        axisEvidence: normalizeRelationshipAxisEvidence(axisEvidence),
+        axisEvidenceStatus,
+        priority,
+        evidence: String(raw.evidence || '').trim().slice(0, 800),
+        reason: String(raw.reason || '').trim().slice(0, 800),
+        reasons,
+        hasRawMovement,
+        verifiedSources: {},
+    };
+}
+
+function relationshipAxisReasons(reasons = []) {
+    return Object.fromEntries(RELATIONSHIP_AXES.map(axis => [axis, reasons
+        .filter(reason => String(reason).startsWith(axis + ':'))
+        .map(reason => String(reason).slice(axis.length + 1))]).filter(([, rows]) => rows.length));
 }
 
 function relationshipDiagnostic(npc, next, change, options, reasons = [], unlocks = []) {
     const event = {
         impact: change.impact, reason: change.reason, evidence: change.evidence,
-        before: npc.relationship, after: next.relationship, proposed: change.delta,
+        before: npc.relationship, after: next.relationship,
+        proposed: change.proposed || change.delta,
+        capped: change.delta,
         applied: Object.fromEntries(RELATIONSHIP_AXES.map(axis => [axis, (next.relationship?.[axis] || 0) - (npc.relationship?.[axis] || 0)])),
         progressBefore: npc.relationshipProgress, progressAfter: next.relationshipProgress,
+        axisEvidence: change.axisEvidence || {}, priority: change.priority || [], verifiedSources: change.verifiedSources || {},
+        axisReasons: relationshipAxisReasons(reasons),
         reasons, unlocks, sourceMessageId: options.sourceMessageId, turn: options.turn, at: Date.now(),
     };
     return { ...next, relationshipDiagnostics: normalizeRelationshipDiagnostics([...(npc.relationshipDiagnostics || []), event]) };
@@ -1367,89 +1464,92 @@ function relationshipDiagnostic(npc, next, change, options, reasons = [], unlock
 
 function relationshipEvaluationDiagnostic(npc, patch, options = {}) {
     const raw = patch?.relationshipChange && typeof patch.relationshipChange === 'object' && !Array.isArray(patch.relationshipChange)
-        ? patch.relationshipChange
-        : null;
+        ? patch.relationshipChange : null;
     const zero = { trust: 0, affection: 0, desire: 0, tension: 0 };
     if (!raw) {
         return relationshipDiagnostic(npc, npc, {
-            impact: 'none', delta: zero, evidence: '',
+            impact: 'none', proposed: zero, delta: zero, axisEvidence: {}, priority: [], verifiedSources: {}, evidence: '',
             reason: 'Scanner omitted relationship evaluation for an exchange-active NPC.',
         }, options, ['evaluation-missing']);
     }
-    const rawImpactText = String(raw.impact || '').trim();
-    const impactValid = IMPACTS.has(rawImpactText);
-    const rawImpact = impactValid ? rawImpactText : 'none';
+    const proposal = relationshipDeltaForPatch(patch, options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS);
     const rawDelta = raw.delta && typeof raw.delta === 'object' && !Array.isArray(raw.delta) ? raw.delta : {};
     const hasRawDelta = RELATIONSHIP_AXES.some(axis => Number(rawDelta?.[axis]) !== 0);
-    const evaluated = raw.evaluated === true;
     const reason = String(raw.reason || '').trim().slice(0, 800);
-    const evidence = String(raw.evidence || '').trim().slice(0, 800);
-    if (evaluated && impactValid && rawImpact === 'none' && !hasRawDelta && reason) {
-        return relationshipDiagnostic(npc, npc, { impact: 'none', delta: zero, evidence: '', reason }, options, ['evaluated-no-change']);
+    if (proposal.evaluated && proposal.impactValid && proposal.impact === 'none' && !hasRawDelta && reason) {
+        return relationshipDiagnostic(npc, npc, { ...proposal, proposed: zero, delta: zero, reason }, options, ['evaluated-no-change']);
     }
-    const diagnosticReason = evaluated
+    const diagnosticReason = proposal.evaluated
         ? (reason || 'Scanner returned an incomplete relationship evaluation.')
         : 'Scanner omitted the required relationshipChange.evaluated flag for an exchange-active NPC.';
-    return relationshipDiagnostic(npc, npc, { impact: rawImpact, delta: zero, evidence, reason: diagnosticReason }, options, [evaluated ? 'evaluation-invalid' : 'evaluation-missing']);
+    const diagnosticReasons = [...proposal.reasons, proposal.evaluated ? 'evaluation-invalid' : 'evaluation-missing'];
+    return relationshipDiagnostic(npc, npc, { ...proposal, reason: diagnosticReason }, options, diagnosticReasons);
 }
 
-function relationshipAxisGrounding(npc, change, options, delta, reasons) {
+function relationshipAxisProvenance(change, options, delta, reasons) {
     const filtered = { ...delta };
-    if (options.requireCurrentRelationshipEvidence !== true) return filtered;
-    const baseExpectations = {
-        subjectNames: npcEvidenceVariants(npc),
-        objectNames: [options.playerName, 'player', 'user', 'pc', 'the player', 'the user'].filter(Boolean),
-        otherSubjectNames: options.otherNpcNames || [],
-        impact: change.impact,
-    };
+    const sources = relationshipEvidenceSourcesForOptions(options);
+    const verifiedSources = {};
     for (const axis of RELATIONSHIP_AXES) {
-        const raw = Number(filtered[axis]) || 0;
-        if (!raw) continue;
-        const axisDelta = { trust: 0, affection: 0, desire: 0, tension: 0 };
-        axisDelta[axis] = raw;
-        const rejection = relationshipEvidenceGrounding(change.evidence, options.relationshipContext, {
-            ...baseExpectations,
-            delta: axisDelta,
-        });
-        if (rejection) {
+        if (!Number(filtered[axis])) continue;
+        const status = change.axisEvidenceStatus?.[axis] || 'missing-axis-evidence';
+        if (status !== 'valid') {
             filtered[axis] = 0;
-            reasons.push(axis + ':' + rejection);
+            reasons.push(axis + ':' + status);
             continue;
         }
-        if (relationshipEvidencePolarityConflict(change.evidence, axisDelta)) {
+        if (!sources.length) {
             filtered[axis] = 0;
-            reasons.push(axis + ':evidence-polarity');
+            reasons.push(axis + ':no-permitted-evidence-source');
+            continue;
         }
+        const matched = [];
+        let valid = true;
+        for (const excerpt of change.axisEvidence?.[axis]?.excerpts || []) {
+            const provenance = relationshipEvidenceExcerptMatch(excerpt, sources);
+            if (!provenance) { valid = false; break; }
+            const label = provenance.sourceId + ':' + provenance.kind;
+            if (!matched.includes(label)) matched.push(label);
+        }
+        if (!valid) {
+            filtered[axis] = 0;
+            reasons.push(axis + ':unverifiable-excerpt');
+            continue;
+        }
+        verifiedSources[axis] = matched;
     }
-    return filtered;
+    return { delta: filtered, verifiedSources };
 }
 
 function applyRelationshipChange(npc, patch, options = {}) {
     const caps = options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS;
     const change = relationshipDeltaForPatch(patch, caps);
-    if (change.impact === 'none') return relationshipEvaluationDiagnostic(npc, patch, options);
-    const reasons = [];
-
-    const context = String(options.relationshipContext || '').trim();
-    let filteredDelta = { ...change.delta };
-    if (filteredDelta.desire !== 0) {
-        const evidenceSupportsDesire = DESIRE_EVIDENCE_CUES.test(change.evidence) || DESIRE_EVIDENCE_CUES.test(change.reason);
-        const narrationSupportsDesire = !context || DESIRE_EVIDENCE_CUES.test(context);
-        if (!evidenceSupportsDesire || !narrationSupportsDesire) { filteredDelta.desire = 0; reasons.push('desire:unsupported'); }
+    if (!change.evaluated || !change.impactValid || change.impact === 'none') return relationshipEvaluationDiagnostic(npc, patch, { ...options, relationshipCaps: caps });
+    const reasons = [...change.reasons];
+    if (!change.hasRawMovement) return relationshipDiagnostic(npc, npc, change, options, [...reasons, 'evaluation-invalid']);
+    if (!RELATIONSHIP_AXES.some(axis => Number(change.delta[axis]) !== 0)) {
+        return relationshipDiagnostic(npc, npc, change, options, reasons.length ? reasons : ['evaluation-invalid']);
     }
 
-    filteredDelta = relationshipAxisGrounding(npc, change, options, filteredDelta, reasons);
+    let filteredDelta = { ...change.delta };
+    const provenance = relationshipAxisProvenance(change, options, filteredDelta, reasons);
+    filteredDelta = provenance.delta;
+    change.verifiedSources = provenance.verifiedSources;
+    for (const axis of RELATIONSHIP_AXES) {
+        if (!Number(filteredDelta[axis])) continue;
+        if (!relationshipAxisLooksDuplicate(npc, { ...change, delta: filteredDelta }, axis, options)) continue;
+        filteredDelta[axis] = 0;
+        reasons.push(axis + ':duplicate');
+    }
     if (!RELATIONSHIP_AXES.some(axis => Number(filteredDelta[axis]) !== 0)) {
-        if (!reasons.length) reasons.push('ungrounded');
+        if (!reasons.length) reasons.push('no-valid-axis');
         return relationshipDiagnostic(npc, npc, change, options, reasons);
     }
 
-    const groundedChange = { ...change, delta: { ...filteredDelta } };
-    if (relationshipChangeLooksDuplicate(npc, groundedChange, options)) return relationshipDiagnostic(npc, npc, change, options, [...reasons, 'duplicate']);
-
     const axisLimit = relationshipAxisLimit(change.impact);
-    const allowedAxes = selectRelationshipAxes(filteredDelta, axisLimit);
+    const allowedAxes = selectRelationshipAxes(filteredDelta, axisLimit, change.priority);
     for (const axis of RELATIONSHIP_AXES) if (filteredDelta[axis] && !allowedAxes.has(axis)) reasons.push(axis + ':axis-limit');
+
     const next = structuredClone(npc);
     const baseline = normalizeRelationship(next.relationship);
     const priorProgress = normalizeRelationshipProgress(next.relationshipProgress);
@@ -1532,9 +1632,14 @@ function applyRelationshipChange(npc, patch, options = {}) {
 
     next.relationship = updated;
     next.relationshipProgress = normalizeRelationshipProgress(progress);
+    const acceptedEvidenceText = relationshipAcceptedEvidenceSummary(change, allowedAxes);
+    const acceptedAxisEvidence = relationshipAcceptedAxisEvidence(change, allowedAxes);
+    const acceptedVerifiedSources = Object.fromEntries(RELATIONSHIP_AXES
+        .filter(axis => allowedAxes.has(axis) && change.verifiedSources?.[axis]?.length)
+        .map(axis => [axis, change.verifiedSources[axis]]));
     next.relationshipMilestones = applyRelationshipMilestoneCrossings(next.relationshipMilestones, crossings, {
         reason: change.reason,
-        evidence: change.evidence,
+        evidence: acceptedEvidenceText || change.evidence,
         sourceMessageId: options.sourceMessageId,
         turn: options.turn,
     });
@@ -1542,8 +1647,11 @@ function applyRelationshipChange(npc, patch, options = {}) {
     const evidenceEvent = {
         delta: Object.fromEntries(RELATIONSHIP_AXES.map(axis => [axis, allowedAxes.has(axis) ? filteredDelta[axis] : 0])),
         impact: change.impact,
-        evidence: change.evidence,
+        evidence: acceptedEvidenceText || change.evidence,
         reason: change.reason,
+        axisEvidence: acceptedAxisEvidence,
+        priority: change.priority,
+        verifiedSources: acceptedVerifiedSources,
         sourceMessageId: Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null,
         turn: Number.isInteger(options.turn) ? options.turn : null,
         at: Date.now(),
@@ -1564,7 +1672,7 @@ function applyRelationshipChange(npc, patch, options = {}) {
         next.relationshipSummary = summary.slice(0, 1000);
     }
     if (progressChanged && !visibleChanged) reasons.push('fractional-progress');
-    const partialAxisRejection = reasons.some(reason => /^(?:trust|affection|desire|tension):/.test(reason));
+    const partialAxisRejection = reasons.some(reason => /^(?:trust|affection|desire|tension):(?:non-finite|missing-axis-evidence|malformed-axis-evidence|missing-explanation|no-permitted-evidence-source|unverifiable-excerpt|duplicate|axis-limit)$/.test(reason));
     if (relationshipStateChanged && partialAxisRejection && !reasons.includes('partial-applied')) reasons.push('partial-applied');
     if (!reasons.length) reasons.push(relationshipStateChanged ? 'applied' : 'no-visible-change');
     return relationshipDiagnostic(npc, next, change, options, reasons, crossings);
@@ -1989,6 +2097,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             if (applyRelationship && exchangeSet.has(npc.id)) npc = applyRelationshipChange(npc, patch, {
                 relationshipCaps: options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 relationshipContext: String(options.relationshipContext || ''),
+                relationshipEvidenceSources: Array.isArray(options.evidencePolicy?.relationshipSources) ? options.evidencePolicy.relationshipSources : [],
                 playerName,
                 otherNpcNames: state.npcs.filter(other => other.id !== npc.id).flatMap(other => [other.name, ...(other.aliases || [])]),
                 // Automatic relationship movement is always current-exchange evidence.

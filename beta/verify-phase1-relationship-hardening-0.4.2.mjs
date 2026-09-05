@@ -14,6 +14,13 @@ function near(actual, expected, epsilon = 0.000001) {
     return Math.abs(Number(actual) - Number(expected)) <= epsilon;
 }
 
+function v0420RelationshipContract(delta, evidence, reason) {
+    const fullDelta = { trust: 0, affection: 0, desire: 0, tension: 0, ...delta };
+    const priority = ['trust', 'affection', 'desire', 'tension'].filter(axis => Number(fullDelta[axis]) !== 0);
+    const axisEvidence = Object.fromEntries(priority.map(axis => [axis, { excerpts: [evidence], explanation: reason || 'Verifier relationship judgment.' }]));
+    return { fullDelta, priority, axisEvidence };
+}
+
 function milestone(axis, polarity, threshold) {
     return { axis, polarity, threshold, reason: 'Established for test.', evidence: '', sourceMessageId: 1, turn: 1, at: 1, inferred: false };
 }
@@ -30,6 +37,7 @@ function stateWithRelationship(relationship, milestones = []) {
 }
 
 function apply(state, { impact = 'ordinary', delta = {}, evidence = 'Fresh grounded evidence.', reason = 'Fresh relationship event.', summary = '', sourceMessageId = 2, turn = sourceMessageId, context = '' } = {}) {
+    const contract = v0420RelationshipContract(delta, evidence, reason);
     return applyScanResult(state, {
         exchangeActiveNpcIds: ['npc-mira-phase1'],
         inChatNpcIds: ['npc-mira-phase1'],
@@ -39,8 +47,11 @@ function apply(state, { impact = 'ordinary', delta = {}, evidence = 'Fresh groun
             name: 'Mira',
             relationshipSummary: summary,
             relationshipChange: {
+                evaluated: true,
                 impact,
-                delta: { trust: 0, affection: 0, desire: 0, tension: 0, ...delta },
+                delta: contract.fullDelta,
+                priority: contract.priority,
+                axisEvidence: contract.axisEvidence,
                 evidence,
                 reason,
             },
@@ -49,7 +60,7 @@ function apply(state, { impact = 'ordinary', delta = {}, evidence = 'Fresh groun
     }, {
         sourceMessageId,
         turn,
-        relationshipContext: context,
+        relationshipContext: context || evidence,
         applyReturnedNpcPatches: true,
     }).state;
 }
@@ -91,7 +102,7 @@ const mira = state => state.npcs.find(npc => npc.id === 'npc-mira-phase1');
     assert(mira(state).relationship.tension === 0, 'Meaningful event moved a third axis');
 }
 
-// Ambiguous equal-strength overflow is rejected rather than biased by fixed axis order.
+// Equal-strength overflow fills the available slots deterministically when no model priority is supplied.
 {
     let state = stateWithRelationship({ trust: 0, affection: 0, desire: 0, tension: 0 });
     state = apply(state, {
@@ -100,11 +111,12 @@ const mira = state => state.npcs.find(npc => npc.id === 'npc-mira-phase1');
         evidence: 'The model ambiguously proposes three equal relationship axes.',
         reason: 'Ambiguous equal-strength overflow.',
     });
-    assert(mira(state).relationship.trust === 0 && mira(state).relationship.affection === 0 && mira(state).relationship.tension === 0, 'Equal tied overflow created deterministic axis bias');
+    assert(mira(state).relationship.trust === 2 && mira(state).relationship.affection === 2, 'Equal tied overflow did not fill meaningful-tier slots');
+    assert(mira(state).relationship.tension === 0, 'Equal tied overflow exceeded the meaningful-tier axis limit');
 }
 
-// Desire is blocked unless both the model evidence and actual current narration contain
-// explicit romantic/intimate/physical-attraction evidence.
+// Desire is not keyword-vetoed by runtime. Provenance still fails closed when the model quotes
+// text that is absent from the permitted current exchange; an exact supported quote may proceed.
 {
     let state = stateWithRelationship({ trust: 0, affection: 0, desire: 0, tension: 0 });
     state = apply(state, {
@@ -119,7 +131,7 @@ const mira = state => state.npcs.find(npc => npc.id === 'npc-mira-phase1');
     state = apply(state, {
         impact: 'meaningful',
         delta: { desire: 2 },
-        evidence: 'Mira explicitly admits she is romantically attracted to the player.',
+        evidence: 'Mira says she is romantically attracted to the player and asks for a kiss.',
         reason: 'Mira voices romantic attraction.',
         context: 'Mira says she is romantically attracted to the player and asks for a kiss.',
         sourceMessageId: 3,
@@ -213,10 +225,10 @@ const mira = state => state.npcs.find(npc => npc.id === 'npc-mira-phase1');
     assert(/^0\.4\./.test(String(manifest.version || '')) && Number.isFinite(manifestPatch) && manifestPatch >= 2, 'Manifest version regressed below the 0.4.2 relationship-hardening baseline');
     assert(schema.includes('relationshipProgress') && schema.includes('relationshipEvidenceHistory'), 'Relationship hardening state fields missing');
     assert(scanner.includes('relationshipInertiaFactor') && scanner.includes('selectRelationshipAxes'), 'Inertia/axis hardening missing');
-    assert(scanner.includes('DESIRE_EVIDENCE_CUES') && scanner.includes('relationshipChangeLooksDuplicate'), 'Desire firewall or dedupe missing');
+    assert(!scanner.includes('DESIRE_EVIDENCE_CUES') && scanner.includes('relationshipAxisLooksDuplicate') && scanner.includes('relationshipDuplicateEvidenceKey'), 'Current provenance/idempotency hardening is missing');
     assert(scanner.includes('relationshipSummarySupported') && scanner.includes('relationshipStateChanged'), 'Relationship Summary validation missing');
     assert(engine.includes('relationshipContextForExchange'), 'Current-exchange narration is not wired to deterministic relationship validation');
-    assert(injection.includes('RELATIONSHIP HARDENING'), 'Foreground model contract does not describe relationship hardening');
+    assert(injection.includes('PER-AXIS RELATIONSHIP EVIDENCE') && injection.includes('RELATIONSHIP REPEATS AND GATES'), 'Foreground model contract does not describe current relationship hardening');
 }
 
 console.log('NPC State 0.4.2 phase 1 relationship hardening verification passed');

@@ -53,8 +53,11 @@ const groundedPerformance = 'Lucien delivered three intact pairs of lower tusks 
             id: 'npc-kora',
             name: 'Kora Lind',
             relationshipChange: {
+                evaluated: true,
                 impact: 'ordinary',
                 delta: { trust: 1, affection: 0, desire: 0, tension: 0 },
+                priority: ['trust'],
+                axisEvidence: { trust: { excerpts: ['Lucien delivered three intact pairs of lower tusks for the brush-boar contract before dusk.'], explanation: 'Verifier model judgment: Kora treated the completed work as evidence of reliability.' } },
                 evidence: 'Lucien demonstrated straightforward competence and reliability.',
                 reason: 'Lucien completed his first local bounty promptly and cleanly before sundown.',
             },
@@ -128,7 +131,8 @@ const groundedPerformance = 'Lucien delivered three intact pairs of lower tusks 
 
 const scanner = fs.readFileSync(new URL('../v03/scanner.js', import.meta.url), 'utf8');
 const evidenceSource = fs.readFileSync(new URL('../v03/relationship-evidence.js', import.meta.url), 'utf8');
-assert(scanner.includes('impact: change.impact') && (scanner.includes('delta: change.delta') || scanner.includes('delta: axisDelta')), 'Scanner does not pass movement semantics into relationship grounding');
+assert(scanner.includes('relationshipAxisProvenance') && scanner.includes('relationshipEvidenceExcerptMatch'), 'Scanner does not validate per-axis quotation provenance');
+assert(!scanner.includes('relationshipEvidenceGrounding('), 'Legacy semantic grounding still authorizes runtime movement');
 assert(evidenceSource.includes('ordinaryTrustSemanticGrounding') || evidenceSource.includes('relationshipSemanticGrounding'), 'Runtime relationship evidence lacks semantic relationship grounding');
 assert(evidenceSource.includes('TRUST_PERFORMANCE_FAILURE'), 'Runtime relationship evidence lacks negative performance fail-closed protection');
 

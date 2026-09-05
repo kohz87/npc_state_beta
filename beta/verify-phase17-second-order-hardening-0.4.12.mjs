@@ -97,7 +97,8 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
     const next = applyScanResult(state, payload({
         exchangeActiveNpcIds: ['npc-mira'], inChatNpcIds: ['npc-mira'],
         npcs: [{ id: 'npc-mira', name: 'Mira', relationshipChange: {
-            impact: 'meaningful', delta: { trust: 1, affection: 0, desire: 0, tension: 0 },
+            evaluated: true, impact: 'meaningful', delta: { trust: 1, affection: 0, desire: 0, tension: 0 },
+            priority: ['trust'], axisEvidence: { trust: { excerpts: ['Mira trusts Lucien completely.'], explanation: 'Verifier intentionally supplies an excerpt absent from the current exchange.' } },
             evidence: 'Sora trusts Lucien completely.', reason: 'Trust deepens.',
         } }],
     }), {
@@ -106,7 +107,7 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
     }).state;
     const mira = next.npcs.find(npc => npc.id === 'npc-mira');
     assert.equal(mira.relationship.trust, 10);
-    assert(mira.relationshipDiagnostics.at(-1)?.reasons?.includes('trust:wrong-direction'));
+    assert(mira.relationshipDiagnostics.at(-1)?.reasons?.includes('trust:unverifiable-excerpt'));
 }
 
 // A locally negated affection predicate cannot authorize positive affection movement.
@@ -117,7 +118,8 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
     const next = applyScanResult(state, payload({
         exchangeActiveNpcIds: ['npc-mira'], inChatNpcIds: ['npc-mira'],
         npcs: [{ id: 'npc-mira', name: 'Mira', relationshipChange: {
-            impact: 'meaningful', delta: { trust: 0, affection: 1, desire: 0, tension: 0 },
+            evaluated: true, impact: 'meaningful', delta: { trust: 0, affection: 1, desire: 0, tension: 0 },
+            priority: ['affection'], axisEvidence: { affection: { excerpts: ['Mira openly loves Lucien.'], explanation: 'Verifier intentionally supplies an excerpt absent from the current exchange.' } },
             evidence: 'Mira does not love Lucien.', reason: 'Affection deepens.',
         } }],
     }), {
@@ -126,7 +128,7 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
     }).state;
     const mira = next.npcs[0];
     assert.equal(mira.relationship.affection, 10);
-    assert(mira.relationshipDiagnostics.at(-1)?.reasons?.includes('affection:evidence-polarity'));
+    assert(mira.relationshipDiagnostics.at(-1)?.reasons?.includes('affection:unverifiable-excerpt'));
 }
 
 // Manual relationship edits are anchors: later discarded automation reverses; earlier automation is not subtracted twice.

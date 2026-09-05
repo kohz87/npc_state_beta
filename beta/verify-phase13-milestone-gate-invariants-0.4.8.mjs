@@ -18,26 +18,18 @@ function stateAt(score, axis = 'trust') {
 }
 
 function applyEvent(state, { axis = 'trust', delta, impact, caps, evidence, messageId = 2 }) {
+    const relationshipDelta = { trust: 0, affection: 0, desire: 0, tension: 0, [axis]: delta };
     const payload = {
-        exchangeActiveNpcIds: [id],
-        inChatNpcIds: [id],
-        npcs: [{
-            id,
-            name: 'Mira',
-            relationshipChange: {
-                impact,
-                delta: { [axis]: delta },
-                evidence,
-                reason: 'A newly grounded event changes this relationship axis.',
-            },
-        }],
+        exchangeActiveNpcIds: [id], inChatNpcIds: [id],
+        npcs: [{ id, name: 'Mira', relationshipChange: {
+            evaluated: true, impact, delta: relationshipDelta, priority: [axis],
+            axisEvidence: { [axis]: { excerpts: [evidence], explanation: 'A newly grounded event changes this relationship axis.' } },
+            evidence, reason: 'A newly grounded event changes this relationship axis.',
+        } }],
     };
     return applyScanResult(state, payload, {
-        sourceMessageId: messageId,
-        turn: messageId,
-        relationshipContext: evidence,
-        relationshipCaps: caps,
-        applyReturnedNpcPatches: true,
+        sourceMessageId: messageId, turn: messageId, relationshipContext: evidence,
+        relationshipCaps: caps, applyReturnedNpcPatches: true,
     }).state;
 }
 

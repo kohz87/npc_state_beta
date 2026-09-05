@@ -18,8 +18,9 @@ const proposed = {
         id: 'npc-mira-rel-ground',
         name: 'Mira',
         relationshipChange: {
-            impact: 'meaningful',
-            delta: { trust: 2, affection: 0, desire: 0, tension: 0 },
+            evaluated: true, impact: 'meaningful',
+            delta: { trust: 2, affection: 0, desire: 0, tension: 0 }, priority: ['trust'],
+            axisEvidence: { trust: { excerpts: ['Mira explicitly entrusts Lucien with the only key to her private archive.'], explanation: 'Verifier trust judgment.' } },
             evidence: 'Mira explicitly entrusts Lucien with the only key to her private archive.',
             reason: 'A meaningful act of trust.',
         },
@@ -51,14 +52,15 @@ mira = applied.state.npcs.find(item => item.id === 'npc-mira-rel-ground');
 assert(mira.relationship.trust > 10 || Number(mira.relationshipProgress?.trust || 0) > 0, 'Grounded existing-NPC relationship evidence was rejected');
 assert((mira.relationshipEvidenceHistory || []).length === 1, 'Accepted grounded relationship evidence was not recorded once');
 
-// Direct low-level calls that intentionally omit relationshipContext retain backward-compatible
-// behavior for test/import helpers; production automatic scan paths always supply current context.
+// Direct low-level calls that omit a permitted relationship source now fail closed. Existing saves
+// remain readable, but missing current provenance does not silently authorize new movement.
 applied = applyScanResult(base, proposed, {
     sourceMessageId: 72,
     turn: 72,
     applyReturnedNpcPatches: true,
 });
 mira = applied.state.npcs.find(item => item.id === 'npc-mira-rel-ground');
-assert(mira.relationship.trust > 10 || Number(mira.relationshipProgress?.trust || 0) > 0, 'Context-less compatibility path was unintentionally disabled');
+assert(mira.relationship.trust === 10, 'Context-less low-level proposal silently authorized movement');
+assert(mira.relationshipDiagnostics.at(-1)?.reasons?.includes('trust:no-permitted-evidence-source'));
 
 console.log('NPC State 0.4.3 existing-NPC relationship evidence grounding verification passed');

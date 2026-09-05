@@ -31,7 +31,7 @@ assert(scanner.includes("'evaluation-invalid'"), 'Runtime invalid-evaluation dia
 assert(scanner.includes('if (applyRelationship && exchangeSet.has(npc.id) && !patch)'), 'Runtime does not diagnose an exchange-active NPC omitted from npcs patches');
 assert(dossier.includes('Gate status and recent relationship evaluations'), 'Dossier relationship diagnostic label is stale');
 assert(dossier.includes('Evaluated; no relationship movement warranted.'), 'Dossier deliberate-zero message is missing');
-assert(dossier.includes('Required relationship evaluation was omitted by the scanner.'), 'Dossier omission message is missing');
+assert(dossier.includes('No score change.') && dossier.includes('Overall:'), 'Dossier zero/omission telemetry is missing');
 
 assert(phase33.includes('relationshipEvaluationDiagnostic'), 'v0.4.18 transform source lacks evaluation diagnostics');
 assert(phase33.includes('evaluated-no-change'), 'v0.4.18 transform source lacks deliberate-zero telemetry');

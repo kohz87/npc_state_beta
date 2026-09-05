@@ -111,6 +111,12 @@ export function retentionEvidenceText(value) {
 export function buildExchangeEvidencePolicy(exchange) {
     const user = analyzeStructuredEvidence(exchange?.user?.mes || '');
     const assistant = analyzeStructuredEvidence(exchange?.assistant?.mes || '');
+    const relationshipSources = [
+        { id: 'user-visible', kind: 'visible', text: clean(user.visibleText, 30000) },
+        { id: 'user-inner', kind: 'inner', text: clean(user.innerChatterText, 30000) },
+        { id: 'assistant-visible', kind: 'visible', text: clean(assistant.visibleText, 30000) },
+        { id: 'assistant-inner', kind: 'inner', text: clean(assistant.innerChatterText, 30000) },
+    ].filter(source => source.text);
     return {
         detected: user.detected || assistant.detected,
         visibleText: [user.visibleText, assistant.visibleText].filter(Boolean).join('\n'),
@@ -118,8 +124,10 @@ export function buildExchangeEvidencePolicy(exchange) {
         innerChatterText: [user.innerChatterText, assistant.innerChatterText].filter(Boolean).join('\n'),
         excludedText: [user.excludedText, assistant.excludedText].filter(Boolean).join('\n'),
         excludedTags: [...new Set([...(user.excludedTags || []), ...(assistant.excludedTags || [])])],
+        relationshipSources,
     };
 }
+
 function containsReference(text, variants) {
     const haystack = ' ' + normalizePhrase(text) + ' ';
     return (Array.isArray(variants) ? variants : [variants]).some(value => {

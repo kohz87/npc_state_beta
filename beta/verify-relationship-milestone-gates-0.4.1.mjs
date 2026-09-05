@@ -33,21 +33,14 @@ function stateWithTrust(value, milestones = []) {
 
 function applyTrust(state, { impact, delta, sourceMessageId = 2, evidence = ({2: 'Mira receives a map during the blizzard.', 3: 'Lucien returns her stolen ancestral heirloom.', 4: 'They survive a dangerous rescue on the mountain.'})[sourceMessageId], reason = 'Current exchange changes trust.' }) {
     return applyScanResult(state, {
-        exchangeActiveNpcIds: ['npc-mira-test'],
-        inChatNpcIds: ['npc-mira-test'],
-        worldActiveNpcIds: [],
-        npcs: [{
-            id: 'npc-mira-test',
-            name: 'Mira',
-            relationshipChange: {
-                impact,
-                delta: { trust: delta, affection: 0, desire: 0, tension: 0 },
-                evidence,
-                reason,
-            },
-        }],
+        exchangeActiveNpcIds: ['npc-mira-test'], inChatNpcIds: ['npc-mira-test'], worldActiveNpcIds: [],
+        npcs: [{ id: 'npc-mira-test', name: 'Mira', relationshipChange: {
+            evaluated: true, impact,
+            delta: { trust: delta, affection: 0, desire: 0, tension: 0 }, priority: ['trust'],
+            axisEvidence: { trust: { excerpts: [evidence], explanation: reason } }, evidence, reason,
+        } }],
         socialEdges: [],
-    }, { sourceMessageId, turn: sourceMessageId, applyReturnedNpcPatches: true }).state;
+    }, { sourceMessageId, turn: sourceMessageId, relationshipContext: evidence, applyReturnedNpcPatches: true }).state;
 }
 
 function mira(state) {
@@ -135,8 +128,8 @@ const scanPrompt = buildScanPrompt({ state: promptState, chat, assistantMessageI
 assert(scanPrompt.includes('RELATIONSHIP MILESTONE GATES'), 'Recovery scanner gate rule missing');
 assert(scanPrompt.includes('25, 50, 75, and 90'), 'Recovery scanner thresholds missing');
 const injection = buildInjection(promptState, { enabled: true, autoScan: true, inject: true, injectBudgetTokens: 6000 });
-assert(injection.includes('RELATIONSHIP MILESTONE GATES'), 'Foreground gate rule missing');
-assert(injection.includes('50 requires major-or-stronger'), 'Foreground 50 gate requirement missing');
+assert(injection.includes('RELATIONSHIP REPEATS AND GATES'), 'Foreground gate rule missing');
+assert(injection.includes('50 major+ with raw 3'), 'Foreground 50 gate requirement missing');
 assert(!injection.includes('relationshipMilestones'), 'Private milestone unlock state leaked into foreground injection');
 
 const engine = file('v03/engine.js');

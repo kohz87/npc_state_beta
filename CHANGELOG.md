@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.20
+
+- Replaces runtime keyword/overlap relationship-semantic vetoes with a bounded per-axis evidence contract: exact current-exchange excerpts plus model-authored explanations.
+- Verifies quotation provenance against visible narrative and permitted private relationship context while keeping World_State and reference/control blocks out of unrestricted relationship evidence.
+- Preserves score bounds, configured caps, inertia, fractional progress, milestone gates, manual edits, branch/rebase behavior, and unrelated-NPC safeguards.
+- Fixes tied axis-limit overflow using validated model priority with deterministic magnitude/canonical fallback, and records precise per-axis provenance, cap, duplicate, gate, and axis-limit diagnostics.
+- Keeps legacy saves compatible without rewriting historical scores; legacy nonzero scanner payloads that lack per-axis evidence are rejected safely instead of being semantically guessed by runtime.
+
 ## v0.4.19
 
 - Grounds multi-axis relationship proposals per axis so one unsupported axis no longer invalidates otherwise grounded movement.

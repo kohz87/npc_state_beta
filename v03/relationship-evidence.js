@@ -301,6 +301,37 @@ function relationshipSemanticGrounding(proof, context, expectations = {}) {
     return '';
 }
 
+function relationshipQuoteComparable(value, max = 40000) {
+    return String(value ?? '')
+        .normalize('NFKC')
+        .replace(/\r\n?/g, '\n')
+        .replace(/[“”„‟]/g, '"')
+        .replace(/[‘’‚‛]/g, "'")
+        .replace(/[‐‑‒–—―]/g, '-')
+        .replace(/\u00a0/g, ' ')
+        .replace(/[*_\x60]/g, '')
+        .replace(/\s+/g, ' ')
+        .replace(/\s+([,.;:!?])/g, '$1')
+        .trim()
+        .toLocaleLowerCase()
+        .slice(0, max);
+}
+
+export function relationshipEvidenceExcerptMatch(excerpt, sources = []) {
+    const quote = relationshipQuoteComparable(excerpt, 1200);
+    if (!quote) return null;
+    for (const raw of Array.isArray(sources) ? sources.slice(0, 8) : []) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+        const source = relationshipQuoteComparable(raw.text, 40000);
+        if (!source || !source.includes(quote)) continue;
+        return {
+            sourceId: String(raw.id || 'relationship-source').trim().slice(0, 80),
+            kind: ['visible', 'inner'].includes(String(raw.kind || '').trim()) ? String(raw.kind).trim() : 'visible',
+        };
+    }
+    return null;
+}
+
 export function relationshipEvidenceGrounding(evidence, context, expectations = {}) {
     const proof = normalized(evidence);
     if (!proof || !String(context || '').trim()) return 'ungrounded';

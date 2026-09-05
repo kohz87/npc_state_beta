@@ -100,8 +100,9 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
         npcs: [{
             id: '', name: 'Mara', role: 'Blacksmith',
             relationshipChange: {
-                impact: 'meaningful',
-                delta: { trust: 2, affection: 0, desire: 0, tension: 0 },
+                evaluated: true, impact: 'meaningful',
+                delta: { trust: 2, affection: 0, desire: 0, tension: 0 }, priority: ['trust'],
+                axisEvidence: { trust: { excerpts: ['Years ago Lucien saved Mara from a burning mill.'], explanation: 'Historical verifier quote should fail current-exchange provenance.' } },
                 evidence: 'Years ago Lucien saved Mara from a burning mill.',
                 reason: 'Old rescue established trust.',
             },
@@ -122,8 +123,9 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
         npcs: [{
             id: '', name: 'Mara', role: 'Blacksmith',
             relationshipChange: {
-                impact: 'meaningful',
-                delta: { trust: 2, affection: 0, desire: 0, tension: 0 },
+                evaluated: true, impact: 'meaningful',
+                delta: { trust: 2, affection: 0, desire: 0, tension: 0 }, priority: ['trust'],
+                axisEvidence: { trust: { excerpts: ['Mara entrusts Lucien with the key to her locked workshop.'], explanation: 'Current verifier trust judgment.' } },
                 evidence: 'Mara entrusts Lucien with the key to her locked workshop.',
                 reason: 'Mara entrusts Lucien with a private workshop key.',
             },

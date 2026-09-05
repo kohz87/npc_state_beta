@@ -17,8 +17,14 @@ function stateWith(extra = {}, key = 'relationship-047') {
     return state;
 }
 function payload(evidence, delta = { trust: 1 }, impact = 'meaningful') {
-    return { exchangeActiveNpcIds: [id], inChatNpcIds: [id], npcs: [{ id, name: 'Mira', relationshipChange: { evidence, reason: 'A new event changes the relationship.', delta, impact } }] };
+    const fullDelta = { trust: 0, affection: 0, desire: 0, tension: 0, ...delta };
+    const priority = ['trust', 'affection', 'desire', 'tension'].filter(axis => Number(fullDelta[axis]) !== 0);
+    const axisEvidence = Object.fromEntries(priority.map(axis => [axis, { excerpts: [evidence], explanation: 'A new event changes this relationship axis.' }]));
+    return { exchangeActiveNpcIds: [id], inChatNpcIds: [id], npcs: [{ id, name: 'Mira', relationshipChange: {
+        evaluated: true, evidence, reason: 'A new event changes the relationship.', delta: fullDelta, impact, priority, axisEvidence,
+    } }] };
 }
+
 function apply(state, evidence, delta = { trust: 1 }, impact = 'meaningful', messageId = 2, context = evidence) {
     return applyScanResult(state, payload(evidence, delta, impact), { sourceMessageId: messageId, turn: messageId, relationshipContext: context, applyReturnedNpcPatches: true }).state;
 }
@@ -108,14 +114,15 @@ test('repeated event remains deduplicated and cannot rewrite summary', () => {
     let state = apply(stateWith(), 'Lucien returns the family heirloom to Mira.');
     state = apply(state, 'Lucien returns the family heirloom to Mira.', { trust: 1 }, 'meaningful', 3);
     assert.equal(npc(state).relationship.trust, 1);
-    assert.deepEqual(last(state).reasons, ['duplicate']);
+    assert(last(state).reasons.includes('trust:duplicate'));
     assert.equal(npc(state).relationshipEvidenceHistory.length, 1);
 });
 
-test('missing old timeline references do not become turn zero', () => {
+test('legacy evidence without timeline references still blocks exact replay without becoming turn zero', () => {
     const state = stateWith({ relationshipEvidenceHistory: [{ evidence: 'Lucien returns the family heirloom to Mira.', reason: 'Trust', sourceMessageId: null, turn: null }] });
     const after = apply(state, 'Lucien returns the family heirloom to Mira.');
-    assert.equal(npc(after).relationship.trust, 1);
+    assert.equal(npc(after).relationship.trust, 0);
+    assert(last(after).reasons.includes('trust:duplicate'));
 });
 
 test('grounding rejects negation, changed outcome, and scattered unrelated words', () => {
@@ -132,7 +139,7 @@ test('contradictory proposal changes neither scores nor fractions or milestones'
     assert.deepEqual(npc(after).relationship, npc(before).relationship);
     assert.deepEqual(npc(after).relationshipMilestones, []);
     assert.equal(npc(after).relationshipEvidenceHistory.length, 0);
-    assert(last(after).reasons.includes('trust:contradictory'));
+    assert(last(after).reasons.includes('trust:unverifiable-excerpt'));
 });
 
 test('diagnostics explain locked gates, per-axis unlocks, and fractional absorption', () => {
@@ -148,14 +155,15 @@ test('diagnostics explain locked gates, per-axis unlocks, and fractional absorpt
     assert(last(state).reasons.includes('trust:gate-tier'));
     const html = dossierHtml(npc(state));
     assert(html.includes('+25 unlocked'));
-    assert(html.includes('25 → 25'));
+    assert(html.includes('requested +1, capped +1, applied 0'));
+    assert(html.includes('Axis result: gate-tier'));
     assert(html.includes('fractional progress'));
 });
 
-test('axis-limit rejections are visible without changing scores', () => {
+test('axis-limit rejections fill available slots deterministically', () => {
     const after = apply(stateWith(), 'Mira thanks Lucien for rescuing her.', { trust: 1, affection: 1 }, 'ordinary');
-    assert.equal(npc(after).relationship.trust, 0);
-    assert(last(after).reasons.includes('trust:axis-limit'));
+    assert.equal(npc(after).relationship.trust, 1);
+    assert.equal(npc(after).relationship.affection, 0);
     assert(last(after).reasons.includes('affection:axis-limit'));
 });
 
@@ -214,7 +222,7 @@ test('changing only a delta sign cannot replay identical evidence', () => {
     let state = apply(stateWith(), 'Lucien returns the family heirloom to Mira.');
     state = apply(state, 'Lucien returns the family heirloom to Mira.', { trust: -1 }, 'meaningful', 3);
     assert.equal(npc(state).relationship.trust, 1);
-    assert.deepEqual(last(state).reasons, ['duplicate']);
+    assert(last(state).reasons.includes('trust:duplicate'));
 });
 
 test('real branch reconciliation permits a new swipe and restores scored siblings exactly once', async () => {

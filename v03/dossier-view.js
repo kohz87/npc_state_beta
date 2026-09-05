@@ -140,17 +140,27 @@ function relationshipDiagnosticsHtml(npc = {}) {
         return '<li><b>' + escapeHtml(axis) + '</b>: ' + score + '; fractional progress ' + signed(npc.relationshipProgress?.[axis]) + '<br><small>' + escapeHtml(gates) + '</small></li>';
     }).join('');
     const attempts = (npc.relationshipDiagnostics || []).slice(-12).reverse().map(event => {
-        const changes = RELATIONSHIP_AXES.filter(axis => event.proposed?.[axis]).map(axis =>
-            axis + ': ' + event.before[axis] + ' → ' + event.after[axis] + '; requested ' + signed(event.proposed[axis])
-            + ', applied ' + signed(event.applied[axis]) + '; fraction ' + signed(event.progressBefore[axis]) + ' → ' + signed(event.progressAfter[axis])).join(' · ');
+        const rows = RELATIONSHIP_AXES.filter(axis => event.proposed?.[axis] || event.capped?.[axis] || event.applied?.[axis] || event.axisEvidence?.[axis] || event.axisReasons?.[axis]?.length).map(axis => {
+            const evidence = event.axisEvidence?.[axis] || {};
+            const excerpts = (evidence.excerpts || []).map(excerpt => '“' + excerpt + '”').join(' | ');
+            const sources = (event.verifiedSources?.[axis] || []).join(', ');
+            const axisReasons = (event.axisReasons?.[axis] || []).join(', ');
+            const detail = axis + ': requested ' + signed(event.proposed?.[axis]) + ', capped ' + signed(event.capped?.[axis]) + ', applied ' + signed(event.applied?.[axis])
+                + '; fraction ' + signed(event.progressBefore?.[axis]) + ' → ' + signed(event.progressAfter?.[axis]);
+            return '<div><b>' + escapeHtml(detail) + '</b>'
+                + (evidence.explanation ? '<p>' + escapeHtml(evidence.explanation) + '</p>' : '')
+                + (excerpts ? '<small>Evidence: ' + escapeHtml(excerpts) + '</small>' : '')
+                + (sources ? '<small><br>Verified source: ' + escapeHtml(sources) + '</small>' : '')
+                + (axisReasons ? '<small><br>Axis result: ' + escapeHtml(axisReasons) + '</small>' : '') + '</div>';
+        }).join('');
         const unlocks = (event.unlocks || []).map(entry => entry.axis + ' ' + signed(entry.polarity * entry.threshold) + ' unlocked').join(', ');
-        const detail = changes || (event.reasons || []).includes('evaluated-no-change')
-            ? (changes || 'Evaluated; no relationship movement warranted.')
-            : ((event.reasons || []).includes('evaluation-missing')
-                ? 'Required relationship evaluation was omitted by the scanner.'
-                : ((event.reasons || []).includes('evaluation-invalid') ? 'Scanner returned an invalid relationship evaluation.' : 'No score change.'));
-        return '<li><b>' + escapeHtml(event.impact + ' — ' + event.reasons.join(', ')) + '</b><p>' + escapeHtml(detail)
-            + (unlocks ? '<br>' + escapeHtml(unlocks) : '') + '</p><small>' + escapeHtml(event.reason || event.evidence) + '</small></li>';
+        const noChange = (event.reasons || []).includes('evaluated-no-change') ? 'Evaluated; no relationship movement warranted.' : '';
+        const priority = (event.priority || []).length ? 'Priority: ' + event.priority.join(' → ') : '';
+        return '<li><b>' + escapeHtml(event.impact + ' — ' + (event.reasons || []).join(', ')) + '</b>'
+            + (priority ? '<p>' + escapeHtml(priority) + '</p>' : '')
+            + (rows || noChange ? (rows || '<p>' + escapeHtml(noChange) + '</p>') : '<p>No score change.</p>')
+            + (unlocks ? '<small>' + escapeHtml(unlocks) + '</small>' : '')
+            + (event.reason ? '<small><br>Overall: ' + escapeHtml(event.reason) + '</small>' : '') + '</li>';
     }).join('');
     return '<details><summary>Gate status and recent relationship evaluations</summary><ul>' + axes + '</ul>'
         + (attempts ? '<ol class="npc-state-v3-history-list">' + attempts + '</ol>' : '<p>No scoring diagnostics recorded yet.</p>') + '</details>';

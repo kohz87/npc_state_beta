@@ -96,7 +96,7 @@ function apply(state, result, options = {}) {
             relationshipChange: { evaluated: true, impact: 'ordinary', delta: { ...ZERO, trust: 1 }, evidence: '', reason: '' },
         }],
     });
-    assert(greta.relationshipDiagnostics.at(-1)?.reasons?.includes('evaluation-invalid'), 'Malformed attempted relationship change was not diagnosed');
+    assert(greta.relationshipDiagnostics.at(-1)?.reasons?.includes('trust:missing-axis-evidence'), 'Malformed attempted relationship change was not diagnosed precisely');
     assert.equal(greta.relationshipHistory.length, 0, 'Malformed evaluation created relationship history');
 }
 
@@ -121,11 +121,13 @@ function apply(state, result, options = {}) {
                 evaluated: true,
                 impact: 'ordinary',
                 delta: { ...ZERO, trust: 1 },
+                priority: ['trust'],
+                axisEvidence: { trust: { excerpts: ['Lucien paid exactly as promised and returned the room key to Greta.'], explanation: 'Verifier trust judgment for reliable follow-through.' } },
                 evidence: 'Lucien paid exactly as promised and returned the room key to Greta.',
                 reason: 'Lucien followed through reliably on a small commitment.',
             },
         }],
-    });
+    }, { relationshipContext: 'Lucien paid exactly as promised and returned the room key to Greta.' });
     assert.equal(greta.relationship.trust, 1, 'Normal accepted Trust movement regressed');
     assert.equal(greta.relationshipHistory.length, 1, 'Accepted relationship movement did not enter history');
     assert(greta.relationshipDiagnostics.at(-1)?.reasons?.includes('applied'), 'Accepted relationship change lost scoring diagnostics');
@@ -163,7 +165,7 @@ assert(scanner.includes("['evaluation-missing']"), 'Missing evaluation diagnosti
 assert(scanner.includes("'evaluation-invalid'"), 'Invalid evaluation diagnostic path is missing');
 assert(dossier.includes('Gate status and recent relationship evaluations'), 'Dossier does not expose relationship evaluation telemetry clearly');
 assert(dossier.includes('Evaluated; no relationship movement warranted.'), 'Dossier lacks deliberate-zero display');
-assert(dossier.includes('Required relationship evaluation was omitted by the scanner.'), 'Dossier lacks omission display');
+assert(dossier.includes('No score change.') && dossier.includes('Overall:'), 'Dossier lacks precise zero/omission display');
 
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
 const manifestPatch = Number(String(manifest.version || '').split('.')[2]);

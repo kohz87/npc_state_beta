@@ -101,7 +101,8 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
     const next = applyScanResult(state, payload({
         exchangeActiveNpcIds: ['npc-mira'], inChatNpcIds: ['npc-mira'],
         npcs: [{ id: 'npc-mira', name: 'Mira', relationshipChange: {
-            impact: 'meaningful', delta: { trust: 1, affection: 0, desire: 0, tension: 0 },
+            evaluated: true, impact: 'meaningful', delta: { trust: 1, affection: 0, desire: 0, tension: 0 },
+            priority: ['trust'], axisEvidence: { trust: { excerpts: ['Mira trusts Lucien completely.'], explanation: 'Verifier intentionally supplies an excerpt absent from the current exchange.' } },
             evidence, reason: 'Trust deepens.',
         } }],
     }), {
@@ -110,7 +111,7 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
     }).state;
     const mira = next.npcs.find(npc => npc.id === 'npc-mira');
     assert.equal(mira.relationship.trust, 10, 'Sora-to-player trust moved Mira relationship state');
-    assert(mira.relationshipDiagnostics.at(-1)?.reasons?.includes('trust:wrong-direction'));
+    assert(mira.relationshipDiagnostics.at(-1)?.reasons?.includes('trust:unverifiable-excerpt'));
 }
 
 // Polarity belongs to the local predicate, not unrelated nearby words.
@@ -124,7 +125,8 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
     tensionState.npcs = [normalizeNpc({ id: 'npc-mira', name: 'Mira', relationship: { tension: 10 } })];
     const eased = apply(tensionState, {
         id: 'npc-mira', name: 'Mira', relationshipChange: {
-            impact: 'meaningful', delta: { trust: 0, affection: 0, desire: 0, tension: -1 },
+            evaluated: true, impact: 'meaningful', delta: { trust: 0, affection: 0, desire: 0, tension: -1 },
+            priority: ['tension'], axisEvidence: { tension: { excerpts: ['Mira feels her tension easing around Lucien.'], explanation: 'Verifier tension judgment.' } },
             evidence: 'Mira feels her tension easing around Lucien.', reason: 'Tension eases.',
         },
     }, 'Mira feels her tension easing around Lucien.', 5);
@@ -135,7 +137,8 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
     trustState.npcs = [normalizeNpc({ id: 'npc-mira', name: 'Mira', relationship: { trust: 10 } })];
     const trusted = apply(trustState, {
         id: 'npc-mira', name: 'Mira', relationshipChange: {
-            impact: 'meaningful', delta: { trust: 1, affection: 0, desire: 0, tension: 0 },
+            evaluated: true, impact: 'meaningful', delta: { trust: 1, affection: 0, desire: 0, tension: 0 },
+            priority: ['trust'], axisEvidence: { trust: { excerpts: ['Mira is no longer afraid and trusts Lucien.'], explanation: 'Verifier trust judgment.' } },
             evidence: 'Mira is no longer afraid and trusts Lucien.', reason: 'Trust grows.',
         },
     }, 'Mira is no longer afraid and trusts Lucien.', 6);

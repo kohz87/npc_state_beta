@@ -1,4 +1,4 @@
-export const NPC_STATE_VERSION = '0.4.19';
+export const NPC_STATE_VERSION = '0.4.20';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     const number = Number(value);
@@ -455,6 +455,40 @@ export function normalizeRelationshipProgress(value = {}) {
     }));
 }
 
+export function normalizeRelationshipAxisEvidence(value = {}) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    const out = {};
+    for (const axis of RELATIONSHIP_AXES) {
+        const raw = source[axis];
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+        const excerpts = list(raw.excerpts, 3, 800);
+        const explanation = text(raw.explanation, 800);
+        if (!excerpts.length && !explanation) continue;
+        out[axis] = { excerpts, explanation };
+    }
+    return out;
+}
+
+export function normalizeRelationshipPriority(value = []) {
+    const out = [];
+    for (const raw of Array.isArray(value) ? value : []) {
+        const axis = String(raw || '').trim().toLocaleLowerCase();
+        if (!RELATIONSHIP_AXES.includes(axis) || out.includes(axis)) continue;
+        out.push(axis);
+    }
+    return out;
+}
+
+export function normalizeRelationshipVerifiedSources(value = {}) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    return Object.fromEntries(RELATIONSHIP_AXES.map(axis => [axis, list(source[axis], 6, 120)]).filter(([, rows]) => rows.length));
+}
+
+function normalizeRelationshipAxisReasons(value = {}) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    return Object.fromEntries(RELATIONSHIP_AXES.map(axis => [axis, list(source[axis], 8, 80)]).filter(([, rows]) => rows.length));
+}
+
 export function normalizeRelationshipEvidenceHistory(value = []) {
     const source = Array.isArray(value) ? value : [];
     return source.slice(-RELATIONSHIP_EVIDENCE_HISTORY_LIMIT * 2).map(raw => ({
@@ -462,10 +496,13 @@ export function normalizeRelationshipEvidenceHistory(value = []) {
         impact: ['ordinary', 'meaningful', 'major', 'extreme'].includes(String(raw?.impact)) ? String(raw.impact) : 'ordinary',
         reason: text(raw?.reason, 800),
         evidence: text(raw?.evidence, 800),
+        axisEvidence: normalizeRelationshipAxisEvidence(raw?.axisEvidence),
+        priority: normalizeRelationshipPriority(raw?.priority),
+        verifiedSources: normalizeRelationshipVerifiedSources(raw?.verifiedSources),
         sourceMessageId: Number.isInteger(raw?.sourceMessageId) ? raw.sourceMessageId : null,
         turn: Number.isInteger(raw?.turn) ? raw.turn : null,
         at: Number(raw?.at) || null,
-    })).filter(item => item.reason || item.evidence).slice(-RELATIONSHIP_EVIDENCE_HISTORY_LIMIT);
+    })).filter(item => item.reason || item.evidence || Object.keys(item.axisEvidence).length).slice(-RELATIONSHIP_EVIDENCE_HISTORY_LIMIT);
 }
 
 export function normalizeRelationshipDiagnostics(value = []) {
@@ -476,10 +513,15 @@ export function normalizeRelationshipDiagnostics(value = []) {
         before: normalizeRelationship(raw?.before),
         after: normalizeRelationship(raw?.after),
         proposed: normalizeRelationship(raw?.proposed),
+        capped: normalizeRelationship(raw?.capped ?? raw?.proposed),
         applied: normalizeRelationship(raw?.applied),
         progressBefore: normalizeRelationshipProgress(raw?.progressBefore),
         progressAfter: normalizeRelationshipProgress(raw?.progressAfter),
-        reasons: list(raw?.reasons, 12, 80),
+        axisEvidence: normalizeRelationshipAxisEvidence(raw?.axisEvidence),
+        priority: normalizeRelationshipPriority(raw?.priority),
+        verifiedSources: normalizeRelationshipVerifiedSources(raw?.verifiedSources),
+        axisReasons: normalizeRelationshipAxisReasons(raw?.axisReasons),
+        reasons: list(raw?.reasons, 20, 100),
         unlocks: normalizeRelationshipMilestones(raw?.unlocks, DEFAULT_RELATIONSHIP, { inferFromRelationship: false }),
         sourceMessageId: Number.isInteger(raw?.sourceMessageId) ? raw.sourceMessageId : null,
         turn: Number.isInteger(raw?.turn) ? raw.turn : null,
