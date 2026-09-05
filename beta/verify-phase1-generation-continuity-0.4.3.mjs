@@ -51,7 +51,7 @@ const injection = buildInjection(state, {
     newNpcHistoryEnrichment: true,
     foregroundNewNpcHistory: 'Older visible context that may help a genuinely new NPC.',
 });
-assert(/\[NPC STATE v0\.4\.[3-9] BETA \| FOREGROUND CONTINUITY\]/.test(injection), '0.4.x descendant injection header missing');
+assert(/\[NPC STATE v0\.4\.(?:[3-9]|[1-9]\d+) BETA \| FOREGROUND CONTINUITY\]/.test(injection), '0.4.x descendant injection header missing');
 assert(injection.includes('NPC npc-astra-phase1 | Astra | Companion'), 'Focal In-chat dossier was starved by directory budget');
 assert(injection.includes('Personality: Soft-spoken, observant, protective of her sister'), 'Core focal personality did not survive reserved dossier budget');
 assert(injection.includes('Player relationship lens:'), 'Qualitative relationship lens not injected');
