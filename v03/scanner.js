@@ -205,7 +205,7 @@ function dossierCollectionRules(limits) {
 
 export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State v0.4.7 recovery scanner requires an assistant message and its preceding user exchange.');
+    if (!exchange) throw new Error('NPC State v0.4.8 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
@@ -228,7 +228,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         familyFacts: [{ owner: 'existing NPC id/name', relation: 'daughter|son|child|other countable family role', count: 2, descriptor: 'optional e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit countable family fact' }],
     };
     return [
-        'You are NPC State v0.4.7, a private structured continuity scanner for a roleplay chat.',
+        'You are NPC State v0.4.8, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
         '',
         `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
@@ -308,7 +308,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         body: compactText(block?.body, 12000),
     }));
     return [
-        'You are NPC State v0.4.7 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
+        'You are NPC State v0.4.8 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
         'Return JSON only. This is reference-data reconciliation, NOT a current scene/event scan.',
         'Only the supplied Megumin New_NPC / NPC_Update blocks are authoritative sources for this operation.',
         'TARGET DOSSIER: ' + JSON.stringify(rosterForPrompt({ npcs: [npc] })[0]),
@@ -347,7 +347,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State v0.4.7 performing a targeted dossier reconciliation.',
+        'You are NPC State v0.4.8 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
@@ -376,15 +376,15 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
 
 export function parseScanJson(raw) {
     const text = String(raw ?? '').trim();
-    if (!text) throw new Error('NPC State v0.4.7 recovery scanner returned an empty response.');
+    if (!text) throw new Error('NPC State v0.4.8 recovery scanner returned an empty response.');
     const unfenced = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
     const first = unfenced.indexOf('{');
     const last = unfenced.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('NPC State v0.4.7 recovery scanner returned no JSON object.');
+    if (first < 0 || last <= first) throw new Error('NPC State v0.4.8 recovery scanner returned no JSON object.');
     let parsed;
     try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
-    catch (error) { throw new Error(`NPC State v0.4.7 recovery scanner returned malformed JSON: ${error.message}`); }
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('NPC State v0.4.7 recovery scanner JSON must be an object.');
+    catch (error) { throw new Error(`NPC State v0.4.8 recovery scanner returned malformed JSON: ${error.message}`); }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('NPC State v0.4.8 recovery scanner JSON must be an object.');
     return {
         exchangeActiveNpcIds: uniqueStrings(parsed.exchangeActiveNpcIds),
         finalPresentNpcIds: uniqueStrings(parsed.inChatNpcIds ?? parsed.finalPresentNpcIds),
@@ -1071,13 +1071,15 @@ function relationshipImpactRank(value) {
     return { none: 0, ordinary: 1, meaningful: 2, major: 3, extreme: 4 }[String(value || '').trim()] || 0;
 }
 
-function relationshipMilestoneEventQualifies(change, axis, threshold, caps = DEFAULT_RELATIONSHIP_CAPS) {
+function relationshipMilestoneEventQualifies(change, axis, threshold) {
     const requiredImpact = RELATIONSHIP_MILESTONE_REQUIREMENTS[Number(threshold)] || 'extreme';
     if (relationshipImpactRank(change?.impact) < relationshipImpactRank(requiredImpact)) return false;
     const rawWeight = Math.abs(Number(change?.delta?.[axis]) || 0);
-    const tierCap = Math.max(0, Number(caps?.[change?.impact] ?? DEFAULT_RELATIONSHIP_CAPS[change?.impact] ?? 0));
-    const stockMinimum = Math.max(1, Number(RELATIONSHIP_MILESTONE_MIN_RAW[Number(threshold)]) || 1);
-    const requiredRaw = tierCap > 0 ? Math.min(tierCap, stockMinimum) : stockMinimum;
+    // Milestone minima are evidence invariants. Relationship tier caps may constrain how
+    // much raw evidence can be proposed, but must never silently make a gate easier.
+    // If a configured cap is below a gate minimum, that gate remains unreachable until
+    // an event/configuration can supply the required raw weight.
+    const requiredRaw = Math.max(1, Number(RELATIONSHIP_MILESTONE_MIN_RAW[Number(threshold)]) || 1);
     return rawWeight >= requiredRaw;
 }
 

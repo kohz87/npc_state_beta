@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.4.8
+
+- Makes relationship milestone raw-evidence minima invariant: 25 requires meaningful-or-stronger with raw >=1, 50 major-or-stronger with raw >=3, 75 extreme with raw >=5, and 90 extreme with raw >=8. Lower configured tier caps no longer silently weaken a gate; movement toward neutral remains unblocked and inertia still applies only after raw evidence qualification.
+
 ## v0.4.7
 
 - Preserves untouched relationship milestones on manual dossier saves; only changed axes gain manual milestone adjustments, and partial score edits preserve omitted axes.
