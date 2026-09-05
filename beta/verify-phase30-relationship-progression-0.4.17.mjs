@@ -203,7 +203,6 @@ function applyTrust(state, { impact, delta, messageId = 10, label = 'verified ev
     const unlock25 = applyTrust(trustState(25), { impact: 'meaningful', delta: 1, label: 'meaningful gate twenty five' });
     assert(relationshipMilestoneUnlocked(unlock25.relationshipMilestones, 'trust', 1, 25), 'Meaningful raw +1 did not unlock 25');
     assert.equal(unlock25.relationship.trust, 26, 'Qualifying 25-gate event should carry the score into the 26–50 band');
-    assert.equal(unlock25.relationship.trust, 26, 'Qualifying 25-gate event should carry the score into the 26–50 band');
 
     const unlock50 = applyTrust(trustState(50, 0, [25]), { impact: 'major', delta: 3, label: 'major gate fifty' });
     assert(relationshipMilestoneUnlocked(unlock50.relationshipMilestones, 'trust', 1, 50), 'Major raw +3 did not unlock 50');
