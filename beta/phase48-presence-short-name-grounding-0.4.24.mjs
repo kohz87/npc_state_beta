@@ -51,7 +51,7 @@ function shortActivityIdentityUnique(state, npc, candidate) {
             shortActivityIdentityTokens(value).some(token => normalizeName(token) === key));
     });
 }
-function visibleIdentityTokenMention(text, candidate) {
+function identityTokenMention(text, candidate) {
     const clean = String(candidate || '').trim();
     if (!clean) return false;
     const upper = clean.toLocaleUpperCase();
@@ -60,9 +60,19 @@ function visibleIdentityTokenMention(text, candidate) {
 function visibleShortActivityIdentityMention(state, npc, visibleText = '') {
     for (const candidate of shortActivityIdentityCandidates(npc)) {
         if (!shortActivityIdentityUnique(state, npc, candidate)) continue;
-        if (visibleIdentityTokenMention(visibleText, candidate)) return true;
+        if (identityTokenMention(visibleText, candidate)) return true;
     }
     return false;
+}
+function shortActivityIdentityScope(state, npc, policy) {
+    for (const candidate of shortActivityIdentityCandidates(npc)) {
+        if (!shortActivityIdentityUnique(state, npc, candidate)) continue;
+        if (identityTokenMention(policy?.visibleText, candidate)) return 'visible';
+        if (identityTokenMention(policy?.worldStateText, candidate)) return 'world';
+        if (identityTokenMention(policy?.innerChatterText, candidate)) return 'inner';
+        if (identityTokenMention(policy?.excludedText, candidate)) return 'excluded';
+    }
+    return '';
 }
 `;
 
@@ -79,12 +89,15 @@ scanner = replaceRequired(
     `function referenceAllowedForActivity(state, reference, policy) {
     if (!policy?.detected) return true;
     const npc = findNpcByReference(state, reference);
-    const scope = evidenceReferenceScope(policy, npc ? npcEvidenceVariants(npc) : [reference]);
+    const exactScope = evidenceReferenceScope(policy, npc ? npcEvidenceVariants(npc) : [reference]);
+    const shortScope = npc ? shortActivityIdentityScope(state, npc, policy) : '';
+    // A unique short identity in public narrative can recover a full canonical identity even
+    // when World_State/private/reference material contains the full name. Conversely, a short
+    // identity found only inside structured material must not turn an otherwise unmentioned
+    // scanner claim into public activity evidence.
+    if (exactScope === 'visible' || shortScope === 'visible') return true;
+    const scope = exactScope === 'unmentioned' && shortScope ? shortScope : exactScope;
     if (!['world', 'inner', 'excluded'].includes(scope)) return true;
-    // Existing multi-part identities often appear by first/short name in visible prose while
-    // World_State carries the full canonical name. A unique, case-preserved visible token may
-    // ground the scanner's activity claim without making World_State itself presence evidence.
-    if (npc && visibleShortActivityIdentityMention(state, npc, policy.visibleText)) return true;
     return npc?.present === true;
 }`,
     'activity reference short-name recovery',
