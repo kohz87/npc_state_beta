@@ -35,7 +35,7 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
 {
     assert.throws(() => parseScanJson(JSON.stringify(payload({ npcs: [{ id: { value: 'npc-mira' } }] }))), /invalid payload structure or members/i);
     assert.throws(() => parseScanJson(JSON.stringify(payload({ npcs: [{ name: 'Mira', aliases: [{ value: 'M' }] }] }))), /invalid payload structure or members/i);
-    assert.doesNotThrow(() => parseScanJson(JSON.stringify(payload({ npcs: [{ id: '', name: 'Mira', aliases: ['M'] }] })));
+    assert.doesNotThrow(() => parseScanJson(JSON.stringify(payload({ npcs: [{ id: '', name: 'Mira', aliases: ['M'] }] }))));
 }
 
 // Living return must be target-specific and must not mistake "not alive" for positive life evidence.
