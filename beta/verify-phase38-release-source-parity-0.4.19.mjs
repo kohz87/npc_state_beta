@@ -34,12 +34,14 @@ assert(phase36.includes('relationshipAxisGrounding'), 'v0.4.19 transform source 
 assert(phase36.includes('partial-applied'), 'v0.4.19 transform source lacks partial application telemetry');
 assert(phase37.includes('v0.4.18 relationship verifiers forward-compatible'), 'v0.4.18 compatibility transform is missing');
 assert(phase37b.includes('axis-specific diagnostics'), 'Legacy grounding diagnostic compatibility transform is missing');
+assert(phase37b.includes('affection:evidence-polarity'), 'Legacy polarity compatibility is missing');
 assert(verify36.includes('Grounded Trust was discarded because another axis was weak'), 'Mixed-axis regression is not persisted');
 assert(verify36.includes('Grounded Tension reduction was discarded with unsupported Desire'), 'Desire isolation regression is not persisted');
 assert(verify33.includes('Manifest regressed below v0.4.18'), 'v0.4.18 evaluation verifier is not descendant-compatible');
 assert(verify35.includes('Release source regressed below v0.4.18'), 'v0.4.18 parity verifier is not descendant-compatible');
 assert(verify12.includes("reasons.includes('trust:contradictory')"), 'Legacy contradictory diagnostic still expects bundle-level wording');
 assert(verify17.includes("reasons?.includes('trust:wrong-direction')"), 'v0.4.12 verifier still expects bundle-level wrong-direction wording');
+assert(verify17.includes("reasons?.includes('affection:evidence-polarity')"), 'v0.4.12 verifier still expects bundle-level evidence-polarity wording');
 assert(verify20.includes("reasons?.includes('trust:wrong-direction')"), 'v0.4.13 verifier still expects bundle-level wrong-direction wording');
 assert(verify28.includes("scanner.includes('delta: change.delta') || scanner.includes('delta: axisDelta')"), 'v0.4.16 semantic verifier does not accept per-axis movement semantics');
 assert(verify29.includes("scanner.includes('delta: change.delta') || scanner.includes('delta: axisDelta')"), 'v0.4.16 parity verifier does not accept per-axis movement semantics');
@@ -49,6 +51,7 @@ assert(workflow.includes('node beta/bump-0.4.19.mjs'), 'Workflow does not apply 
 assert(workflow.includes("-name 'phase*-0.4.19.mjs'"), 'Workflow does not apply v0.4.19 phases');
 assert(workflow.includes('relationshipAxisGrounding'), 'Architecture gate does not guard per-axis grounding');
 assert(workflow.includes('partial-applied'), 'Architecture gate does not guard partial-application diagnostics');
+assert(workflow.includes('grep -q "delta: axisDelta" v03/scanner.js'), 'Architecture gate does not guard per-axis movement semantics');
 assert(workflow.includes('Persistent NPC State 0.4.19 database'), 'Architecture gate does not guard the v0.4.19 runtime surface');
 assert(workflow.includes('Generated beta runtime already matches build output.'), 'Workflow lacks deterministic source/runtime parity detection');
 
