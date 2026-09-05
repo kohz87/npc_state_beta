@@ -49,7 +49,7 @@ assert(phase44.includes('Mere hypothetical alternatives are not vetoes'), 'v0.4.
 assert(phase44.includes('impact-tier cap is a maximum, not a default target'), 'v0.4.22 transform source lacks proportionality calibration');
 assert(phase44.includes('LEGACY_DEFAULT_RELATIONSHIP_CRITERIA_V0421'), 'v0.4.22 transform source lacks narrow default migration');
 assert(phase44a.includes('Release source regressed below v0.4.21'), 'v0.4.21 parity compatibility is not source-owned');
-assert(verify44.includes('deterministic tests below verify prompt integration'), 'Runtime/prompt testing is not distinguished from live LLM evaluation');
+assert(verify44.includes('Deterministic tests below verify prompt integration'), 'Runtime/prompt testing is not distinguished from live LLM evaluation');
 assert(verify44.includes('Anti-freezing fixture coverage'), 'Anti-freezing deterministic fixture coverage is missing');
 assert(fixtures.includes('ambiguous-small-or-zero') && fixtures.includes('clear-move') && fixtures.includes('justified-zero'), 'Evaluation fixtures lack the required calibration classes');
 assert(fixtures.includes('Same relationship meaning expressed differently'), 'Keyword-independence paraphrase fixture is missing');

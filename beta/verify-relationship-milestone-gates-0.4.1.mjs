@@ -125,8 +125,8 @@ const chat = [
     { is_user: false, is_system: false, mes: 'Mira acknowledges it.' },
 ];
 const scanPrompt = buildScanPrompt({ state: promptState, chat, assistantMessageId: 1 });
-assert(scanPrompt.includes('RELATIONSHIP MILESTONE GATES'), 'Recovery scanner gate rule missing');
-assert(scanPrompt.includes('25, 50, 75, and 90'), 'Recovery scanner thresholds missing');
+assert(scanPrompt.includes('RELATIONSHIP REPEATS AND GATES'), 'Recovery scanner gate rule missing');
+assert(scanPrompt.includes('25/50/75/90'), 'Recovery scanner thresholds missing');
 const injection = buildInjection(promptState, { enabled: true, autoScan: true, inject: true, injectBudgetTokens: 6000 });
 assert(injection.includes('RELATIONSHIP REPEATS AND GATES'), 'Foreground gate rule missing');
 assert(injection.includes('50 major+ with raw 3'), 'Foreground 50 gate requirement missing');

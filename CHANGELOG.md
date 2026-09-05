@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.22
+
+- Adds a shared general relationship-judgment rubric across foreground capture and full recovery/current-cast scanning: new-change continuity, correct attribution, contextual inference without keyword gating, ambiguity calibration, axis independence, proportionality, mixed chronology, balanced direction, and anti-circular reasoning.
+- Keeps the exact current-exchange per-axis quotation/explanation contract while explicitly preventing prior summaries, meter values, diagnostics, and relationship history from becoming fresh evidence.
+- Makes impact caps explicit maxima rather than default targets and reminds the model not to double-apply runtime inertia/milestone reductions or inflate proposals to overcome them.
+- Preserves user-authored custom relationship criteria as additive calibration; only the exact prior built-in default migrates to a concise additive default.
+- Adds deterministic prompt-path/regression checks and varied offline evaluation fixtures with anti-freezing coverage. Numerical relationship mechanics and v0.4.21 history remarks remain unchanged.
+
 ## v0.4.21
 
 - Preserves accepted per-axis relationship evidence/explanations in `relationshipHistory` through normalization, save/reload, and existing state import/export paths.

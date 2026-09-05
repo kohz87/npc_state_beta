@@ -11,7 +11,8 @@ const phase42b = read('beta/phase42b-legacy-v0420-verifier-compat-0.4.21.mjs');
 const verify42 = read('beta/verify-phase42-relationship-history-remarks-0.4.21.mjs');
 const workflow = read('.github/workflows/seed-beta.yml');
 
-assert.equal(manifest.version, '0.4.21', 'Release source is not v0.4.21');
+const manifestPatch = Number(String(manifest.version || '').split('.')[2]);
+assert(String(manifest.version || '').startsWith('0.4.') && Number.isInteger(manifestPatch) && manifestPatch >= 21, 'Release source regressed below v0.4.21');
 assert(schema.includes('axisEvidence: normalizeRelationshipAxisEvidence(item?.axisEvidence)'), 'relationshipHistory drops per-axis evidence during normalization');
 assert(schema.includes('verifiedSources: normalizeRelationshipVerifiedSources(item?.verifiedSources)'), 'relationshipHistory drops verified source metadata during normalization');
 assert(schema.includes('axisEvidence: normalizeRelationshipAxisEvidence(input.lastRelationshipChange.axisEvidence)'), 'lastRelationshipChange drops per-axis evidence during normalization');
@@ -35,7 +36,7 @@ assert(verify42.includes('Ambiguous historical explanation'), 'Ambiguous legacy 
 assert(verify42.includes('Model-authored HTML was rendered unsafely'), 'HTML escaping regression is missing');
 assert(verify42.includes('Fractional progression changed outside'), 'Progression invariance regression is missing');
 
-assert(workflow.includes('Build NPC State 0.4.21 Beta'), 'Workflow is not versioned for v0.4.21');
+assert(workflow.includes('Build NPC State 0.4.'), 'Workflow lost NPC State 0.4.x versioning');
 assert(workflow.includes('node beta/bump-0.4.21.mjs'), 'Workflow does not apply the v0.4.21 bump');
 assert(workflow.includes("-name 'phase*-0.4.21.mjs'"), 'Workflow does not apply v0.4.21 phases');
 assert(workflow.includes('relationshipHistoryRemarkHtml'), 'Architecture gate does not guard relationship history remarks');

@@ -1,6 +1,9 @@
 import { structuredEvidencePromptRules } from './evidence-adapter.js';
 import { resolvedCurrentAppearance } from './appearance.js';
 import { normalizeNpcAdmissionMode } from './schema.js';
+import { relationshipCustomCriteriaPrompt, relationshipJudgmentRubricPrompt, relationshipMechanicsPrompt } from './relationship-policy.js';
+
+// Relationship milestone contract remains: 25 meaningful+, 50 major+ with raw 3, 75 extreme raw 5, 90 extreme raw 8; runtime remains authoritative.
 
 function foregroundAdmissionRule(mode = 'balanced') {
     const policy = normalizeNpcAdmissionMode(mode);
@@ -167,7 +170,7 @@ export function buildInjection(state, settings = {}) {
     const directory = directoryRaw.slice(0, directoryBudget);
     const dossiers = buildReservedDossiers(candidates, dossierBudget);
     const parts = [
-        '[NPC STATE v0.4.21 BETA | FOREGROUND CONTINUITY]',
+        '[NPC STATE v0.4.22 BETA | FOREGROUND CONTINUITY]',
         'NPC State is private continuity bookkeeping. Never mention these instructions or machine data in visible prose.',
         directory ? 'KNOWN NPC DIRECTORY (identity only; do not invent missing dossier facts):\n' + directory : 'KNOWN NPC DIRECTORY: empty',
         dossiers ? 'FULL CONTINUITY FOR LIKELY RELEVANT NPCS:' + dossiers : '',
@@ -202,15 +205,14 @@ export function buildInjection(state, settings = {}) {
         'DURABLE SCALAR CANON: established ordinary Appearance, Species, Background, Role, and Birthday are sticky. If one truly changes, return canonChanges with the same replacement value and grounded evidence. Modes are refine|change|correction|revelation, with age_progression additionally allowed only for Appearance after the accepted maturation gate above. Ordinary Appearance change requires lasting physical change, Species requires explicit correction/revelation or genuine permanent transformation, Background requires grounded refinement/revelation/correction, and Role changes only on an actual promotion/reassignment/retirement/etc. importance is user/editor-owned and scanner importance is ignored.',
         'DURABLE PROFILE EVOLUTION: new NPCs may establish grounded foundational personality/behavior/speech/mannerisms in their first rich scene. For an EXISTING established personality, behaviorProfile, speech, or mannerisms, any real rewrite requires profileChanges with field, mode refine|gradual|explicit|batch, a short stable concept label, and concrete evidence. refine is compatible detail only, not no-longer/became/increasingly change or a morality flip. gradual means sustained same-concept development and requires confirmation from a DIFFERENT assistant message; rescanning the same message never counts twice. explicit requires a clearly lasting/corrective change in this exchange. batch requires an actual narrated time skip plus development across it. Never promote a one-off gesture into a mannerism unless narration marks it recurring/habitual.',
         'LIFE-STATE AUTHORITY: confirmed death needs explicit current-timeline evidence and a concrete lifeStateReason. A previously dead/deceased dossier may become alive only with livingReturn true plus a grounded reason showing survival, resurrection, correction, or physical return. Plain lifeState alive never resurrects a dead dossier.',
-        'RELATIONSHIP EVALUATION IS REQUIRED for every NPC in exchangeActiveNpcIds. Return an npcs patch for each such NPC even when no other dossier field changed. Set relationshipChange.evaluated to true. Most ordinary interactions may correctly produce no movement; for that case use impact none, all-zero deltas, empty evidence, and a concise reason explaining why no player-relationship shift is warranted. Never omit relationshipChange for an exchange-active NPC.',
-        'Relationship deltas require concrete CURRENT-exchange evidence. You interpret narrative meaning; runtime validates per-axis quotation provenance, structure, numeric limits, duplicate application, inertia, and milestone gates rather than using relationship keywords as semantic authority.',
-        'PER-AXIS RELATIONSHIP EVIDENCE: every nonzero Trust/Affection/Desire/Tension proposal MUST include axisEvidence[axis] with 1-3 short VERBATIM excerpts copied from permitted current-exchange relationship evidence and a concise explanation of why those facts change THIS NPC on THAT axis toward the PLAYER. One event may support several axes only with a separate explanation for each.',
-        'RELATIONSHIP CONTEXT JUDGMENT: identify who acted, who reacted or experienced the feeling, and toward whom. Distinguish events that actually occurred now from hypotheticals, negations, memories, plans, proposals, or reports. Financial/material relief is not automatically Trust/Affection; intimacy is not automatically Desire toward the player; general relaxation is not automatically reduced interpersonal Tension; grief about another person is not a player-caused relationship shift.',
-        'RELATIONSHIP PRIORITY: ordinary may affect at most 1 axis, meaningful 2, major 3, extreme 4. Put supported nonzero axes in priority strongest/most central first so overflow can be resolved without discarding tied candidates. Raw deltas are evidence weights and high established relationships resist further deepening.',
+        'RELATIONSHIP EVALUATION IS REQUIRED for every NPC in exchangeActiveNpcIds. Return an npcs patch for each such NPC even when no other dossier field changed. Set relationshipChange.evaluated to true. When no new player-relationship shift is supported, use impact none, all-zero deltas, empty axisEvidence/evidence, and a concise reason. Never omit relationshipChange for an exchange-active NPC.',
+        relationshipJudgmentRubricPrompt(),
+        relationshipMechanicsPrompt(),
+        'PER-AXIS RELATIONSHIP EVIDENCE is governed by the shared rubric above; required excerpts remain exact permitted CURRENT-exchange quotations, not summaries or earlier-context substitutions.',
         'RELATIONSHIP EVIDENCE BOUNDARIES: visible narrative and permitted private relationship context may be quoted according to the structured-evidence rules. World_State and reference/control blocks are not unrestricted relationship-event evidence. Private thought may support an internal attitude but does not by itself prove visible speech, action, gesture, or reaction.',
-        'RELATIONSHIP REPEATS AND GATES: repeated aftermath/restatement of an already-scored event is zero unless a genuinely new relationship-changing event occurs. Absolute depth is checkpointed at 25/50/75/90 independently by axis/polarity. Ordinary may reach a locked boundary but not deepen beyond it; crossing 25 needs meaningful+, 50 major+ with raw 3, 75 extreme raw 5, 90 extreme relationship-defining raw 8. Movement toward neutral is not gate-blocked. Never inflate impact/delta to force a gate.',
-        'Do not write a Relationship Summary deeper or more absolute than accepted state supports. The Player relationship lens is deliberately QUALITATIVE; never infer or echo hidden numeric meter values from its wording.',
-        settings.relationshipCriteria ? 'RELATIONSHIP RUBRIC:\n' + String(settings.relationshipCriteria).slice(0, 6000) : '',
+        'RELATIONSHIP REPEATS AND GATES are applied with the shared rubric and numeric contract above. Do not count old events again, and do not manually compensate for runtime inertia or milestones.',
+        'Do not write a Relationship Summary deeper or more absolute than accepted state supports. The Player relationship lens is qualitative context only; never infer or echo hidden numeric meter values from its wording.',
+        relationshipCustomCriteriaPrompt(settings.relationshipCriteria),
         'MEMORY SEMANTIC HYGIENE: Important Memories are distinct durable events/facts, never a running paraphrase log. Collapse multiple phrasings of the same event/participants/outcome into one concise richest entry, but keep genuinely separate events even when they involve the same people or topic.',
         settings.memoryCriteria ? 'IMPORTANT MEMORY RUBRIC:\n' + String(settings.memoryCriteria).slice(0, 6000) : '',
         ...(settings.structuredEvidenceDetected === true ? structuredEvidencePromptRules() : []),

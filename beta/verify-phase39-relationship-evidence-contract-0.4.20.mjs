@@ -325,8 +325,8 @@ assert(!scanner.includes('DESIRE_EVIDENCE_CUES'), 'Legacy Desire keyword veto re
 assert(!scanner.includes('relationshipEvidenceGrounding('), 'Legacy lexical/semantic grounding still authorizes runtime movement');
 assert(!scanner.includes('relationshipEvidencePolarityConflict('), 'Legacy keyword polarity veto remains in runtime movement');
 assert(injection.includes('PER-AXIS RELATIONSHIP EVIDENCE'), 'Foreground prompt lacks new relationship evidence contract');
-assert(relationshipPolicy.includes('Financial/material relief'), 'Recovery semantic-judgment cautions are missing');
-assert(relationshipPolicy.includes('Repeated aftermath'), 'Recovery prompt does not instruct zero for repeated aftermath');
+assert(relationshipPolicy.includes('AMBIGUITY WITHOUT FREEZING'), 'Recovery semantic-judgment ambiguity calibration is missing');
+assert(relationshipPolicy.includes('repeated aftermath/restatement'), 'Recovery prompt does not instruct zero for repeated aftermath');
 assert(dossier.includes('Verified source:'), 'Diagnostic UI does not expose verified source evidence');
 
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
