@@ -2091,9 +2091,10 @@ function referenceAllowedForWorldActivity(state, reference, policy, patches = []
     // Off-Screen placement section exists anywhere in the current World_State.
     if (sections.legacyWorld) return true;
     if (patch && activityEvidenceVerified(patch, 'worldActive', visible)) return true;
-    const exactVisible = variants.some(value => containsNormalizedPhrase(visible, value));
-    const shortVisible = npc ? visibleShortActivityIdentityMention(state, npc, visible) : false;
-    if (exactVisible || shortVisible) return true;
+    // A visible name alone says only that the NPC was mentioned. It cannot establish that
+    // the NPC is currently active somewhere off-screen. Plain-narrative worldActive claims
+    // therefore require the model's exact current-visible activityEvidence. Structured
+    // Off-Screen placement and legacy unsectioned World_State remain the only non-quote paths.
     return !visible && !policy?.detected;
 }
 function identityEvidenceRecord(patch) {
