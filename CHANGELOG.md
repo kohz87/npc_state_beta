@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.4.9
+
+- Fixes explicit timeline rebase retaining relationship changes and 25/50/75/90 gate breakthroughs from discarded branch messages. Rebase now reverses attributable non-manual relationship changes where recoverable, removes stale milestone unlocks, restores fractional state from recent scoring diagnostics when available, and clamps unrecoverable over-gate residue back to the first now-locked boundary. Manual relationship edits remain authoritative.
+
 ## v0.4.8
 
 - Makes relationship milestone raw-evidence minima invariant: 25 requires meaningful-or-stronger with raw >=1, 50 major-or-stronger with raw >=3, 75 extreme with raw >=5, and 90 extreme with raw >=8. Lower configured tier caps no longer silently weaken a gate; movement toward neutral remains unblocked and inertia still applies only after raw evidence qualification.
