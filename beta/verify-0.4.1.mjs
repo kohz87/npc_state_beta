@@ -185,7 +185,7 @@ function file(path) {
         swipeChat[1] = { is_user: false, swipe_id: swipe, mes: 'Variant ' + swipe };
         swipeState = recordCheckpoint(swipeState, swipeChat, 1, 'swipe');
     }
-    assert(swipeState.checkpoints.filter(cp => cp.messageId === 1).length === 1, 'Swipe variants consumed multiple checkpoint entries for one assistant message');
+    assert(swipeState.checkpoints.filter(cp => cp.messageId === 1).length === 4, 'Swipe variants did not preserve the four newest sibling checkpoints');
 }
 
 // 0.4.1 bundles must parse themselves while 0.3.x remains compatible.
@@ -194,7 +194,7 @@ function file(path) {
     state.npcs.push(normalizeNpc({ id: 'npc-astra', name: 'Astra' }));
     const bundle = createNpcStateBundle(state);
     const parsed = parseNpcStateBundle(bundle);
-    assert(parsed.appVersion === '0.4.1', '0.4.1 bundle did not parse itself');
+    assert(parsed.appVersion === bundle.appVersion, 'Current bundle did not parse its own version');
     assert(bundleSuggestedFilename(bundle).includes('npc-state-v3-chat-backup'), '0.4.1 bundle filename generation failed');
     const legacy = structuredClone(bundle);
     legacy.appVersion = '0.3.2';
@@ -234,7 +234,7 @@ function file(path) {
     assert(engine.includes("state.branchSafety?.status !== 'safe'"), 'Unsafe branch mutation gate missing');
     assert(engine.includes('parsedRaw.npcs'), 'Targeted Refresh deterministic filter missing');
     assert(foreground.includes('INVENTORY_BLOCK_V05') && injection.includes('INVENTORY_BLOCK_V05') && branches.includes('INVENTORY_BLOCK_V05'), 'Inventory Block v0.5 compatibility incomplete');
-    assert(injection.includes('remainingChars'), 'Continuity budget does not account for identity directory');
+    assert(injection.includes('maxChars - dossierBudget') && injection.includes('directoryRaw.slice(0, directoryBudget)'), 'Identity directory is not constrained to the remaining continuity budget');
     assert(schema.includes('portrait: null') && branches.includes('preserveCurrentPresentation'), 'Portrait-light checkpoint handling missing');
     assert(scanner.includes('collectionPatchEntry') && schema.includes('collectionEntry'), 'Generic collection normalization missing');
     assert(schema.includes('branchFingerprintVersion: 3'), 'Branch fingerprint schema version is not 3');

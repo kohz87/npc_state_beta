@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.7
+
+- Preserves untouched relationship milestones on manual dossier saves; only changed axes gain manual milestone adjustments, and partial score edits preserve omitted axes.
+- Makes relationship event deduplication direction/outcome-aware, preserves raw evidence deltas, and clears timeline-local evidence during cross-chat imports and rebases. Null timeline references no longer behave as turn zero.
+- Adds clause-local relationship grounding with conservative negation/outcome checks and matching source-quote guidance. These local checks reduce contradictory evidence acceptance without claiming full natural-language entailment.
+- Makes embedded relationship application idempotent at the engine boundary across payload paraphrases and reloads, while requiring branch reconciliation for changed processed content.
+- Adds bounded private scoring diagnostics and dossier gate/fractional-progress details, including rejected attempts and per-axis unlocks.
+- Adds Maximum scanner response tokens under Recovery & Branch Safety (512–15,000; default 7,000), shared by standalone scans, targeted Refresh, structured imports, and JSON retries. Foreground RP limits and scan history depth are unchanged.
+- Repairs outdated regression expectations, makes historical verifier transformations repeatable, and runs all checked-in verifier suites in CI.
+
 ## v0.4.6
 
 - Fixes the timeline-rebase recovery control after the categorized settings redesign. When branch safety requires an explicit rebase, the warning and **Rebase to current chat** action now mount inside **Recovery & Branch Safety**, which is opened automatically while recovery is required.

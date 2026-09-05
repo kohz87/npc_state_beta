@@ -2,7 +2,7 @@ import fs from 'node:fs';
 
 function replaceRequired(path, from, to, label) {
     let source = fs.readFileSync(path, 'utf8');
-    if (!source.includes(from)) throw new Error(`Missing legacy appearance verifier marker in ${path}: ${label}`);
+    if (!source.includes(from) && !source.includes(to)) throw new Error(`Missing legacy appearance verifier marker in ${path}: ${label}`);
     source = source.replace(from, to);
     fs.writeFileSync(path, source);
 }

@@ -1,4 +1,5 @@
 import { resolvedCurrentAppearance } from './appearance.js';
+import { RELATIONSHIP_AXES, RELATIONSHIP_MILESTONE_THRESHOLDS, relationshipMilestoneUnlocked } from './schema.js';
 function escapeHtml(value) {
     return String(value ?? '')
         .replaceAll('&', '&amp;')
@@ -129,6 +130,27 @@ function relationshipHistoryHtml(npc = {}) {
     }).join('')}</ol>`;
 }
 
+function relationshipDiagnosticsHtml(npc = {}) {
+    const signed = value => (Number(value) > 0 ? '+' : '') + Number(value || 0);
+    const axes = RELATIONSHIP_AXES.map(axis => {
+        const score = Number(npc.relationship?.[axis] || 0);
+        const direction = Math.sign(score) || 1;
+        const gates = RELATIONSHIP_MILESTONE_THRESHOLDS.map(threshold =>
+            signed(direction * threshold) + ' ' + (relationshipMilestoneUnlocked(npc.relationshipMilestones, axis, direction, threshold) ? 'unlocked' : 'locked')).join(', ');
+        return '<li><b>' + escapeHtml(axis) + '</b>: ' + score + '; fractional progress ' + signed(npc.relationshipProgress?.[axis]) + '<br><small>' + escapeHtml(gates) + '</small></li>';
+    }).join('');
+    const attempts = (npc.relationshipDiagnostics || []).slice(-12).reverse().map(event => {
+        const changes = RELATIONSHIP_AXES.filter(axis => event.proposed?.[axis]).map(axis =>
+            axis + ': ' + event.before[axis] + ' → ' + event.after[axis] + '; requested ' + signed(event.proposed[axis])
+            + ', applied ' + signed(event.applied[axis]) + '; fraction ' + signed(event.progressBefore[axis]) + ' → ' + signed(event.progressAfter[axis])).join(' · ');
+        const unlocks = (event.unlocks || []).map(entry => entry.axis + ' ' + signed(entry.polarity * entry.threshold) + ' unlocked').join(', ');
+        return '<li><b>' + escapeHtml(event.impact + ' — ' + event.reasons.join(', ')) + '</b><p>' + escapeHtml(changes)
+            + (unlocks ? '<br>' + escapeHtml(unlocks) : '') + '</p><small>' + escapeHtml(event.reason || event.evidence) + '</small></li>';
+    }).join('');
+    return '<details><summary>Gate status and recent scoring attempts</summary><ul>' + axes + '</ul>'
+        + (attempts ? '<ol class="npc-state-v3-history-list">' + attempts + '</ol>' : '<p>No scoring diagnostics recorded yet.</p>') + '</details>';
+}
+
 function block(title, body, className = '') {
     return `<div class="npc-state-v3-dossier-block ${className}"><h3>${escapeHtml(title)}</h3>${body}</div>`;
 }
@@ -212,6 +234,7 @@ export function dossierHtml(npc) {
             ${block('Important memories', listHtml(npc.memories, 'No persistent memories recorded yet.'), 'npc-state-v3-block-wide')}
             ${block('Background', paragraphHtml(npc.background), 'npc-state-v3-block-wide')}
             ${block('Recent relationship changes', relationshipHistoryHtml(npc), 'npc-state-v3-block-wide')}
+            ${block('Relationship scoring', relationshipDiagnosticsHtml(npc), 'npc-state-v3-block-wide')}
           </div>
         </section>
       </main>

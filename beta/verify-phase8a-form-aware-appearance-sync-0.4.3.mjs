@@ -151,13 +151,16 @@ const injection = buildInjection({ ...state, npcs: [mira], lastObservation: { ex
     enabled: true, autoScan: true, inject: true, injectLimit: 2, injectBudgetTokens: 2600,
 });
 assert(injection.includes('Current appearance: ' + currentResolved), 'Foreground injection does not use resolved current appearance');
-assert(injection.includes('Shared / ordinary appearance: ' + mira.appearance), 'Foreground injection does not distinguish stored shared/ordinary appearance');
+assert(!injection.includes('Shared / ordinary appearance:'), 'Foreground injection still exposes redundant stored shared/ordinary appearance');
+assert(!injection.includes('Current form:'), 'Foreground injection still exposes redundant standalone Current form');
+assert(injection.includes('Appearance forms:'), 'Foreground injection lacks the compact Appearance forms registry');
 const portrait = buildPortraitCharacterBlock(mira, 'natural');
 assert(portrait.includes(currentResolved), 'Portrait prompt does not use resolved current appearance');
 assert(!portrait.includes(originalScalar), 'Portrait prompt leaked inactive legacy Base description into Beast current appearance');
 const dossier = dossierHtml(mira);
 assert(dossier.includes('Current appearance'), 'Dossier lacks Current appearance');
-assert(dossier.includes('Shared / ordinary appearance'), 'Dossier lacks Shared / ordinary appearance');
+assert(!dossier.includes('Shared / ordinary appearance'), 'Dossier still exposes redundant Shared / ordinary appearance');
+assert(!dossier.includes('>Current form<'), 'Dossier still exposes redundant standalone Current form');
 assert(dossier.includes('Appearance forms'), 'Dossier lacks complete Appearance forms registry');
 
 const portraitSource = fs.readFileSync(new URL('../v03/portrait-prompt.js', import.meta.url), 'utf8');

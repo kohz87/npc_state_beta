@@ -249,6 +249,9 @@ function clearCrossChatReferences(npc) {
         next.lastRelationshipChange.turn = null;
     }
     next.relationshipHistory = (next.relationshipHistory || []).map(event => ({ ...event, sourceMessageId: null, turn: null }));
+    // Recent evidence is timeline-local; retain durable scores/milestones and visible history.
+    next.relationshipEvidenceHistory = [];
+    next.relationshipDiagnostics = [];
     return next;
 }
 

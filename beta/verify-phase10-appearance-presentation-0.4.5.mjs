@@ -37,7 +37,7 @@ const injection = buildInjection(state, {
     injectLimit: 2,
     injectBudgetTokens: 2600,
 });
-assert(injection.includes('[NPC STATE v0.4.5 BETA | FOREGROUND CONTINUITY]'), '0.4.5 injection header missing');
+assert(/\[NPC STATE v0\.4\.\d+ BETA \| FOREGROUND CONTINUITY\]/.test(injection), '0.4.x descendant injection header missing');
 assert(injection.includes('Current appearance: ' + resolved), 'Foreground continuity lost resolved Current appearance');
 assert(injection.includes('Appearance forms:'), 'Foreground continuity lost Appearance forms registry');
 assert(injection.includes('Half-Dragon [CURRENT]:'), 'Active form is not marked inside Appearance forms');
@@ -68,6 +68,7 @@ assert(uiSource.includes('appearanceFormsEditorText') && uiSource.includes('curr
 assert(injectionSource.includes('resolvedCurrentAppearance(npc)'), 'Foreground continuity stopped using the shared appearance resolver');
 
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
-assert(manifest.version === '0.4.5', 'Manifest was not bumped to 0.4.5');
+const manifestMatch = String(manifest.version || '').match(/^0\.4\.(\d+)$/);
+assert(manifestMatch && Number(manifestMatch[1]) >= 5, 'Manifest is not a 0.4.5+ descendant');
 
 console.log('NPC State 0.4.5 compact appearance presentation verification passed');

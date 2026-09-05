@@ -1,5 +1,9 @@
-export const NPC_STATE_VERSION = '0.4.6';
+export const NPC_STATE_VERSION = '0.4.7';
 export const NPC_STATE_SCHEMA_VERSION = 1;
+export function normalizeScannerResponseTokens(value) {
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? Math.max(512, Math.min(15000, Math.round(number))) : 7000;
+}
 export const NPC_ADMISSION_MODES = Object.freeze(['balanced', 'named_preferred', 'manual']);
 export function normalizeNpcAdmissionMode(value) {
     const mode = String(value || '').trim().toLocaleLowerCase();
@@ -454,6 +458,7 @@ export function normalizeRelationshipProgress(value = {}) {
 export function normalizeRelationshipEvidenceHistory(value = []) {
     const source = Array.isArray(value) ? value : [];
     return source.slice(-RELATIONSHIP_EVIDENCE_HISTORY_LIMIT * 2).map(raw => ({
+        delta: raw?.delta && typeof raw.delta === 'object' ? normalizeRelationship(raw.delta) : null,
         impact: ['ordinary', 'meaningful', 'major', 'extreme'].includes(String(raw?.impact)) ? String(raw.impact) : 'ordinary',
         reason: text(raw?.reason, 800),
         evidence: text(raw?.evidence, 800),
@@ -461,6 +466,25 @@ export function normalizeRelationshipEvidenceHistory(value = []) {
         turn: Number.isInteger(raw?.turn) ? raw.turn : null,
         at: Number(raw?.at) || null,
     })).filter(item => item.reason || item.evidence).slice(-RELATIONSHIP_EVIDENCE_HISTORY_LIMIT);
+}
+
+export function normalizeRelationshipDiagnostics(value = []) {
+    return (Array.isArray(value) ? value : []).slice(-12).map(raw => ({
+        impact: text(raw?.impact, 20),
+        reason: text(raw?.reason, 800),
+        evidence: text(raw?.evidence, 800),
+        before: normalizeRelationship(raw?.before),
+        after: normalizeRelationship(raw?.after),
+        proposed: normalizeRelationship(raw?.proposed),
+        applied: normalizeRelationship(raw?.applied),
+        progressBefore: normalizeRelationshipProgress(raw?.progressBefore),
+        progressAfter: normalizeRelationshipProgress(raw?.progressAfter),
+        reasons: list(raw?.reasons, 12, 80),
+        unlocks: normalizeRelationshipMilestones(raw?.unlocks, DEFAULT_RELATIONSHIP, { inferFromRelationship: false }),
+        sourceMessageId: Number.isInteger(raw?.sourceMessageId) ? raw.sourceMessageId : null,
+        turn: Number.isInteger(raw?.turn) ? raw.turn : null,
+        at: Number(raw?.at) || null,
+    }));
 }
 
 function normalizeMilestonePolarity(value) {
@@ -654,6 +678,7 @@ export function normalizeNpc(input = {}, options = {}) {
         relationship,
         relationshipProgress,
         relationshipEvidenceHistory,
+        relationshipDiagnostics: normalizeRelationshipDiagnostics(input.relationshipDiagnostics),
         relationshipMilestones,
         relationshipSummary: text(input.relationshipSummary, 1000),
         relationshipHistory,

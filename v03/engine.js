@@ -1,4 +1,4 @@
-import { bestCheckpoint, ensureBranchBase, fingerprintMessage, rebaseToCurrentChat, reconcileToCurrentBranch, recordCheckpoint } from './branches.js';
+import { chatLineage, bestCheckpoint, ensureBranchBase, fingerprintMessage, rebaseToCurrentChat, reconcileToCurrentBranch, recordCheckpoint } from './branches.js';
 import { buildExchangeEvidencePolicy, profileEvidenceText, relationshipEvidenceText, retentionEvidenceText, structuredDossierBlocksForNpc } from './evidence-adapter.js';
 import {
     applyNpcStateBundleImport,
@@ -13,6 +13,7 @@ import {
     findNpcByReference,
     makeNpcId,
     normalizeName,
+    normalizeScannerResponseTokens,
     normalizeNpc,
     normalizeBirthdayFillMode,
     normalizeRelationship,
@@ -42,7 +43,7 @@ import {
 } from './stale.js';
 import { clearV3PointerHint, deleteV3SidecarFile, readV3PointerHint, readV3Sidecar, retireV3Sidecar, writeV3Sidecar } from './storage.js';
 
-const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.6 recovery scanner. Obey the supplied schema and evidence rules exactly.';
+const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.7 recovery scanner. Obey the supplied schema and evidence rules exactly.';
 
 function profileContextForWindow(chat = [], messageId = null, depth = 8) {
     const end = Number.isInteger(messageId) ? Math.min(chat.length - 1, messageId) : chat.length - 1;
@@ -97,7 +98,7 @@ export function createNpcStateEngine(adapters = {}) {
     const notify = adapters.notify || (() => {});
 
     if (typeof getContext !== 'function' || typeof getChatKey !== 'function' || typeof getSettings !== 'function' || typeof generate !== 'function') {
-        throw new Error('NPC State v0.4.6 engine requires getContext, getChatKey, getSettings, and generate adapters.');
+        throw new Error('NPC State v0.4.7 engine requires getContext, getChatKey, getSettings, and generate adapters.');
     }
 
     function epoch(chatKey) { return operationEpoch.get(chatKey) || 0; }
@@ -203,7 +204,7 @@ export function createNpcStateEngine(adapters = {}) {
             if (importedStable || fingerprintUpgraded) {
                 state = await persist(chatKey, state);
                 if (importedStable) {
-                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.6 beta sidecar. Stable data was not modified.');
+                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.7 beta sidecar. Stable data was not modified.');
                 } else if (fingerprintUpgraded) {
                     notify('info', 'Upgraded branch checkpoint fingerprints for transport-safe, swipe-index-independent rollback. Existing dossiers were preserved; old rollback hashes were reset once.');
                 }
@@ -219,13 +220,14 @@ export function createNpcStateEngine(adapters = {}) {
     }
 
     async function invokeJson(prompt, label = 'scan') {
-        let raw = await generate({ systemPrompt: SYSTEM_PROMPT, prompt, responseLength: 7000, label });
+        const responseLength = normalizeScannerResponseTokens(getSettings().scannerResponseTokens);
+        let raw = await generate({ systemPrompt: SYSTEM_PROMPT, prompt, responseLength, label });
         try { return parseScanJson(raw); }
         catch (firstError) {
             raw = await generate({
                 systemPrompt: SYSTEM_PROMPT,
                 prompt: `${prompt}\n\nYour previous response was malformed. Return exactly one valid JSON object, no markdown and no commentary.`,
-                responseLength: 7000,
+                responseLength,
                 label: `${label}-json-retry`,
             });
             try { return parseScanJson(raw); }
@@ -346,6 +348,12 @@ export function createNpcStateEngine(adapters = {}) {
                 if (fingerprintMessage(message) !== expectedFingerprint) {
                     return { ok: false, discarded: true, reason: 'stale-operation', messageId };
                 }
+            }
+            if (Number.isInteger(state.lastScannedMessageId) && messageId <= state.lastScannedMessageId) {
+                const lineage = chatLineage(chat, messageId);
+                const matches = lineage.every((entry, index) => state.branchHeadLineage?.[index] === entry);
+                if (!matches) return { ok: false, reason: 'branch-unreconciled', messageId };
+                return { ok: true, skipped: true, reason: 'already-scanned', messageId, embedded: true, state: structuredClone(state) };
             }
             const startEpoch = epoch(chatKey);
             const startFingerprint = fingerprintMessage(message);
@@ -591,8 +599,13 @@ export function createNpcStateEngine(adapters = {}) {
             const nextRaw = { ...current, ...structuredClone(patch), id: current.id, updatedAt: Math.max(Date.now(), Number(current.updatedAt || 0) + 1), manual: true };
             if (patch?.relationship && typeof patch.relationship === 'object') {
                 const before = normalizeRelationship(current.relationship);
-                const after = normalizeRelationship(patch.relationship);
-                nextRaw.relationshipMilestones = normalizeRelationshipMilestones(current.relationshipMilestones, after, { inferFromRelationship: true, includeBoundary: true });
+                const after = normalizeRelationship({ ...before, ...patch.relationship });
+                nextRaw.relationship = after;
+                const changedAxes = Object.keys(before).filter(axis => before[axis] !== after[axis]);
+                const inferred = normalizeRelationshipMilestones([], after, { inferFromRelationship: true, includeBoundary: true })
+                    .filter(entry => changedAxes.includes(entry.axis));
+                nextRaw.relationshipMilestones = normalizeRelationshipMilestones(
+                    [...(current.relationshipMilestones || []), ...inferred], after, { inferFromRelationship: false });
                 const delta = Object.fromEntries(Object.keys(before).map(axis => [axis, after[axis] - before[axis]]));
                 nextRaw.relationshipProgress = { ...(current.relationshipProgress || {}) };
                 for (const axis of Object.keys(delta)) if (delta[axis] !== 0) nextRaw.relationshipProgress[axis] = 0;

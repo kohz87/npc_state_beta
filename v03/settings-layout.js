@@ -1,4 +1,4 @@
-/* NPC State v0.4.6 categorized responsive settings layout coordinator.
+/* NPC State v0.4.7 categorized responsive settings layout coordinator.
    This module only reorganizes existing settings DOM. It moves live nodes rather
    than recreating controls, so the authoritative listeners owned by ui.js and the
    feature modules stay attached. */
@@ -141,6 +141,7 @@ function ensureBirthdayContinuity(drawer) {
 function ensureRecoveryBranch(drawer) {
     const group = ensureParentDetails(drawer, RECOVERY_GROUP_ID, 'Recovery & Branch Safety', 'npc-state-v3-recovery-group', false, 'npc-state-v3-control-group-body');
     return moveControlRows(drawer, group, [
+        '#npc_state_v047_response_tokens',
         '#npc_state_v04_fallback',
         '#npc_state_v3_branch_rescan',
     ]);

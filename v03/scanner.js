@@ -1,3 +1,4 @@
+import { relationshipEvidenceGrounding, relationshipOutcomesConflict } from './relationship-evidence.js';
 import { evidenceReferenceScope, hasRecognizedStructuredBlocks, scannerEvidenceText, structuredEvidencePromptRules } from './evidence-adapter.js';
 import { appearanceFormDescription, appearanceScalarIsLegacyBase } from './appearance.js';
 import { AGE_PROGRESSION_MODE, ageProgressionAppearanceSafe, apparentAgeProgressionAllowed, authorizeAgeProgression, progressionEvidence, sharedAgeProgressionAllowed } from './age-progression.js';
@@ -28,6 +29,7 @@ import {
     normalizeProfileEvolutionEvidence,
     normalizeRelationship,
     normalizeRelationshipEvidenceHistory,
+    normalizeRelationshipDiagnostics,
     normalizeRelationshipProgress,
     normalizeState,
     relationshipMilestoneUnlocked,
@@ -203,7 +205,7 @@ function dossierCollectionRules(limits) {
 
 export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State v0.4.6 recovery scanner requires an assistant message and its preceding user exchange.');
+    if (!exchange) throw new Error('NPC State v0.4.7 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
@@ -226,7 +228,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         familyFacts: [{ owner: 'existing NPC id/name', relation: 'daughter|son|child|other countable family role', count: 2, descriptor: 'optional e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit countable family fact' }],
     };
     return [
-        'You are NPC State v0.4.6, a private structured continuity scanner for a roleplay chat.',
+        'You are NPC State v0.4.7, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
         '',
         `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
@@ -250,7 +252,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- Current exchange decides relationship changes. Older history may recover stable profile facts and durable memories, but must NEVER replay relationship deltas.',
         '- Only propose a relationshipChange when the current exchange contains concrete evidence. If unsure, use impact none and zero deltas.',
         '- RELATIONSHIP HARDENING: ordinary may affect at most 1 axis, meaningful 2, major 3, extreme 4. Repeated aftermath or semantically duplicate events must be zero. High relationship depth has increasing inertia, so raw deltas are evidence weights rather than guaranteed visible points. Desire requires explicit romantic/intimate/physical attraction evidence in the CURRENT narration, not friendship, gratitude, rescue, beauty, proximity, trust, or generic affection. Relationship Summary must describe only depth actually supported by the accepted relationship state.',
-        '- RELATIONSHIP MILESTONE GATES are enforced by NPC State at absolute depth 25, 50, 75, and 90 independently for each axis and positive/negative polarity. Ordinary evidence may reach a locked boundary but cannot deepen beyond it. Crossing 25 requires meaningful-or-stronger evidence; crossing 50 requires a major-or-stronger event with at least 3 raw points on that axis; crossing 75 requires extreme evidence with at least 5 raw points; crossing 90 requires extreme relationship-defining evidence with at least 8 raw points. Movement back toward neutral is never gate-blocked. Classify impact and deltas from the story honestly; never inflate them merely to open a gate.',
+        '- RELATIONSHIP EVIDENCE: quote a short concrete event from the current exchange; preserve who acted, negation, and the outcome. Do not replace a quote with an inferred absolute trust/affection claim. Opposite outcomes are new events, while repeated aftermath earns zero. RELATIONSHIP MILESTONE GATES are enforced by NPC State at absolute depth 25, 50, 75, and 90 independently for each axis and positive/negative polarity. Ordinary evidence may reach a locked boundary but cannot deepen beyond it. Crossing 25 requires meaningful-or-stronger evidence; crossing 50 requires a major-or-stronger event with at least 3 raw points on that axis; crossing 75 requires extreme evidence with at least 5 raw points; crossing 90 requires extreme relationship-defining evidence with at least 8 raw points. Movement back toward neutral is never gate-blocked. Classify impact and deltas from the story honestly; never inflate them merely to open a gate.',
         '- age is ACTUAL chronological age only. Use one grounded numeric age. Years use N or ~N; if canon explicitly gives a smaller unit, use N days, N weeks, or N months. Never write child, teenager, adult, young adult, middle-aged, elder, elderly, old, or another life-stage label in age. Never infer actual age from appearance. For an EXISTING NPC with an established age, a different number MUST NOT be placed in age. Use ageChange instead.',
         '- ageChange is the only automatic channel allowed to change an already-established chronological age. kind birthday requires explicit birthday/turned-N evidence; elapsed requires explicit elapsed-time narration that also states the resulting age; correction requires explicit correction/mistake evidence that states the corrected age. The evidence must contain the new numeric age. Casual contradictory age prose, appearance-based guesses, and unstated arithmetic are rejected by the backend. Leave ageChange null/omit when no authoritative chronological change occurred.',
         '- birthday is OPTIONAL passive continuity metadata, separate from age and apparentAge. Preserve compact freeform values exactly, including fantasy calendars such as 14 Frostwane. Never infer birthday from age, calculate age from birthday, or automatically increment age when a stored birthday date passes. For a new NPC or an existing blank/generated birthday, return birthday only when the supplied evidence explicitly establishes it. An established explicit/manual birthday is sticky; revise it only with canonChanges field birthday mode correction and grounded correction evidence. A birthday value by itself never authorizes ageProgression.',
@@ -306,7 +308,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         body: compactText(block?.body, 12000),
     }));
     return [
-        'You are NPC State v0.4.6 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
+        'You are NPC State v0.4.7 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
         'Return JSON only. This is reference-data reconciliation, NOT a current scene/event scan.',
         'Only the supplied Megumin New_NPC / NPC_Update blocks are authoritative sources for this operation.',
         'TARGET DOSSIER: ' + JSON.stringify(rosterForPrompt({ npcs: [npc] })[0]),
@@ -345,7 +347,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State v0.4.6 performing a targeted dossier reconciliation.',
+        'You are NPC State v0.4.7 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
@@ -374,15 +376,15 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
 
 export function parseScanJson(raw) {
     const text = String(raw ?? '').trim();
-    if (!text) throw new Error('NPC State v0.4.6 recovery scanner returned an empty response.');
+    if (!text) throw new Error('NPC State v0.4.7 recovery scanner returned an empty response.');
     const unfenced = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
     const first = unfenced.indexOf('{');
     const last = unfenced.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('NPC State v0.4.6 recovery scanner returned no JSON object.');
+    if (first < 0 || last <= first) throw new Error('NPC State v0.4.7 recovery scanner returned no JSON object.');
     let parsed;
     try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
-    catch (error) { throw new Error(`NPC State v0.4.6 recovery scanner returned malformed JSON: ${error.message}`); }
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('NPC State v0.4.6 recovery scanner JSON must be an object.');
+    catch (error) { throw new Error(`NPC State v0.4.7 recovery scanner returned malformed JSON: ${error.message}`); }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('NPC State v0.4.7 recovery scanner JSON must be an object.');
     return {
         exchangeActiveNpcIds: uniqueStrings(parsed.exchangeActiveNpcIds),
         finalPresentNpcIds: uniqueStrings(parsed.inChatNpcIds ?? parsed.finalPresentNpcIds),
@@ -1169,13 +1171,17 @@ function relationshipChangeLooksDuplicate(npc, change, { sourceMessageId = null,
     if (!currentText) return false;
     const history = normalizeRelationshipEvidenceHistory(npc?.relationshipEvidenceHistory);
     return history.some(previous => {
-        const priorTurn = Number(previous.turn);
-        const currentTurn = Number(turn);
-        const recentByTurn = Number.isFinite(priorTurn) && Number.isFinite(currentTurn) && Math.abs(currentTurn - priorTurn) <= 8;
+        const priorTurn = previous.turn;
+        const currentTurn = turn;
+        const recentByTurn = Number.isInteger(priorTurn) && Number.isInteger(currentTurn) && currentTurn >= priorTurn && currentTurn - priorTurn <= 8;
         const recentByMessage = Number.isInteger(sourceMessageId) && Number.isInteger(previous.sourceMessageId)
-            && Math.abs(sourceMessageId - previous.sourceMessageId) <= 10;
+            && sourceMessageId >= previous.sourceMessageId && sourceMessageId - previous.sourceMessageId <= 10;
         if (!recentByTurn && !recentByMessage) return false;
-        return relationshipTextSimilarity([previous.reason, previous.evidence].filter(Boolean).join(' '), currentText) >= 0.68;
+        if (evidenceTextKey(previous.evidence) === evidenceTextKey(change.evidence)) return true;
+        if (RELATIONSHIP_AXES.some(axis => previous.delta?.[axis] && change.delta?.[axis]
+            && Math.sign(previous.delta[axis]) !== Math.sign(change.delta[axis]))) return false;
+        if (relationshipOutcomesConflict(previous.evidence, change.evidence)) return false;
+        return relationshipTextSimilarity(previous.evidence, change.evidence) >= 0.68;
     });
 }
 
@@ -1223,23 +1229,39 @@ function relationshipDeltaForPatch(patch, caps = DEFAULT_RELATIONSHIP_CAPS) {
     return { impact, delta, evidence: evidence.slice(0, 800), reason: reason.slice(0, 800) };
 }
 
+function relationshipDiagnostic(npc, next, change, options, reasons = [], unlocks = []) {
+    const event = {
+        impact: change.impact, reason: change.reason, evidence: change.evidence,
+        before: npc.relationship, after: next.relationship, proposed: change.delta,
+        applied: Object.fromEntries(RELATIONSHIP_AXES.map(axis => [axis, (next.relationship?.[axis] || 0) - (npc.relationship?.[axis] || 0)])),
+        progressBefore: npc.relationshipProgress, progressAfter: next.relationshipProgress,
+        reasons, unlocks, sourceMessageId: options.sourceMessageId, turn: options.turn, at: Date.now(),
+    };
+    return { ...next, relationshipDiagnostics: normalizeRelationshipDiagnostics([...(npc.relationshipDiagnostics || []), event]) };
+}
+
 function applyRelationshipChange(npc, patch, options = {}) {
     const caps = options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS;
     const change = relationshipDeltaForPatch(patch, caps);
     if (change.impact === 'none') return npc;
-    if (options.requireCurrentRelationshipEvidence === true && !profileEvidenceGrounded(change.evidence, String(options.relationshipContext || ''))) return npc;
-    if (relationshipChangeLooksDuplicate(npc, change, options)) return npc;
+    if (options.requireCurrentRelationshipEvidence === true) {
+        const rejection = relationshipEvidenceGrounding(change.evidence, options.relationshipContext);
+        if (rejection) return relationshipDiagnostic(npc, npc, change, options, [rejection]);
+    }
+    if (relationshipChangeLooksDuplicate(npc, change, options)) return relationshipDiagnostic(npc, npc, change, options, ['duplicate']);
+    const reasons = [];
 
     const context = String(options.relationshipContext || '').trim();
     const filteredDelta = { ...change.delta };
     if (filteredDelta.desire !== 0) {
         const evidenceSupportsDesire = DESIRE_EVIDENCE_CUES.test(change.evidence) || DESIRE_EVIDENCE_CUES.test(change.reason);
         const narrationSupportsDesire = !context || DESIRE_EVIDENCE_CUES.test(context);
-        if (!evidenceSupportsDesire || !narrationSupportsDesire) filteredDelta.desire = 0;
+        if (!evidenceSupportsDesire || !narrationSupportsDesire) { filteredDelta.desire = 0; reasons.push('desire:unsupported'); }
     }
 
     const axisLimit = relationshipAxisLimit(change.impact);
     const allowedAxes = selectRelationshipAxes(filteredDelta, axisLimit);
+    for (const axis of RELATIONSHIP_AXES) if (filteredDelta[axis] && !allowedAxes.has(axis)) reasons.push(axis + ':axis-limit');
     const next = structuredClone(npc);
     const baseline = normalizeRelationship(next.relationship);
     const priorProgress = normalizeRelationshipProgress(next.relationshipProgress);
@@ -1266,6 +1288,7 @@ function applyRelationshipChange(npc, patch, options = {}) {
             if (lockedBoundary) {
                 if (!relationshipMilestoneEventQualifies({ ...change, delta: filteredDelta }, axis, lockedBoundary, caps)) {
                     accumulated = 0;
+                    reasons.push(axis + ':gate-tier');
                 } else if (!crossings.some(entry => entry.axis === axis && entry.polarity === proposedPolarity && entry.threshold === lockedBoundary)) {
                     crossings.push({ axis, polarity: proposedPolarity, threshold: lockedBoundary });
                 }
@@ -1294,6 +1317,7 @@ function applyRelationshipChange(npc, patch, options = {}) {
                     continue;
                 }
                 blockedAt = threshold;
+                if (!reasons.includes(axis + ':gate-tier')) reasons.push(axis + ':gate-tier');
                 candidate = movementPolarity * threshold;
                 highMagnitude = threshold;
                 break;
@@ -1316,7 +1340,7 @@ function applyRelationshipChange(npc, patch, options = {}) {
         progress[axis] = Number(Math.max(-0.999999, Math.min(0.999999, remainder)).toFixed(6));
     }
 
-    if (!acceptedEvidence) return npc;
+    if (!acceptedEvidence) return relationshipDiagnostic(npc, npc, change, options, reasons);
 
     next.relationship = updated;
     next.relationshipProgress = normalizeRelationshipProgress(progress);
@@ -1328,6 +1352,7 @@ function applyRelationshipChange(npc, patch, options = {}) {
     });
 
     const evidenceEvent = {
+        delta: Object.fromEntries(RELATIONSHIP_AXES.map(axis => [axis, allowedAxes.has(axis) ? filteredDelta[axis] : 0])),
         impact: change.impact,
         evidence: change.evidence,
         reason: change.reason,
@@ -1350,7 +1375,9 @@ function applyRelationshipChange(npc, patch, options = {}) {
     if (summary && relationshipStateChanged && relationshipSummarySupported(summary, next.relationship, next.relationshipMilestones)) {
         next.relationshipSummary = summary.slice(0, 1000);
     }
-    return next;
+    if (progressChanged && !visibleChanged) reasons.push('fractional-progress');
+    if (!reasons.length) reasons.push(relationshipStateChanged ? 'applied' : 'no-visible-change');
+    return relationshipDiagnostic(npc, next, change, options, reasons, crossings);
 }
 function applyLifeState(npc, patch, options = {}) {
     const next = structuredClone(npc);

@@ -26,7 +26,7 @@ assert(normalized.length === 2, 'Object-map appearance forms did not normalize')
 assert(normalized[0].name === 'Human', 'Appearance form label was not preserved');
 assert(normalizeNpc({ name: 'Astra', currentForm: 'beast', appearanceForms: normalized }).currentForm === 'Beast', 'Current form did not canonicalize to stored form label');
 
-// Ordinary non-transforming NPCs retain legacy appearance replacement behavior.
+// In 0.4.3 ordinary non-transforming NPCs remain non-form-aware, but established appearance is durable canon.
 let ordinary = applyScanResult(createEmptyState('ordinary-appearance'), {
     exchangeActiveNpcIds: ['Mira'], inChatNpcIds: ['Mira'], worldActiveNpcIds: [],
     npcs: [{ id: '', name: 'Mira', appearance: 'Auburn hair worn loose.' }], socialEdges: [],
@@ -37,7 +37,7 @@ ordinary = applyScanResult(ordinary, {
     npcs: [{ id: mira.id, name: 'Mira', appearance: 'Auburn hair now tied back.' }], socialEdges: [],
 }, { sourceMessageId: 2, turn: 2, applyReturnedNpcPatches: true }).state;
 mira = ordinary.npcs.find(npc => npc.name === 'Mira');
-assert(mira.appearance === 'Auburn hair now tied back.', 'Form-aware support changed ordinary NPC appearance behavior');
+assert(mira.appearance === 'Auburn hair worn loose.', '0.4.3 durable canon allowed casual ordinary appearance drift');
 assert(!mira.currentForm && !(mira.appearanceForms || []).length, 'Ordinary NPC was unnecessarily made form-aware');
 
 // Multi-form bootstrap stores every grounded form and current form without losing shared appearance.
@@ -128,8 +128,8 @@ assert(refreshPrompt.includes('nearly 10 ft'), 'Targeted Refresh was not shown s
 
 // Foreground injection returns all known forms for a relevant NPC and marks the current one.
 const injection = buildInjection(state, { enabled: true, autoScan: true, inject: true, injectLimit: 6, injectBudgetTokens: 6000 });
-assert(injection.includes('Current form: Beast'), 'Foreground continuity omitted current form');
-assert(injection.includes('Known physical forms:'), 'Foreground continuity omitted form registry');
+assert(!injection.includes('Current form: Beast'), 'Foreground continuity still exposes redundant standalone current form');
+assert(injection.includes('Appearance forms:'), 'Foreground continuity omitted compact form registry');
 assert(injection.includes('Beast [CURRENT]:'), 'Foreground continuity did not mark current form');
 assert(injection.includes('Human:'), 'Foreground continuity omitted inactive known form');
 assert(injection.includes('Demihuman:'), 'Foreground continuity omitted another known form');
@@ -146,6 +146,7 @@ const dossier = file('v03/dossier-view.js');
 assert(ui.includes('Appearance forms · one per line as Form | description'), 'Manual appearance-form editor missing');
 assert(ui.includes('npc_state_v3_edit_current_form'), 'Manual current-form editor missing');
 assert(dossier.includes("block('Appearance forms'"), 'Dossier appearance-form display missing');
-assert(dossier.includes("currentFact('Current form'"), 'Dossier current-form display missing');
+assert(!dossier.includes("currentFact('Current form'"), 'Dossier still exposes redundant standalone current-form card');
+assert(dossier.includes("currentFact('Current appearance'"), 'Dossier resolved current-appearance display missing');
 
 console.log('NPC State 0.4.1 form-aware appearance verification passed');

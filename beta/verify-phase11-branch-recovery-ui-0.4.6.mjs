@@ -29,6 +29,6 @@ assert(index.includes('timeline rebase required'), 'Unsafe-branch warning disapp
 assert(index.includes('Rebase to current chat'), 'Unsafe-branch warning no longer points to the rebase control');
 
 const manifest = JSON.parse(read('manifest.json'));
-assert(manifest.version === '0.4.6', 'Manifest was not bumped to 0.4.6');
+assert(/^0\.4\.(?:[6-9]|[1-9]\d+)$/.test(manifest.version), 'Manifest predates the 0.4.6 branch recovery fix');
 
 console.log('NPC State 0.4.6 branch recovery UI verification passed');

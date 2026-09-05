@@ -8,7 +8,7 @@ source = source.replace(
 );
 const from = "assert(mira.appearance === 'Auburn hair now tied back.', 'Form-aware support changed ordinary NPC appearance behavior');";
 const to = "assert(mira.appearance === 'Auburn hair worn loose.', '0.4.3 durable canon allowed casual ordinary appearance drift');";
-if (!source.includes(from)) throw new Error('Missing legacy ordinary-appearance assertion');
+if (!source.includes(from) && !source.includes(to)) throw new Error('Missing legacy ordinary-appearance assertion');
 source = source.replace(from, to);
 fs.writeFileSync(path, source);
 console.log('Aligned legacy form regression with 0.4.3 durable ordinary appearance canon');

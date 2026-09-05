@@ -43,7 +43,8 @@ for (const needle of ['AGE-LINKED APPEARANCE EVOLUTION', 'ageProgression', 'ordi
 assert(injection.includes('mode age_progression is the narrow inferred exception'), 'Foreground form rules still contradict age progression authority');
 assert(injection.includes('age_progression additionally allowed only for Appearance'), 'Foreground scalar rules still contradict age progression authority');
 assert(injection.includes('Current appearance: ' + resolvedCurrentAppearance(npc)), 'Foreground continuity does not use resolved current appearance');
-assert(injection.includes('Shared / ordinary appearance: ' + npc.appearance), 'Foreground continuity does not expose stored shared/ordinary appearance separately');
+assert(!injection.includes('Shared / ordinary appearance:'), 'Foreground continuity still exposes redundant stored shared/ordinary appearance');
+assert(injection.includes('Appearance forms:'), 'Foreground continuity lost the form registry while compacting appearance');
 
 const refresh = buildTargetedRefreshPrompt({ npc, chat, assistantMessageId: 1 });
 for (const needle of ['AGE-LINKED APPEARANCE EVOLUTION', 'ageProgression', 'ordinary|accelerated|long_lived|ageless|unknown', 'age_progression']) {
@@ -67,7 +68,7 @@ const portrait = buildPortraitCharacterBlock(npc, 'natural');
 const dossier = dossierHtml(npc);
 assert(portrait.includes(resolvedCurrentAppearance(npc)), 'Portrait diverged from shared current-appearance resolver');
 assert(dossier.includes('Current appearance'), 'Dossier missing Current appearance label');
-assert(dossier.includes('Shared / ordinary appearance'), 'Dossier missing Shared / ordinary appearance label');
+assert(!dossier.includes('Shared / ordinary appearance'), 'Dossier still exposes redundant Shared / ordinary appearance label');
 assert(dossier.includes('Appearance forms'), 'Dossier missing Appearance forms registry');
 
 const readme = file('README.md');

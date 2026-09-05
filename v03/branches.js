@@ -109,6 +109,9 @@ export function rebaseToCurrentChat(state, chat = []) {
         }
         if (rebased.lastRelationshipChange) rebased.lastRelationshipChange = { ...rebased.lastRelationshipChange, sourceMessageId: null, turn: null };
         rebased.relationshipHistory = (rebased.relationshipHistory || []).map(event => ({ ...event, sourceMessageId: null, turn: null }));
+        // Recent evidence is timeline-local; retain durable scores/milestones and visible history.
+        rebased.relationshipEvidenceHistory = [];
+        rebased.relationshipDiagnostics = [];
         return rebased;
     });
     next.socialGraph = (next.socialGraph || []).map(edge => ({ ...edge, sourceMessageId: null }));
@@ -226,7 +229,7 @@ function preserveCurrentPresentation(restored, current) {
         for (const field of locked) {
             if (stableFields.has(field)) next[field] = structuredClone(live[field]);
         }
-        // Importance became editor-owned in 0.4.6, so branch history must not undo it.
+        // Importance became editor-owned in 0.4.7, so branch history must not undo it.
         next.importance = Number(live.importance) || 0;
         return next;
     });

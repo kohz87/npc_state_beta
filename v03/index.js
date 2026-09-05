@@ -15,7 +15,7 @@ import {
     normalizePortraitPromptSettings,
 } from './portrait-prompt.js';
 import { createPortraitPromptUi } from './portrait-ui.js';
-import { DEFAULT_BIRTHDAY_RANDOM_CALENDAR, DEFAULT_RELATIONSHIP_CAPS, DOSSIER_LIMIT_DEFAULTS, NPC_STATE_VERSION, normalizeBirthdayFillMode, normalizeDossierLimits, normalizeNpcAdmissionMode } from './schema.js';
+import { DEFAULT_BIRTHDAY_RANDOM_CALENDAR, DEFAULT_RELATIONSHIP_CAPS, DOSSIER_LIMIT_DEFAULTS, NPC_STATE_VERSION, normalizeScannerResponseTokens, normalizeBirthdayFillMode, normalizeDossierLimits, normalizeNpcAdmissionMode } from './schema.js';
 import { runSharedQuietGeneration } from './shared-generation-queue.js';
 import { checkpointStorageBytes } from './branches.js';
 import { createStaleManagementUi } from './stale-ui.js';
@@ -54,6 +54,7 @@ const V3_DEFAULTS = Object.freeze({
     enabled: true,
     autoScan: true,
     scanDepth: 8,
+    scannerResponseTokens: 7000,
     inject: true,
     injectDepth: 1,
     injectLimit: 6,
@@ -99,6 +100,7 @@ function getSettings() {
     if (legacyPositivePrompt !== undefined) settings.portraitPositivePrompt = legacyPositivePrompt;
     if (String(settings.relationshipCriteria || '').trim() === PRE_GATE_RELATIONSHIP_CRITERIA.trim()) settings.relationshipCriteria = DEFAULT_RELATIONSHIP_CRITERIA;
     settings.schemaVersion = SETTINGS_SCHEMA;
+    settings.scannerResponseTokens = normalizeScannerResponseTokens(settings.scannerResponseTokens);
     settings.scanDepth = Math.max(2, Math.min(30, Math.round(Number(settings.scanDepth) || 8)));
     settings.newNpcAdmissionMode = normalizeNpcAdmissionMode(settings.newNpcAdmissionMode);
     settings.birthdayFillMode = normalizeBirthdayFillMode(settings.birthdayFillMode);

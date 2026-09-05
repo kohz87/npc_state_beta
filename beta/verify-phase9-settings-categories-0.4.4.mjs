@@ -10,8 +10,8 @@ const manifest = JSON.parse(read('manifest.json'));
 const readme = read('README.md');
 const changelog = read('CHANGELOG.md');
 
-assert(manifest.version === '0.4.4', 'Manifest was not bumped to 0.4.4');
-assert(ui.includes('NPC State <span class="npc-state-version">0.4.4</span>'), 'Settings header does not show v0.4.4');
+assert(/^0\.4\.(?:[4-9]|[1-9]\d+)$/.test(manifest.version), 'Manifest is older than the v0.4.4 settings release');
+assert(ui.includes('NPC State <span class="npc-state-version">' + manifest.version + '</span>'), 'Settings header does not match current manifest version');
 assert(layout.includes('categorized responsive settings layout coordinator'), 'Categorized settings coordinator missing');
 
 const categories = [
@@ -56,7 +56,7 @@ assert(css.includes('.npc-state-v3-category-row[hidden]{display:none!important}'
 assert(layout.includes('[tracking, injection, birthday, evolution, recovery, scanner, maintenance, portrait, actions, cast]'), 'Settings category/action order drifted');
 assert(layout.includes("legacyGrid && legacyGrid.children.length === 0"), 'Empty legacy tracking grid is not removed');
 
-assert(readme.startsWith('# NPC State Beta 0.4.4'), 'README version header was not bumped');
+assert(readme.startsWith('# NPC State Beta ' + manifest.version), 'README version header does not match current manifest version');
 assert(readme.includes('## Settings organization') && readme.includes('Tracking') && readme.includes('Birthday controls are progressive'), 'README settings organization documentation missing');
 assert(changelog.includes('## v0.4.4') && changelog.includes('semantic collapsible categories'), 'v0.4.4 changelog entry missing');
 const birthdayBullet = '- Adds optional passive Birthday continuity metadata with durable evidence-backed correction';

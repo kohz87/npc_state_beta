@@ -31,7 +31,7 @@ function stateWithTrust(value, milestones = []) {
     return state;
 }
 
-function applyTrust(state, { impact, delta, sourceMessageId = 2, evidence = 'Fresh grounded trust evidence.', reason = 'Current exchange changes trust.' }) {
+function applyTrust(state, { impact, delta, sourceMessageId = 2, evidence = ({2: 'Mira receives a map during the blizzard.', 3: 'Lucien returns her stolen ancestral heirloom.', 4: 'They survive a dangerous rescue on the mountain.'})[sourceMessageId], reason = 'Current exchange changes trust.' }) {
     return applyScanResult(state, {
         exchangeActiveNpcIds: ['npc-mira-test'],
         inChatNpcIds: ['npc-mira-test'],
@@ -82,7 +82,7 @@ assert(!relationshipMilestoneUnlocked(mira(state).relationshipMilestones, 'trust
 state = applyTrust(state, { impact: 'major', delta: 2, sourceMessageId: 3 });
 assert(mira(state).relationship.trust === 50, 'Major event below 50 raw requirement passed gate');
 state = applyTrust(state, { impact: 'major', delta: 3, sourceMessageId: 4 });
-assert(mira(state).relationship.trust === 53, 'Qualifying major event did not cross 50 gate');
+assert(mira(state).relationship.trust === 51, 'Qualifying major event did not cross 50 gate');
 assert(relationshipMilestoneUnlocked(mira(state).relationshipMilestones, 'trust', 1, 50), '50 gate unlock was not persisted');
 
 // 75: extreme with >=5 raw points.
@@ -90,7 +90,7 @@ state = stateWithTrust(74, [milestone('trust', 1, 25), milestone('trust', 1, 50)
 state = applyTrust(state, { impact: 'major', delta: 5 });
 assert(mira(state).relationship.trust === 75, 'Major event passed locked 75 gate');
 state = applyTrust(state, { impact: 'extreme', delta: 5, sourceMessageId: 3 });
-assert(mira(state).relationship.trust === 80, 'Qualifying extreme event did not cross 75 gate');
+assert(mira(state).relationship.trust === 76, 'Qualifying extreme event did not cross 75 gate');
 assert(relationshipMilestoneUnlocked(mira(state).relationshipMilestones, 'trust', 1, 75), '75 gate unlock was not persisted');
 
 // 90: extreme requires >=8 raw points, not merely the extreme label.
@@ -101,13 +101,13 @@ assert(!relationshipMilestoneUnlocked(mira(state).relationshipMilestones, 'trust
 state = applyTrust(state, { impact: 'extreme', delta: 7, sourceMessageId: 3 });
 assert(mira(state).relationship.trust === 90, 'Extreme event below 8 raw points crossed 90');
 state = applyTrust(state, { impact: 'extreme', delta: 8, sourceMessageId: 4 });
-assert(mira(state).relationship.trust === 98, 'Qualifying relationship-defining event did not cross 90');
+assert(mira(state).relationship.trust === 91, 'Qualifying relationship-defining event did not cross 90');
 assert(relationshipMilestoneUnlocked(mira(state).relationshipMilestones, 'trust', 1, 90), '90 gate unlock was not persisted');
 
 // Movement toward neutral is never checkpoint-blocked.
 state = stateWithTrust(50, [milestone('trust', 1, 25)]);
 state = applyTrust(state, { impact: 'ordinary', delta: -1 });
-assert(mira(state).relationship.trust === 49, 'Movement toward neutral was incorrectly gate-blocked');
+assert(mira(state).relationship.trust === 50 && mira(state).relationshipProgress.trust === -0.7, 'Movement toward neutral did not retain inertia-weighted evidence');
 
 // Positive and negative directions have separate gates.
 state = stateWithTrust(-25, []);
@@ -140,7 +140,7 @@ assert(injection.includes('50 requires major-or-stronger'), 'Foreground 50 gate 
 assert(!injection.includes('relationshipMilestones'), 'Private milestone unlock state leaked into foreground injection');
 
 const engine = file('v03/engine.js');
-assert(engine.includes('normalizeRelationshipMilestones(current.relationshipMilestones, after, { inferFromRelationship: true, includeBoundary: true })'), 'Manual relationship edits do not infer established milestones');
+assert(engine.includes('changedAxes.includes(entry.axis)'), 'Manual relationship milestones are not limited to changed axes');
 const index = file('v03/index.js');
 assert(index.includes('PRE_GATE_RELATIONSHIP_CRITERIA'), 'Exact stock rubric migration marker missing');
 assert(index.includes('RELATIONSHIP MILESTONES: outward depth is gated'), 'Default gated relationship rubric missing');
