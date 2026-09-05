@@ -51,20 +51,11 @@ function shortActivityIdentityUnique(state, npc, candidate) {
             shortActivityIdentityTokens(value).some(token => normalizeName(token) === key));
     });
 }
-function regexEscape(value) {
-    return String(value || '').replace(/[.*+?^\\${}()|[\\]\\\\]/g, '\\\\$&');
-}
 function visibleIdentityTokenMention(text, candidate) {
-    const source = String(text || '');
     const clean = String(candidate || '').trim();
-    if (!source || !clean) return false;
-    const pattern = new RegExp('(?:^|[^\\\\p{L}\\\\p{N}])(' + regexEscape(clean) + ')(?=$|[^\\\\p{L}\\\\p{N}])', 'gu');
+    if (!clean) return false;
     const upper = clean.toLocaleUpperCase();
-    for (const match of source.matchAll(pattern)) {
-        const observed = String(match?.[1] || '');
-        if (observed === clean || observed === upper) return true;
-    }
-    return false;
+    return shortActivityIdentityTokens(text).some(observed => observed === clean || observed === upper);
 }
 function visibleShortActivityIdentityMention(state, npc, visibleText = '') {
     for (const candidate of shortActivityIdentityCandidates(npc)) {
