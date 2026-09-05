@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.26
+# NPC State Beta 0.4.27
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -7,7 +7,7 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 - Normal turns use the same foreground RP inference for NPC State capture. No mandatory second scanner request.
 - The model emits one hidden `<npc_state_v1>...</npc_state_v1>` observation block; NPC State validates it, applies deterministic state rules, stores per-message/per-swipe metadata, and strips the transport from chat.
 - With current Inventory Block transports, NPC State yields the terminal position: the NPC payload comes first and Inventory keeps its own final `INVENTORY_BLOCK_V05` / legacy `INVENTORY_BLOCK_UPDATE` control.
-- `present` remains the internal v0.3-compatible storage field, but its v0.4.26 meaning is **in chat**: individually relevant NPC participants at exchange end, not everyone physically nearby.
+- `present` remains the internal v0.3-compatible storage field, but its v0.4.27 meaning is **in chat**: individually relevant NPC participants at exchange end, not everyone physically nearby.
 - New NPCs use the same full semantic scan and receive all grounded foundational information established by the exchange. Unknown biography stays unknown.
 - The full separate v0.3-style scanner is retained as a contingency for manual Scan current cast, dossier Refresh, timeline rebase, edited/untracked branch recovery, and optional foreground failure fallback.
 - When embedded capture is enabled, a completely missing `<npc_state_v1>` block automatically triggers one recovery scan. Recovery for a malformed block remains separately optional/configurable.
@@ -51,7 +51,7 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 
 ## Testing beside stable NPC State
 
-Disable the stable NPC State extension while exercising this beta. Stable may remain installed and its settings/data remain untouched. On first load for a chat with no beta sidecar, 0.4.26 clones the stable v0.3 sidecar into a beta-owned sidecar and then diverges independently.
+Disable the stable NPC State extension while exercising this beta. Stable may remain installed and its settings/data remain untouched. On first load for a chat with no beta sidecar, 0.4.27 clones the stable v0.3 sidecar into a beta-owned sidecar and then diverges independently.
 
 ## Scanner output and relationship diagnostics
 
@@ -64,6 +64,13 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - v0.4.18 requires an explicit relationship evaluation for every exchange-active NPC. A scanner may still correctly decide that an ordinary interaction causes no relationship movement, but it must say so instead of silently omitting the relationship channel.
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
+
+## Source-agnostic identity and presence grounding
+
+- Current visible narrative is the primary source for new-NPC identity and scene participation. The scanner may bind indirect descriptions, pronouns, scene continuity, and earlier named references semantically, while runtime verifies quoted current-visible provenance instead of adding keyword/role classifiers.
+- New-NPC proposals may carry `identityEvidence`; activity claims may carry per-channel `activityEvidence` for exchange-active, in-chat, and world-active classification. These fields are transient scan evidence and do not rewrite saved dossier schema.
+- Megumin-style `World_State` is optional corroboration only. When present, NPCs Present and Off-Screen sections are separated so a present NPC cannot be accepted as world-active merely because their name appears somewhere in World_State. A public short-name anchor may be enriched to a unique compatible structured full name, but structured-only names still cannot create dossiers.
+- In-chat and world-active are mutually exclusive final states. When a malformed scan claims both for one NPC and current-visible evidence supports in-chat, in-chat wins. Existing score, relationship, family, history, and progression mechanics are unchanged.
 
 ## General kinship projection
 
@@ -91,7 +98,7 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 
 ## Relationship judgment calibration
 
-- v0.4.26 applies one shared relationship-judgment rubric to foreground capture and the full recovery/current-cast scanner. It distinguishes genuinely new change from continuity, binds reactions to the correct NPC and player target, supports contextual/indirect evidence without keyword gating, evaluates axes independently, weighs ambiguity without freezing, and considers mixed chronology before proposing a net change.
+- v0.4.27 applies one shared relationship-judgment rubric to foreground capture and the full recovery/current-cast scanner. It distinguishes genuinely new change from continuity, binds reactions to the correct NPC and player target, supports contextual/indirect evidence without keyword gating, evaluates axes independently, weighs ambiguity without freezing, and considers mixed chronology before proposing a net change.
 - Impact caps remain maxima rather than targets. The model is instructed to choose modest raw deltas from strength, significance, and novelty, while runtime continues to apply caps, priority/axis limits, duplicate protection, inertia, fractional progress, and milestone gates exactly as before.
 - Per-axis explanations remain concise and evidence-backed. Exact quotations still come only from permitted current-exchange relationship evidence; older context can inform interpretation but never becomes fresh evidence.
 - Relationship criteria in settings are additive campaign calibration. The shared rubric and deterministic evidence/mechanics contract always remain in force. Existing user-edited criteria are preserved; only the exact previous built-in default is migrated to the shorter additive default.

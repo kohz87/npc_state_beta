@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.27
+
+- Makes new-NPC identity and presence grounding source-agnostic: plain visible narrative is sufficient, with exact current-visible identity/activity evidence available for indirect semantic binding.
+- Separates Megumin World_State NPCs Present and Off-Screen corroboration so names listed as present cannot be accepted as off-screen world activity merely because they occur somewhere in the structured block.
+- Allows a publicly grounded short proper-name anchor to enrich to one unique compatible World_State canonical name while continuing to reject structured-only identities, ambiguous anchors, private-only references, and unsupported surnames.
+- Makes in-chat and world-active mutually exclusive final states, preserves the v0.4.24 short-name bridge, and leaves relationship scoring/progression, family projection, saved state, and historical scores unchanged.
+
 ## v0.4.26
 
 - Generalizes named family projection beyond child/parent facts to direct siblings, aunts/uncles, nieces/nephews, cousins, grandparents/grandchildren, spouses, guardians/wards, and common in-law ties.

@@ -1,5 +1,5 @@
 import { relationshipEvidenceExcerptMatch } from './relationship-evidence.js';
-import { evidenceReferenceScope, hasRecognizedStructuredBlocks, scannerEvidenceText, structuredEvidencePromptRules } from './evidence-adapter.js';
+import { evidenceReferenceScope, hasRecognizedStructuredBlocks, identityPresencePromptRules, scannerEvidenceText, structuredEvidencePromptRules } from './evidence-adapter.js';
 import { appearanceFormDescription, appearanceScalarIsLegacyBase } from './appearance.js';
 import { AGE_PROGRESSION_MODE, ageProgressionAppearanceSafe, apparentAgeProgressionAllowed, authorizeAgeProgression, progressionEvidence, sharedAgeProgressionAllowed } from './age-progression.js';
 import { relationshipCustomCriteriaPrompt, relationshipJudgmentRubricPrompt, relationshipMechanicsPrompt } from './relationship-policy.js';
@@ -209,7 +209,7 @@ function dossierCollectionRules(limits) {
 
 export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', relationshipCaps = DEFAULT_RELATIONSHIP_CAPS, memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State v0.4.26 recovery scanner requires an assistant message and its preceding user exchange.');
+    if (!exchange) throw new Error('NPC State v0.4.27 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
@@ -222,6 +222,8 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
             id: 'existing id when known, otherwise empty',
             name: 'human-facing canonical proper name when known; readable role label only if genuinely unnamed; never npc-*',
             identityKind: 'named|role-label',
+            identityEvidence: { anchor: 'proper-name or unique-role anchor from current visible narrative', excerpts: ['1-3 exact CURRENT VISIBLE quotations'], explanation: 'brief contextual identity binding' },
+            activityEvidence: { exchangeActive: { excerpts: ['1-3 exact CURRENT VISIBLE quotations'], explanation: 'why this NPC is exchange-active' }, inChat: { excerpts: ['1-3 exact CURRENT VISIBLE quotations'], explanation: 'why this NPC remains in-chat at the end' }, worldActive: { excerpts: ['1-3 exact CURRENT VISIBLE quotations'], explanation: 'why this NPC is explicitly active off-screen' } },
             aliases: [], role: '', species: '', age: 'initial actual chronological numeric age only, or same-value refinement; use ageChange for an established age changing', ageChange: { age: 'new actual chronological age', kind: 'birthday|elapsed|correction', evidence: 'explicit grounded age-change evidence that states the new age' }, ageProgression: { maturation: 'ordinary|accelerated|long_lived|ageless|unknown', meaningful: false, basis: 'why this maturation behavior applies', evidence: 'grounded accepted age-transition evidence', affectsShared: false, affectedForms: [] }, apparentAge: '~N only, e.g. ~25, or empty', birthday: 'explicit compact freeform calendar birthday or empty; never infer from age', appearance: 'shared/common appearance, or ordinary single-form appearance', currentForm: 'current named physical form or empty', appearanceForms: [{ name: 'newly established physical form', appearance: 'durable canonical appearance for this form' }], appearanceFormChanges: [{ name: 'existing form explicitly corrected/changed', appearance: 'replacement canonical appearance', mode: 'change|age_progression', evidence: 'explicit correction/growth/change or accepted age-transition evidence' }], personality: '',
             behaviorProfile: [], speech: '', mannerisms: [], keyRelationshipChanges: [{ other: 'existing NPC name/id', action: 'remove', evidence: 'explicit evidence the durable tie no longer applies' }], profileChanges: [{ field: 'personality|behaviorProfile|speech|mannerisms', mode: 'refine|gradual|explicit|batch', concept: 'short stable concept label', evidence: 'grounded evidence for this durable profile update' }], canonChanges: [{ field: 'appearance|species|background|role|birthday', mode: 'refine|change|correction|revelation|age_progression', value: 'replacement durable canon', evidence: 'grounded evidence for this durable scalar revision' }], background: '', keyRelationships: [], memories: [],
             relationshipSummary: 'NPC relationship with PLAYER only', mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0,
@@ -232,7 +234,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         familyFacts: [{ owner: 'existing NPC id/name', relation: 'family/kinship role, e.g. daughter|parent|sister|brother|aunt|uncle|niece|nephew|cousin|grandparent|grandchild|spouse|guardian|ward|in-law', count: 2, members: ['explicitly named members from visible evidence; [] when unnamed'], descriptor: 'optional family detail e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit family/kinship fact' }],
     };
     return [
-        'You are NPC State v0.4.26, a private structured continuity scanner for a roleplay chat.',
+        'You are NPC State v0.4.27, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
         '',
         `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
@@ -245,6 +247,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- status is the NPC current concrete activity, immediate situation, or condition: what they are doing or undergoing now, for example standing watch at the gate, bandaging a wound, travelling toward Bluewatch, or asleep by the hearth. It is NOT lifecycle presence. Never use active, inactive, in chat, off-screen, present, archived, or equivalent lifecycle labels as status; those are tracked separately.',
         '- Every new NPC referenced by those arrays must also have one npcs entry so identity can be created safely.',
         admissionPromptRule(admissionMode),
+        ...identityPresencePromptRules(),
         '- For NEW NPC identity: if a proper/personal name is established anywhere in the current exchange, npcs.name MUST be that canonical name and nothing else. npcs.name is human-facing display text and MUST NEVER be an npc-* identifier, slug, key, or machine label, and MUST NEVER begin with npc-. Put occupation/function such as Clerk, Guard, Innkeeper, or Receptionist in role, not in name. Use a human-readable unique role label as name only while the NPC is genuinely unnamed. Always return id as an empty string for a new NPC; NPC State assigns the stable id locally. Never invent an npc-* id.',
         '- For a NEW NPC, behaviorProfile, mannerisms, keyRelationships, and memories are bootstrap collections: return arrays containing all grounded entries established by the CURRENT exchange; use [] only when none are supported. Do not use null for those four fields on a new NPC. A first scene can establish behavior or mannerisms when the text explicitly describes or clearly demonstrates a characteristic pattern, gesture, habit, or social tendency; prior sightings are not required.',
         '- A single scan may introduce MULTIPLE new individually relevant NPCs. Do not stop after the first. Return one separate npcs object for every such NPC. For every NEW NPC use id as an empty string; never invent a stable ID. Reference each new NPC in exchangeActiveNpcIds, inChatNpcIds, or worldActiveNpcIds by the exact canonical name or unique role label that appears in its npcs object. Do not add new npcs entries for named-only mentions, crowds, background workers, incidental guards, or other non-individually-relevant characters.',
@@ -314,7 +317,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         body: compactText(block?.body, 12000),
     }));
     return [
-        'You are NPC State v0.4.26 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
+        'You are NPC State v0.4.27 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
         'Return JSON only. This is reference-data reconciliation, NOT a current scene/event scan.',
         'Only the supplied Megumin New_NPC / NPC_Update blocks are authoritative sources for this operation.',
         'TARGET DOSSIER: ' + JSON.stringify(rosterForPrompt({ npcs: [npc] })[0]),
@@ -353,7 +356,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State v0.4.26 performing a targeted dossier reconciliation.',
+        'You are NPC State v0.4.27 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
@@ -404,7 +407,7 @@ function scannerNpcArrayValid(value) {
     });
 }
 function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupplemental = false } = {}) {
-    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.26 recovery scanner JSON must be an object.');
+    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.27 recovery scanner JSON must be an object.');
     const has = key => Object.prototype.hasOwnProperty.call(parsed, key);
     const presentKey = has('inChatNpcIds') ? 'inChatNpcIds' : (has('finalPresentNpcIds') ? 'finalPresentNpcIds' : '');
     if (requireContract) {
@@ -415,7 +418,7 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
         if (!scannerNpcArrayValid(parsed.npcs)) invalid.push('npcs[object-with-string-identity]');
         if ((!allowOmittedSupplemental || has('socialEdges')) && !scannerObjectArrayValid(parsed.socialEdges)) invalid.push('socialEdges[object]');
         if (has('familyFacts') && !scannerObjectArrayValid(parsed.familyFacts)) invalid.push('familyFacts[object]');
-        if (invalid.length) throw new Error('NPC State v0.4.26 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
+        if (invalid.length) throw new Error('NPC State v0.4.27 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
     }
     return {
         exchangeActiveNpcIds: uniqueStrings(parsed.exchangeActiveNpcIds),
@@ -429,14 +432,14 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
 
 export function parseScanJson(raw) {
     const text = String(raw ?? '').trim();
-    if (!text) throw new Error('NPC State v0.4.26 recovery scanner returned an empty response.');
+    if (!text) throw new Error('NPC State v0.4.27 recovery scanner returned an empty response.');
     const unfenced = text.replace(/^\x60\x60\x60(?:json)?\s*/i, '').replace(/\s*\x60\x60\x60$/i, '').trim();
     const first = unfenced.indexOf('{');
     const last = unfenced.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('NPC State v0.4.26 recovery scanner returned no JSON object.');
+    if (first < 0 || last <= first) throw new Error('NPC State v0.4.27 recovery scanner returned no JSON object.');
     let parsed;
     try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
-    catch (error) { throw new Error('NPC State v0.4.26 recovery scanner returned malformed JSON: ' + error.message); }
+    catch (error) { throw new Error('NPC State v0.4.27 recovery scanner returned malformed JSON: ' + error.message); }
     return normalizeScanPayload(parsed, { requireContract: true });
 }
 
@@ -525,7 +528,7 @@ function preflightAutomaticIdentityPatches(state, patches = [], referenceCandida
                 // handled by automaticIdentityPatchConflicts() as a local patch rejection.
                 // A newly claimed key is a same-observation conflict and invalidates the payload.
                 if (!initialIdentityKeys.has(key)) {
-                    throw new Error('NPC State v0.4.26 scanner identity collision inside one observation: ' + value + '.');
+                    throw new Error('NPC State v0.4.27 scanner identity collision inside one observation: ' + value + '.');
                 }
             }
         }
@@ -2044,25 +2047,132 @@ function restrictedEvidenceScope(state, patch, policy) {
     const existing = patchId ? state.npcs.find(npc => npc.id === patchId) : findNpcByReference(state, patch?.name || '');
     return evidenceReferenceScope(policy, npcEvidenceVariants(existing, patch));
 }
-function referenceAllowedForActivity(state, reference, policy) {
-    if (!policy?.detected) return true;
+function referenceAllowedForActivity(state, reference, policy, channel = 'exchangeActive', patches = [], currentAdmissionText = '') {
     const npc = findNpcByReference(state, reference);
-    const exactScope = evidenceReferenceScope(policy, npc ? npcEvidenceVariants(npc) : [reference]);
-    const shortScope = npc ? shortActivityIdentityScope(state, npc, policy) : '';
-    // A unique short identity in public narrative can recover a full canonical identity even
-    // when World_State/private/reference material contains the full name. Conversely, a short
-    // identity found only inside structured material must not turn an otherwise unmentioned
-    // scanner claim into public activity evidence.
-    if (exactScope === 'visible' || shortScope === 'visible') return true;
-    const scope = exactScope === 'unmentioned' && shortScope ? shortScope : exactScope;
-    if (!['world', 'inner', 'excluded'].includes(scope)) return true;
-    return npc?.present === true;
+    const patch = activityPatchForReference(state, reference, patches);
+    const visible = currentVisibleEvidenceText(policy, currentAdmissionText);
+    const variants = npc ? npcEvidenceVariants(npc, patch) : [reference, patch?.name, ...(Array.isArray(patch?.aliases) ? patch.aliases : [])].filter(Boolean);
+    const sections = structuredReferenceSections(policy, variants);
+    // A final structured Off-Screen placement contradicts inChat at the end, but it does not
+    // erase exchangeActive participation that may have occurred earlier in the same exchange.
+    if (channel === 'inChat' && sections.offscreen && !sections.present) return false;
+    if (patch && activityEvidenceVerified(patch, channel, visible)) return true;
+    // A valid nonzero relationship proposal already carries exact CURRENT-visible evidence.
+    // Let that evidence prove exchange participation as well so identity/presence hardening
+    // cannot suppress otherwise-valid relationship scoring merely because an older model or
+    // deterministic fixture omitted the newer activityEvidence field.
+    if (channel === 'exchangeActive' && patch && relationshipChangeCurrentEvidenceVerified(patch, visible)) return true;
+    // Preserve v0.4.20 diagnostic observability for an already-present established NPC:
+    // a malformed nonzero proposal must reach relationshipDeltaForPatch so it can be
+    // rejected with precise reasons such as missing-axis-evidence. This fallback cannot
+    // create a new NPC, cannot establish final presence, and cannot authorize movement.
+    const hasRawRelationshipProposal = patch?.relationshipChange?.evaluated === true
+        && RELATIONSHIP_AXES.some(axis => Number(patch?.relationshipChange?.delta?.[axis]) !== 0);
+    if (channel === 'exchangeActive' && npc?.present === true && hasRawRelationshipProposal) return true;
+    const exactVisible = variants.some(value => containsNormalizedPhrase(visible, value));
+    const shortVisible = npc ? visibleShortActivityIdentityMention(state, npc, visible) : false;
+    if (exactVisible || shortVisible) return true;
+    // Production always supplies current visible text. Keep empty-context direct callers
+    // backward-compatible without weakening real chat provenance checks.
+    return !visible && !policy?.detected;
 }
-function referenceAllowedForWorldActivity(state, reference, policy) {
-    if (!policy?.detected) return true;
+function referenceAllowedForWorldActivity(state, reference, policy, patches = [], currentAdmissionText = '') {
     const npc = findNpcByReference(state, reference);
-    const scope = evidenceReferenceScope(policy, npc ? npcEvidenceVariants(npc) : [reference]);
-    return scope === 'visible' || scope === 'world';
+    const patch = activityPatchForReference(state, reference, patches);
+    const visible = currentVisibleEvidenceText(policy, currentAdmissionText);
+    const variants = npc ? npcEvidenceVariants(npc, patch) : [reference, patch?.name, ...(Array.isArray(patch?.aliases) ? patch.aliases : [])].filter(Boolean);
+    const sections = structuredReferenceSections(policy, variants);
+    // Structured final placement is authoritative only as a structural section invariant:
+    // Present must not become world-active merely because the name exists in World_State.
+    if (sections.present && !sections.offscreen) return false;
+    if (sections.offscreen) return true;
+    // Pre-sectioned World_State formats historically used the whole block as explicit
+    // off-screen live-state context. Preserve that compatibility only when no Present or
+    // Off-Screen placement section exists anywhere in the current World_State.
+    if (sections.legacyWorld) return true;
+    if (patch && activityEvidenceVerified(patch, 'worldActive', visible)) return true;
+    const exactVisible = variants.some(value => containsNormalizedPhrase(visible, value));
+    const shortVisible = npc ? visibleShortActivityIdentityMention(state, npc, visible) : false;
+    if (exactVisible || shortVisible) return true;
+    return !visible && !policy?.detected;
+}
+function identityEvidenceRecord(patch) {
+    const raw = patch?.identityEvidence;
+    return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : null;
+}
+function currentVisibleEvidenceText(policy, currentAdmissionText = '') {
+    return String(policy?.visibleText || currentAdmissionText || '').trim();
+}
+function currentVisibleExcerptSources(visibleText = '') {
+    const text = String(visibleText || '').trim();
+    return text ? [{ id: 'current-visible', kind: 'visible', text }] : [];
+}
+function verifiedCurrentVisibleExcerpts(record, visibleText = '') {
+    const excerpts = Array.isArray(record?.excerpts) ? record.excerpts.map(value => String(value || '').trim()).filter(Boolean) : [];
+    if (!excerpts.length || excerpts.length > 3) return false;
+    const sources = currentVisibleExcerptSources(visibleText);
+    return Boolean(sources.length && excerpts.every(excerpt => relationshipEvidenceExcerptMatch(excerpt, sources)));
+}
+function identityEvidenceVerified(patch, policy, currentAdmissionText = '') {
+    const record = identityEvidenceRecord(patch);
+    if (!record) return null;
+    const anchor = humanIdentityCandidate(record.anchor, patch?.role);
+    const explanation = String(record.explanation || '').trim();
+    const canonicalName = canonicalPatchName(patch, []);
+    const visible = currentVisibleEvidenceText(policy, currentAdmissionText);
+    if (!anchor || !explanation || !canonicalName || !visible) return null;
+    if (!containsNormalizedPhrase(canonicalName, anchor) && normalizeName(canonicalName) !== normalizeName(anchor)) return null;
+    if (!containsNormalizedPhrase(visible, anchor)) return null;
+    if (!verifiedCurrentVisibleExcerpts(record, visible)) return null;
+    return { anchor, explanation };
+}
+function activityEvidenceVerified(patch, channel, visibleText = '') {
+    const activity = patch?.activityEvidence;
+    if (!activity || typeof activity !== 'object' || Array.isArray(activity)) return false;
+    const record = activity?.[channel];
+    return Boolean(record && typeof record === 'object' && !Array.isArray(record) && verifiedCurrentVisibleExcerpts(record, visibleText));
+}
+function relationshipChangeCurrentEvidenceVerified(patch, visibleText = '') {
+    const change = patch?.relationshipChange;
+    if (!change || typeof change !== 'object' || Array.isArray(change)) return false;
+    for (const axis of RELATIONSHIP_AXES) {
+        if (!Number(change?.delta?.[axis])) continue;
+        const record = change?.axisEvidence?.[axis];
+        if (record && verifiedCurrentVisibleExcerpts(record, visibleText)) return true;
+    }
+    return false;
+}
+function activityPatchForReference(state, reference, patches = []) {
+    const direct = (Array.isArray(patches) ? patches : []).find(item => patchReferenceMatches(item, reference));
+    if (direct) return direct;
+    const npc = findNpcByReference(state, reference);
+    if (!npc) return null;
+    return (Array.isArray(patches) ? patches : []).find(item => String(item?.id || '').trim() === npc.id || patchReferenceMatches(item, npc.name)) || null;
+}
+function structuredReferenceSections(policy, variants = []) {
+    const values = [...new Set((Array.isArray(variants) ? variants : [variants]).map(value => String(value || '').trim()).filter(Boolean))];
+    const present = values.some(value => containsNormalizedPhrase(policy?.worldPresentText || '', value));
+    const offscreen = values.some(value => containsNormalizedPhrase(policy?.worldOffscreenText || '', value));
+    const hasPlacementSections = Boolean(String(policy?.worldPresentText || '').trim() || String(policy?.worldOffscreenText || '').trim());
+    const legacyWorld = !hasPlacementSections && values.some(value => containsNormalizedPhrase(policy?.worldStateText || '', value));
+    return { present, offscreen, legacyWorld };
+}
+function identityAnchorUnique(state, patch, anchor, patches = []) {
+    const key = normalizeName(anchor);
+    if (!key) return false;
+    const owners = new Set();
+    for (const npc of state?.npcs || []) {
+        for (const label of [npc?.name, ...(Array.isArray(npc?.aliases) ? npc.aliases : [])]) {
+            if (containsNormalizedPhrase(label, anchor)) owners.add('npc:' + npc.id);
+        }
+    }
+    for (const candidate of Array.isArray(patches) ? patches : []) {
+        const name = canonicalPatchName(candidate, []);
+        if (!name || !containsNormalizedPhrase(name, anchor)) continue;
+        owners.add('patch:' + normalizeName(name));
+    }
+    const target = 'patch:' + normalizeName(canonicalPatchName(patch, []));
+    return owners.size === 1 && owners.has(target);
 }
 function newPatchMentionedInCurrentExchange(patch, currentAdmissionText = '') {
     const source = String(currentAdmissionText || '').trim();
@@ -2115,32 +2225,43 @@ function visibleRoleIntroductionForPatch(patch, visibleText = '') {
     }
     return false;
 }
-function worldStateIdentityBridgesVisibleIntroduction(patch, policy, currentAdmissionText = '') {
+function worldStateIdentityBridgesVisibleIntroduction(state, patch, policy, currentAdmissionText = '', patches = []) {
     if (!policy?.detected) return false;
     const canonicalName = canonicalPatchName(patch, []);
     if (!canonicalName || looksLikeRoleLabel(canonicalName, patch?.role)) return false;
-    if (!containsNormalizedPhrase(policy.worldStateText || '', canonicalName)) return false;
-    const visible = String(currentAdmissionText || policy.visibleText || '').trim();
+    const structuredCanonical = containsNormalizedPhrase(policy.worldPresentText || '', canonicalName)
+        || containsNormalizedPhrase(policy.worldOffscreenText || '', canonicalName);
+    if (!structuredCanonical) return false;
+    const visible = currentVisibleEvidenceText(policy, currentAdmissionText);
+    const identity = identityEvidenceVerified(patch, policy, currentAdmissionText);
+    if (identity && identityAnchorUnique(state, patch, identity.anchor, patches)) return true;
+    // Preserve the older role bridge as a compatibility fallback, but only for explicit
+    // Present/Off-Screen sections rather than any arbitrary World_State occurrence.
     return visibleRoleIntroductionForPatch(patch, visible);
 }
-function newPatchAllowedByEvidence(state, patch, policy, currentAdmissionText = '') {
+function newPatchAllowedByEvidence(state, patch, policy, currentAdmissionText = '', patches = []) {
     if (findNpcByReference(state, patch?.name || '')) return true;
-    const directlyMentioned = newPatchMentionedInCurrentExchange(patch, currentAdmissionText);
-    if (!policy?.detected) return directlyMentioned;
+    const visible = currentVisibleEvidenceText(policy, currentAdmissionText);
+    const directlyMentioned = newPatchMentionedInCurrentExchange(patch, visible);
+    if (directlyMentioned) return true;
     const scope = restrictedEvidenceScope(state, patch, policy);
     if (scope === 'inner' || scope === 'excluded') return false;
-    if (scope === 'world') return worldStateIdentityBridgesVisibleIntroduction(patch, policy, currentAdmissionText);
-    return directlyMentioned;
+    if (scope === 'world') return worldStateIdentityBridgesVisibleIntroduction(state, patch, policy, visible, patches);
+    return false;
 }
-function newReferenceAllowedByWorldIdentityBridge(state, reference, patches, policy, currentAdmissionText = '') {
-    if (!policy?.detected) return false;
+function newReferenceAllowedByWorldIdentityBridge(state, reference, patches, policy, currentAdmissionText = '', channel = 'exchangeActive') {
     const patch = (Array.isArray(patches) ? patches : []).find(item => patchReferenceMatches(item, reference));
     if (!patch) return false;
     const patchId = String(patch?.id || '').trim();
     if (patchId && state.npcs.some(item => item.id === patchId)) return false;
     const canonicalName = canonicalPatchName(patch, [reference]);
     if (!canonicalName || findNpcByReference(state, canonicalName)) return false;
-    return worldStateIdentityBridgesVisibleIntroduction(patch, policy, currentAdmissionText);
+    if (!newPatchAllowedByEvidence(state, patch, policy, currentAdmissionText, patches)) return false;
+    const visible = currentVisibleEvidenceText(policy, currentAdmissionText);
+    if (activityEvidenceVerified(patch, channel, visible)) return true;
+    if (containsNormalizedPhrase(visible, canonicalName)) return true;
+    if (identityEvidenceVerified(patch, policy, currentAdmissionText)) return true;
+    return visibleRoleIntroductionForPatch(patch, visible);
 }
 
 const ROLE_LABEL_MODIFIERS = new Set([
@@ -2211,10 +2332,10 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
 
     const evidencePolicy = options.evidencePolicy && typeof options.evidencePolicy === 'object' ? options.evidencePolicy : null;
     const currentAdmissionText = String(options.currentAdmissionText || '').trim();
-    const newActivityBridge = ref => newReferenceAllowedByWorldIdentityBridge(state, ref, result.npcs, evidencePolicy, currentAdmissionText);
-    const exchangeRefs = uniqueStrings(result.exchangeActiveNpcIds).filter(ref => referenceAllowedForActivity(state, ref, evidencePolicy) || newActivityBridge(ref));
-    const presentRefs = uniqueStrings(result.finalPresentNpcIds).filter(ref => referenceAllowedForActivity(state, ref, evidencePolicy) || newActivityBridge(ref));
-    const worldRefs = uniqueStrings(result.worldActiveNpcIds).filter(ref => referenceAllowedForWorldActivity(state, ref, evidencePolicy));
+    const newActivityBridge = (ref, channel) => newReferenceAllowedByWorldIdentityBridge(state, ref, result.npcs, evidencePolicy, currentAdmissionText, channel);
+    const exchangeRefs = uniqueStrings(result.exchangeActiveNpcIds).filter(ref => referenceAllowedForActivity(state, ref, evidencePolicy, 'exchangeActive', result.npcs, currentAdmissionText) || newActivityBridge(ref, 'exchangeActive'));
+    const presentRefs = uniqueStrings(result.finalPresentNpcIds).filter(ref => referenceAllowedForActivity(state, ref, evidencePolicy, 'inChat', result.npcs, currentAdmissionText) || newActivityBridge(ref, 'inChat'));
+    const worldRefs = uniqueStrings(result.worldActiveNpcIds).filter(ref => referenceAllowedForWorldActivity(state, ref, evidencePolicy, result.npcs, currentAdmissionText));
     const identityRefs = uniqueStrings([...exchangeRefs, ...presentRefs, ...worldRefs]);
     preflightAutomaticIdentityPatches(state, result.npcs, identityRefs);
     // A new returned dossier may contain a bad machine-shaped name even when the same
@@ -2226,7 +2347,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             const name = canonicalPatchName(patch, identityRefs);
             const knownId = Boolean(patchId && state.npcs.some(item => item.id === patchId));
             return !knownId && name && !findNpcByReference(state, name)
-                && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText)
+                && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText, result.npcs)
                 && newNpcAdmissionAllows(patch, admissionMode, identityRefs);
         })
         .map(patch => canonicalPatchName(patch, identityRefs)));
@@ -2246,7 +2367,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             npc = findNpcByReference(state, canonicalName);
         }
         const referenced = targetRefs.some(ref => patchReferenceMatches(patch, ref)) || worldRefs.some(ref => patchReferenceMatches(patch, ref));
-        if (!npc && !automaticIdentityPatchConflicts(state, null, patch, identityRefs) && referenced && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText) && newNpcAdmissionAllows(patch, admissionMode, identityRefs)) {
+        if (!npc && !automaticIdentityPatchConflicts(state, null, patch, identityRefs) && referenced && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText, result.npcs) && newNpcAdmissionAllows(patch, admissionMode, identityRefs)) {
             const created = createFromPatch(patch, sourceMessageId, identityRefs);
             if (created && !deletedIds.has(created.id) && !(state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
                 state.npcs.push(created);
@@ -2269,7 +2390,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                     // locally allocated id. Resolve by its human-facing canonical name first.
                     const canonicalName = canonicalPatchName(patch, [...identityRefs, ref]);
                     npc = canonicalName ? findNpcByReference(state, canonicalName) : null;
-                    if (!npc && !automaticIdentityPatchConflicts(state, null, patch, [...identityRefs, ref]) && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText) && newNpcAdmissionAllows(patch, admissionMode, [...identityRefs, ref])) {
+                    if (!npc && !automaticIdentityPatchConflicts(state, null, patch, [...identityRefs, ref]) && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText, result.npcs) && newNpcAdmissionAllows(patch, admissionMode, [...identityRefs, ref])) {
                         const created = createFromPatch(patch, sourceMessageId, [...identityRefs, ref]);
                         if (created && !deletedIds.has(created.id) && !(state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
                             state.npcs.push(created);
@@ -2288,7 +2409,9 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
 
     const exchangeIds = resolveRefs(exchangeRefs);
     const presentIds = resolveRefs(presentRefs);
-    const worldIds = resolveRefs(worldRefs);
+    // Final presence is single-valued: a malformed proposal cannot leave the same NPC both
+    // in-chat and off-screen. In-chat wins because it is the stronger current-scene claim.
+    const worldIds = resolveRefs(worldRefs).filter(id => !presentIds.includes(id));
     const bootstrapIds = resolveRefs(bootstrapRefs);
     const targetIds = [...new Set([...exchangeIds, ...presentIds, ...bootstrapIds])];
     const targetSet = new Set(targetIds);

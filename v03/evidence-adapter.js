@@ -12,6 +12,31 @@ const INNER_TAGS = new Set(['npcinnerchatter']);
 const REFERENCE_TAGS = new Set(['storytracker', 'charactersheet', 'cyoa', 'bonds', 'newnpc', 'npcupdate']);
 const RECOGNIZED_BLOCK_TAGS = new Set([...WORLD_TAGS, ...INNER_TAGS, ...REFERENCE_TAGS]);
 
+const WORLD_STATE_OTHER_SECTION_LABELS = new Set([
+    'current situation', 'continuity locks', 'unresolved threads', 'planted seeds',
+    'consequence timers', 'arc phase', 'scene phase', 'time',
+]);
+function splitWorldStatePresenceSections(value) {
+    const present = [];
+    const offscreen = [];
+    const other = [];
+    let section = 'other';
+    for (const line of String(value || '').split(/\r?\n/)) {
+        const key = normalizePhrase(line);
+        if (key === 'npcs present' || key === 'npc present') { section = 'present'; continue; }
+        if (key === 'off screen' || key === 'offscreen') { section = 'offscreen'; continue; }
+        if (WORLD_STATE_OTHER_SECTION_LABELS.has(key)) { section = 'other'; continue; }
+        if (section === 'present') present.push(line);
+        else if (section === 'offscreen') offscreen.push(line);
+        else other.push(line);
+    }
+    return {
+        presentText: clean(present.join('\n'), 30000),
+        offscreenText: clean(offscreen.join('\n'), 30000),
+        otherText: clean(other.join('\n'), 30000),
+    };
+}
+
 function masterHasRecognizedTag(body) {
     const pattern = /<([A-Za-z][A-Za-z0-9_-]*)\b[^>]*>/g;
     let child;
@@ -44,11 +69,14 @@ export function analyzeStructuredEvidence(value) {
     }
     const malformedTail = malformedStart >= 0 ? source.slice(malformedStart) : '';
     if (!masters.length && !malformedTail) {
-        return { detected: false, malformed: false, visibleText: source, worldStateText: '', innerChatterText: '', excludedText: '', excludedTags: [] };
+        return { detected: false, malformed: false, visibleText: source, worldStateText: '', worldPresentText: '', worldOffscreenText: '', worldOtherText: '', innerChatterText: '', excludedText: '', excludedTags: [] };
     }
 
     let visibleText = source;
     const world = [];
+    const worldPresent = [];
+    const worldOffscreen = [];
+    const worldOther = [];
     const inner = [];
     const excluded = [];
     const excludedTags = [];
@@ -60,7 +88,13 @@ export function analyzeStructuredEvidence(value) {
             const tag = String(child[1] || '');
             const body = clean(child[2], 30000);
             const key = normalizeTag(tag);
-            if (WORLD_TAGS.has(key)) world.push(body);
+            if (WORLD_TAGS.has(key)) {
+                world.push(body);
+                const sections = splitWorldStatePresenceSections(body);
+                if (sections.presentText) worldPresent.push(sections.presentText);
+                if (sections.offscreenText) worldOffscreen.push(sections.offscreenText);
+                if (sections.otherText) worldOther.push(sections.otherText);
+            }
             else if (INNER_TAGS.has(key)) inner.push(body);
             else {
                 if (body) excluded.push(body);
@@ -78,6 +112,9 @@ export function analyzeStructuredEvidence(value) {
         malformed: Boolean(malformedTail),
         visibleText: clean(visibleText),
         worldStateText: clean(world.join('\n')),
+        worldPresentText: clean(worldPresent.join('\n')),
+        worldOffscreenText: clean(worldOffscreen.join('\n')),
+        worldOtherText: clean(worldOther.join('\n')),
         innerChatterText: clean(inner.join('\n')),
         excludedText: clean(excluded.join('\n')),
         excludedTags: excludedTags.slice(0, 40),
@@ -121,6 +158,9 @@ export function buildExchangeEvidencePolicy(exchange) {
         detected: user.detected || assistant.detected,
         visibleText: [user.visibleText, assistant.visibleText].filter(Boolean).join('\n'),
         worldStateText: [user.worldStateText, assistant.worldStateText].filter(Boolean).join('\n'),
+        worldPresentText: [user.worldPresentText, assistant.worldPresentText].filter(Boolean).join('\n'),
+        worldOffscreenText: [user.worldOffscreenText, assistant.worldOffscreenText].filter(Boolean).join('\n'),
+        worldOtherText: [user.worldOtherText, assistant.worldOtherText].filter(Boolean).join('\n'),
         innerChatterText: [user.innerChatterText, assistant.innerChatterText].filter(Boolean).join('\n'),
         excludedText: [user.excludedText, assistant.excludedText].filter(Boolean).join('\n'),
         excludedTags: [...new Set([...(user.excludedTags || []), ...(assistant.excludedTags || [])])],
@@ -143,13 +183,26 @@ export function evidenceReferenceScope(policy, variants) {
     if (containsReference(policy.excludedText, variants)) return 'excluded';
     return 'unmentioned';
 }
+export function identityPresencePromptRules() {
+    return [
+        'IDENTITY AND SCENE PARTICIPATION:',
+        '- Interpret identity across the WHOLE CURRENT exchange. A participating character may be referred to indirectly by pronouns, descriptions, scene continuity, or a proper name established earlier in the same exchange; the name/occupation does not need to be repeated in every sentence.',
+        '- For every NEW NPC, use identityEvidence {anchor, excerpts, explanation} when identity depends on contextual binding rather than a directly repeated full canonical name. anchor must be a proper-name or unique-role identity actually present in CURRENT VISIBLE narrative. excerpts must be 1-3 exact CURRENT VISIBLE quotations. explanation briefly states the contextual binding. Do not invent missing surname/title/name components.',
+        '- For every NPC claimed in exchangeActiveNpcIds, inChatNpcIds, or worldActiveNpcIds, return an npcs patch when practical and use activityEvidence for the claimed channel. Each channel record uses 1-3 exact CURRENT VISIBLE quotations plus a concise explanation. The LLM interprets what the quotations mean; NPC State only verifies provenance and state invariants.',
+        '- exchangeActive means the NPC spoke, acted, was directly acted upon, or directly perceived/received a story-relevant event somewhere in this exchange. inChat means the NPC remains individually relevant in the active scene/conversation at the END. worldActive means explicitly ongoing OFF-SCREEN activity. Judge chronology and the final scene state, not just the first mention.',
+        '- inChat and worldActive are mutually exclusive final states. Never place the same NPC in both arrays. An NPC may be exchangeActive and end either inChat or worldActive after entering/leaving during the exchange.',
+        '- Current visible narrative is sufficient by itself. Structured/reference blocks are optional corroboration and must never be required for ordinary identity or presence interpretation.',
+    ];
+}
+
 export function structuredEvidencePromptRules() {
     return [
         'STRUCTURED BLOCK EVIDENCE FIREWALL (active because recognized Megumin-style <Blocks> content is present):',
-        '- Visible narrative outside <Blocks> is ordinary full event evidence.',
-        '- <World_State> may ground live location/status/off-screen world activity, but by itself NEVER proves exchange action, In chat participation, speech, direct perception, or a new NPC introduction.',
-        '- IDENTITY BRIDGE: when visible narrative independently introduces one specific character by an unambiguous role/occupation and the same current <World_State> supplies that character\'s canonical proper name plus a compatible role, use the structured name for that visibly introduced character. Example: visible "the clerk" plus World_State "Kora Lind — Guild Clerk" may identify one dossier. This resolves identity only; World_State without an independent visible introduction still cannot create a dossier.',
-        '- <NPC_Inner_Chatter> may ground private goals, thoughts, attitudes, or relationship context, but by itself NEVER proves In chat presence, exchange action, spoken dialogue, gesture, or a visible emotional reaction.',
+        '- Visible narrative outside <Blocks> is ordinary full event evidence and remains the primary source for identity and scene participation.',
+        '- <World_State> may corroborate live location/status and structured scene placement, but by itself NEVER proves exchange action, speech, direct perception, or a new NPC introduction.',
+        '- WORLD_STATE SECTION SEMANTICS: NPCs Present and Off-Screen are separate corroboration channels. NPCs Present may corroborate identity/location but does not by itself prove inChat; Off-Screen may corroborate worldActive. A name listed only under NPCs Present must not be accepted as worldActive merely because it occurs somewhere in World_State.',
+        '- IDENTITY BRIDGE: public identity enrichment remains optional corroboration. when CURRENT VISIBLE narrative grounds a unique short proper-name anchor and the same current World_State supplies one compatible canonical full name, the structured name may enrich that already-visible identity. The public anchor remains mandatory. World_State, NPC_Inner_Chatter, CYOA, or other reference material without a public anchor cannot manufacture a dossier or missing identity. World_State without an independent visible introduction still cannot create a dossier.',
+        '- <NPC_Inner_Chatter> may ground private goals, thoughts, attitudes, or relationship context, but by itself NEVER proves inChat presence, exchange action, spoken dialogue, gesture, or a visible emotional reaction.',
         '- Other children of <Blocks>, including Story Tracker, Character Sheet, CYOA, Bonds, New_NPC, NPC_Update, and custom/reference blocks, are NOT current-event evidence for ordinary NPC State scanning.',
         '- Never convert private thought into visible behavior unless visible narrative independently establishes that behavior.',
     ];
