@@ -194,10 +194,10 @@ jobs:
           grep -q "relationshipProgress" v03/schema.js
           grep -q "relationshipEvidenceHistory" v03/schema.js
           grep -q "relationshipInertiaFactor" v03/scanner.js
-          grep -q "if (magnitude < 25) return 1;" v03/scanner.js
-          grep -q "if (magnitude < 50) return 0.8;" v03/scanner.js
-          grep -q "if (magnitude < 75) return 0.6;" v03/scanner.js
-          grep -q "if (magnitude < 90) return 0.4;" v03/scanner.js
+          grep -q "if (magnitude <= 25) return 1;" v03/scanner.js
+          grep -q "if (magnitude <= 50) return 0.8;" v03/scanner.js
+          grep -q "if (magnitude <= 75) return 0.6;" v03/scanner.js
+          grep -q "if (magnitude <= 90) return 0.4;" v03/scanner.js
           grep -q "selectRelationshipAxes" v03/scanner.js
           grep -q "DESIRE_EVIDENCE_CUES" v03/scanner.js
           grep -q "relationshipSummarySupported" v03/scanner.js
@@ -262,12 +262,12 @@ jobs:
 
       - name: Commit generated beta runtime
         run: |
-          if git diff --quiet -- v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-phase9-settings-categories-0.4.4.mjs beta/verify-phase12-relationship-recovery-0.4.7.mjs beta/verify-phase13-milestone-gate-invariants-0.4.8.mjs beta/verify-phase15-force-rebase-0.4.10.mjs beta/verify-phase16-scanner-edge-hardening-0.4.11.mjs beta/verify-phase17-second-order-hardening-0.4.12.mjs beta/verify-phase20-semantic-isolation-0.4.13.mjs beta/verify-phase21-release-source-parity-0.4.13.mjs beta/verify-phase22-settings-ui-cleanup-0.4.14.mjs beta/verify-phase24-release-source-parity-0.4.14.mjs beta/verify-phase28-relationship-semantic-grounding-0.4.16.mjs beta/verify-phase29-release-source-parity-0.4.16.mjs; then
+          if git diff --quiet -- v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-relationship-milestone-gates-0.4.1.mjs beta/verify-phase1-relationship-hardening-0.4.2.mjs beta/verify-phase9-settings-categories-0.4.4.mjs beta/verify-phase12-relationship-recovery-0.4.7.mjs beta/verify-phase13-milestone-gate-invariants-0.4.8.mjs beta/verify-phase15-force-rebase-0.4.10.mjs beta/verify-phase16-scanner-edge-hardening-0.4.11.mjs beta/verify-phase17-second-order-hardening-0.4.12.mjs beta/verify-phase20-semantic-isolation-0.4.13.mjs beta/verify-phase21-release-source-parity-0.4.13.mjs beta/verify-phase22-settings-ui-cleanup-0.4.14.mjs beta/verify-phase24-release-source-parity-0.4.14.mjs beta/verify-phase28-relationship-semantic-grounding-0.4.16.mjs beta/verify-phase29-release-source-parity-0.4.16.mjs beta/verify-phase30-relationship-progression-0.4.17.mjs beta/verify-phase32-release-source-parity-0.4.17.mjs; then
             echo "Generated beta runtime already matches build output."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-phase9-settings-categories-0.4.4.mjs beta/verify-phase12-relationship-recovery-0.4.7.mjs beta/verify-phase13-milestone-gate-invariants-0.4.8.mjs beta/verify-phase15-force-rebase-0.4.10.mjs beta/verify-phase16-scanner-edge-hardening-0.4.11.mjs beta/verify-phase17-second-order-hardening-0.4.12.mjs beta/verify-phase20-semantic-isolation-0.4.13.mjs beta/verify-phase21-release-source-parity-0.4.13.mjs beta/verify-phase22-settings-ui-cleanup-0.4.14.mjs beta/verify-phase24-release-source-parity-0.4.14.mjs beta/verify-phase28-relationship-semantic-grounding-0.4.16.mjs beta/verify-phase29-release-source-parity-0.4.16.mjs
+          git add v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-relationship-milestone-gates-0.4.1.mjs beta/verify-phase1-relationship-hardening-0.4.2.mjs beta/verify-phase9-settings-categories-0.4.4.mjs beta/verify-phase12-relationship-recovery-0.4.7.mjs beta/verify-phase13-milestone-gate-invariants-0.4.8.mjs beta/verify-phase15-force-rebase-0.4.10.mjs beta/verify-phase16-scanner-edge-hardening-0.4.11.mjs beta/verify-phase17-second-order-hardening-0.4.12.mjs beta/verify-phase20-semantic-isolation-0.4.13.mjs beta/verify-phase21-release-source-parity-0.4.13.mjs beta/verify-phase22-settings-ui-cleanup-0.4.14.mjs beta/verify-phase24-release-source-parity-0.4.14.mjs beta/verify-phase28-relationship-semantic-grounding-0.4.16.mjs beta/verify-phase29-release-source-parity-0.4.16.mjs beta/verify-phase30-relationship-progression-0.4.17.mjs beta/verify-phase32-release-source-parity-0.4.17.mjs
           git commit -m "NPC State v0.4.17: align relationship progression curve"
           git push
