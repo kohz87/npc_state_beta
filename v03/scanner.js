@@ -205,7 +205,7 @@ function dossierCollectionRules(limits) {
 
 export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State v0.4.10 recovery scanner requires an assistant message and its preceding user exchange.');
+    if (!exchange) throw new Error('NPC State v0.4.11 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
@@ -228,7 +228,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         familyFacts: [{ owner: 'existing NPC id/name', relation: 'daughter|son|child|other countable family role', count: 2, descriptor: 'optional e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit countable family fact' }],
     };
     return [
-        'You are NPC State v0.4.10, a private structured continuity scanner for a roleplay chat.',
+        'You are NPC State v0.4.11, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
         '',
         `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
@@ -308,7 +308,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         body: compactText(block?.body, 12000),
     }));
     return [
-        'You are NPC State v0.4.10 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
+        'You are NPC State v0.4.11 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
         'Return JSON only. This is reference-data reconciliation, NOT a current scene/event scan.',
         'Only the supplied Megumin New_NPC / NPC_Update blocks are authoritative sources for this operation.',
         'TARGET DOSSIER: ' + JSON.stringify(rosterForPrompt({ npcs: [npc] })[0]),
@@ -347,7 +347,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State v0.4.10 performing a targeted dossier reconciliation.',
+        'You are NPC State v0.4.11 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
@@ -374,17 +374,20 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     ].filter(Boolean).join('\n\n');
 }
 
-export function parseScanJson(raw) {
-    const text = String(raw ?? '').trim();
-    if (!text) throw new Error('NPC State v0.4.10 recovery scanner returned an empty response.');
-    const unfenced = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-    const first = unfenced.indexOf('{');
-    const last = unfenced.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('NPC State v0.4.10 recovery scanner returned no JSON object.');
-    let parsed;
-    try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
-    catch (error) { throw new Error(`NPC State v0.4.10 recovery scanner returned malformed JSON: ${error.message}`); }
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('NPC State v0.4.10 recovery scanner JSON must be an object.');
+function normalizeScanPayload(parsed, { requireContract = true } = {}) {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('NPC State v0.4.11 recovery scanner JSON must be an object.');
+    const has = key => Object.prototype.hasOwnProperty.call(parsed, key);
+    const presentKey = has('inChatNpcIds') ? 'inChatNpcIds' : (has('finalPresentNpcIds') ? 'finalPresentNpcIds' : '');
+    if (requireContract) {
+        const missing = [];
+        if (!Array.isArray(parsed.exchangeActiveNpcIds)) missing.push('exchangeActiveNpcIds[]');
+        if (!presentKey || !Array.isArray(parsed[presentKey])) missing.push('inChatNpcIds[]');
+        if (!Array.isArray(parsed.worldActiveNpcIds)) missing.push('worldActiveNpcIds[]');
+        if (!Array.isArray(parsed.npcs)) missing.push('npcs[]');
+        if (!Array.isArray(parsed.socialEdges)) missing.push('socialEdges[]');
+        if (has('familyFacts') && !Array.isArray(parsed.familyFacts)) missing.push('familyFacts[]');
+        if (missing.length) throw new Error('NPC State v0.4.11 recovery scanner JSON is missing required payload structure: ' + missing.join(', ') + '.');
+    }
     return {
         exchangeActiveNpcIds: uniqueStrings(parsed.exchangeActiveNpcIds),
         finalPresentNpcIds: uniqueStrings(parsed.inChatNpcIds ?? parsed.finalPresentNpcIds),
@@ -393,6 +396,19 @@ export function parseScanJson(raw) {
         socialEdges: Array.isArray(parsed.socialEdges) ? parsed.socialEdges.filter(item => item && typeof item === 'object').slice(0, 100) : [],
         familyFacts: Array.isArray(parsed.familyFacts) ? parsed.familyFacts.filter(item => item && typeof item === 'object').slice(0, 100) : [],
     };
+}
+
+export function parseScanJson(raw) {
+    const text = String(raw ?? '').trim();
+    if (!text) throw new Error('NPC State v0.4.11 recovery scanner returned an empty response.');
+    const unfenced = text.replace(/^\x60\x60\x60(?:json)?\s*/i, '').replace(/\s*\x60\x60\x60$/i, '').trim();
+    const first = unfenced.indexOf('{');
+    const last = unfenced.lastIndexOf('}');
+    if (first < 0 || last <= first) throw new Error('NPC State v0.4.11 recovery scanner returned no JSON object.');
+    let parsed;
+    try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
+    catch (error) { throw new Error('NPC State v0.4.11 recovery scanner returned malformed JSON: ' + error.message); }
+    return normalizeScanPayload(parsed, { requireContract: true });
 }
 
 function isTechnicalNpcIdentity(value) {
@@ -432,6 +448,26 @@ function canonicalPatchName(patch = {}, referenceCandidates = []) {
         return bWords - aWords || b.length - a.length;
     });
     return candidates[0] || '';
+}
+
+function identityOwnerForValue(state, value) {
+    const key = normalizeName(value);
+    if (!key) return null;
+    return (state?.npcs || []).find(candidate =>
+        normalizeName(candidate?.name) === key
+        || (candidate?.aliases || []).some(alias => normalizeName(alias) === key)) || null;
+}
+
+function automaticIdentityPatchConflicts(state, npc, patch, referenceCandidates = []) {
+    const values = [
+        canonicalPatchName(patch, referenceCandidates),
+        ...(Array.isArray(patch?.aliases) ? patch.aliases : []),
+    ].map(value => humanIdentityCandidate(value, patch?.role)).filter(Boolean);
+    for (const value of values) {
+        const owner = identityOwnerForValue(state, value);
+        if (owner && (!npc || owner.id !== npc.id)) return true;
+    }
+    return false;
 }
 
 function repairTechnicalStoredName(npc) {
@@ -792,7 +828,8 @@ export function reconcileFamilyGraphState(stateInput, { sourceMessageId = null, 
             })) edgeMap.set(socialEdgeKey(edge), edge);
             for (const [owner, other] of [[left, right], [right, left]]) {
                 const hasCounterpart = (owner.keyRelationships || []).some(entry => keyRelationshipOtherKey(entry) === normalizeName(other.name));
-                if (!hasCounterpart && (owner.keyRelationships || []).length < limit) owner.keyRelationships = normalizeKeyRelationshipEntries([...(owner.keyRelationships || []), other.name + ' - ' + relation], limit, 500);
+                const keyRelationshipsLocked = (owner.manualProfileFields || []).includes('keyRelationships');
+                if (!keyRelationshipsLocked && !hasCounterpart && (owner.keyRelationships || []).length < limit) owner.keyRelationships = normalizeKeyRelationshipEntries([...(owner.keyRelationships || []), other.name + ' - ' + relation], limit, 500);
             }
         }
     }
@@ -859,14 +896,14 @@ function durableCanonDecision(npc, patch, field, incomingValue, options = {}) {
     const current = String(npc?.[field] ?? '').trim();
     if (!incoming) return false;
     if (options.isBootstrap === true || !current) return true;
-    if (normalizeName(incoming) === normalizeName(current)) return false;
+    if (evidenceTextKey(incoming, 5000) === evidenceTextKey(current, 5000)) return false;
     const change = canonChangeForField(patch, field);
     if (!change) return false;
     const value = String(change.value ?? change[field] ?? incoming).trim();
     const evidence = String(change.evidence || change.reason || '').trim().slice(0, 700);
     const mode = String(change.mode || '').trim().toLocaleLowerCase();
     const context = String(options.profileContext || '');
-    if (!value || normalizeName(value) !== normalizeName(incoming) || !evidence || !profileEvidenceGrounded(evidence, context)) return false;
+    if (!value || evidenceTextKey(value, 5000) !== evidenceTextKey(incoming, 5000) || !evidence || !profileEvidenceGrounded(evidence, context)) return false;
     if (field === 'birthday') {
         return mode === 'correction'
             && birthdayEvidenceGrounded(incoming, context)
@@ -1008,9 +1045,30 @@ function applyStablePatch(npc, patch, options = {}) {
             && legacyBaseBefore
             && previousBaseAppearance
             && revisedBaseAppearance
-            && normalizeName(previousBaseAppearance) !== normalizeName(revisedBaseAppearance)
-            && normalizeName(next.appearance) === normalizeName(previousBaseAppearance)) {
+            && evidenceTextKey(previousBaseAppearance, 5000) !== evidenceTextKey(revisedBaseAppearance, 5000)
+            && evidenceTextKey(next.appearance, 5000) === evidenceTextKey(previousBaseAppearance, 5000)) {
             next.appearance = revisedBaseAppearance;
+        }
+    }
+    if (changedAge) {
+        const ageProgressionKind = String(patch?.ageChange?.kind || '').trim().toLocaleLowerCase();
+        if (ageProgressionKind === 'correction') {
+            // A correction changes the chronological reference point but never matures the body.
+            next.ageProgressionBaselineAge = changedAge;
+        } else if (['birthday', 'elapsed'].includes(ageProgressionKind)) {
+            const priorBaseline = normalizeActualAge(npc?.ageProgressionBaselineAge);
+            if (!priorBaseline) next.ageProgressionBaselineAge = normalizeActualAge(npc?.age) || changedAge;
+            const apparentProgressed = normalizeApparentAge(next.apparentAge) !== normalizeApparentAge(npc?.apparentAge);
+            const sharedProgressionRequested = String(canonChangeForField(patch, 'appearance')?.mode || '').trim().toLocaleLowerCase() === AGE_PROGRESSION_MODE;
+            const sharedProgressed = sharedProgressionRequested
+                && evidenceTextKey(next.appearance, 5000) !== evidenceTextKey(npc?.appearance, 5000);
+            const formProgressionRequested = (Array.isArray(patch?.appearanceFormChanges) ? patch.appearanceFormChanges : [])
+                .some(raw => String(raw?.mode || '').trim().toLocaleLowerCase() === AGE_PROGRESSION_MODE);
+            const formsProgressed = formProgressionRequested
+                && JSON.stringify(normalizeAppearanceForms(next.appearanceForms)) !== JSON.stringify(normalizeAppearanceForms(npc?.appearanceForms));
+            if (ageProgression.allowed && (apparentProgressed || sharedProgressed || formsProgressed)) {
+                next.ageProgressionBaselineAge = changedAge;
+            }
         }
     }
     if (!locked.has('aliases')) {
@@ -1247,7 +1305,10 @@ function applyRelationshipChange(npc, patch, options = {}) {
     const change = relationshipDeltaForPatch(patch, caps);
     if (change.impact === 'none') return npc;
     if (options.requireCurrentRelationshipEvidence === true) {
-        const rejection = relationshipEvidenceGrounding(change.evidence, options.relationshipContext);
+        const rejection = relationshipEvidenceGrounding(change.evidence, options.relationshipContext, {
+            subjectNames: npcEvidenceVariants(npc),
+            objectNames: [options.playerName, 'player', 'user', 'pc', 'the player', 'the user'].filter(Boolean),
+        });
         if (rejection) return relationshipDiagnostic(npc, npc, change, options, [rejection]);
     }
     if (relationshipChangeLooksDuplicate(npc, change, options)) return relationshipDiagnostic(npc, npc, change, options, ['duplicate']);
@@ -1381,6 +1442,26 @@ function applyRelationshipChange(npc, patch, options = {}) {
     if (!reasons.length) reasons.push(relationshipStateChanged ? 'applied' : 'no-visible-change');
     return relationshipDiagnostic(npc, next, change, options, reasons, crossings);
 }
+const AFFIRMATIVE_DEATH_CUE = /\b(?:dies?|died|dead|death|killed|slain|lifeless|no pulse|stopped breathing|ceased breathing)\b/i;
+const DEATH_DENIAL_CUE = /\b(?:not|never)\b(?:\s+\w+){0,4}\s+\b(?:dead|dying|died|die|dies|killed|slain|lifeless)\b|\b(?:is|are|was|were|did|does|do|has|have|had)\s+not\s+(?:die|died|dead|dying|killed|slain|lifeless)\b/i;
+const DEATH_RETRACTION_CUE = /\b(?:alive|surviv(?:e|ed|es|ing)|resurrect(?:ed|s|ing)?|reviv(?:e|ed|es|ing)|death reports? (?:were|was) false|falsely reported dead|mistakenly reported dead|emerges? alive|returns? alive)\b|\b(?:almost|nearly)\s+(?:died|dead)|\bnear[- ]death\b|\b(?:escaped?|avoided?|survived?)\s+(?:certain\s+)?death\b/i;
+function lifeEvidenceText(value) {
+    return String(value || '').normalize('NFKC').replace(/\b(\w+)n[’']t\b/gi, '$1 not');
+}
+function affirmativeDeathEvidence(npc, evidence, context) {
+    const proof = lifeEvidenceText(evidence);
+    if (!proof || !AFFIRMATIVE_DEATH_CUE.test(proof) || DEATH_DENIAL_CUE.test(proof) || DEATH_RETRACTION_CUE.test(proof)) return false;
+    const variants = [npc?.name, ...(npc?.aliases || [])].map(value => String(value || '').trim()).filter(Boolean);
+    if (!variants.length) return false;
+    const clauses = lifeEvidenceText(context).split(/[.!?;\n]+/).map(value => value.trim()).filter(Boolean);
+    return clauses.some(clause =>
+        AFFIRMATIVE_DEATH_CUE.test(clause)
+        && !DEATH_DENIAL_CUE.test(clause)
+        && !DEATH_RETRACTION_CUE.test(clause)
+        && variants.some(value => containsNormalizedPhrase(clause, value))
+        && profileEvidenceGrounded(proof, clause));
+}
+
 function applyLifeState(npc, patch, options = {}) {
     const next = structuredClone(npc);
     const lifeState = String(patch?.lifeState || '').trim().toLocaleLowerCase();
@@ -1391,7 +1472,7 @@ function applyLifeState(npc, patch, options = {}) {
         ? [policy.visibleText, policy.worldStateText].filter(Boolean).join('\n')
         : String(options.profileContext || '');
     const grounded = Boolean(reason && (!lifeContext.trim() || profileEvidenceGrounded(reason, lifeContext)));
-    const deathCue = /\b(?:dies?|died|dead|death|killed|slain|lifeless|no pulse|stopped breathing|ceased breathing)\b/i.test(lifeContext);
+    const deathCue = affirmativeDeathEvidence(npc, reason, lifeContext);
     const livingReturnCue = /\b(?:alive|surviv(?:e|ed|es|ing)|resurrect(?:ed|s|ing)?|reviv(?:e|ed|es|ing)|not dead|wasn't dead|was not dead|death reports? (?:were|was) false|emerges? alive|returns? alive)\b/i.test(lifeContext);
     const wasDead = String(npc?.lifeState || '').toLocaleLowerCase() === 'dead'
         || (npc?.archived === true && String(npc?.archiveReason || '').toLocaleLowerCase() === 'deceased');
@@ -1529,7 +1610,9 @@ function applyPrivateEvidencePatch(npc, patch) {
 
 export function applyScanResult(stateInput, resultInput, options = {}) {
     const state = normalizeState(stateInput, stateInput?.chatKey || '');
-    const result = parseScanJson(typeof resultInput === 'string' ? resultInput : JSON.stringify(resultInput || {}));
+    const result = typeof resultInput === 'string'
+        ? parseScanJson(resultInput)
+        : normalizeScanPayload(resultInput || {}, { requireContract: false });
     const sourceMessageId = Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null;
     const turn = Number.isInteger(options.turn) ? options.turn : state.turn;
     const preservePresence = options.preservePresence === true;
@@ -1576,7 +1659,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             npc = findNpcByReference(state, canonicalName);
         }
         const referenced = targetRefs.some(ref => patchReferenceMatches(patch, ref)) || worldRefs.some(ref => patchReferenceMatches(patch, ref));
-        if (!npc && referenced && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText) && newNpcAdmissionAllows(patch, admissionMode, identityRefs)) {
+        if (!npc && !automaticIdentityPatchConflicts(state, null, patch, identityRefs) && referenced && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText) && newNpcAdmissionAllows(patch, admissionMode, identityRefs)) {
             const created = createFromPatch(patch, sourceMessageId, identityRefs);
             if (created && !deletedIds.has(created.id) && !(state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
                 state.npcs.push(created);
@@ -1584,6 +1667,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                 npc = created;
             }
         }
+        if (npc && automaticIdentityPatchConflicts(state, npc, patch, identityRefs)) continue;
         if (npc) patchByNpcId.set(npc.id, patch);
     }
 
@@ -1598,7 +1682,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                     // locally allocated id. Resolve by its human-facing canonical name first.
                     const canonicalName = canonicalPatchName(patch, [...identityRefs, ref]);
                     npc = canonicalName ? findNpcByReference(state, canonicalName) : null;
-                    if (!npc && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText) && newNpcAdmissionAllows(patch, admissionMode, [...identityRefs, ref])) {
+                    if (!npc && !automaticIdentityPatchConflicts(state, null, patch, [...identityRefs, ref]) && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText) && newNpcAdmissionAllows(patch, admissionMode, [...identityRefs, ref])) {
                         const created = createFromPatch(patch, sourceMessageId, [...identityRefs, ref]);
                         if (created && !deletedIds.has(created.id) && !(state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
                             state.npcs.push(created);
@@ -1606,7 +1690,8 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                             npc = created;
                         }
                     }
-                    if (npc) patchByNpcId.set(npc.id, patch);
+                    if (npc && automaticIdentityPatchConflicts(state, npc, patch, identityRefs)) continue;
+            if (npc) patchByNpcId.set(npc.id, patch);
                 }
             }
             if (npc && !ids.includes(npc.id)) ids.push(npc.id);
@@ -1647,6 +1732,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             if (applyRelationship && exchangeSet.has(npc.id)) npc = applyRelationshipChange(npc, patch, {
                 relationshipCaps: options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 relationshipContext: String(options.relationshipContext || ''),
+                playerName,
                 // Automatic relationship movement is always current-exchange evidence.
                 // Existing NPCs are not allowed to bypass grounding merely because their
                 // dossier already exists. Direct/manual relationship editing uses engine

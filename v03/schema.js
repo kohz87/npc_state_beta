@@ -1,4 +1,4 @@
-export const NPC_STATE_VERSION = '0.4.10';
+export const NPC_STATE_VERSION = '0.4.11';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     const number = Number(value);
@@ -664,6 +664,7 @@ export function normalizeNpc(input = {}, options = {}) {
         apparentAge: normalizeApparentAge(input.apparentAge),
         birthday: normalizeBirthday(input.birthday),
         birthdayProvenance: normalizeBirthdayProvenance(input.birthdayProvenance, input.birthday),
+        ageProgressionBaselineAge: normalizeActualAge(input.ageProgressionBaselineAge),
         appearance: text(input.appearance, 1800),
         appearanceForms,
         currentForm,

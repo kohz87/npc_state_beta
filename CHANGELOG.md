@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.11
+
+- Hardens scanner invariants: malformed/structurally invalid payloads fail before state mutation, automatic identity collisions fail closed, death transitions require affirmative target-attributed evidence, and durable appearance/Base synchronization compares complete canonical descriptions instead of 160-character identity keys.
+- Adds cumulative visual-aging baselines so individually small birthday/elapsed transitions can eventually satisfy ordinary or long-lived maturation thresholds without forcing a single large time skip. The baseline advances only when visible maturation is actually accepted, while age corrections reset it without aging appearance.
+- Makes family sibling/twin inference respect manual Key Relationships locks and makes Targeted Refresh an explicit allowlist that discards familyFacts and all non-target graph output.
+- Makes relationship grounding actor-aware for NPC-to-player direction and scopes negation/conflict checks to the relevant relationship predicate, preventing unrelated negation from rejecting valid trust evidence and reverse-direction statements from moving the wrong NPC meter.
+- Repairs the legacy injection-budget verifier so it checks the identity-directory slice rather than rejecting an NPC that legitimately appears in the separately budgeted dossier section.
+
 ## v0.4.10
 
 - Adds an explicit **Force rebase to current chat** recovery action under Recovery & Branch Safety, available even when branch safety is currently marked safe. Safe same-lineage force rebases preserve the latest already-scanned marker so the follow-up continuity refresh cannot score the same relationship event twice; genuine divergences continue to clear that marker and use the existing rollback/recovery path.

@@ -41,7 +41,8 @@ export function authorizeAgeProgression(npc = {}, patch = {}, changedAge = '', {
     const behavior = BEHAVIORS.has(String(raw.maturation || '').trim().toLocaleLowerCase()) ? String(raw.maturation).trim().toLocaleLowerCase() : 'unknown';
     if (behavior === 'unknown' || behavior === 'ageless') return { ...base, behavior };
     if (!String(raw.basis || '').trim()) return base;
-    const before = ageYears(npc?.age);
+    const baselineAge = normalizeActualAge(npc?.ageProgressionBaselineAge) || normalizeActualAge(npc?.age);
+    const before = ageYears(baselineAge);
     const after = ageYears(changedAge);
     if (!Number.isFinite(before) || !Number.isFinite(after) || after <= before) return base;
     const intervalYears = after - before;
