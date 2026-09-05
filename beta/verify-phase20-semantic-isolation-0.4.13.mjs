@@ -166,5 +166,6 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
 }
 
 const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
-assert.equal(manifest.version, '0.4.13');
-console.log('NPC State 0.4.13 semantic isolation verified');
+const manifestMatch = String(manifest.version || '').match(/^0\.4\.(\d+)$/);
+assert(manifestMatch && Number(manifestMatch[1]) >= 13, 'Manifest regressed below v0.4.13');
+console.log('NPC State 0.4.13+ semantic isolation verified');

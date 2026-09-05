@@ -1,4 +1,4 @@
-/* NPC State v0.4.4 responsive categorized settings hierarchy.
+/* NPC State v0.4.14 responsive settings hierarchy.
    Density follows the extension panel's actual inline width through container
    queries, so SillyTavern sidebars and split layouts are handled correctly. */
 
@@ -243,3 +243,17 @@
   .npc-state-v3-settings .npc-state-v3-injection-group>.npc-state-v3-control-group-body,
   .npc-state-v3-settings .npc-state-v3-recovery-group>.npc-state-v3-control-group-body{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+/* v0.4.14 settings hierarchy cleanup */
+.npc-state-v3-settings .npc-state-v3-recovery-note{padding:.5em .58em;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:rgba(255,255,255,.018);font-size:.86em;line-height:1.35;opacity:.72}
+.npc-state-v3-settings .npc-state-v3-settings-subgroup{margin:.18em 0 0;border-top:1px solid rgba(255,255,255,.08)}
+.npc-state-v3-settings .npc-state-v3-settings-subgroup>summary{display:flex;align-items:center;gap:.42em;padding:.55em .18em;cursor:pointer;list-style:none;user-select:none}
+.npc-state-v3-settings .npc-state-v3-settings-subgroup>summary::-webkit-details-marker{display:none}
+.npc-state-v3-settings .npc-state-v3-settings-subgroup>summary::before{content:'▸';opacity:.62;font-size:.82em}
+.npc-state-v3-settings .npc-state-v3-settings-subgroup[open]>summary::before{content:'▾'}
+.npc-state-v3-settings .npc-state-v3-advanced-recovery-body{display:grid;gap:.42em;padding:0 0 .18em}
+.npc-state-v3-settings .npc-state-v3-advanced-recovery-intro{padding:.48em .55em;border-radius:7px;background:color-mix(in srgb,var(--SmartThemeQuoteColor,#d59a32) 8%,transparent);line-height:1.35;font-size:.86em;opacity:.82}
+.npc-state-v3-settings .npc-state-v3-force-rebase-row{border-color:color-mix(in srgb,var(--SmartThemeQuoteColor,#d59a32) 36%,transparent)!important;background:color-mix(in srgb,var(--SmartThemeQuoteColor,#d59a32) 6%,transparent)!important}
+.npc-state-v3-settings .npc-state-v3-advanced-group>.npc-state-v3-settings-group-body>.npc-state-v3-maintenance-group{margin:.1em 0 0!important;border:0;border-top:1px solid rgba(255,255,255,.07);border-radius:0;background:transparent}
+@container (min-width:700px){.npc-state-v3-settings .npc-state-v3-recovery-group>.npc-state-v3-control-group-body{grid-template-columns:1fr}}
+@container (max-width:899px){.npc-state-v3-settings .npc-state-v3-recovery-note,.npc-state-v3-settings .npc-state-v3-advanced-recovery-intro{font-size:.82em}}

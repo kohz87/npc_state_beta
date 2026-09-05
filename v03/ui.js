@@ -104,7 +104,7 @@ export function createNpcStateUi(adapters = {}) {
     async function safely(label, task) {
         try { return await task(); }
         catch (error) {
-            console.error(`[NPC State v0.4.13] ${label} failed safely`, error);
+            console.error(`[NPC State v0.4.14] ${label} failed safely`, error);
             notify('error', `NPC State: ${label} failed. No partial dossier write was committed. ${error?.message || error}`);
             return { ok: false, reason: 'error', error };
         }
@@ -114,17 +114,17 @@ export function createNpcStateUi(adapters = {}) {
 
     function settingsHtml() {
         return `<div id="${SETTINGS_ID}" class="extension_container npc-state-extension npc-state-v3-settings">
-          <div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>NPC State <span class="npc-state-version">0.4.13</span></b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
+          <div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>NPC State <span class="npc-state-version">0.4.14</span></b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
           <div class="inline-drawer-content npc-state-drawer">
-            <div class="npc-state-intro">v0.4.13 uses foreground embedded capture for normal turns. Exchange participation, in-chat relevance, and explicit off-screen activity are independent signals. Stable v0.3 dossiers can be cloned once into an independent beta sidecar.</div>
+            <div class="npc-state-intro">v0.4.14 uses foreground embedded capture for normal turns. Exchange participation, in-chat relevance, and explicit off-screen activity are independent signals. Stable v0.3 dossiers can be cloned once into an independent beta sidecar.</div>
             <div class="npc-state-settings-grid">
               <label class="npc-state-setting-row"><span><b>Enable NPC State</b><small>Disabling stops automatic scanning and injection. Manual dossier tools remain available.</small></span><input id="npc_state_v3_enabled" type="checkbox"></label>
-              <label class="npc-state-setting-row"><span><b>Embedded current-cast scan</b><small>Uses the same foreground RP generation. If the embedded block is missing, NPC State automatically runs one full separate current-cast scan.</small></span><input id="npc_state_v3_auto" type="checkbox"></label>
+              <label class="npc-state-setting-row"><span><b>Auto Scan</b><small>Uses the same foreground RP generation. If the embedded block is missing, NPC State automatically runs one full separate current-cast scan.</small></span><input id="npc_state_v3_auto" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Malformed capture recovery</b><small>Missing embedded capture always triggers one full scan. Enable this to also run a separate recovery scan when an embedded block is present but malformed. Off by default.</small></span><input id="npc_state_v04_fallback" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Context depth</b><small>Older messages are profile/memory context only; relationship deltas remain current-exchange-only.</small></span><input id="npc_state_v3_scan_depth" class="text_pole npc-state-number" type="number" min="2" max="30"></label>
               <label class="npc-state-setting-row"><span><b>Enrich new NPCs from recent history</b><small>Adds a small visible-history capsule to the same foreground generation. Current exchange still decides admission, live state, and relationship changes. No extra model call.</small></span><input id="npc_state_v04_new_npc_history" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>New NPC admission</b><small>Balanced keeps current behavior. Named preferred ignores first-seen unnamed role labels. Manual prevents scanner-created dossiers while existing NPCs still update.</small></span><select id="npc_state_v04_admission" class="text_pole"><option value="balanced">Balanced</option><option value="named_preferred">Named preferred</option><option value="manual">Manual</option></select></label>
-              <label class="npc-state-setting-row"><span><b>Maximum scanner response tokens</b><small>Output ceiling for separate scans, dossier Refresh, structured imports, and retries. Increase for large casts. Does not change RP output or history depth.</small></span><input id="npc_state_v047_response_tokens" class="text_pole npc-state-number" type="number" min="512" max="15000" step="1"></label>
+              <label class="npc-state-setting-row"><span><b>Scanner Response Limit</b><small>Output ceiling for separate scans, dossier Refresh, structured imports, and retries. Range: 512-15,000 tokens. Increase for large casts. Does not change RP output or history depth.</small></span><input id="npc_state_v047_response_tokens" class="text_pole npc-state-number" type="number" min="512" max="15000" step="1"></label>
               <label class="npc-state-setting-row"><span><b>Birthday fill</b><small>Passive metadata only. Off leaves blanks; Unknown stores Unknown; Random assigns one stable configured-calendar date. It never advances age.</small></span><select id="npc_state_v04_birthday_fill" class="text_pole"><option value="off">Off</option><option value="unknown">Unknown</option><option value="random">Random</option></select></label>
               <label class="npc-state-setting-row"><span><b>Birthday random calendar</b><small>One month/season per line as Name or Name:days. Fantasy names are preserved exactly.</small></span><textarea id="npc_state_v04_birthday_calendar" class="text_pole" rows="5"></textarea></label>
               <label class="npc-state-setting-row"><span><b>Fallback days per month</b><small>Used only for random-calendar lines without :days.</small></span><input id="npc_state_v04_birthday_days" class="text_pole npc-state-number" type="number" min="1" max="999"></label>
@@ -297,7 +297,7 @@ export function createNpcStateUi(adapters = {}) {
         const active = current.npcs.filter(npc => !npc.archived);
         const archived = current.npcs.filter(npc => npc.archived);
         const rows = list => list.map(npc => `<button class="menu_button npc-state-v3-roster-open" data-npc-id="${escapeHtml(npc.id)}">${npc.present ? '● ' : (npc.worldActive ? '◌ ' : '')}${escapeHtml(npc.name)}</button>`).join('');
-        holder.innerHTML = `<small class="npc-state-muted">Persistent NPC State 0.4.13 database · ${active.length} active · ${archived.length} archived</small><div class="npc-state-roster-chips">${rows(active)}${rows(archived)}</div>`;
+        holder.innerHTML = `<small class="npc-state-muted">Persistent NPC State 0.4.14 database · ${active.length} active · ${archived.length} archived</small><div class="npc-state-roster-chips">${rows(active)}${rows(archived)}</div>`;
         holder.querySelectorAll('.npc-state-v3-roster-open').forEach(button => button.addEventListener('click', () => openLibrary(button.dataset.npcId)));
     }
 

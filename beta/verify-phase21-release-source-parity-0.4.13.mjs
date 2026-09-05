@@ -16,6 +16,7 @@ assert(phase16.includes('invalid payload structure or members') && phase16.inclu
 assert(phase17.includes('Manifest regressed below v0.4.12'), 'v0.4.12 descendant assertion is not persisted in release source');
 
 const manifest = JSON.parse(read('manifest.json'));
-assert.equal(manifest.version, '0.4.13');
+const manifestMatch = String(manifest.version || '').match(/^0\.4\.(\d+)$/);
+assert(manifestMatch && Number(manifestMatch[1]) >= 13, 'Manifest regressed below v0.4.13');
 
-console.log('NPC State 0.4.13 release source parity verified');
+console.log('NPC State 0.4.13+ release source parity verified');

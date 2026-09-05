@@ -1,6 +1,7 @@
 const PANEL_ID = 'npc_state_settings';
 const BANNER_ID = 'npc_state_v3_branch_recovery';
 const FORCE_ID = 'npc_state_v3_force_rebase';
+const ADVANCED_RECOVERY_ID = 'npc_state_v0414_advanced_recovery';
 let started = false;
 let observer = null;
 let scheduled = false;
@@ -47,6 +48,11 @@ function hostForBanner() {
         || null;
 }
 
+function hostForForceControl() {
+    const advanced = globalThis.document?.getElementById?.(ADVANCED_RECOVERY_ID) || null;
+    return advanced?.querySelector?.('.npc-state-v3-advanced-recovery-body') || hostForBanner();
+}
+
 function placeBanner(host, banner) {
     if (!host || !banner || banner.parentElement === host) return;
     host.prepend?.(banner);
@@ -76,10 +82,10 @@ async function rebaseCurrentChat(force = false) {
     } catch (error) {
         const rebasedState = state();
         if (rebasedState?.branchSafety?.status === 'safe') {
-            console.warn('[NPC State v0.4.13] timeline rebase committed, but the follow-up scan failed', error);
+            console.warn('[NPC State v0.4.14] timeline rebase committed, but the follow-up scan failed', error);
             globalThis.toastr?.warning?.(`NPC State: timeline rebased successfully, but the latest exchange scan failed. Use Scan current cast to retry. ${error?.message || error}`);
         } else {
-            console.error('[NPC State v0.4.13] timeline rebase failed safely', error);
+            console.error('[NPC State v0.4.14] timeline rebase failed safely', error);
             globalThis.toastr?.error?.(`NPC State: timeline rebase failed without replacing your durable dossiers. ${error?.message || error}`);
         }
     } finally {
@@ -103,7 +109,7 @@ function ensureForceControl(host) {
     if (control.dataset.renderKey !== renderKey) {
         control.dataset.renderKey = renderKey;
         control.dataset.running = running ? '1' : '0';
-        control.innerHTML = `<span><b>Force timeline rebase</b><small>Rebuild the branch baseline around the currently visible chat even when NPC State considers it safe. Durable dossier canon is preserved.</small></span><button type="button" class="menu_button npc-state-v3-force-rebase-current" ${running ? 'disabled' : ''}><i class="fa-solid fa-code-branch"></i> ${running ? 'Rebasing...' : 'Force rebase to current chat'}</button>`;
+        control.innerHTML = `<span><b>Force Timeline Rebase</b><small>Bypasses normal branch detection and rebuilds against the currently visible chat. Durable dossier canon and manual edits are preserved.</small></span><button type="button" class="menu_button npc-state-v3-force-rebase-current" ${running ? 'disabled' : ''}><i class="fa-solid fa-code-branch"></i> ${running ? 'Rebasing...' : 'Force Timeline Rebase...'} </button>`;
         control.querySelector('.npc-state-v3-force-rebase-current')?.addEventListener('click', () => rebaseCurrentChat(true));
     }
     return control;
@@ -112,6 +118,7 @@ function ensureForceControl(host) {
 export function renderBranchRecoveryUi() {
     ensureStyles();
     const host = hostForBanner();
+    const forceHost = hostForForceControl();
     const current = state();
     const existing = globalThis.document?.getElementById?.(BANNER_ID);
     const forceControl = globalThis.document?.getElementById?.(FORCE_ID) || null;
@@ -122,7 +129,7 @@ export function renderBranchRecoveryUi() {
     }
     if (!branchRecoveryRequired(current)) {
         existing?.remove?.();
-        ensureForceControl(host);
+        ensureForceControl(forceHost || host);
         return true;
     }
     forceControl?.remove?.();

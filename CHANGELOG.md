@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.14
+
+- Reorganizes the settings panel without changing stored setting keys, defaults, listeners, scanner behavior, dossier behavior, persistence, or branch semantics.
+- Renames the primary Tracking category to Scanning & Capture and moves Scanner Response Limit plus malformed-capture recovery into that operational section.
+- Renames Birthday Continuity to Birthday & Aging, separates Relationships from Advanced, and moves the memory rubric plus maintenance tools beneath Advanced.
+- Keeps Recovery & Branch Safety focused on branch handling and nests Force Timeline Rebase under an explicit Advanced Recovery disclosure.
+- Refreshes responsive spacing and warning treatment so the same hierarchy remains readable in narrow SillyTavern sidebars.
+
 ## v0.4.13
 
 - Binds death and resurrection evidence to the tracked NPC and the matched life-state predicate. Possessive references such as "Mira's attacker" no longer identify Mira as the victim, another NPC's survival no longer cancels Mira's death, and negated/other-person alive statements cannot resurrect an archived dossier.
