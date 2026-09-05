@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.4.25
+
+- Fixes explicit named family facts such as twin daughters being retained as countable family slots while failing to appear in the owner dossier Key relationships.
+- Adds optional named members to family facts and deterministically projects grounded member names into the owner keyRelationships without creating placeholder NPC dossiers.
+- Preserves unnamed-family slot behavior, manual key-relationship locks, evidence boundaries, counterpart merge semantics, and conservative sibling/twin resolution.
+
 ## v0.4.24
 
 - Fixes existing NPCs remaining off-screen when visible narrative uses an unambiguous short name such as `Brina` while the canonical dossier/World_State uses `Brina Cole`.

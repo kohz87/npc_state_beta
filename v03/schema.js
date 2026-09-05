@@ -1,4 +1,4 @@
-export const NPC_STATE_VERSION = '0.4.24';
+export const NPC_STATE_VERSION = '0.4.25';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     const number = Number(value);
@@ -333,12 +333,22 @@ export function normalizeFamilySlots(value = [], validNpcIds = null) {
         if (seen.has(id)) continue;
         seen.add(id);
         const resolvedNpcIds = list(raw.resolvedNpcIds, count, 160).filter(item => item !== ownerId && (!valid || valid.has(item))).slice(0, count);
+        const memberNames = [];
+        const memberKeys = new Set();
+        for (const member of list(raw.memberNames ?? raw.members, Math.max(20, count), 160)) {
+            const key = normalizeName(member);
+            if (!key || memberKeys.has(key)) continue;
+            memberKeys.add(key);
+            memberNames.push(member);
+            if (memberNames.length >= count) break;
+        }
         out.push({
             id,
             ownerId,
             relation,
             count,
             resolvedNpcIds,
+            memberNames,
             descriptor,
             twinGroup,
             evidence: text(raw.evidence, 600),

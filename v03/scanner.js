@@ -209,7 +209,7 @@ function dossierCollectionRules(limits) {
 
 export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', relationshipCaps = DEFAULT_RELATIONSHIP_CAPS, memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State v0.4.24 recovery scanner requires an assistant message and its preceding user exchange.');
+    if (!exchange) throw new Error('NPC State v0.4.25 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
@@ -229,10 +229,10 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
             relationshipChange: { evaluated: true, impact: 'none|ordinary|meaningful|major|extreme', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, priority: ['supported nonzero axes strongest/most central first'], axisEvidence: { trust: { excerpts: ['1-3 exact current-exchange quotations'], explanation: 'why this changes Trust toward the PLAYER' }, affection: { excerpts: [], explanation: '' }, desire: { excerpts: [], explanation: '' }, tension: { excerpts: [], explanation: '' } }, evidence: 'optional compact overall event summary', reason: 'overall evaluation; required concise reason when impact is none' },
         }],
         socialEdges: [{ from: 'NPC id/name only', to: 'NPC id/name only', relation: '', summary: '', provenance: 'explicit|strong-context' }],
-        familyFacts: [{ owner: 'existing NPC id/name', relation: 'daughter|son|child|other countable family role', count: 2, descriptor: 'optional e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit countable family fact' }],
+        familyFacts: [{ owner: 'existing NPC id/name', relation: 'daughter|son|child|other countable family role', count: 2, members: ['explicitly named members from visible evidence; [] when unnamed'], descriptor: 'optional e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit countable family fact' }],
     };
     return [
-        'You are NPC State v0.4.24, a private structured continuity scanner for a roleplay chat.',
+        'You are NPC State v0.4.25, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
         '',
         `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
@@ -314,7 +314,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         body: compactText(block?.body, 12000),
     }));
     return [
-        'You are NPC State v0.4.24 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
+        'You are NPC State v0.4.25 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
         'Return JSON only. This is reference-data reconciliation, NOT a current scene/event scan.',
         'Only the supplied Megumin New_NPC / NPC_Update blocks are authoritative sources for this operation.',
         'TARGET DOSSIER: ' + JSON.stringify(rosterForPrompt({ npcs: [npc] })[0]),
@@ -353,7 +353,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State v0.4.24 performing a targeted dossier reconciliation.',
+        'You are NPC State v0.4.25 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
@@ -404,7 +404,7 @@ function scannerNpcArrayValid(value) {
     });
 }
 function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupplemental = false } = {}) {
-    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.24 recovery scanner JSON must be an object.');
+    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.25 recovery scanner JSON must be an object.');
     const has = key => Object.prototype.hasOwnProperty.call(parsed, key);
     const presentKey = has('inChatNpcIds') ? 'inChatNpcIds' : (has('finalPresentNpcIds') ? 'finalPresentNpcIds' : '');
     if (requireContract) {
@@ -415,7 +415,7 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
         if (!scannerNpcArrayValid(parsed.npcs)) invalid.push('npcs[object-with-string-identity]');
         if ((!allowOmittedSupplemental || has('socialEdges')) && !scannerObjectArrayValid(parsed.socialEdges)) invalid.push('socialEdges[object]');
         if (has('familyFacts') && !scannerObjectArrayValid(parsed.familyFacts)) invalid.push('familyFacts[object]');
-        if (invalid.length) throw new Error('NPC State v0.4.24 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
+        if (invalid.length) throw new Error('NPC State v0.4.25 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
     }
     return {
         exchangeActiveNpcIds: uniqueStrings(parsed.exchangeActiveNpcIds),
@@ -429,14 +429,14 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
 
 export function parseScanJson(raw) {
     const text = String(raw ?? '').trim();
-    if (!text) throw new Error('NPC State v0.4.24 recovery scanner returned an empty response.');
+    if (!text) throw new Error('NPC State v0.4.25 recovery scanner returned an empty response.');
     const unfenced = text.replace(/^\x60\x60\x60(?:json)?\s*/i, '').replace(/\s*\x60\x60\x60$/i, '').trim();
     const first = unfenced.indexOf('{');
     const last = unfenced.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('NPC State v0.4.24 recovery scanner returned no JSON object.');
+    if (first < 0 || last <= first) throw new Error('NPC State v0.4.25 recovery scanner returned no JSON object.');
     let parsed;
     try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
-    catch (error) { throw new Error('NPC State v0.4.24 recovery scanner returned malformed JSON: ' + error.message); }
+    catch (error) { throw new Error('NPC State v0.4.25 recovery scanner returned malformed JSON: ' + error.message); }
     return normalizeScanPayload(parsed, { requireContract: true });
 }
 
@@ -525,7 +525,7 @@ function preflightAutomaticIdentityPatches(state, patches = [], referenceCandida
                 // handled by automaticIdentityPatchConflicts() as a local patch rejection.
                 // A newly claimed key is a same-observation conflict and invalidates the payload.
                 if (!initialIdentityKeys.has(key)) {
-                    throw new Error('NPC State v0.4.24 scanner identity collision inside one observation: ' + value + '.');
+                    throw new Error('NPC State v0.4.25 scanner identity collision inside one observation: ' + value + '.');
                 }
             }
         }
@@ -795,7 +795,91 @@ function familySlotKey(ownerId, relation, twinGroup = '') {
     return String(ownerId || '') + '|' + familyRole(relation) + '|' + normalizeName(relation) + '|' + normalizeName(twinGroup);
 }
 
-function addFamilyFacts(state, facts, resolveReference, sourceMessageId, evidenceContext = '') {
+function groundedFamilyMemberNames(raw, count, evidenceContext = '', owner = null, playerName = '') {
+    const source = Array.isArray(raw?.members) ? raw.members : (Array.isArray(raw?.memberNames) ? raw.memberNames : []);
+    const out = [];
+    const seen = new Set();
+    for (const value of source) {
+        const member = String(value || '').trim().slice(0, 160);
+        const key = normalizeName(member);
+        if (!member || !key || seen.has(key) || isTechnicalNpcIdentity(member) || GENERIC_REFERENCES.has(key)) continue;
+        if (owner && [owner.name, ...(owner.aliases || [])].some(label => normalizeName(label) === key)) continue;
+        if (keyRelationshipReferencesPlayer(member, playerName)) continue;
+        // Runtime profileContext contains public exchange evidence with structured/private
+        // blocks removed. A name found only in World_State or private chatter therefore
+        // cannot be smuggled into durable family continuity. Test/import callers with no
+        // evidence context retain backward-compatible trusted-object behavior.
+        if (String(evidenceContext || '').trim() && !containsNormalizedPhrase(evidenceContext, member)) continue;
+        seen.add(key);
+        out.push(member);
+        if (out.length >= count) break;
+    }
+    return out;
+}
+
+function familyMemberNpc(state, reference) {
+    const direct = findNpcByReference(state, reference);
+    if (direct) return direct;
+    const key = normalizeName(reference);
+    if (!key || key.length < 3) return null;
+    const matches = (state?.npcs || []).filter(npc =>
+        [npc?.name, ...(npc?.aliases || [])].some(label => {
+            const tokens = String(label || '').normalize('NFKC').match(/[\p{L}\p{N}]+(?:[’'\-][\p{L}\p{N}]+)*/gu) || [];
+            return tokens.length >= 2 && tokens.some(token => normalizeName(token) === key);
+        }));
+    return matches.length === 1 ? matches[0] : null;
+}
+
+function familyCounterpartMatches(state, entry, memberName, memberNpc = null) {
+    const other = keyRelationshipParts(entry).other;
+    if (!other) return false;
+    if (normalizeName(other) === normalizeName(memberName)) return true;
+    if (!memberNpc) return false;
+    return familyMemberNpc(state, other)?.id === memberNpc.id;
+}
+
+function projectFamilySlotMembers(state, slot, limit) {
+    const owner = (state?.npcs || []).find(npc => npc.id === slot?.ownerId);
+    if (!owner) return;
+    const members = Array.isArray(slot?.memberNames) ? slot.memberNames.slice(0, slot.count) : [];
+    if (!members.length) return;
+
+    // Resolution is allowed even when the user's manual profile lock prevents automatic
+    // dossier text changes. This keeps the private family graph accurate without mutating
+    // user-owned keyRelationships.
+    for (const memberName of members) {
+        const memberNpc = familyMemberNpc(state, memberName);
+        if (memberNpc && memberNpc.id !== owner.id && !slot.resolvedNpcIds.includes(memberNpc.id) && slot.resolvedNpcIds.length < slot.count) {
+            slot.resolvedNpcIds.push(memberNpc.id);
+            slot.updatedAt = Date.now();
+        }
+    }
+    if ((owner.manualProfileFields || []).includes('keyRelationships')) return;
+
+    let entries = normalizeKeyRelationshipEntries(owner.keyRelationships, Math.max(limit, 30), 500);
+    for (const memberName of members) {
+        const memberNpc = familyMemberNpc(state, memberName);
+        if (memberNpc?.id === owner.id) continue;
+        const displayName = String(memberNpc?.name || memberName).trim();
+        if (!displayName) continue;
+        const matches = [];
+        for (let index = 0; index < entries.length; index += 1) {
+            if (familyCounterpartMatches(state, entries[index], memberName, memberNpc)) matches.push(index);
+        }
+        if (matches.length) {
+            const first = matches[0];
+            const existingRelation = keyRelationshipParts(entries[first]).relation;
+            const preservedRelation = familyRole(existingRelation) === familyRole(slot.relation) ? existingRelation : slot.relation;
+            entries[first] = displayName + ' - ' + preservedRelation;
+            for (let index = matches.length - 1; index >= 1; index -= 1) entries.splice(matches[index], 1);
+        } else if (entries.length < limit) {
+            entries.push(displayName + ' - ' + slot.relation);
+        }
+    }
+    owner.keyRelationships = normalizeKeyRelationshipEntries(entries, limit, 500);
+}
+
+function addFamilyFacts(state, facts, resolveReference, sourceMessageId, evidenceContext = '', playerName = '') {
     const slots = normalizeFamilySlots(state.familySlots, new Set(state.npcs.map(npc => npc.id)));
     const byKey = new Map(slots.map((slot, index) => [familySlotKey(slot.ownerId, slot.relation, slot.twinGroup), index]));
     for (const raw of Array.isArray(facts) ? facts : []) {
@@ -806,6 +890,7 @@ function addFamilyFacts(state, facts, resolveReference, sourceMessageId, evidenc
         if (!owner || !role || !relation || !evidence) continue;
         if (String(evidenceContext || '').trim() && !profileEvidenceGrounded(evidence, evidenceContext)) continue;
         const count = Math.max(1, Math.min(20, Math.round(Number(raw?.count) || 1)));
+        const memberNames = groundedFamilyMemberNames(raw, count, evidenceContext, owner, playerName);
         const descriptor = String(raw?.descriptor || '').trim().slice(0, 240);
         const twinGroup = String(raw?.twinGroup || '').trim().slice(0, 160);
         const key = familySlotKey(owner.id, relation, twinGroup);
@@ -813,6 +898,16 @@ function addFamilyFacts(state, facts, resolveReference, sourceMessageId, evidenc
         if (Number.isInteger(index)) {
             const slot = slots[index];
             slot.count = Math.max(slot.count, count);
+            if (memberNames.length) {
+                const merged = [...(slot.memberNames || []), ...memberNames];
+                const seen = new Set();
+                slot.memberNames = merged.filter(name => {
+                    const key = normalizeName(name);
+                    if (!key || seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                }).slice(0, slot.count);
+            }
             if (descriptor) slot.descriptor = descriptor;
             if (twinGroup) slot.twinGroup = twinGroup;
             slot.evidence = evidence;
@@ -826,6 +921,7 @@ function addFamilyFacts(state, facts, resolveReference, sourceMessageId, evidenc
             relation,
             count,
             resolvedNpcIds: [],
+            memberNames,
             descriptor,
             twinGroup,
             evidence,
@@ -842,13 +938,20 @@ function addFamilyFacts(state, facts, resolveReference, sourceMessageId, evidenc
 function keyRelationshipToNpc(state, entry) {
     const parts = keyRelationshipParts(entry);
     if (!parts.other) return null;
-    return findNpcByReference(state, parts.other);
+    return familyMemberNpc(state, parts.other);
 }
 
 export function reconcileFamilyGraphState(stateInput, { sourceMessageId = null, dossierLimits = null } = {}) {
     const state = normalizeState(stateInput, stateInput?.chatKey || '');
     const validIds = new Set(state.npcs.map(npc => npc.id));
     const slots = normalizeFamilySlots(state.familySlots, validIds);
+    const limit = normalizeDossierLimits(dossierLimits || {}).keyRelationships;
+    const byId = new Map(state.npcs.map(npc => [npc.id, npc]));
+
+    // Explicitly named members are durable family canon even when they are not dossiers.
+    // Project them into the owner's key relationships first, then let ordinary slot
+    // resolution and sibling inference consume any members that already have dossiers.
+    for (const slot of slots) projectFamilySlotMembers(state, slot, limit);
 
     for (const npc of state.npcs) {
         for (const entry of npc.keyRelationships || []) {
@@ -875,8 +978,6 @@ export function reconcileFamilyGraphState(stateInput, { sourceMessageId = null, 
     }
 
     const edgeMap = new Map((state.socialGraph || []).map(edge => [socialEdgeKey(edge), edge]));
-    const limit = normalizeDossierLimits(dossierLimits || {}).keyRelationships;
-    const byId = new Map(state.npcs.map(npc => [npc.id, npc]));
     for (const slot of slots) {
         const resolved = [...new Set(slot.resolvedNpcIds)].filter(id => byId.has(id)).slice(0, slot.count);
         slot.resolvedNpcIds = resolved;
@@ -2228,7 +2329,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     }
     state.socialGraph = [...edgeMap.values()].slice(-200);
     if (options.reconcileFamilyGraph !== false) {
-        addFamilyFacts(state, result.familyFacts, resolveReturnedReference, sourceMessageId, String(options.profileContext || ''));
+        addFamilyFacts(state, result.familyFacts, resolveReturnedReference, sourceMessageId, String(options.profileContext || ''), playerName);
         const familyReconciled = reconcileFamilyGraphState(state, { sourceMessageId, dossierLimits });
         state.npcs = familyReconciled.npcs;
         state.socialGraph = familyReconciled.socialGraph;
