@@ -13,15 +13,18 @@ const workflow = read('.github/workflows/seed-beta.yml');
 
 assert.equal(manifest.version, '0.4.24', 'Release source is not v0.4.24');
 assert(scanner.includes('visibleShortActivityIdentityMention'), 'Short-name activity recovery helper is missing');
+assert(scanner.includes('shortActivityIdentityScope'), 'Structured short-name scope classifier is missing');
 assert(scanner.includes('shortActivityIdentityUnique'), 'Short-name uniqueness guard is missing');
 assert(scanner.includes('ACTIVITY_SHORT_IDENTITY_STOP'), 'Short-name generic/title stop set is missing');
-assert(scanner.includes('if (npc && visibleShortActivityIdentityMention(state, npc, policy.visibleText)) return true;'), 'Activity firewall does not consult visible short-name grounding');
+assert(scanner.includes("const shortScope = npc ? shortActivityIdentityScope(state, npc, policy) : '';"), 'Activity firewall does not classify short-name evidence scope');
+assert(scanner.includes("if (exactScope === 'visible' || shortScope === 'visible') return true;"), 'Visible short-name activity recovery is not authoritative');
+assert(scanner.includes("const scope = exactScope === 'unmentioned' && shortScope ? shortScope : exactScope;"), 'Structured-only short names can bypass the activity firewall');
 assert(scanner.includes("if (!['world', 'inner', 'excluded'].includes(scope)) return true;"), 'Structured activity scope gate changed unexpectedly');
 assert(scanner.includes('return npc?.present === true;'), 'Existing safe presence fallback disappeared');
 
 assert(evidence.includes('World_State') && evidence.includes('by itself NEVER proves exchange action, In chat participation'), 'World_State in-chat firewall regressed');
 assert(evidence.includes('NPC_Inner_Chatter') && evidence.includes('by itself NEVER proves In chat presence'), 'Inner-chatter in-chat firewall regressed');
-assert(evidence.includes("if (containsReference(policy.visibleText, variants)) return 'visible';"), 'Visible evidence remains subordinate to structured blocks');
+assert(evidence.includes("if (containsReference(policy.visibleText, variants)) return 'visible';"), 'Visible evidence scope ordering changed unexpectedly');
 assert(evidence.includes("if (containsReference(policy.worldStateText, variants)) return 'world';"), 'World evidence scope ordering changed unexpectedly');
 
 for (const marker of [
@@ -46,7 +49,8 @@ assert(!scanner.includes('DESIRE_EVIDENCE_CUES'), 'Runtime Desire keyword veto r
 
 assert(phase48.includes('shortActivityIdentityCandidates'), 'v0.4.24 transform source lacks short-name candidate logic');
 assert(phase48.includes('shortActivityIdentityUnique'), 'v0.4.24 transform source lacks ambiguity guard');
-assert(phase48.includes('policy.visibleText'), 'v0.4.24 transform does not constrain recovery to visible prose');
+assert(phase48.includes('shortActivityIdentityScope'), 'v0.4.24 transform source lacks structured short-name scope classification');
+assert(phase48.includes('policy?.visibleText') && phase48.includes('policy?.worldStateText') && phase48.includes('policy?.innerChatterText'), 'v0.4.24 transform does not preserve structured evidence boundaries');
 
 assert(workflow.includes('Build NPC State 0.4.24 Beta'), 'Workflow is not versioned for v0.4.24');
 assert(workflow.includes('node beta/bump-0.4.24.mjs'), 'Workflow does not apply the v0.4.24 bump');
