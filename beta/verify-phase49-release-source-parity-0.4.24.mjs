@@ -17,14 +17,16 @@ assert(scanner.includes('visibleShortActivityIdentityMention'), 'Short-name acti
 assert(scanner.includes('shortActivityIdentityScope'), 'Structured short-name scope classifier is missing');
 assert(scanner.includes('shortActivityIdentityUnique'), 'Short-name uniqueness guard is missing');
 assert(scanner.includes('ACTIVITY_SHORT_IDENTITY_STOP'), 'Short-name generic/title stop set is missing');
-assert(scanner.includes("const shortScope = npc ? shortActivityIdentityScope(state, npc, policy) : '';"), 'Activity firewall does not classify short-name evidence scope');
-assert(scanner.includes("if (exactScope === 'visible' || shortScope === 'visible') return true;"), 'Visible short-name activity recovery is not authoritative');
-assert(scanner.includes("const scope = exactScope === 'unmentioned' && shortScope ? shortScope : exactScope;"), 'Structured-only short names can bypass the activity firewall');
-assert(scanner.includes("if (!['world', 'inner', 'excluded'].includes(scope)) return true;"), 'Structured activity scope gate changed unexpectedly');
-assert(scanner.includes('return npc?.present === true;'), 'Existing safe presence fallback disappeared');
 
-assert(evidence.includes('World_State') && evidence.includes('by itself NEVER proves exchange action, In chat participation'), 'World_State in-chat firewall regressed');
-assert(evidence.includes('NPC_Inner_Chatter') && evidence.includes('by itself NEVER proves In chat presence'), 'Inner-chatter in-chat firewall regressed');
+// v0.4.27 generalized the activity firewall around exact current-visible evidence, but the
+// v0.4.24 short-name mechanism remains one of its accepted public-identity paths.
+assert(scanner.includes("const shortVisible = npc ? visibleShortActivityIdentityMention(state, npc, visible) : false;"), 'Current activity firewall no longer consults the v0.4.24 short-name bridge');
+assert(scanner.includes('if (exactVisible || shortVisible) return true;'), 'Visible short-name activity recovery is no longer authoritative');
+assert(scanner.includes('shortActivityIdentityUnique(state, npc, candidate)'), 'Short-name ambiguity guard is no longer enforced');
+assert(scanner.includes("if (channel === 'inChat' && sections.offscreen && !sections.present) return false;"), 'Current final-presence firewall no longer fails closed for explicit Off-Screen placement');
+
+assert(evidence.includes('World_State') && evidence.includes('by itself NEVER proves exchange action'), 'World_State in-chat firewall regressed');
+assert(evidence.includes('NPC_Inner_Chatter') && evidence.includes('by itself NEVER proves inChat presence'), 'Inner-chatter in-chat firewall regressed');
 assert(evidence.includes("if (containsReference(policy.visibleText, variants)) return 'visible';"), 'Visible evidence scope ordering changed unexpectedly');
 assert(evidence.includes("if (containsReference(policy.worldStateText, variants)) return 'world';"), 'World evidence scope ordering changed unexpectedly');
 
@@ -32,6 +34,7 @@ for (const marker of [
     'brina-short-name',
     'brina-short-name-uppercase',
     'brina-world-only',
+    'brina-world-short-only',
     'brina-inner-only',
     'brina-ambiguous-short-name',
     'single-name-control',
@@ -55,10 +58,10 @@ assert(phase48.includes('policy?.visibleText') && phase48.includes('policy?.worl
 
 const workflowMatch = workflow.match(/Build NPC State 0\.4\.(\d+) Beta/);
 assert(workflowMatch && Number(workflowMatch[1]) >= 24, 'Workflow is older than v0.4.24');
-assert(workflow.includes('node beta/bump-0.4.24.mjs'), 'Workflow does not apply the v0.4.24 bump');
-assert(workflow.includes("-name 'phase*-0.4.24.mjs'"), 'Workflow does not apply v0.4.24 phases');
+assert(workflow.includes('# node beta/bump-0.4.24.mjs'), 'Workflow no longer retains the v0.4.24 bump marker');
+assert(workflow.includes("-name 'phase*-0.4.24.mjs'"), 'Workflow no longer applies v0.4.24 phases');
 assert(workflow.includes('visibleShortActivityIdentityMention'), 'Architecture gate does not guard presence recovery');
 assert(workflow.includes('shortActivityIdentityUnique'), 'Architecture gate does not guard short-name ambiguity protection');
 assert(workflow.includes('Generated beta runtime already matches build output.'), 'Workflow lacks deterministic generated-source parity detection');
 
-console.log('NPC State 0.4.24 release source parity verified');
+console.log('NPC State 0.4.24 release source parity verified on descendant activity architecture');
