@@ -259,6 +259,72 @@ export async function writeV3Sidecar({ chatKey, state, pointer = null, fetchFn =
 }
 
 
+function makeRecoveryV3FileName(chatKey) {
+    const base = makeV3FileName(chatKey).replace(/\.json$/i, '');
+    return base + '-recovery-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8) + '.json';
+}
+
+export async function createRecoveryV3Sidecar({
+    chatKey,
+    state,
+    previousPointer = null,
+    allowExisting = false,
+    fetchFn = globalThis.fetch,
+    headers = {},
+    retryDelays = TRANSIENT_WRITE_RETRY_DELAYS,
+}) {
+    if (typeof fetchFn !== 'function') throw new Error('fetch() is unavailable for NPC State recovery persistence.');
+    return withWriterLock(chatKey, async () => {
+        const previousPath = String(previousPointer?.path || '');
+        const hint = readV3PointerHint(chatKey);
+        if (hint?.path && hint.path !== previousPath) {
+            const hinted = await readV3Sidecar({ chatKey, pointer: hint, fetchFn });
+            if (hinted && !hinted.retired) {
+                throw conflict('NPC State recovery found a newer sidecar pointer from another tab. Reload before replacing anything.', previousPointer?.revision ?? null, hint.revision ?? hinted.revision ?? null);
+            }
+        }
+
+        if (previousPath) {
+            const remote = await readV3Sidecar({ chatKey, pointer: previousPointer, fetchFn });
+            if (remote?.retired) {
+                const error = new Error('NPC State recovery source is retired. Reload the renamed/deleted chat rather than replacing it.');
+                error.code = 'NPC_STATE_V04_BETA_RETIRED_SIDECAR';
+                error.redirectChatKey = remote.redirectChatKey || '';
+                throw error;
+            }
+            if (remote) {
+                const expected = previousPointer?.revision == null ? null : Math.max(0, Math.trunc(Number(previousPointer.revision) || 0));
+                if (!allowExisting) {
+                    const error = new Error('NPC State sidecar still exists. Explicit healthy-state rebuild confirmation is required before replacing this chat pointer.');
+                    error.code = 'NPC_STATE_V04_BETA_RECOVERY_SOURCE_EXISTS';
+                    throw error;
+                }
+                if (expected === null || Number(remote.revision || 0) !== expected) {
+                    throw conflict('NPC State recovery source changed before replacement. Reload and retry from the newest revision.', expected, remote.revision || 0);
+                }
+            }
+        }
+
+        const revision = 1;
+        const normalized = normalizeState(state, chatKey);
+        normalized.revision = revision;
+        normalized.updatedAt = Date.now();
+        const name = makeRecoveryV3FileName(chatKey);
+        const json = encodeV3Payload(chatKey, normalized, revision);
+        const response = await fetchPersistenceMutation(fetchFn, '/api/files/upload', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ name, data: toBase64(json) }),
+        }, { label: 'NPC State recovery sidecar creation', retryDelays });
+        if (!response?.ok) throw new Error('NPC State recovery sidecar creation failed with HTTP ' + (response?.status || 'error') + '.');
+        const result = await response.json();
+        if (!result?.path) throw new Error('NPC State recovery sidecar upload returned no path.');
+        const pointer = { name, path: result.path, revision, updatedAt: Date.now() };
+        writeV3PointerHint(chatKey, pointer);
+        return { state: normalized, pointer, previousPointer: previousPointer ? structuredClone(previousPointer) : null };
+    });
+}
+
 export async function retireV3Sidecar({ chatKey, pointer, reason = 'retired', redirectChatKey = '', fetchFn = globalThis.fetch, headers = {}, retryDelays = TRANSIENT_WRITE_RETRY_DELAYS }) {
     if (!pointer?.path) return null;
     if (typeof fetchFn !== 'function') throw new Error('fetch() is unavailable for NPC State beta lifecycle persistence.');

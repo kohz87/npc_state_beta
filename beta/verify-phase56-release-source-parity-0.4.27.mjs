@@ -18,9 +18,9 @@ const phase55e = read('beta/phase55e-world-active-evidence-0.4.27.mjs');
 const verify55 = read('beta/verify-phase55-source-agnostic-identity-presence-0.4.27.mjs');
 const verify55e = read('beta/verify-phase55e-world-active-evidence-0.4.27.mjs');
 
-assert.equal(manifest.version, '0.4.27', 'Manifest is not v0.4.27');
-assert(workflow.includes('name: Build NPC State 0.4.27 Beta'), 'Workflow title is not v0.4.27');
-assert(workflow.includes('for patch in $(seq 2 27); do'), 'Cold replay does not include v0.4.27');
+assert(/^0\.4\.(?:27|2[89]|[3-9]\d+)$/.test(manifest.version), 'Manifest is older than v0.4.27');
+assert(/name: Build NPC State 0\.4\.\d+ Beta/.test(workflow), 'Workflow title is not an NPC State 0.4.x beta build');
+assert(/for patch in \$(?:\(seq 2 \d+\)); do/.test(workflow), 'Cold replay loop is missing');
 assert(workflow.includes("# node beta/bump-0.4.27.mjs ; -name 'phase*-0.4.27.mjs'"), 'Workflow lacks v0.4.27 source marker');
 assert(workflow.includes('Generated beta runtime already matches build output.'), 'Workflow lacks zero-diff parity exit');
 
@@ -104,7 +104,7 @@ assert(!scanner.includes('relationshipEvidencePolarityConflict('), 'Runtime rela
 assert(!engine.includes('identityPresenceReview'), 'An additional mandatory identity/presence LLM call was introduced');
 
 assert(changelog.includes('## v0.4.27'), 'Changelog lacks v0.4.27');
-assert(readme.includes('# NPC State Beta 0.4.27'), 'README title is not v0.4.27');
+assert(/# NPC State Beta 0\.4\.\d+/.test(readme), 'README title is not an NPC State 0.4.x release');
 assert(readme.includes('## Source-agnostic identity and presence grounding'), 'README lacks v0.4.27 behavior documentation');
 
 console.log('NPC State 0.4.27 release source parity verified');

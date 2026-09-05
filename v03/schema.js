@@ -1,9 +1,50 @@
-export const NPC_STATE_VERSION = '0.4.27';
+export const NPC_STATE_VERSION = '0.4.28';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     const number = Number(value);
     return Number.isFinite(number) && number > 0 ? Math.max(512, Math.min(15000, Math.round(number))) : 7000;
 }
+export const RECOVERY_RELATIONSHIP_MODES = Object.freeze(['fresh', 're-evaluate']);
+export const RECOVERY_STATUSES = Object.freeze(['running', 'paused', 'failed', 'cancelled', 'complete', 'stale']);
+export function normalizeRecoveryRelationshipMode(value) {
+    const mode = String(value || '').trim().toLocaleLowerCase();
+    return RECOVERY_RELATIONSHIP_MODES.includes(mode) ? mode : 'fresh';
+}
+function recoveryText(value, max = 1000) {
+    return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+export function normalizeRecoveryState(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const statusRaw = String(value.status || '').trim().toLocaleLowerCase();
+    const status = RECOVERY_STATUSES.includes(statusRaw) ? statusRaw : 'paused';
+    const messageIds = Array.isArray(value.messageIds)
+        ? value.messageIds.filter(Number.isInteger).filter(id => id >= 0).slice(0, 20000)
+        : [];
+    const plannedLineage = Array.isArray(value.plannedLineage)
+        ? value.plannedLineage.map(item => String(item || '')).filter(Boolean).slice(0, 40000)
+        : [];
+    const total = Math.max(0, Math.trunc(Number(value.total) || messageIds.length));
+    const completed = Math.max(0, Math.min(total, Math.trunc(Number(value.completed) || 0)));
+    return {
+        version: 1,
+        status,
+        relationshipMode: normalizeRecoveryRelationshipMode(value.relationshipMode),
+        startMessageId: Number.isInteger(value.startMessageId) ? Math.max(0, value.startMessageId) : null,
+        endMessageId: Number.isInteger(value.endMessageId) ? value.endMessageId : null,
+        messageIds,
+        plannedLineage,
+        completed,
+        total,
+        lastCompletedMessageId: Number.isInteger(value.lastCompletedMessageId) ? value.lastCompletedMessageId : null,
+        nextMessageId: Number.isInteger(value.nextMessageId) ? value.nextMessageId : null,
+        reason: recoveryText(value.reason, 500),
+        error: recoveryText(value.error, 1200),
+        startedAt: Number(value.startedAt) || Date.now(),
+        updatedAt: Number(value.updatedAt) || Date.now(),
+        completedAt: Number(value.completedAt) || null,
+    };
+}
+
 export const NPC_ADMISSION_MODES = Object.freeze(['balanced', 'named_preferred', 'manual']);
 export function normalizeNpcAdmissionMode(value) {
     const mode = String(value || '').trim().toLocaleLowerCase();
@@ -815,6 +856,7 @@ export function createEmptyState(chatKey = '') {
         branchSafety: { status: 'safe', kind: '', reason: '' },
         branchFingerprintVersion: 3,
         migration: null,
+        recovery: null,
         createdAt: Date.now(),
         updatedAt: Date.now(),
     };
@@ -888,6 +930,7 @@ export function normalizeState(input = {}, chatKey = '') {
         },
         branchFingerprintVersion: Math.max(0, Math.trunc(Number(input.branchFingerprintVersion) || 0)),
         migration: input.migration && typeof input.migration === 'object' ? structuredClone(input.migration) : null,
+        recovery: normalizeRecoveryState(input.recovery),
         createdAt: Number(input.createdAt) || Date.now(),
         updatedAt: Number(input.updatedAt) || Date.now(),
     };
@@ -911,6 +954,7 @@ export function snapshotForCheckpoint(state) {
     const copy = normalizeState(state, state?.chatKey || '');
     copy.checkpoints = [];
     copy.branchBase = null;
+    copy.recovery = null;
     // Portrait binary/data URLs are durable presentation assets, not timeline state.
     // Excluding them keeps up to 48 rollback checkpoints from multiplying megabytes
     // of identical image data. Restoration merges the current portrait back by id.

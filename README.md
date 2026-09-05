@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.27
+# NPC State Beta 0.4.28
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -7,7 +7,7 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 - Normal turns use the same foreground RP inference for NPC State capture. No mandatory second scanner request.
 - The model emits one hidden `<npc_state_v1>...</npc_state_v1>` observation block; NPC State validates it, applies deterministic state rules, stores per-message/per-swipe metadata, and strips the transport from chat.
 - With current Inventory Block transports, NPC State yields the terminal position: the NPC payload comes first and Inventory keeps its own final `INVENTORY_BLOCK_V05` / legacy `INVENTORY_BLOCK_UPDATE` control.
-- `present` remains the internal v0.3-compatible storage field, but its v0.4.27 meaning is **in chat**: individually relevant NPC participants at exchange end, not everyone physically nearby.
+- `present` remains the internal v0.3-compatible storage field, but its v0.4.28 meaning is **in chat**: individually relevant NPC participants at exchange end, not everyone physically nearby.
 - New NPCs use the same full semantic scan and receive all grounded foundational information established by the exchange. Unknown biography stays unknown.
 - The full separate v0.3-style scanner is retained as a contingency for manual Scan current cast, dossier Refresh, timeline rebase, edited/untracked branch recovery, and optional foreground failure fallback.
 - When embedded capture is enabled, a completely missing `<npc_state_v1>` block automatically triggers one recovery scan. Recovery for a malformed block remains separately optional/configurable.
@@ -65,6 +65,15 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
 
+## Recovery and chronological rebuild
+
+- A missing beta sidecar can now be explicitly replaced without first hydrating the broken pointer. Recovery writes a new uniquely named sidecar under the existing writer lock, verifies that another tab has not already advanced the pointer, and switches this chat only after the replacement upload succeeds.
+- Rebuild from chat processes surviving assistant exchanges chronologically. Each model call receives only the chat prefix through the exchange being reconstructed, so future messages cannot leak into earlier historical judgments.
+- Recovery progress is persisted after every committed exchange. Reloads turn an interrupted running rebuild into a resumable pause; failed generations retry the same exchange; cancellation never advances an uncommitted step; edits to completed history stop with restart-required status, while edits confined to the unprocessed suffix are safely replanned without replaying completed work.
+- Relationship mode can either start meters fresh while reconstructing the rest of the dossier, or re-evaluate historical relationship changes through the normal evidence, cap, inertia, duplicate, and milestone rules.
+- Automatic stale deletion is deferred during reconstruction and applied once at the chosen end of the rebuilt range. Archival may still occur chronologically and can be restored by later reconstructed activity.
+- Recovery controls live under Recovery & Branch Safety with fresh initialization, all/latest/custom range selection, relationship mode, progress, resume, pause, cancel, and restart feedback. Normal scans and mutating dossier operations are blocked while an incomplete recovery owns chronology.
+
 ## Source-agnostic identity and presence grounding
 
 - Current visible narrative is the primary source for new-NPC identity and scene participation. The scanner may bind indirect descriptions, pronouns, scene continuity, and earlier named references semantically, while runtime verifies quoted current-visible provenance instead of adding keyword/role classifiers.
@@ -98,7 +107,7 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 
 ## Relationship judgment calibration
 
-- v0.4.27 applies one shared relationship-judgment rubric to foreground capture and the full recovery/current-cast scanner. It distinguishes genuinely new change from continuity, binds reactions to the correct NPC and player target, supports contextual/indirect evidence without keyword gating, evaluates axes independently, weighs ambiguity without freezing, and considers mixed chronology before proposing a net change.
+- v0.4.28 applies one shared relationship-judgment rubric to foreground capture and the full recovery/current-cast scanner. It distinguishes genuinely new change from continuity, binds reactions to the correct NPC and player target, supports contextual/indirect evidence without keyword gating, evaluates axes independently, weighs ambiguity without freezing, and considers mixed chronology before proposing a net change.
 - Impact caps remain maxima rather than targets. The model is instructed to choose modest raw deltas from strength, significance, and novelty, while runtime continues to apply caps, priority/axis limits, duplicate protection, inertia, fractional progress, and milestone gates exactly as before.
 - Per-axis explanations remain concise and evidence-backed. Exact quotations still come only from permitted current-exchange relationship evidence; older context can inform interpretation but never becomes fresh evidence.
 - Relationship criteria in settings are additive campaign calibration. The shared rubric and deterministic evidence/mechanics contract always remain in force. Existing user-edited criteria are preserved; only the exact previous built-in default is migrated to the shorter additive default.

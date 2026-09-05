@@ -212,8 +212,11 @@ function file(path) {
         }));
     }
     const prompt = buildInjection(state, { enabled: true, autoScan: false, inject: true, injectLimit: 20, injectBudgetTokens: 512 });
-    assert(prompt.includes('Campaign NPC 000'), 'Identity directory unexpectedly empty');
-    assert(!prompt.includes('Campaign NPC 399'), 'Identity directory ignored the configured continuity budget');
+    const directoryStart = prompt.indexOf('KNOWN NPC DIRECTORY');
+    const dossierStart = prompt.indexOf('FULL CONTINUITY FOR LIKELY RELEVANT NPCS:');
+    const directorySection = prompt.slice(directoryStart, dossierStart >= 0 ? dossierStart : prompt.length);
+    assert(directorySection.includes('Campaign NPC 000'), 'Identity directory unexpectedly empty');
+    assert(!directorySection.includes('Campaign NPC 399'), 'Identity directory ignored the configured continuity budget');
 }
 
 // Static invariants that are expensive or awkward to instantiate outside SillyTavern.

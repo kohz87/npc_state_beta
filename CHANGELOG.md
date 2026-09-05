@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.28
+
+- Adds explicit missing-sidecar fresh initialization and a resumable chronological reconstruction coordinator that never exposes future chat messages to earlier historical scans.
+- Persists rebuild range, relationship mode, message plan, lineage fingerprints, progress, failure state, pause/cancel state, and completion state in the replacement sidecar.
+- Adds two relationship recovery modes: start meters fresh while rebuilding all other dossier state, or re-evaluate history with the existing relationship evidence/progression engine unchanged.
+- Defers stale deletion until reconstruction completion, blocks ordinary writes while recovery chronology is incomplete, and safely replans only the unprocessed suffix after chat edits.
+- Extends Recovery & Branch Safety with missing-file recovery, all/latest/custom range selection, progress, resume, pause, cancel, and rebuild controls.
+- Fixes source/build consistency by committing every verifier fixture changed by cold transforms and checking the committed 0.4.28 checkout before regenerating from the pinned stable baseline.
+
 ## v0.4.27
 
 - Makes new-NPC identity and presence grounding source-agnostic: plain visible narrative is sufficient, with exact current-visible identity/activity evidence available for indirect semantic binding.

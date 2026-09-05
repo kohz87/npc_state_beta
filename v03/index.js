@@ -227,7 +227,8 @@ function updateInjection() {
     const structuredEvidenceDetected = (ctx.chat || []).slice(-30).some(message => hasRecognizedStructuredBlocks(message?.mes));
     const foregroundNewNpcHistory = buildForegroundNewNpcHistory(ctx.chat || [], settings);
     const foregroundCurrentUserText = latestForegroundUserText(ctx.chat || []);
-    const prompt = state ? buildInjection(state, { ...settings, structuredEvidenceDetected, foregroundNewNpcHistory, foregroundCurrentUserText }) : '';
+    const recoveryPending = ['running', 'paused', 'failed', 'stale'].includes(String(state?.recovery?.status || ''));
+    const prompt = state && !recoveryPending ? buildInjection(state, { ...settings, structuredEvidenceDetected, foregroundNewNpcHistory, foregroundCurrentUserText }) : '';
     ctx.setExtensionPrompt?.(
         PROMPT_KEY,
         prompt,
@@ -311,7 +312,8 @@ async function hydrateActiveChat({ reconcile = true } = {}) {
     try {
         const state = await engine.loadChat(key);
         if (getChatKey() !== key) return null;
-        if (reconcile) {
+        const recoveryPending = ['running', 'paused', 'failed', 'stale'].includes(String(state?.recovery?.status || ''));
+        if (reconcile && !recoveryPending) {
             const branch = await engine.reconcileBranch({ rescan: false });
             if (branch?.unsafeDivergence) notify('warning', 'timeline rebase required. Durable dossiers are intact; accept the current surviving timeline from NPC State settings or return to the original baseline branch.');
         }
@@ -472,6 +474,12 @@ async function settledBranchReconcile({ reason = 'branch-change', messageId = nu
     try {
         await sleep(90);
         if (getChatKey() !== key) return;
+        const recovery = engine.getState(key)?.recovery;
+        if (['running', 'paused', 'failed', 'stale'].includes(String(recovery?.status || ''))) {
+            if (recovery?.status === 'running') await engine.pauseHistoricalRecovery('Chat history changed while recovery was running. Resume will validate completed history and replan only the unprocessed suffix when safe.');
+            refreshSurfaces();
+            return;
+        }
         const result = await engine.reconcileBranch({ rescan: false });
         if (result?.unsafeDivergence) {
             notify('warning', 'timeline rebase required. Durable dossiers are intact; open NPC State settings and choose Rebase to current chat to accept the surviving timeline.');
@@ -703,6 +711,8 @@ function npcStateDebugStatus() {
         exchangeActiveNpcIds: [...(observation.exchangeActiveNpcIds || [])],
         worldActiveNpcIds: [...(observation.worldActiveNpcIds || [])],
         lastScannedMessageId: state?.lastScannedMessageId ?? null,
+        recovery: state?.recovery ? structuredClone(state.recovery) : null,
+        recoveryRunning: engine.isRecoveryRunning(chatKey),
         structuredEvidenceDetected: (getContext().chat || []).slice(-30).some(message => hasRecognizedStructuredBlocks(message?.mes)),
         admissionMode: normalizeNpcAdmissionMode(settings.newNpcAdmissionMode),
         injection: state ? injectionDiagnostics(state, { ...settings, foregroundCurrentUserText: latestForegroundUserText(getContext().chat || []) }) : null,
@@ -737,6 +747,14 @@ globalThis.NPCState = Object.freeze({
     importStructuredDossier: reference => engine.importStructuredDossier(reference),
     getState: () => engine.getState(getChatKey()),
     hydrationStatus: () => engine.hydrationStatus(getChatKey()),
+    recoveryStatus: () => engine.recoveryStatus(getChatKey()),
+    recoveryRange: () => engine.recoveryRange(),
+    isRecoveryRunning: () => engine.isRecoveryRunning(getChatKey()),
+    initializeFresh: options => engine.initializeFresh(options),
+    rebuildFromChat: options => engine.startHistoricalRecovery(options),
+    resumeRebuild: () => engine.resumeHistoricalRecovery(),
+    pauseRebuild: reason => engine.pauseHistoricalRecovery(reason),
+    cancelRebuild: () => engine.cancelHistoricalRecovery(),
     isBusy: () => engine.isBusy(getChatKey()),
     addNpc: name => engine.addNpc(name),
     updateNpc: (reference, patch) => engine.updateNpc(reference, patch),
