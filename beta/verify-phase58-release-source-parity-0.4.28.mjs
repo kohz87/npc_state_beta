@@ -14,6 +14,7 @@ const dossier = read('v03/dossier-view.js');
 const phase57 = read('beta/phase57-recovery-rebuild-core-0.4.28.mjs');
 const phase57b = read('beta/phase57b-recovery-ui-0.4.28.mjs');
 const verify57 = read('beta/verify-phase57-recovery-rebuild-0.4.28.mjs');
+const regeneratedLegacyFixture = read('beta/verify-0.4.1.mjs');
 const changelog = read('CHANGELOG.md');
 const readme = read('README.md');
 
@@ -24,6 +25,13 @@ assert(workflow.includes("# node beta/bump-0.4.28.mjs ; -name 'phase*-0.4.28.mjs
 assert(workflow.includes('beta/verify-*.mjs'), 'Generated-file parity still uses an incomplete hard-coded verifier list');
 assert(workflow.includes('Source checkout behavior gate'), 'Workflow does not test regenerated source checkout directly');
 assert(workflow.includes('Generated beta runtime already matches build output.'), 'Workflow lacks zero-diff parity exit');
+
+// This fixture was the concrete source/build drift that could make the generated build green
+// while a direct checkout still failed. It must live in source after CI generation, and the
+// workflow must commit all transformed verifier fixtures rather than an incomplete hand list.
+assert(regeneratedLegacyFixture.includes("const directoryStart = prompt.indexOf('KNOWN NPC DIRECTORY')"), 'Regenerated legacy verifier fixture repair is not committed in source');
+assert(regeneratedLegacyFixture.includes("const dossierStart = prompt.indexOf('FULL CONTINUITY FOR LIKELY RELEVANT NPCS:')"), 'Regenerated verifier does not scope the identity-directory budget assertion');
+assert(workflow.includes('git add v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-*.mjs'), 'Workflow can still omit transformed verifier fixtures from generated commits');
 
 for (const marker of [
     'RECOVERY_RELATIONSHIP_MODES',
