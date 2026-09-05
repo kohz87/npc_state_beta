@@ -135,6 +135,7 @@ assert.equal(branchDivergenceMessageId({ branchHeadLineage: chatLineage(oldChat)
 const recoveryUi = fs.readFileSync(new URL('../v03/branch-recovery-ui.js', import.meta.url), 'utf8');
 assert(recoveryUi.includes('Relationship changes and milestone breakthroughs attributable to discarded branch messages are rolled back'), 'Rebase confirmation still implies all relationship state is preserved');
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
-assert.equal(manifest.version, '0.4.9', 'Manifest was not bumped to 0.4.9');
+const manifestParts = String(manifest.version || '').split('.').map(Number);
+assert(manifestParts[0] === 0 && manifestParts[1] === 4 && manifestParts[2] >= 9, 'Manifest regressed below the 0.4.9 rebase rollback release');
 
 console.log('NPC State 0.4.9 timeline rebase relationship rollback verification passed');
