@@ -114,7 +114,8 @@ const npc = (state, name) => state.npcs.find(item => item.name === name);
     assert(Array.isArray(parsedLegacy.data.familySlots) && parsedLegacy.data.familySlots.length === 0, 'Older bundle without familySlots became invalid');
 }
 
-// Prompt/state architecture checks.
+// Prompt/state architecture checks. Descendants may extend countable familyFacts with new
+// fields (for example named members) while retaining the original family-slot semantics.
 {
     const schema = fs.readFileSync(new URL('../v03/schema.js', import.meta.url), 'utf8');
     const scanner = fs.readFileSync(new URL('../v03/scanner.js', import.meta.url), 'utf8');
@@ -122,7 +123,8 @@ const npc = (state, name) => state.npcs.find(item => item.name === name);
     const engine = fs.readFileSync(new URL('../v03/engine.js', import.meta.url), 'utf8');
     assert(schema.includes('normalizeFamilySlots') && schema.includes('familySlots: []'), 'Family slot state schema missing');
     assert(scanner.includes('mergeKeyRelationshipPatch') && scanner.includes('reconcileFamilyGraphState'), 'Key merge/family reconcile backend missing');
-    assert(scanner.includes('familyFacts') && injection.includes('COUNTABLE UNNAMED FAMILY'), 'Family-fact scanner contract missing');
+    const hasCountableFamilyPrompt = injection.includes('COUNTABLE UNNAMED FAMILY') || injection.includes('COUNTABLE FAMILY FACTS');
+    assert(scanner.includes('familyFacts') && hasCountableFamilyPrompt, 'Family-fact scanner contract missing');
     assert(injection.includes('counterpart MERGE PATCH'), 'Foreground key relationship merge semantics missing');
     assert(engine.includes('state.familySlots') && engine.includes('reconcileFamilyGraphState'), 'Manual/delete family lifecycle wiring missing');
     assert(!injection.includes('resolvedNpcIds'), 'Private family slot internals leaked into RP injection');
