@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
+// This verifier is intentionally source-owned so a human-authored commit can
+// trigger a fresh pinned-baseline rebuild after the generated runtime lands.
 const read = path => fs.readFileSync(path, 'utf8');
 const manifest = JSON.parse(read('manifest.json'));
 const scanner = read('v03/scanner.js');
