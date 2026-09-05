@@ -106,7 +106,7 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
     }).state;
     const mira = next.npcs.find(npc => npc.id === 'npc-mira');
     assert.equal(mira.relationship.trust, 10);
-    assert(mira.relationshipDiagnostics.at(-1)?.reasons?.includes('wrong-direction'));
+    assert(mira.relationshipDiagnostics.at(-1)?.reasons?.includes('trust:wrong-direction'));
 }
 
 // A locally negated affection predicate cannot authorize positive affection movement.
@@ -126,7 +126,7 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
     }).state;
     const mira = next.npcs[0];
     assert.equal(mira.relationship.affection, 10);
-    assert(mira.relationshipDiagnostics.at(-1)?.reasons?.includes('evidence-polarity'));
+    assert(mira.relationshipDiagnostics.at(-1)?.reasons?.includes('affection:evidence-polarity'));
 }
 
 // Manual relationship edits are anchors: later discarded automation reverses; earlier automation is not subtracted twice.

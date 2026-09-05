@@ -16,8 +16,9 @@ const verify30 = read('beta/verify-phase30-relationship-progression-0.4.17.mjs')
 const verify32 = read('beta/verify-phase32-release-source-parity-0.4.17.mjs');
 const workflow = read('.github/workflows/seed-beta.yml');
 
-assert.equal(manifest.version, '0.4.18', 'Release source is not v0.4.18');
-assert(ui.includes('NPC State <span class="npc-state-version">0.4.18</span>'), 'Committed runtime UI version is not v0.4.18');
+const manifestPatch = Number(String(manifest.version || '').split('.')[2]);
+assert(String(manifest.version || '').startsWith('0.4.') && Number.isInteger(manifestPatch) && manifestPatch >= 18, 'Release source regressed below v0.4.18');
+assert(ui.includes('NPC State <span class="npc-state-version">' + manifest.version + '</span>'), 'Committed runtime UI version does not match manifest');
 
 assert(scanner.includes('RELATIONSHIP EVALUATION IS REQUIRED for every NPC in exchangeActiveNpcIds'), 'Recovery scanner relationship-evaluation mandate is missing');
 assert(injection.includes('RELATIONSHIP EVALUATION IS REQUIRED for every NPC in exchangeActiveNpcIds'), 'Foreground scanner relationship-evaluation mandate is missing');
@@ -46,12 +47,12 @@ assert(verify33.includes('Relationship-disabled rescan duplicated evaluation tel
 assert(verify30.includes('Manifest regressed below v0.4.17'), 'v0.4.17 progression verifier is not descendant-compatible');
 assert(verify32.includes('Release source regressed below v0.4.17'), 'v0.4.17 parity verifier is not descendant-compatible');
 
-assert(workflow.includes('Build NPC State 0.4.18 Beta'), 'Workflow is not versioned for v0.4.18');
+assert(workflow.includes('Build NPC State 0.4.'), 'Workflow lost NPC State 0.4.x versioning');
 assert(workflow.includes('node beta/bump-0.4.18.mjs'), 'Workflow does not apply the v0.4.18 bump');
 assert(workflow.includes("-name 'phase*-0.4.18.mjs'"), 'Workflow does not apply v0.4.18 phases');
 assert(workflow.includes('relationshipEvaluationDiagnostic'), 'Architecture gate does not guard evaluation diagnostics');
 assert(workflow.includes('evaluated-no-change'), 'Architecture gate does not guard deliberate-zero telemetry');
-assert(workflow.includes('Persistent NPC State 0.4.18 database'), 'Architecture gate does not guard the v0.4.18 runtime surface');
+assert(workflow.includes('Persistent NPC State 0.4.'), 'Architecture gate does not guard the current runtime surface');
 assert(workflow.includes('Generated beta runtime already matches build output.'), 'Workflow lacks deterministic source/runtime parity detection');
 
 console.log('NPC State 0.4.18 release source parity verified');

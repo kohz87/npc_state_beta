@@ -166,6 +166,7 @@ assert(dossier.includes('Evaluated; no relationship movement warranted.'), 'Doss
 assert(dossier.includes('Required relationship evaluation was omitted by the scanner.'), 'Dossier lacks omission display');
 
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
-assert.equal(manifest.version, '0.4.18');
+const manifestPatch = Number(String(manifest.version || '').split('.')[2]);
+assert(String(manifest.version || '').startsWith('0.4.') && Number.isInteger(manifestPatch) && manifestPatch >= 18, 'Manifest regressed below v0.4.18');
 
 console.log('NPC State 0.4.18 relationship evaluation observability verified');

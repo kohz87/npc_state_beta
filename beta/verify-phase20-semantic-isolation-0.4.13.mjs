@@ -110,7 +110,7 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
     }).state;
     const mira = next.npcs.find(npc => npc.id === 'npc-mira');
     assert.equal(mira.relationship.trust, 10, 'Sora-to-player trust moved Mira relationship state');
-    assert(mira.relationshipDiagnostics.at(-1)?.reasons?.includes('wrong-direction'));
+    assert(mira.relationshipDiagnostics.at(-1)?.reasons?.includes('trust:wrong-direction'));
 }
 
 // Polarity belongs to the local predicate, not unrelated nearby words.

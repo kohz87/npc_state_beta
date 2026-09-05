@@ -132,7 +132,7 @@ test('contradictory proposal changes neither scores nor fractions or milestones'
     assert.deepEqual(npc(after).relationship, npc(before).relationship);
     assert.deepEqual(npc(after).relationshipMilestones, []);
     assert.equal(npc(after).relationshipEvidenceHistory.length, 0);
-    assert.deepEqual(last(after).reasons, ['contradictory']);
+    assert(last(after).reasons.includes('trust:contradictory'));
 });
 
 test('diagnostics explain locked gates, per-axis unlocks, and fractional absorption', () => {

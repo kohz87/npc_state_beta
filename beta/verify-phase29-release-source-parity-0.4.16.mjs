@@ -22,7 +22,7 @@ assert(evidence.includes('TRUST_PERFORMANCE_FAILURE'), 'Committed relationship e
 assert(evidence.includes('semanticEventActorKind'), 'Semantic fallback no longer binds the causal event actor');
 assert(evidence.includes('semanticMovingAxis') || evidence.includes("moving.length !== 1 || moving[0][0] !== 'trust' || Number(moving[0][1]) <= 0"), 'Semantic fallback no longer constrains ambiguous movement');
 assert(evidence.includes("semanticEventActorKind(clause, expectations) !== 'expected'"), 'Semantic fallback no longer requires a player-attributed event');
-assert(scanner.includes('impact: change.impact') && scanner.includes('delta: change.delta'), 'Scanner does not pass relationship movement semantics into grounding');
+assert(scanner.includes('impact: change.impact') && (scanner.includes('delta: change.delta') || scanner.includes('delta: axisDelta')), 'Scanner does not pass relationship movement semantics into grounding');
 
 assert(phase28.includes('ordinaryTrustSemanticGrounding'), 'v0.4.16 transform source lacks semantic grounding');
 assert(verify28.includes('A concrete player-attributed bounty completion paraphrase was rejected as ungrounded'), 'Reported paraphrase regression is not persisted in source');

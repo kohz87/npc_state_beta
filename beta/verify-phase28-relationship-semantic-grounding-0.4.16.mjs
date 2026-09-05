@@ -128,7 +128,7 @@ const groundedPerformance = 'Lucien delivered three intact pairs of lower tusks 
 
 const scanner = fs.readFileSync(new URL('../v03/scanner.js', import.meta.url), 'utf8');
 const evidenceSource = fs.readFileSync(new URL('../v03/relationship-evidence.js', import.meta.url), 'utf8');
-assert(scanner.includes('impact: change.impact') && scanner.includes('delta: change.delta'), 'Scanner does not pass movement semantics into relationship grounding');
+assert(scanner.includes('impact: change.impact') && (scanner.includes('delta: change.delta') || scanner.includes('delta: axisDelta')), 'Scanner does not pass movement semantics into relationship grounding');
 assert(evidenceSource.includes('ordinaryTrustSemanticGrounding') || evidenceSource.includes('relationshipSemanticGrounding'), 'Runtime relationship evidence lacks semantic relationship grounding');
 assert(evidenceSource.includes('TRUST_PERFORMANCE_FAILURE'), 'Runtime relationship evidence lacks negative performance fail-closed protection');
 

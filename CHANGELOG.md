@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.19
+
+- Grounds multi-axis relationship proposals per axis so one unsupported axis no longer invalidates otherwise grounded movement.
+- Preserves grounded subsets through existing axis limits, inertia, fractional progress, milestone gates, duplicate protection, and relationship history.
+- Adds axis-specific rejection diagnostics and `partial-applied` visibility while retaining the original scanner proposal for auditability.
+- Keeps Desire explicit-only and prevents unsupported Desire from poisoning valid Trust, Affection, or Tension changes.
+
 ## v0.4.18
 
 - Requires explicit player-relationship evaluation for every exchange-active NPC, including deliberate no-change results.

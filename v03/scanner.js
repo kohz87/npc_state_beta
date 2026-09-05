@@ -205,7 +205,7 @@ function dossierCollectionRules(limits) {
 
 export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State v0.4.18 recovery scanner requires an assistant message and its preceding user exchange.');
+    if (!exchange) throw new Error('NPC State v0.4.19 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
@@ -228,7 +228,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         familyFacts: [{ owner: 'existing NPC id/name', relation: 'daughter|son|child|other countable family role', count: 2, descriptor: 'optional e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit countable family fact' }],
     };
     return [
-        'You are NPC State v0.4.18, a private structured continuity scanner for a roleplay chat.',
+        'You are NPC State v0.4.19, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
         '',
         `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
@@ -252,6 +252,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- Current exchange decides relationship changes. Older history may recover stable profile facts and durable memories, but must NEVER replay relationship deltas.',
         '- RELATIONSHIP EVALUATION IS REQUIRED for every NPC in exchangeActiveNpcIds. Return an npcs patch for each such NPC even when no other dossier field changed. Set relationshipChange.evaluated to true. Most ordinary interactions may correctly produce no movement; for that case use impact none, all-zero deltas, empty evidence, and a concise reason explaining why no player-relationship shift is warranted. Never omit relationshipChange for an exchange-active NPC.',
         '- Use a non-none relationshipChange only when the current exchange contains concrete evidence. If unsure whether movement is warranted, evaluate it explicitly as impact none rather than omitting the channel.',
+        '- MULTI-AXIS RELATIONSHIP EVIDENCE: each nonzero axis must be independently supported by the current exchange. Make evidence/reason concrete enough to justify every proposed axis separately. Runtime may discard an unsupported axis while preserving independently grounded axes; never inflate extra axes merely because one part of the interaction was intense.',
         '- RELATIONSHIP HARDENING: ordinary may affect at most 1 axis, meaningful 2, major 3, extreme 4. Repeated aftermath or semantically duplicate events must be zero. High relationship depth has increasing inertia, so raw deltas are evidence weights rather than guaranteed visible points. Desire requires explicit romantic/intimate/physical attraction evidence in the CURRENT narration, not friendship, gratitude, rescue, beauty, proximity, trust, or generic affection. Relationship Summary must describe only depth actually supported by the accepted relationship state.',
         '- RELATIONSHIP EVIDENCE: quote a short concrete event from the current exchange; preserve who acted, negation, and the outcome. Do not replace a quote with an inferred absolute trust/affection claim. Opposite outcomes are new events, while repeated aftermath earns zero. RELATIONSHIP MILESTONE GATES are enforced by NPC State at absolute depth 25, 50, 75, and 90 independently for each axis and positive/negative polarity. Ordinary evidence may reach a locked boundary but cannot deepen beyond it. Crossing 25 requires meaningful-or-stronger evidence; crossing 50 requires a major-or-stronger event with at least 3 raw points on that axis; crossing 75 requires extreme evidence with at least 5 raw points; crossing 90 requires extreme relationship-defining evidence with at least 8 raw points. Movement back toward neutral is never gate-blocked. Classify impact and deltas from the story honestly; never inflate them merely to open a gate.',
         '- age is ACTUAL chronological age only. Use one grounded numeric age. Years use N or ~N; if canon explicitly gives a smaller unit, use N days, N weeks, or N months. Never write child, teenager, adult, young adult, middle-aged, elder, elderly, old, or another life-stage label in age. Never infer actual age from appearance. For an EXISTING NPC with an established age, a different number MUST NOT be placed in age. Use ageChange instead.',
@@ -309,7 +310,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         body: compactText(block?.body, 12000),
     }));
     return [
-        'You are NPC State v0.4.18 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
+        'You are NPC State v0.4.19 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
         'Return JSON only. This is reference-data reconciliation, NOT a current scene/event scan.',
         'Only the supplied Megumin New_NPC / NPC_Update blocks are authoritative sources for this operation.',
         'TARGET DOSSIER: ' + JSON.stringify(rosterForPrompt({ npcs: [npc] })[0]),
@@ -348,7 +349,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State v0.4.18 performing a targeted dossier reconciliation.',
+        'You are NPC State v0.4.19 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
@@ -399,7 +400,7 @@ function scannerNpcArrayValid(value) {
     });
 }
 function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupplemental = false } = {}) {
-    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.18 recovery scanner JSON must be an object.');
+    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.19 recovery scanner JSON must be an object.');
     const has = key => Object.prototype.hasOwnProperty.call(parsed, key);
     const presentKey = has('inChatNpcIds') ? 'inChatNpcIds' : (has('finalPresentNpcIds') ? 'finalPresentNpcIds' : '');
     if (requireContract) {
@@ -410,7 +411,7 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
         if (!scannerNpcArrayValid(parsed.npcs)) invalid.push('npcs[object-with-string-identity]');
         if ((!allowOmittedSupplemental || has('socialEdges')) && !scannerObjectArrayValid(parsed.socialEdges)) invalid.push('socialEdges[object]');
         if (has('familyFacts') && !scannerObjectArrayValid(parsed.familyFacts)) invalid.push('familyFacts[object]');
-        if (invalid.length) throw new Error('NPC State v0.4.18 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
+        if (invalid.length) throw new Error('NPC State v0.4.19 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
     }
     return {
         exchangeActiveNpcIds: uniqueStrings(parsed.exchangeActiveNpcIds),
@@ -424,14 +425,14 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
 
 export function parseScanJson(raw) {
     const text = String(raw ?? '').trim();
-    if (!text) throw new Error('NPC State v0.4.18 recovery scanner returned an empty response.');
+    if (!text) throw new Error('NPC State v0.4.19 recovery scanner returned an empty response.');
     const unfenced = text.replace(/^\x60\x60\x60(?:json)?\s*/i, '').replace(/\s*\x60\x60\x60$/i, '').trim();
     const first = unfenced.indexOf('{');
     const last = unfenced.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('NPC State v0.4.18 recovery scanner returned no JSON object.');
+    if (first < 0 || last <= first) throw new Error('NPC State v0.4.19 recovery scanner returned no JSON object.');
     let parsed;
     try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
-    catch (error) { throw new Error('NPC State v0.4.18 recovery scanner returned malformed JSON: ' + error.message); }
+    catch (error) { throw new Error('NPC State v0.4.19 recovery scanner returned malformed JSON: ' + error.message); }
     return normalizeScanPayload(parsed, { requireContract: true });
 }
 
@@ -520,7 +521,7 @@ function preflightAutomaticIdentityPatches(state, patches = [], referenceCandida
                 // handled by automaticIdentityPatchConflicts() as a local patch rejection.
                 // A newly claimed key is a same-observation conflict and invalidates the payload.
                 if (!initialIdentityKeys.has(key)) {
-                    throw new Error('NPC State v0.4.18 scanner identity collision inside one observation: ' + value + '.');
+                    throw new Error('NPC State v0.4.19 scanner identity collision inside one observation: ' + value + '.');
                 }
             }
         }
@@ -1392,31 +1393,59 @@ function relationshipEvaluationDiagnostic(npc, patch, options = {}) {
     return relationshipDiagnostic(npc, npc, { impact: rawImpact, delta: zero, evidence, reason: diagnosticReason }, options, [evaluated ? 'evaluation-invalid' : 'evaluation-missing']);
 }
 
+function relationshipAxisGrounding(npc, change, options, delta, reasons) {
+    const filtered = { ...delta };
+    if (options.requireCurrentRelationshipEvidence !== true) return filtered;
+    const baseExpectations = {
+        subjectNames: npcEvidenceVariants(npc),
+        objectNames: [options.playerName, 'player', 'user', 'pc', 'the player', 'the user'].filter(Boolean),
+        otherSubjectNames: options.otherNpcNames || [],
+        impact: change.impact,
+    };
+    for (const axis of RELATIONSHIP_AXES) {
+        const raw = Number(filtered[axis]) || 0;
+        if (!raw) continue;
+        const axisDelta = { trust: 0, affection: 0, desire: 0, tension: 0 };
+        axisDelta[axis] = raw;
+        const rejection = relationshipEvidenceGrounding(change.evidence, options.relationshipContext, {
+            ...baseExpectations,
+            delta: axisDelta,
+        });
+        if (rejection) {
+            filtered[axis] = 0;
+            reasons.push(axis + ':' + rejection);
+            continue;
+        }
+        if (relationshipEvidencePolarityConflict(change.evidence, axisDelta)) {
+            filtered[axis] = 0;
+            reasons.push(axis + ':evidence-polarity');
+        }
+    }
+    return filtered;
+}
+
 function applyRelationshipChange(npc, patch, options = {}) {
     const caps = options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS;
     const change = relationshipDeltaForPatch(patch, caps);
     if (change.impact === 'none') return relationshipEvaluationDiagnostic(npc, patch, options);
-    if (options.requireCurrentRelationshipEvidence === true) {
-        const rejection = relationshipEvidenceGrounding(change.evidence, options.relationshipContext, {
-            subjectNames: npcEvidenceVariants(npc),
-            objectNames: [options.playerName, 'player', 'user', 'pc', 'the player', 'the user'].filter(Boolean),
-            otherSubjectNames: options.otherNpcNames || [],
-            impact: change.impact,
-            delta: change.delta,
-        });
-        if (rejection) return relationshipDiagnostic(npc, npc, change, options, [rejection]);
-        if (relationshipEvidencePolarityConflict(change.evidence, change.delta)) return relationshipDiagnostic(npc, npc, change, options, ['evidence-polarity']);
-    }
-    if (relationshipChangeLooksDuplicate(npc, change, options)) return relationshipDiagnostic(npc, npc, change, options, ['duplicate']);
     const reasons = [];
 
     const context = String(options.relationshipContext || '').trim();
-    const filteredDelta = { ...change.delta };
+    let filteredDelta = { ...change.delta };
     if (filteredDelta.desire !== 0) {
         const evidenceSupportsDesire = DESIRE_EVIDENCE_CUES.test(change.evidence) || DESIRE_EVIDENCE_CUES.test(change.reason);
         const narrationSupportsDesire = !context || DESIRE_EVIDENCE_CUES.test(context);
         if (!evidenceSupportsDesire || !narrationSupportsDesire) { filteredDelta.desire = 0; reasons.push('desire:unsupported'); }
     }
+
+    filteredDelta = relationshipAxisGrounding(npc, change, options, filteredDelta, reasons);
+    if (!RELATIONSHIP_AXES.some(axis => Number(filteredDelta[axis]) !== 0)) {
+        if (!reasons.length) reasons.push('ungrounded');
+        return relationshipDiagnostic(npc, npc, change, options, reasons);
+    }
+
+    const groundedChange = { ...change, delta: { ...filteredDelta } };
+    if (relationshipChangeLooksDuplicate(npc, groundedChange, options)) return relationshipDiagnostic(npc, npc, change, options, [...reasons, 'duplicate']);
 
     const axisLimit = relationshipAxisLimit(change.impact);
     const allowedAxes = selectRelationshipAxes(filteredDelta, axisLimit);
@@ -1535,6 +1564,8 @@ function applyRelationshipChange(npc, patch, options = {}) {
         next.relationshipSummary = summary.slice(0, 1000);
     }
     if (progressChanged && !visibleChanged) reasons.push('fractional-progress');
+    const partialAxisRejection = reasons.some(reason => /^(?:trust|affection|desire|tension):/.test(reason));
+    if (relationshipStateChanged && partialAxisRejection && !reasons.includes('partial-applied')) reasons.push('partial-applied');
     if (!reasons.length) reasons.push(relationshipStateChanged ? 'applied' : 'no-visible-change');
     return relationshipDiagnostic(npc, next, change, options, reasons, crossings);
 }
