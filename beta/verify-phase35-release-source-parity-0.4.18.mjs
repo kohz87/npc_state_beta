@@ -24,7 +24,7 @@ assert(injection.includes('relationshipChange.evaluated to true'), 'Foreground s
 assert(scanner.includes('function relationshipEvaluationDiagnostic'), 'Runtime evaluation diagnostic helper is missing');
 assert(scanner.includes("['evaluated-no-change']"), 'Runtime deliberate-zero diagnostic is missing');
 assert(scanner.includes("['evaluation-missing']"), 'Runtime missing-evaluation diagnostic is missing');
-assert(scanner.includes("['evaluation-invalid']"), 'Runtime invalid-evaluation diagnostic is missing');
+assert(scanner.includes("'evaluation-invalid'"), 'Runtime invalid-evaluation diagnostic is missing');
 assert(scanner.includes('if (applyRelationship && exchangeSet.has(npc.id) && !patch)'), 'Runtime does not diagnose an exchange-active NPC omitted from npcs patches');
 assert(dossier.includes('Gate status and recent relationship evaluations'), 'Dossier relationship diagnostic label is stale');
 assert(dossier.includes('Evaluated; no relationship movement warranted.'), 'Dossier deliberate-zero message is missing');
