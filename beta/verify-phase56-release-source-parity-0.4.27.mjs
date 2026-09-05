@@ -49,14 +49,15 @@ for (const marker of [
     'identityPresencePromptRules',
     'IDENTITY BRIDGE:',
     'World_State without an independent visible introduction still cannot create a dossier',
+    'Current visible narrative is sufficient by itself.',
 ]) assert(evidence.includes(marker), 'Evidence adapter lacks v0.4.27 marker: ' + marker);
 
 for (const marker of ['identityPresencePromptRules', 'identityEvidence', 'activityEvidence']) {
     assert(injection.includes(marker), 'Foreground capture lacks v0.4.27 marker: ' + marker);
     assert(scanner.includes(marker), 'Recovery scanner lacks v0.4.27 marker: ' + marker);
 }
-assert(injection.includes('Current visible narrative is sufficient by itself.'), 'Foreground guidance still implies structured blocks are required');
-assert(scanner.includes('Current visible narrative is sufficient by itself.'), 'Recovery guidance still implies structured blocks are required');
+assert(injection.includes('...identityPresencePromptRules()'), 'Foreground does not consume the shared identity/presence guidance');
+assert(scanner.includes('...identityPresencePromptRules()'), 'Recovery does not consume the shared identity/presence guidance');
 
 // Source-owned transforms must contain every compatibility layer used to regenerate runtime.
 for (const [source, marker] of [
