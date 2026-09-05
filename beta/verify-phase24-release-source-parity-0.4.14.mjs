@@ -13,8 +13,9 @@ const phase15 = read('beta/verify-phase15-force-rebase-0.4.10.mjs');
 const phase20 = read('beta/verify-phase20-semantic-isolation-0.4.13.mjs');
 const phase21 = read('beta/verify-phase21-release-source-parity-0.4.13.mjs');
 
-assert.equal(manifest.version, '0.4.14', 'Release source is not v0.4.14');
-assert(ui.includes('NPC State <span class="npc-state-version">0.4.14</span>'), 'Committed runtime UI version is not v0.4.14');
+const manifestMatch = String(manifest.version || '').match(/^0\.4\.(\d+)$/);
+assert(manifestMatch && Number(manifestMatch[1]) >= 14, 'Manifest regressed below v0.4.14');
+assert(ui.includes(`NPC State <span class="npc-state-version">${manifest.version}</span>`), 'Committed runtime UI version does not match manifest');
 
 assert(layout.includes("'Scanning & Capture'"), 'Committed runtime lacks Scanning & Capture');
 assert(layout.includes("'Birthday & Aging'"), 'Committed runtime lacks Birthday & Aging');
@@ -40,4 +41,4 @@ assert(phase15.includes('Force Timeline Rebase...') && phase15.includes('ensureF
 assert(phase20.includes('Manifest regressed below v0.4.13'), 'v0.4.13 semantic verifier descendant assertion is not persisted');
 assert(phase21.includes('Manifest regressed below v0.4.13'), 'v0.4.13 source-parity descendant assertion is not persisted');
 
-console.log('NPC State 0.4.14 release source parity verified');
+console.log('NPC State 0.4.14+ release source parity verified');

@@ -140,6 +140,7 @@ export function structuredEvidencePromptRules() {
         'STRUCTURED BLOCK EVIDENCE FIREWALL (active because recognized Megumin-style <Blocks> content is present):',
         '- Visible narrative outside <Blocks> is ordinary full event evidence.',
         '- <World_State> may ground live location/status/off-screen world activity, but by itself NEVER proves exchange action, In chat participation, speech, direct perception, or a new NPC introduction.',
+        '- IDENTITY BRIDGE: when visible narrative independently introduces one specific character by an unambiguous role/occupation and the same current <World_State> supplies that character\'s canonical proper name plus a compatible role, use the structured name for that visibly introduced character. Example: visible "the clerk" plus World_State "Kora Lind — Guild Clerk" may identify one dossier. This resolves identity only; World_State without an independent visible introduction still cannot create a dossier.',
         '- <NPC_Inner_Chatter> may ground private goals, thoughts, attitudes, or relationship context, but by itself NEVER proves In chat presence, exchange action, spoken dialogue, gesture, or a visible emotional reaction.',
         '- Other children of <Blocks>, including Story Tracker, Character Sheet, CYOA, Bonds, New_NPC, NPC_Update, and custom/reference blocks, are NOT current-event evidence for ordinary NPC State scanning.',
         '- Never convert private thought into visible behavior unless visible narrative independently establishes that behavior.',

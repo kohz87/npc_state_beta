@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.15
+
+- Fixes new-NPC admission when visible prose introduces a specific character by role while the same current World_State supplies that character's canonical proper name.
+- Adds a narrow role-to-World_State identity bridge so scenes such as visible "the clerk" plus "Kora Lind — Guild Clerk" create the expected dossier.
+- Keeps the structured evidence firewall intact: World_State alone, NPC_Inner_Chatter alone, and unrelated visible roles still cannot create a dossier.
+- Preserves balanced, named-preferred, and manual admission semantics; manual mode still blocks automatic new dossiers.
+
 ## v0.4.14
 
 - Reorganizes the settings panel without changing stored setting keys, defaults, listeners, scanner behavior, dossier behavior, persistence, or branch semantics.

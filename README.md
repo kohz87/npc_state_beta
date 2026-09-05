@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.14
+# NPC State Beta 0.4.15
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -7,7 +7,7 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 - Normal turns use the same foreground RP inference for NPC State capture. No mandatory second scanner request.
 - The model emits one hidden `<npc_state_v1>...</npc_state_v1>` observation block; NPC State validates it, applies deterministic state rules, stores per-message/per-swipe metadata, and strips the transport from chat.
 - With current Inventory Block transports, NPC State yields the terminal position: the NPC payload comes first and Inventory keeps its own final `INVENTORY_BLOCK_V05` / legacy `INVENTORY_BLOCK_UPDATE` control.
-- `present` remains the internal v0.3-compatible storage field, but its v0.4.14 meaning is **in chat**: individually relevant NPC participants at exchange end, not everyone physically nearby.
+- `present` remains the internal v0.3-compatible storage field, but its v0.4.15 meaning is **in chat**: individually relevant NPC participants at exchange end, not everyone physically nearby.
 - New NPCs use the same full semantic scan and receive all grounded foundational information established by the exchange. Unknown biography stays unknown.
 - The full separate v0.3-style scanner is retained as a contingency for manual Scan current cast, dossier Refresh, timeline rebase, edited/untracked branch recovery, and optional foreground failure fallback.
 - When embedded capture is enabled, a completely missing `<npc_state_v1>` block automatically triggers one recovery scan. Recovery for a malformed block remains separately optional/configurable.
@@ -30,6 +30,12 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 - **Birthday fill** is optional and defaults Off. `Unknown` fills blank participating dossiers with `Unknown`; `Random` assigns one deterministic stable date from the configured calendar. The default calendar is an editable Gregorian month pool, and fantasy calendars can replace it line-by-line as `Frostwane:30`, `Rainmoot:28`, etc. Lines without `:days` use the configurable fallback month length.
 - Generated birthdays keep internal generated provenance. They remain stable for continuity but yield to a later explicitly grounded birthday; no provenance label is shown in the dossier or foreground continuity text. A local **Fill missing birthdays** action can populate existing blank dossiers without an LLM call. Generated or manually entered birthday metadata never changes chronological age by itself.
 
+## World-state identity bridge
+
+- v0.4.15 fixes new-NPC creation when the visible narration clearly introduces an individual by role or occupation but the canonical proper name is supplied only by the current `<World_State>` block. Example: visible "the clerk" plus World_State "Kora Lind — Guild Clerk" may resolve to one new dossier.
+- The bridge is identity-only and fail-closed. World_State by itself still cannot introduce a new NPC, private chatter cannot introduce one, and an unrelated visible role does not authorize a structured name.
+- Existing new-NPC admission modes remain unchanged. Named-preferred may use the bridge because the resulting dossier still has an established proper name.
+
 ## Settings organization
 
 - v0.4.14 is a presentation-only settings cleanup. Existing control IDs, stored keys, defaults, and listeners are preserved; scanner, storage, relationship, dossier, and branch semantics are unchanged.
@@ -45,7 +51,7 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 
 ## Testing beside stable NPC State
 
-Disable the stable NPC State extension while exercising this beta. Stable may remain installed and its settings/data remain untouched. On first load for a chat with no beta sidecar, 0.4.14 clones the stable v0.3 sidecar into a beta-owned sidecar and then diverges independently.
+Disable the stable NPC State extension while exercising this beta. Stable may remain installed and its settings/data remain untouched. On first load for a chat with no beta sidecar, 0.4.15 clones the stable v0.3 sidecar into a beta-owned sidecar and then diverges independently.
 
 ## Scanner output and relationship diagnostics
 

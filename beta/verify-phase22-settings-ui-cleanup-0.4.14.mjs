@@ -12,8 +12,9 @@ const readme = read('README.md');
 const changelog = read('CHANGELOG.md');
 const phase = read('beta/phase22-settings-ui-cleanup-0.4.14.mjs');
 
-assert.equal(manifest.version, '0.4.14');
-assert(ui.includes('NPC State <span class="npc-state-version">0.4.14</span>'), 'Settings header version was not bumped');
+const manifestMatch = String(manifest.version || '').match(/^0\.4\.(\d+)$/);
+assert(manifestMatch && Number(manifestMatch[1]) >= 14, 'Manifest regressed below v0.4.14');
+assert(ui.includes(`NPC State <span class="npc-state-version">${manifest.version}</span>`), 'Settings header version does not match manifest');
 assert(layout.includes("'Persistent character continuity'"), 'Settings header subtitle was not simplified');
 
 // The visible hierarchy must match the v0.4.14 settings-only design.
@@ -83,8 +84,8 @@ for (const forbidden of [
     'v03/relationship-evidence.js', 'v03/dossier-view.js', 'v03/injection.js', 'v03/index.js',
 ]) assert(!phase.includes(forbidden), `Settings-only phase unexpectedly references ${forbidden}`);
 
-assert(readme.startsWith('# NPC State Beta 0.4.14'), 'README release title not bumped');
+assert(readme.startsWith(`# NPC State Beta ${manifest.version}`), 'README release title does not match manifest');
 assert(readme.includes('presentation-only settings cleanup') && readme.includes('Scanning & Capture') && readme.includes('Advanced Recovery'), 'README settings-only release notes missing');
 assert(changelog.includes('## v0.4.14') && changelog.includes('Reorganizes the settings panel without changing stored setting keys'), 'v0.4.14 changelog entry missing');
 
-console.log('NPC State 0.4.14 settings-only UI cleanup verified');
+console.log('NPC State 0.4.14+ settings-only UI cleanup verified');

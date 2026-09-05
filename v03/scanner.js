@@ -205,7 +205,7 @@ function dossierCollectionRules(limits) {
 
 export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State v0.4.14 recovery scanner requires an assistant message and its preceding user exchange.');
+    if (!exchange) throw new Error('NPC State v0.4.15 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
@@ -228,7 +228,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         familyFacts: [{ owner: 'existing NPC id/name', relation: 'daughter|son|child|other countable family role', count: 2, descriptor: 'optional e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit countable family fact' }],
     };
     return [
-        'You are NPC State v0.4.14, a private structured continuity scanner for a roleplay chat.',
+        'You are NPC State v0.4.15, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
         '',
         `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
@@ -308,7 +308,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         body: compactText(block?.body, 12000),
     }));
     return [
-        'You are NPC State v0.4.14 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
+        'You are NPC State v0.4.15 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
         'Return JSON only. This is reference-data reconciliation, NOT a current scene/event scan.',
         'Only the supplied Megumin New_NPC / NPC_Update blocks are authoritative sources for this operation.',
         'TARGET DOSSIER: ' + JSON.stringify(rosterForPrompt({ npcs: [npc] })[0]),
@@ -347,7 +347,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State v0.4.14 performing a targeted dossier reconciliation.',
+        'You are NPC State v0.4.15 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
@@ -398,7 +398,7 @@ function scannerNpcArrayValid(value) {
     });
 }
 function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupplemental = false } = {}) {
-    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.14 recovery scanner JSON must be an object.');
+    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.15 recovery scanner JSON must be an object.');
     const has = key => Object.prototype.hasOwnProperty.call(parsed, key);
     const presentKey = has('inChatNpcIds') ? 'inChatNpcIds' : (has('finalPresentNpcIds') ? 'finalPresentNpcIds' : '');
     if (requireContract) {
@@ -409,7 +409,7 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
         if (!scannerNpcArrayValid(parsed.npcs)) invalid.push('npcs[object-with-string-identity]');
         if ((!allowOmittedSupplemental || has('socialEdges')) && !scannerObjectArrayValid(parsed.socialEdges)) invalid.push('socialEdges[object]');
         if (has('familyFacts') && !scannerObjectArrayValid(parsed.familyFacts)) invalid.push('familyFacts[object]');
-        if (invalid.length) throw new Error('NPC State v0.4.14 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
+        if (invalid.length) throw new Error('NPC State v0.4.15 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
     }
     return {
         exchangeActiveNpcIds: uniqueStrings(parsed.exchangeActiveNpcIds),
@@ -423,14 +423,14 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
 
 export function parseScanJson(raw) {
     const text = String(raw ?? '').trim();
-    if (!text) throw new Error('NPC State v0.4.14 recovery scanner returned an empty response.');
+    if (!text) throw new Error('NPC State v0.4.15 recovery scanner returned an empty response.');
     const unfenced = text.replace(/^\x60\x60\x60(?:json)?\s*/i, '').replace(/\s*\x60\x60\x60$/i, '').trim();
     const first = unfenced.indexOf('{');
     const last = unfenced.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('NPC State v0.4.14 recovery scanner returned no JSON object.');
+    if (first < 0 || last <= first) throw new Error('NPC State v0.4.15 recovery scanner returned no JSON object.');
     let parsed;
     try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
-    catch (error) { throw new Error('NPC State v0.4.14 recovery scanner returned malformed JSON: ' + error.message); }
+    catch (error) { throw new Error('NPC State v0.4.15 recovery scanner returned malformed JSON: ' + error.message); }
     return normalizeScanPayload(parsed, { requireContract: true });
 }
 
@@ -519,7 +519,7 @@ function preflightAutomaticIdentityPatches(state, patches = [], referenceCandida
                 // handled by automaticIdentityPatchConflicts() as a local patch rejection.
                 // A newly claimed key is a same-observation conflict and invalidates the payload.
                 if (!initialIdentityKeys.has(key)) {
-                    throw new Error('NPC State v0.4.14 scanner identity collision inside one observation: ' + value + '.');
+                    throw new Error('NPC State v0.4.15 scanner identity collision inside one observation: ' + value + '.');
                 }
             }
         }
@@ -1679,12 +1679,73 @@ function newPatchMentionedInCurrentExchange(patch, currentAdmissionText = '') {
     ].map(value => String(value || '').trim()).filter(value => value && !isTechnicalNpcIdentity(value) && !GENERIC_REFERENCES.has(normalizeName(value))))];
     return variants.some(value => containsNormalizedPhrase(source, value));
 }
+
+const WORLD_IDENTITY_GENERIC_ROLE_HEADS = new Set([
+    'person', 'people', 'someone', 'somebody', 'stranger', 'figure', 'individual',
+    'man', 'woman', 'boy', 'girl', 'child', 'adult', 'youth', 'elder',
+]);
+const WORLD_IDENTITY_INTRO_WORDS = new Set([
+    'a', 'an', 'the', 'this', 'that', 'young', 'old', 'older', 'elderly', 'female', 'male', 'another', 'same',
+]);
+function roleIdentityCues(role = '') {
+    const out = [];
+    const seen = new Set();
+    for (const raw of String(role || '').split(/[\/|;,()[\]{}]+/)) {
+        const phrase = evidenceTextKey(raw, 240);
+        if (!phrase) continue;
+        if (!seen.has(phrase)) { seen.add(phrase); out.push(phrase); }
+        const words = phrase.split(/\s+/).filter(Boolean);
+        const head = words.at(-1) || '';
+        if (head.length >= 4 && !WORLD_IDENTITY_GENERIC_ROLE_HEADS.has(head) && !seen.has(head)) {
+            seen.add(head);
+            out.push(head);
+        }
+    }
+    return out;
+}
+function visibleRoleIntroductionForPatch(patch, visibleText = '') {
+    const source = evidenceTextKey(visibleText, 50000);
+    if (!source) return false;
+    const words = source.split(/\s+/).filter(Boolean);
+    for (const cue of roleIdentityCues(patch?.role)) {
+        if (cue.includes(' ')) {
+            if (containsNormalizedPhrase(source, cue)) return true;
+            continue;
+        }
+        for (let index = 0; index < words.length; index += 1) {
+            if (words[index] !== cue) continue;
+            const prefix = words.slice(Math.max(0, index - 4), index);
+            if (prefix.some(word => WORLD_IDENTITY_INTRO_WORDS.has(word))) return true;
+        }
+    }
+    return false;
+}
+function worldStateIdentityBridgesVisibleIntroduction(patch, policy, currentAdmissionText = '') {
+    if (!policy?.detected) return false;
+    const canonicalName = canonicalPatchName(patch, []);
+    if (!canonicalName || looksLikeRoleLabel(canonicalName, patch?.role)) return false;
+    if (!containsNormalizedPhrase(policy.worldStateText || '', canonicalName)) return false;
+    const visible = String(currentAdmissionText || policy.visibleText || '').trim();
+    return visibleRoleIntroductionForPatch(patch, visible);
+}
 function newPatchAllowedByEvidence(state, patch, policy, currentAdmissionText = '') {
     if (findNpcByReference(state, patch?.name || '')) return true;
-    if (!newPatchMentionedInCurrentExchange(patch, currentAdmissionText)) return false;
-    if (!policy?.detected) return true;
+    const directlyMentioned = newPatchMentionedInCurrentExchange(patch, currentAdmissionText);
+    if (!policy?.detected) return directlyMentioned;
     const scope = restrictedEvidenceScope(state, patch, policy);
-    return !['world', 'inner', 'excluded'].includes(scope);
+    if (scope === 'inner' || scope === 'excluded') return false;
+    if (scope === 'world') return worldStateIdentityBridgesVisibleIntroduction(patch, policy, currentAdmissionText);
+    return directlyMentioned;
+}
+function newReferenceAllowedByWorldIdentityBridge(state, reference, patches, policy, currentAdmissionText = '') {
+    if (!policy?.detected) return false;
+    const patch = (Array.isArray(patches) ? patches : []).find(item => patchReferenceMatches(item, reference));
+    if (!patch) return false;
+    const patchId = String(patch?.id || '').trim();
+    if (patchId && state.npcs.some(item => item.id === patchId)) return false;
+    const canonicalName = canonicalPatchName(patch, [reference]);
+    if (!canonicalName || findNpcByReference(state, canonicalName)) return false;
+    return worldStateIdentityBridgesVisibleIntroduction(patch, policy, currentAdmissionText);
 }
 
 const ROLE_LABEL_MODIFIERS = new Set([
@@ -1755,8 +1816,9 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
 
     const evidencePolicy = options.evidencePolicy && typeof options.evidencePolicy === 'object' ? options.evidencePolicy : null;
     const currentAdmissionText = String(options.currentAdmissionText || '').trim();
-    const exchangeRefs = uniqueStrings(result.exchangeActiveNpcIds).filter(ref => referenceAllowedForActivity(state, ref, evidencePolicy));
-    const presentRefs = uniqueStrings(result.finalPresentNpcIds).filter(ref => referenceAllowedForActivity(state, ref, evidencePolicy));
+    const newActivityBridge = ref => newReferenceAllowedByWorldIdentityBridge(state, ref, result.npcs, evidencePolicy, currentAdmissionText);
+    const exchangeRefs = uniqueStrings(result.exchangeActiveNpcIds).filter(ref => referenceAllowedForActivity(state, ref, evidencePolicy) || newActivityBridge(ref));
+    const presentRefs = uniqueStrings(result.finalPresentNpcIds).filter(ref => referenceAllowedForActivity(state, ref, evidencePolicy) || newActivityBridge(ref));
     const worldRefs = uniqueStrings(result.worldActiveNpcIds).filter(ref => referenceAllowedForWorldActivity(state, ref, evidencePolicy));
     const identityRefs = uniqueStrings([...exchangeRefs, ...presentRefs, ...worldRefs]);
     preflightAutomaticIdentityPatches(state, result.npcs, identityRefs);
