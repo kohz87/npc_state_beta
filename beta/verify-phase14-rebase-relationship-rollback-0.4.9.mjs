@@ -89,6 +89,9 @@ assert.equal(branchDivergenceMessageId({ branchHeadLineage: chatLineage(oldChat)
 }
 
 {
+    // A manual score edit makes the edited axis authoritative. Model that with the
+    // source-less milestone state produced by the manual editor, not two duplicate +50
+    // milestone identities, because milestone normalization intentionally deduplicates them.
     const npc = normalizeNpc({
         ...baseNpc(),
         relationship: { trust: 60, affection: 10, desire: 0, tension: 0 },
@@ -96,7 +99,6 @@ assert.equal(branchDivergenceMessageId({ branchHeadLineage: chatLineage(oldChat)
         relationshipMilestones: [
             { axis: 'trust', polarity: 1, threshold: 25, reason: 'Manual baseline.', sourceMessageId: null, inferred: true },
             { axis: 'trust', polarity: 1, threshold: 50, reason: 'Manual baseline.', sourceMessageId: null, inferred: true },
-            { axis: 'trust', polarity: 1, threshold: 50, reason: 'Discarded scanner unlock.', evidence, sourceMessageId: 3, turn: 2 },
         ],
         relationshipHistory: [
             staleVisibleEvent,
