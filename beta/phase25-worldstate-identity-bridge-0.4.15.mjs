@@ -120,7 +120,8 @@ function newReferenceAllowedByWorldIdentityBridge(state, reference, patches, pol
     source = replaceRequired(
         source,
         "        '- <World_State> may ground live location/status/off-screen world activity, but by itself NEVER proves exchange action, In chat participation, speech, direct perception, or a new NPC introduction.',",
-        "        '- <World_State> may ground live location/status/off-screen world activity, but by itself NEVER proves exchange action, In chat participation, speech, direct perception, or a new NPC introduction.',\n        '- IDENTITY BRIDGE: when visible narrative independently introduces one specific character by an unambiguous role/occupation and the same current <World_State> supplies that character\\'s canonical proper name plus a compatible role, use the structured name for that visibly introduced character. Example: visible \\\"the clerk\\\" plus World_State \\\"Kora Lind — Guild Clerk\\\" may identify one dossier. This resolves identity only; World_State without an independent visible introduction still cannot create a dossier.',",
+        String.raw`        '- <World_State> may ground live location/status/off-screen world activity, but by itself NEVER proves exchange action, In chat participation, speech, direct perception, or a new NPC introduction.',
+        '- IDENTITY BRIDGE: when visible narrative independently introduces one specific character by an unambiguous role/occupation and the same current <World_State> supplies that character\'s canonical proper name plus a compatible role, use the structured name for that visibly introduced character. Example: visible "the clerk" plus World_State "Kora Lind — Guild Clerk" may identify one dossier. This resolves identity only; World_State without an independent visible introduction still cannot create a dossier.',`,
         'structured evidence identity bridge rule',
     );
     fs.writeFileSync(path, source);
