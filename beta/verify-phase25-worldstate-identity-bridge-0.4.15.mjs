@@ -127,6 +127,7 @@ assert(scanner.includes('worldStateIdentityBridgesVisibleIntroduction'), 'Runtim
 assert(scanner.includes('newReferenceAllowedByWorldIdentityBridge'), 'Runtime activity references are not bridge-aware');
 
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
-assert.equal(manifest.version, '0.4.15');
+const manifestMatch = String(manifest.version || '').match(/^0\.4\.(\d+)$/);
+assert(manifestMatch && Number(manifestMatch[1]) >= 15, 'Manifest regressed below v0.4.15');
 
-console.log('NPC State 0.4.15 World_State identity bridge verified');
+console.log('NPC State 0.4.15+ World_State identity bridge verified');
