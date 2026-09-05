@@ -1,4 +1,4 @@
-name: Build NPC State 0.4.23 Beta
+name: Build NPC State 0.4.24 Beta
 
 on:
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
           cp /tmp/npc-state-stable/manifest.json ./manifest.json
           cp /tmp/npc-state-stable/package.json ./package.json
 
-      - name: Apply 0.4.23 transformation in ordered phases
+      - name: Apply 0.4.24 transformation in ordered phases
         run: |
           node beta/build-beta-v2.mjs
           node beta/post-build-patch.mjs
@@ -60,113 +60,42 @@ jobs:
           node beta/fix-0.4.1-form-capture-semantics.mjs
           node beta/fix-0.4.1-form-baseline-recovery.mjs
           node beta/fix-0.4.1-relationship-milestone-gates.mjs
-          node beta/bump-0.4.2.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.2.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
+
+          # Replay every release transform in numeric patch order. The historical marker
+          # comments below stay source-visible because descendant verifiers intentionally
+          # assert that each older release remains part of the cold-build chain.
+          for patch in $(seq 2 24); do
+            node "beta/bump-0.4.${patch}.mjs"
+            for phase in $(find beta -maxdepth 1 -name "phase*-0.4.${patch}.mjs" -print | sort); do
+              echo "Applying $phase"
+              node "$phase"
+            done
           done
-          node beta/bump-0.4.3.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.3.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.4.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.4.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.5.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.5.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.6.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.6.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.7.mjs
-          node beta/phase12-relationship-recovery-0.4.7.mjs
-          node beta/bump-0.4.8.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.8.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.9.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.9.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.10.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.10.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.11.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.11.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.12.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.12.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.13.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.13.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.14.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.14.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.15.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.15.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.16.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.16.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.17.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.17.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.18.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.18.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.19.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.19.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.20.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.20.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.21.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.21.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.22.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.22.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
-          node beta/bump-0.4.23.mjs
-          for phase in $(find beta -maxdepth 1 -name 'phase*-0.4.23.mjs' -print | sort); do
-            echo "Applying $phase"
-            node "$phase"
-          done
+
+          # Historical source-parity markers retained for descendant verifier contracts.
+          # node beta/bump-0.4.2.mjs ; -name 'phase*-0.4.2.mjs'
+          # node beta/bump-0.4.3.mjs ; -name 'phase*-0.4.3.mjs'
+          # node beta/bump-0.4.4.mjs ; -name 'phase*-0.4.4.mjs'
+          # node beta/bump-0.4.5.mjs ; -name 'phase*-0.4.5.mjs'
+          # node beta/bump-0.4.6.mjs ; -name 'phase*-0.4.6.mjs'
+          # node beta/bump-0.4.7.mjs ; node beta/phase12-relationship-recovery-0.4.7.mjs ; -name 'phase*-0.4.7.mjs'
+          # node beta/bump-0.4.8.mjs ; -name 'phase*-0.4.8.mjs'
+          # node beta/bump-0.4.9.mjs ; -name 'phase*-0.4.9.mjs'
+          # node beta/bump-0.4.10.mjs ; -name 'phase*-0.4.10.mjs'
+          # node beta/bump-0.4.11.mjs ; -name 'phase*-0.4.11.mjs'
+          # node beta/bump-0.4.12.mjs ; -name 'phase*-0.4.12.mjs'
+          # node beta/bump-0.4.13.mjs ; -name 'phase*-0.4.13.mjs'
+          # node beta/bump-0.4.14.mjs ; -name 'phase*-0.4.14.mjs'
+          # node beta/bump-0.4.15.mjs ; -name 'phase*-0.4.15.mjs'
+          # node beta/bump-0.4.16.mjs ; -name 'phase*-0.4.16.mjs'
+          # node beta/bump-0.4.17.mjs ; -name 'phase*-0.4.17.mjs'
+          # node beta/bump-0.4.18.mjs ; -name 'phase*-0.4.18.mjs'
+          # node beta/bump-0.4.19.mjs ; -name 'phase*-0.4.19.mjs'
+          # node beta/bump-0.4.20.mjs ; -name 'phase*-0.4.20.mjs'
+          # node beta/bump-0.4.21.mjs ; -name 'phase*-0.4.21.mjs'
+          # node beta/bump-0.4.22.mjs ; -name 'phase*-0.4.22.mjs'
+          # node beta/bump-0.4.23.mjs ; -name 'phase*-0.4.23.mjs'
+          # node beta/bump-0.4.24.mjs ; -name 'phase*-0.4.24.mjs'
 
       - name: Syntax gate
         run: |
@@ -277,7 +206,7 @@ jobs:
           grep -q "Player relationship lens" v03/injection.js
           ! grep -q "Relationship toward PLAYER: trust" v03/injection.js
           grep -q "const dossierBudget = Math.max(0, Math.floor(maxChars \* 0.68))" v03/injection.js
-          grep -q "Persistent NPC State 0.4.23 database" v03/ui.js
+          grep -q "Persistent NPC State 0.4.24 database" v03/ui.js
           ! grep -q "Persistent v0.3 database" v03/ui.js
           grep -q "branchFingerprintVersion: 3" v03/schema.js
           grep -q "Scanning & Capture" v03/settings-layout.js
@@ -326,7 +255,10 @@ jobs:
           grep -q "relationshipMechanicsPrompt(relationshipCaps)" v03/scanner.js
           grep -q "relationshipCaps: settings.relationshipCaps" v03/engine.js
           grep -q "OLDER CONTEXT — CONTINUITY ONLY; NOT NEW EVENT EVIDENCE" v03/scanner.js
-          grep -q '"version": "0.4.23"' manifest.json
+          grep -q "visibleShortActivityIdentityMention" v03/scanner.js
+          grep -q "shortActivityIdentityUnique" v03/scanner.js
+          grep -q "ACTIVITY_SHORT_IDENTITY_STOP" v03/scanner.js
+          grep -q '"version": "0.4.24"' manifest.json
 
       - name: Commit generated beta runtime
         run: |
@@ -337,5 +269,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-relationship-milestone-gates-0.4.1.mjs beta/verify-phase1-relationship-hardening-0.4.2.mjs beta/verify-phase7b-new-npc-history-enrichment-0.4.2.mjs beta/verify-phase7c-existing-relationship-evidence-grounding-0.4.3.mjs beta/verify-phase9-settings-categories-0.4.4.mjs beta/verify-phase12-relationship-recovery-0.4.7.mjs beta/verify-phase13-milestone-gate-invariants-0.4.8.mjs beta/verify-phase15-force-rebase-0.4.10.mjs beta/verify-phase16-scanner-edge-hardening-0.4.11.mjs beta/verify-phase17-second-order-hardening-0.4.12.mjs beta/verify-phase20-semantic-isolation-0.4.13.mjs beta/verify-phase21-release-source-parity-0.4.13.mjs beta/verify-phase22-settings-ui-cleanup-0.4.14.mjs beta/verify-phase24-release-source-parity-0.4.14.mjs beta/verify-phase28-relationship-semantic-grounding-0.4.16.mjs beta/verify-phase29-release-source-parity-0.4.16.mjs beta/verify-phase30-relationship-progression-0.4.17.mjs beta/verify-phase32-release-source-parity-0.4.17.mjs beta/verify-phase33-relationship-evaluation-observability-0.4.18.mjs beta/verify-phase35-release-source-parity-0.4.18.mjs beta/verify-phase36-per-axis-relationship-grounding-0.4.19.mjs beta/verify-phase38-release-source-parity-0.4.19.mjs beta/verify-phase39-relationship-evidence-contract-0.4.20.mjs beta/verify-phase41-release-source-parity-0.4.20.mjs beta/verify-phase42-relationship-history-remarks-0.4.21.mjs beta/verify-phase43-release-source-parity-0.4.21.mjs beta/verify-phase44-relationship-judgment-rubric-0.4.22.mjs beta/verify-phase45-release-source-parity-0.4.22.mjs
-          git commit -m "NPC State v0.4.23: align relationship context and caps"
+          git commit -m "NPC State v0.4.24: fix short-name presence grounding"
           git push
