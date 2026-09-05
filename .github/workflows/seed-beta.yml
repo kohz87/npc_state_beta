@@ -268,7 +268,7 @@ jobs:
           grep -q "semanticMentionsTarget" v03/relationship-evidence.js
           grep -q "TRUST_PERFORMANCE_FAILURE" v03/relationship-evidence.js
           grep -q "impact: change.impact" v03/scanner.js
-          grep -q "delta: change.delta" v03/scanner.js
+          grep -q "delta: axisDelta" v03/scanner.js
           grep -q "latestManualRelationshipAnchors" v03/branches.js
           ! grep -q "manualProtectedAxes" v03/branches.js
           grep -q "ageProgressionBaselineAge" v03/schema.js
