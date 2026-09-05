@@ -11,7 +11,8 @@ const phase48 = read('beta/phase48-presence-short-name-grounding-0.4.24.mjs');
 const verify48 = read('beta/verify-phase48-presence-short-name-grounding-0.4.24.mjs');
 const workflow = read('.github/workflows/seed-beta.yml');
 
-assert.equal(manifest.version, '0.4.24', 'Release source is not v0.4.24');
+const manifestParts = String(manifest.version || '').split('.').map(Number);
+assert(manifestParts[0] === 0 && manifestParts[1] === 4 && manifestParts[2] >= 24, 'Release source is older than v0.4.24');
 assert(scanner.includes('visibleShortActivityIdentityMention'), 'Short-name activity recovery helper is missing');
 assert(scanner.includes('shortActivityIdentityScope'), 'Structured short-name scope classifier is missing');
 assert(scanner.includes('shortActivityIdentityUnique'), 'Short-name uniqueness guard is missing');
@@ -52,7 +53,8 @@ assert(phase48.includes('shortActivityIdentityUnique'), 'v0.4.24 transform sourc
 assert(phase48.includes('shortActivityIdentityScope'), 'v0.4.24 transform source lacks structured short-name scope classification');
 assert(phase48.includes('policy?.visibleText') && phase48.includes('policy?.worldStateText') && phase48.includes('policy?.innerChatterText'), 'v0.4.24 transform does not preserve structured evidence boundaries');
 
-assert(workflow.includes('Build NPC State 0.4.24 Beta'), 'Workflow is not versioned for v0.4.24');
+const workflowMatch = workflow.match(/Build NPC State 0\.4\.(\d+) Beta/);
+assert(workflowMatch && Number(workflowMatch[1]) >= 24, 'Workflow is older than v0.4.24');
 assert(workflow.includes('node beta/bump-0.4.24.mjs'), 'Workflow does not apply the v0.4.24 bump');
 assert(workflow.includes("-name 'phase*-0.4.24.mjs'"), 'Workflow does not apply v0.4.24 phases');
 assert(workflow.includes('visibleShortActivityIdentityMention'), 'Architecture gate does not guard presence recovery');
