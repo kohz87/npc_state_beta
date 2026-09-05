@@ -1,4 +1,4 @@
-export const NPC_STATE_VERSION = '0.4.20';
+export const NPC_STATE_VERSION = '0.4.21';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     const number = Number(value);
@@ -682,6 +682,9 @@ export function normalizeNpc(input = {}, options = {}) {
         delta: normalizeRelationship(item?.delta),
         evidence: text(item?.evidence, 800),
         reason: text(item?.reason, 800),
+        axisEvidence: normalizeRelationshipAxisEvidence(item?.axisEvidence),
+        priority: normalizeRelationshipPriority(item?.priority),
+        verifiedSources: normalizeRelationshipVerifiedSources(item?.verifiedSources),
         sourceMessageId: Number.isInteger(item?.sourceMessageId) ? item.sourceMessageId : null,
         turn: Number.isInteger(item?.turn) ? item.turn : null,
         at: Number(item?.at) || now,
@@ -731,6 +734,9 @@ export function normalizeNpc(input = {}, options = {}) {
             delta: normalizeRelationship(input.lastRelationshipChange.delta),
             evidence: text(input.lastRelationshipChange.evidence, 800),
             reason: text(input.lastRelationshipChange.reason, 800),
+            axisEvidence: normalizeRelationshipAxisEvidence(input.lastRelationshipChange.axisEvidence),
+            priority: normalizeRelationshipPriority(input.lastRelationshipChange.priority),
+            verifiedSources: normalizeRelationshipVerifiedSources(input.lastRelationshipChange.verifiedSources),
             sourceMessageId: Number.isInteger(input.lastRelationshipChange.sourceMessageId) ? input.lastRelationshipChange.sourceMessageId : null,
             turn: Number.isInteger(input.lastRelationshipChange.turn) ? input.lastRelationshipChange.turn : null,
             at: Number(input.lastRelationshipChange.at) || null,

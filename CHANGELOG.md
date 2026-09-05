@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.21
+
+- Preserves accepted per-axis relationship evidence/explanations in `relationshipHistory` through normalization, save/reload, and existing state import/export paths.
+- Keeps nonempty overall reasons as the primary recent-change remark; otherwise renders concise, escaped axis-labelled explanations only for axes whose scores actually changed.
+- Recovers older missing remarks only from an unambiguous evidence/diagnostic event matched by event identity plus corroborating metadata, with a neutral `No explanation recorded.` fallback for missing or ambiguous history.
+- Leaves relationship scores, caps, inertia, fractional progress, milestone gates, axis selection, duplicate protection, manual edits, and branch/rebase behavior unchanged.
+
 ## v0.4.20
 
 - Replaces runtime keyword/overlap relationship-semantic vetoes with a bounded per-axis evidence contract: exact current-exchange excerpts plus model-authored explanations.

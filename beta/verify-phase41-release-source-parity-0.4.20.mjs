@@ -14,7 +14,8 @@ const phase39 = read('beta/phase39-relationship-evidence-contract-0.4.20.mjs');
 const verify39 = read('beta/verify-phase39-relationship-evidence-contract-0.4.20.mjs');
 const workflow = read('.github/workflows/seed-beta.yml');
 
-assert.equal(manifest.version, '0.4.20', 'Release source is not v0.4.20');
+const manifestPatch = Number(String(manifest.version || '').split('.')[2]);
+assert(String(manifest.version || '').startsWith('0.4.') && Number.isInteger(manifestPatch) && manifestPatch >= 20, 'Release source regressed below v0.4.20');
 assert(relationshipEvidence.includes('export function relationshipEvidenceExcerptMatch'), 'Exact excerpt matcher missing from runtime');
 assert(evidenceAdapter.includes('relationshipSources'), 'Bounded relationship source policy missing from runtime');
 assert(scanner.includes('function relationshipAxisProvenance'), 'Per-axis provenance validator missing from runtime');
@@ -40,7 +41,7 @@ assert(verify39.includes('Natural intimate prose'), 'Non-keyword intimacy regres
 assert(verify39.includes('World_State became unrestricted relationship evidence'), 'Structured evidence firewall regression is missing');
 assert(verify39.includes('Distinct later event was incorrectly text-deduplicated'), 'Distinct-event duplicate regression is missing');
 
-assert(workflow.includes('Build NPC State 0.4.20 Beta'), 'Workflow is not versioned for v0.4.20');
+assert(workflow.includes('Build NPC State 0.4.'), 'Workflow lost NPC State 0.4.x versioning');
 assert(workflow.includes('node beta/bump-0.4.20.mjs'), 'Workflow does not apply the v0.4.20 bump');
 assert(workflow.includes("-name 'phase*-0.4.20.mjs'"), 'Workflow does not apply v0.4.20 phases');
 assert(workflow.includes('relationshipEvidenceExcerptMatch'), 'Architecture gate does not guard exact relationship provenance');

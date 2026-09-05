@@ -116,18 +116,145 @@ function relationshipAxis(label, value, axis) {
     </div>`;
 }
 
+function relationshipChangedAxes(event = {}) {
+    return RELATIONSHIP_AXES.filter(axis => Number(event?.delta?.[axis]) !== 0);
+}
+
+function relationshipExplanationKey(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+}
+
+function relationshipHistoryIdentityScore(history, candidate) {
+    let score = 0;
+    const historyMessage = Number.isInteger(history?.sourceMessageId) ? history.sourceMessageId : null;
+    const candidateMessage = Number.isInteger(candidate?.sourceMessageId) ? candidate.sourceMessageId : null;
+    if (historyMessage !== null && candidateMessage !== null) {
+        if (historyMessage !== candidateMessage) return -1;
+        score += 8;
+    }
+    const historyTurn = Number.isInteger(history?.turn) ? history.turn : null;
+    const candidateTurn = Number.isInteger(candidate?.turn) ? candidate.turn : null;
+    if (historyTurn !== null && candidateTurn !== null) {
+        if (historyTurn !== candidateTurn) return -1;
+        score += 4;
+    }
+    const historyAt = Number(history?.at) || 0;
+    const candidateAt = Number(candidate?.at) || 0;
+    if (historyAt && candidateAt && historyAt === candidateAt) score += 6;
+    if (!score) return -1;
+    const historyImpact = String(history?.impact || '').trim();
+    const candidateImpact = String(candidate?.impact || '').trim();
+    if (historyImpact && candidateImpact && historyImpact !== candidateImpact) return -1;
+    const historyEvidence = String(history?.evidence || '').replace(/\s+/g, ' ').trim();
+    const candidateEvidence = String(candidate?.evidence || '').replace(/\s+/g, ' ').trim();
+    if (historyEvidence && candidateEvidence && historyEvidence === candidateEvidence) score += 2;
+    return score;
+}
+
+function relationshipHistoryCandidateSupports(history, candidate, kind) {
+    const delta = kind === 'diagnostic' ? candidate?.applied : candidate?.delta;
+    return relationshipChangedAxes(history).every(axis => {
+        const actual = Number(history?.delta?.[axis]) || 0;
+        const proposed = Number(delta?.[axis]) || 0;
+        return proposed !== 0 && Math.sign(proposed) === Math.sign(actual);
+    });
+}
+
+function relationshipHistoryRecoveryGroupKey(candidate) {
+    const message = Number.isInteger(candidate?.sourceMessageId) ? candidate.sourceMessageId : null;
+    const turn = Number.isInteger(candidate?.turn) ? candidate.turn : null;
+    const at = Number(candidate?.at) || 0;
+    if (message !== null) return 'm:' + message + '|t:' + (turn === null ? '?' : turn);
+    if (turn !== null) return 't:' + turn + '|a:' + (at || '?');
+    return at ? 'a:' + at : '';
+}
+
+function relationshipHistoryRecoveredAxisEvidence(npc, history) {
+    const changedAxes = relationshipChangedAxes(history);
+    if (!changedAxes.length) return {};
+    const candidates = [
+        ...(Array.isArray(npc?.relationshipEvidenceHistory) ? npc.relationshipEvidenceHistory : []).map(item => ({ kind: 'evidence', item })),
+        ...(Array.isArray(npc?.relationshipDiagnostics) ? npc.relationshipDiagnostics : []).map(item => ({ kind: 'diagnostic', item })),
+    ].map(entry => ({ ...entry, score: relationshipHistoryIdentityScore(history, entry.item) }))
+        .filter(entry => entry.score >= 0
+            && relationshipHistoryCandidateSupports(history, entry.item, entry.kind)
+            && changedAxes.some(axis => String(entry.item?.axisEvidence?.[axis]?.explanation || '').trim()));
+    if (!candidates.length) return {};
+    const strongest = Math.max(...candidates.map(entry => entry.score));
+    const top = candidates.filter(entry => entry.score === strongest);
+    const groups = new Map();
+    for (const entry of top) {
+        const key = relationshipHistoryRecoveryGroupKey(entry.item);
+        if (!key) continue;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(entry.item);
+    }
+    if (groups.size !== 1) return {};
+    const members = [...groups.values()][0];
+    const out = {};
+    const ambiguous = new Set();
+    for (const candidate of members) {
+        for (const axis of changedAxes) {
+            const explanation = String(candidate?.axisEvidence?.[axis]?.explanation || '').replace(/\s+/g, ' ').trim();
+            if (!explanation) continue;
+            if (!out[axis]) {
+                out[axis] = { explanation };
+                continue;
+            }
+            if (relationshipExplanationKey(out[axis].explanation) !== relationshipExplanationKey(explanation)) ambiguous.add(axis);
+        }
+    }
+    for (const axis of ambiguous) delete out[axis];
+    return out;
+}
+
+function relationshipHistoryAxisEvidence(npc, event) {
+    const changedAxes = relationshipChangedAxes(event);
+    const out = {};
+    for (const axis of changedAxes) {
+        const explanation = String(event?.axisEvidence?.[axis]?.explanation || '').replace(/\s+/g, ' ').trim();
+        if (explanation) out[axis] = { explanation };
+    }
+    if (changedAxes.every(axis => out[axis])) return out;
+    const recovered = relationshipHistoryRecoveredAxisEvidence(npc, event);
+    for (const axis of changedAxes) if (!out[axis] && recovered[axis]) out[axis] = recovered[axis];
+    return out;
+}
+
+function relationshipHistoryRemarkHtml(npc, event) {
+    const reason = String(event?.reason || '').replace(/\s+/g, ' ').trim();
+    if (reason) return '<p>' + escapeHtml(reason) + '</p>';
+    const evidence = relationshipHistoryAxisEvidence(npc, event);
+    const rows = [];
+    const rowByExplanation = new Map();
+    for (const axis of relationshipChangedAxes(event)) {
+        const explanation = String(evidence?.[axis]?.explanation || '').replace(/\s+/g, ' ').trim();
+        if (!explanation) continue;
+        const key = relationshipExplanationKey(explanation);
+        const label = axis.charAt(0).toUpperCase() + axis.slice(1);
+        if (rowByExplanation.has(key)) {
+            rowByExplanation.get(key).labels.push(label);
+            continue;
+        }
+        const row = { labels: [label], explanation };
+        rowByExplanation.set(key, row);
+        rows.push(row);
+    }
+    if (!rows.length) return '<p class="npc-state-muted">No explanation recorded.</p>';
+    return '<p>' + rows.map(row => '<b>' + escapeHtml(row.labels.join(' / ')) + ':</b> ' + escapeHtml(row.explanation)).join('<br>') + '</p>';
+}
+
 function relationshipHistoryHtml(npc = {}) {
     const rows = Array.isArray(npc.relationshipHistory) ? npc.relationshipHistory.slice(-24).reverse() : [];
     if (!rows.length) return '<p class="npc-state-muted">No relationship change history yet.</p>';
-    return `<ol class="npc-state-v3-history-list">${rows.map((event, index) => {
+    return '<ol class="npc-state-v3-history-list">' + rows.map((event, index) => {
         const delta = Object.entries(event?.delta || {})
             .filter(([, value]) => Number(value))
-            .map(([key, value]) => `${key} ${Number(value) > 0 ? '+' : ''}${Number(value)}`)
+            .map(([key, value]) => key + ' ' + (Number(value) > 0 ? '+' : '') + Number(value))
             .join(', ');
         const impact = escapeHtml(event?.impact || 'ordinary');
-        const reason = String(event?.reason || '').trim();
-        return `<li${index >= 8 ? ' hidden' : ''}><div><b>${impact}</b><span>${escapeHtml(delta || 'no score change')}</span></div>${reason ? `<p>${escapeHtml(reason)}</p>` : ''}</li>`;
-    }).join('')}</ol>`;
+        return '<li' + (index >= 8 ? ' hidden' : '') + '><div><b>' + impact + '</b><span>' + escapeHtml(delta || 'no score change') + '</span></div>' + relationshipHistoryRemarkHtml(npc, event) + '</li>';
+    }).join('') + '</ol>';
 }
 
 function relationshipDiagnosticsHtml(npc = {}) {

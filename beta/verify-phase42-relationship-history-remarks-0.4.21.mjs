@@ -121,8 +121,10 @@ function applyElspeth(state, relationshipChange, text, sourceMessageId = 40) {
     assert.equal(npc.relationship.trust, 2);
     assert.equal(npc.relationship.affection, 0);
     const html = dossierHtml(npc);
-    assert(html.includes('<b>Trust:</b> The kept promise increased Elspeth’s trust in Lucien.'), 'Valid applied-axis explanation disappeared');
-    assert(!html.includes('This rejected affection proposal must not appear as an applied remark.'), 'Rejected axis explanation was displayed as an applied history remark');
+    const historyHtml = html.slice(html.indexOf('Recent relationship changes'), html.indexOf('Relationship evaluation &amp; scoring'));
+    assert(historyHtml.includes('<b>Trust:</b> The kept promise increased Elspeth’s trust in Lucien.'), 'Valid applied-axis explanation disappeared');
+    assert(!historyHtml.includes('This rejected affection proposal must not appear as an applied remark.'), 'Rejected axis explanation was displayed as an applied history remark');
+    assert(html.includes('This rejected affection proposal must not appear as an applied remark.'), 'Rejected-axis diagnostics were accidentally hidden instead of merely excluded from applied history');
 }
 
 // Older entries without persisted axisEvidence may recover from one strongly and unambiguously
@@ -181,8 +183,10 @@ function applyElspeth(state, relationshipChange, text, sourceMessageId = 40) {
         ],
     }, { now: 9999 });
     const html = dossierHtml(ambiguous);
-    assert(html.includes('No explanation recorded.'), 'Ambiguous historical explanation was guessed instead of left unresolved');
-    assert(!html.includes('First competing explanation.') && !html.includes('Second competing explanation.'), 'Ambiguous explanation leaked into display history');
+    const historyHtml = html.slice(html.indexOf('Recent relationship changes'), html.indexOf('Relationship evaluation &amp; scoring'));
+    assert(historyHtml.includes('No explanation recorded.'), 'Ambiguous historical explanation was guessed instead of left unresolved');
+    assert(!historyHtml.includes('First competing explanation.') && !historyHtml.includes('Second competing explanation.'), 'Ambiguous explanation leaked into display history');
+    assert(html.includes('First competing explanation.') && html.includes('Second competing explanation.'), 'Ambiguous diagnostic evidence was removed from scoring diagnostics');
 }
 
 // All model-authored display text remains escaped, including fallback per-axis explanations.
