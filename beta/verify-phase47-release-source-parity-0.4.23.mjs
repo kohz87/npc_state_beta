@@ -16,7 +16,8 @@ const verify46 = read('beta/verify-phase46-context-caps-eval-0.4.23.mjs');
 const fixtures = read('beta/relationship-judgment-eval-fixtures-0.4.23.mjs');
 const workflow = read('.github/workflows/seed-beta.yml');
 
-assert.equal(manifest.version, '0.4.23', 'Release source is not v0.4.23');
+const manifestPatch = Number(String(manifest.version || '').split('.')[2]);
+assert(String(manifest.version || '').startsWith('0.4.') && Number.isInteger(manifestPatch) && manifestPatch >= 23, 'Release source regressed below v0.4.23');
 assert(schema.includes('export function normalizeRelationshipCaps'), 'Shared relationship-cap normalizer is missing');
 assert(policy.includes('export function relationshipMechanicsPrompt(caps = DEFAULT_RELATIONSHIP_CAPS)'), 'Relationship numeric prompt is not settings-aware');
 assert(policy.includes('const effectiveCaps = normalizeRelationshipCaps(caps)'), 'Relationship numeric prompt does not share runtime cap normalization');
@@ -65,7 +66,7 @@ assert(phase46.includes('normalizeRelationshipCaps'), 'v0.4.23 transform source 
 assert(phase46.includes('OLDER CONTEXT — CONTINUITY ONLY; NOT NEW EVENT EVIDENCE'), 'v0.4.23 transform source lacks recovery context correction');
 assert(phase46a.includes('Release source regressed below v0.4.22'), 'v0.4.22 parity compatibility is not source-owned');
 
-assert(workflow.includes('Build NPC State 0.4.23 Beta'), 'Workflow is not versioned for v0.4.23');
+assert(workflow.includes('Build NPC State 0.4.'), 'Workflow lost NPC State 0.4.x versioning');
 assert(workflow.includes('node beta/bump-0.4.23.mjs'), 'Workflow does not apply the v0.4.23 bump');
 assert(workflow.includes("-name 'phase*-0.4.23.mjs'"), 'Workflow does not apply v0.4.23 phases');
 assert(workflow.includes('normalizeRelationshipCaps'), 'Architecture gate does not guard shared cap normalization');
@@ -73,4 +74,4 @@ assert(workflow.includes('OLDER CONTEXT — CONTINUITY ONLY; NOT NEW EVENT EVIDE
 assert(workflow.includes('relationshipHistoryRemarkHtml'), 'Architecture gate no longer guards v0.4.21 history remarks');
 assert(workflow.includes('Generated beta runtime already matches build output.'), 'Workflow lacks deterministic generated-source parity detection');
 
-console.log('NPC State 0.4.23 release source parity verified');
+console.log('NPC State 0.4.23+ release source parity verified');
