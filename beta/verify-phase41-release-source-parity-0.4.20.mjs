@@ -9,6 +9,7 @@ const evidenceAdapter = read('v03/evidence-adapter.js');
 const injection = read('v03/injection.js');
 const policy = read('v03/relationship-policy.js');
 const dossier = read('v03/dossier-view.js');
+const schema = read('v03/schema.js');
 const phase39 = read('beta/phase39-relationship-evidence-contract-0.4.20.mjs');
 const verify39 = read('beta/verify-phase39-relationship-evidence-contract-0.4.20.mjs');
 const workflow = read('.github/workflows/seed-beta.yml');
@@ -20,6 +21,8 @@ assert(scanner.includes('function relationshipAxisProvenance'), 'Per-axis proven
 assert(scanner.includes('axisEvidenceStatus'), 'Per-axis structural validation missing from runtime');
 assert(scanner.includes('selectRelationshipAxes(delta, axisLimit, priority = [])'), 'Priority-aware axis selection missing from runtime');
 assert(scanner.includes('relationshipAxisLooksDuplicate'), 'Per-axis idempotency guard missing from runtime');
+assert(scanner.includes('function relationshipDuplicateEvidenceKey'), 'Exact-evidence replay guard missing from runtime');
+assert(schema.includes('normalizeRelationshipAxisEvidence') && schema.includes('normalizeRelationshipPriority'), 'Relationship evidence metadata normalization missing from runtime');
 assert(!scanner.includes('DESIRE_EVIDENCE_CUES'), 'Legacy Desire keyword veto remains in runtime');
 assert(!scanner.includes('relationshipEvidenceGrounding('), 'Legacy lexical/semantic grounding remains an application veto');
 assert(!scanner.includes('relationshipEvidencePolarityConflict('), 'Legacy keyword polarity remains an application veto');
@@ -42,6 +45,8 @@ assert(workflow.includes('node beta/bump-0.4.20.mjs'), 'Workflow does not apply 
 assert(workflow.includes("-name 'phase*-0.4.20.mjs'"), 'Workflow does not apply v0.4.20 phases');
 assert(workflow.includes('relationshipEvidenceExcerptMatch'), 'Architecture gate does not guard exact relationship provenance');
 assert(workflow.includes('relationshipSources'), 'Architecture gate does not guard bounded relationship sources');
+assert(workflow.includes('relationshipDuplicateEvidenceKey'), 'Architecture gate does not guard exact-evidence idempotency');
+assert(workflow.includes('RELATIONSHIP REPEATS AND GATES'), 'Architecture gate does not guard the current milestone/repeat contract');
 assert(workflow.includes('Generated beta runtime already matches build output.'), 'Workflow lacks deterministic source/runtime parity detection');
 
 console.log('NPC State 0.4.20 release source parity verified');
