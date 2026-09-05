@@ -40,7 +40,7 @@ assert(phase30b.includes('magnitude <= 25') && phase30b.includes('magnitude <= 9
 assert(phase30b.includes('0–25/26–50/51–75/76–90/91–100'), 'Inclusive progression contract is not persisted in transform source');
 assert(phase30.includes('relationshipSemanticGrounding'), 'v0.4.17 transform source lacks generalized semantic grounding');
 assert(phase30.includes('semanticMentionsTarget'), 'v0.4.17 transform source lacks target binding');
-assert(phase31.includes('v0.4.16 relationship verifiers forward-compatible'), 'v0.4.16 verifier compatibility transform is missing');
+assert(phase31.includes('already descendant-compatible in v0.4.20 source'), 'v0.4.16 descendant verifier compatibility guard is missing');
 assert(phase31c.includes('80% boundary-band inertia'), 'Final historical inertia compatibility is not persisted');
 
 assert(verify30.includes('26–50 deepening multiplier is not ×0.80'), 'Second-band progression regression is not persisted');
