@@ -48,7 +48,7 @@ for (const marker of [
     'kinship-counterpart-lock',
     'kinship-child-regression',
 ]) assert(verify52.includes(marker), 'v0.4.26 regression pack lacks scenario: ' + marker);
-assert(verify52.includes("'Mara Vane - sibling'"), 'Sibling reciprocal assertion missing');
+assert(verify52.includes("'Greta Vane - sibling'"), 'Sibling reciprocal assertion missing');
 assert(verify52.includes("'Lyra Vane - niece/nephew'"), 'Aunt/uncle reciprocal assertion missing');
 assert(verify52.includes("'Anna Reed - spouse'"), 'Spouse reciprocal assertion missing');
 assert(verify52.includes("'Nia Vale - ward'"), 'Guardian/ward reciprocal assertion missing');
