@@ -209,7 +209,7 @@ function dossierCollectionRules(limits) {
 
 export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', relationshipCaps = DEFAULT_RELATIONSHIP_CAPS, memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State v0.4.25 recovery scanner requires an assistant message and its preceding user exchange.');
+    if (!exchange) throw new Error('NPC State v0.4.26 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
@@ -229,10 +229,10 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
             relationshipChange: { evaluated: true, impact: 'none|ordinary|meaningful|major|extreme', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, priority: ['supported nonzero axes strongest/most central first'], axisEvidence: { trust: { excerpts: ['1-3 exact current-exchange quotations'], explanation: 'why this changes Trust toward the PLAYER' }, affection: { excerpts: [], explanation: '' }, desire: { excerpts: [], explanation: '' }, tension: { excerpts: [], explanation: '' } }, evidence: 'optional compact overall event summary', reason: 'overall evaluation; required concise reason when impact is none' },
         }],
         socialEdges: [{ from: 'NPC id/name only', to: 'NPC id/name only', relation: '', summary: '', provenance: 'explicit|strong-context' }],
-        familyFacts: [{ owner: 'existing NPC id/name', relation: 'daughter|son|child|other countable family role', count: 2, members: ['explicitly named members from visible evidence; [] when unnamed'], descriptor: 'optional e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit countable family fact' }],
+        familyFacts: [{ owner: 'existing NPC id/name', relation: 'family/kinship role, e.g. daughter|parent|sister|brother|aunt|uncle|niece|nephew|cousin|grandparent|grandchild|spouse|guardian|ward|in-law', count: 2, members: ['explicitly named members from visible evidence; [] when unnamed'], descriptor: 'optional family detail e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit family/kinship fact' }],
     };
     return [
-        'You are NPC State v0.4.25, a private structured continuity scanner for a roleplay chat.',
+        'You are NPC State v0.4.26, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
         '',
         `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
@@ -314,7 +314,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         body: compactText(block?.body, 12000),
     }));
     return [
-        'You are NPC State v0.4.25 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
+        'You are NPC State v0.4.26 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
         'Return JSON only. This is reference-data reconciliation, NOT a current scene/event scan.',
         'Only the supplied Megumin New_NPC / NPC_Update blocks are authoritative sources for this operation.',
         'TARGET DOSSIER: ' + JSON.stringify(rosterForPrompt({ npcs: [npc] })[0]),
@@ -353,7 +353,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State v0.4.25 performing a targeted dossier reconciliation.',
+        'You are NPC State v0.4.26 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
@@ -404,7 +404,7 @@ function scannerNpcArrayValid(value) {
     });
 }
 function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupplemental = false } = {}) {
-    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.25 recovery scanner JSON must be an object.');
+    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.26 recovery scanner JSON must be an object.');
     const has = key => Object.prototype.hasOwnProperty.call(parsed, key);
     const presentKey = has('inChatNpcIds') ? 'inChatNpcIds' : (has('finalPresentNpcIds') ? 'finalPresentNpcIds' : '');
     if (requireContract) {
@@ -415,7 +415,7 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
         if (!scannerNpcArrayValid(parsed.npcs)) invalid.push('npcs[object-with-string-identity]');
         if ((!allowOmittedSupplemental || has('socialEdges')) && !scannerObjectArrayValid(parsed.socialEdges)) invalid.push('socialEdges[object]');
         if (has('familyFacts') && !scannerObjectArrayValid(parsed.familyFacts)) invalid.push('familyFacts[object]');
-        if (invalid.length) throw new Error('NPC State v0.4.25 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
+        if (invalid.length) throw new Error('NPC State v0.4.26 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
     }
     return {
         exchangeActiveNpcIds: uniqueStrings(parsed.exchangeActiveNpcIds),
@@ -429,14 +429,14 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
 
 export function parseScanJson(raw) {
     const text = String(raw ?? '').trim();
-    if (!text) throw new Error('NPC State v0.4.25 recovery scanner returned an empty response.');
+    if (!text) throw new Error('NPC State v0.4.26 recovery scanner returned an empty response.');
     const unfenced = text.replace(/^\x60\x60\x60(?:json)?\s*/i, '').replace(/\s*\x60\x60\x60$/i, '').trim();
     const first = unfenced.indexOf('{');
     const last = unfenced.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('NPC State v0.4.25 recovery scanner returned no JSON object.');
+    if (first < 0 || last <= first) throw new Error('NPC State v0.4.26 recovery scanner returned no JSON object.');
     let parsed;
     try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
-    catch (error) { throw new Error('NPC State v0.4.25 recovery scanner returned malformed JSON: ' + error.message); }
+    catch (error) { throw new Error('NPC State v0.4.26 recovery scanner returned malformed JSON: ' + error.message); }
     return normalizeScanPayload(parsed, { requireContract: true });
 }
 
@@ -525,7 +525,7 @@ function preflightAutomaticIdentityPatches(state, patches = [], referenceCandida
                 // handled by automaticIdentityPatchConflicts() as a local patch rejection.
                 // A newly claimed key is a same-observation conflict and invalidates the payload.
                 if (!initialIdentityKeys.has(key)) {
-                    throw new Error('NPC State v0.4.25 scanner identity collision inside one observation: ' + value + '.');
+                    throw new Error('NPC State v0.4.26 scanner identity collision inside one observation: ' + value + '.');
                 }
             }
         }
@@ -780,15 +780,85 @@ function mergeKeyRelationshipPatch(existingValue, incomingValue, changesValue, l
     return normalizeKeyRelationshipEntries(out, limit, 500);
 }
 
-const FAMILY_CHILD_ROLES = new Set(['child', 'daughter', 'son', 'adopted child', 'stepchild']);
-const FAMILY_PARENT_ROLES = new Set(['parent', 'mother', 'father', 'guardian parent', 'adoptive parent', 'stepparent']);
+const FAMILY_KINSHIP_GROUPS = Object.freeze({
+    child: new Set(['child', 'daughter', 'son', 'adopted child', 'adopted daughter', 'adopted son', 'stepchild', 'step daughter', 'step son', 'foster child', 'foster daughter', 'foster son']),
+    parent: new Set(['parent', 'mother', 'father', 'guardian parent', 'adoptive parent', 'adoptive mother', 'adoptive father', 'stepparent', 'step mother', 'step father', 'foster parent', 'foster mother', 'foster father']),
+    sibling: new Set(['sibling', 'sister', 'brother', 'twin sibling', 'twin sister', 'twin brother', 'half sibling', 'half sister', 'half brother', 'step sibling', 'step sister', 'step brother']),
+    aunt_uncle: new Set(['aunt', 'uncle', 'great aunt', 'great uncle', 'grandaunt', 'granduncle']),
+    niece_nephew: new Set(['niece', 'nephew', 'great niece', 'great nephew', 'grandniece', 'grandnephew']),
+    grandparent: new Set(['grandparent', 'grandmother', 'grandfather', 'great grandparent', 'great grandmother', 'great grandfather']),
+    grandchild: new Set(['grandchild', 'granddaughter', 'grandson', 'great grandchild', 'great granddaughter', 'great grandson']),
+    cousin: new Set(['cousin', 'first cousin', 'second cousin']),
+    spouse: new Set(['spouse', 'wife', 'husband']),
+    guardian: new Set(['guardian', 'legal guardian']),
+    ward: new Set(['ward']),
+    parent_in_law: new Set(['parent in law', 'mother in law', 'father in law']),
+    child_in_law: new Set(['child in law', 'daughter in law', 'son in law']),
+    sibling_in_law: new Set(['sibling in law', 'sister in law', 'brother in law']),
+});
 function familyRole(value) {
     const text = normalizeName(String(value || '').split(':')[0]);
-    if (FAMILY_CHILD_ROLES.has(text)) return 'child';
-    if (FAMILY_PARENT_ROLES.has(text)) return 'parent';
+    for (const [group, values] of Object.entries(FAMILY_KINSHIP_GROUPS)) if (values.has(text)) return group;
+    // Permit ordinary modifiers such as younger sister or paternal uncle without requiring
+    // an exhaustive vocabulary. Order matters so compound/in-law and grand relations do
+    // not collapse into their simpler parent/child/sibling words.
+    if (/\b(?:mother|father|parent)\s+in\s+law\b/.test(text)) return 'parent_in_law';
+    if (/\b(?:daughter|son|child)\s+in\s+law\b/.test(text)) return 'child_in_law';
+    if (/\b(?:sister|brother|sibling)\s+in\s+law\b/.test(text)) return 'sibling_in_law';
+    if (/\b(?:great\s+)?grand(?:mother|father|parent)\b/.test(text)) return 'grandparent';
+    if (/\b(?:great\s+)?grand(?:daughter|son|child)\b/.test(text)) return 'grandchild';
+    if (/\b(?:aunt|uncle)\b/.test(text)) return 'aunt_uncle';
+    if (/\b(?:niece|nephew)\b/.test(text)) return 'niece_nephew';
+    if (/\bcousin\b/.test(text)) return 'cousin';
+    if (/\b(?:spouse|wife|husband)\b/.test(text)) return 'spouse';
+    if (/\bguardian\b/.test(text)) return 'guardian';
+    if (/\bward\b/.test(text)) return 'ward';
+    if (/\b(?:sister|brother|sibling)\b/.test(text)) return 'sibling';
     if (/\b(?:daughter|son|child)\b/.test(text)) return 'child';
     if (/\b(?:mother|father|parent)\b/.test(text)) return 'parent';
     return '';
+}
+
+function reciprocalFamilyRelation(value) {
+    const text = normalizeName(String(value || '').split(':')[0]);
+    switch (familyRole(text)) {
+        case 'child': return 'parent';
+        case 'parent': return 'child';
+        case 'sibling':
+            if (/\btwin\b/.test(text)) return 'twin sibling';
+            if (/\bhalf\b/.test(text)) return 'half sibling';
+            if (/\bstep\b/.test(text)) return 'step sibling';
+            return 'sibling';
+        case 'aunt_uncle': return /\b(?:great|grand)\b/.test(text) ? 'great-niece/nephew' : 'niece/nephew';
+        case 'niece_nephew': return /\b(?:great|grand)\b/.test(text) ? 'great-aunt/uncle' : 'aunt/uncle';
+        case 'grandparent': return /\bgreat\b/.test(text) ? 'great-grandchild' : 'grandchild';
+        case 'grandchild': return /\bgreat\b/.test(text) ? 'great-grandparent' : 'grandparent';
+        case 'cousin': return 'cousin';
+        case 'spouse': return 'spouse';
+        case 'guardian': return 'ward';
+        case 'ward': return 'guardian';
+        case 'parent_in_law': return 'child-in-law';
+        case 'child_in_law': return 'parent-in-law';
+        case 'sibling_in_law': return 'sibling-in-law';
+        default: return '';
+    }
+}
+
+function resolveFamilySlotMember(slots, ownerId, relation, memberId) {
+    const group = familyRole(relation);
+    if (!group || !ownerId || !memberId || ownerId === memberId) return false;
+    const relationKey = normalizeName(relation);
+    const candidates = slots
+        .filter(slot => slot.ownerId === ownerId
+            && familyRole(slot.relation) === group
+            && !slot.resolvedNpcIds.includes(memberId)
+            && slot.resolvedNpcIds.length < slot.count)
+        .sort((left, right) => Number(normalizeName(right.relation) === relationKey) - Number(normalizeName(left.relation) === relationKey));
+    const slot = candidates[0];
+    if (!slot) return false;
+    slot.resolvedNpcIds.push(memberId);
+    slot.updatedAt = Date.now();
+    return true;
 }
 
 function familySlotKey(ownerId, relation, twinGroup = '') {
@@ -838,45 +908,44 @@ function familyCounterpartMatches(state, entry, memberName, memberNpc = null) {
     return familyMemberNpc(state, other)?.id === memberNpc.id;
 }
 
+function upsertFamilyRelationship(state, npc, counterpartName, counterpartNpc, relation, limit) {
+    if (!npc || !relation || (npc.manualProfileFields || []).includes('keyRelationships')) return;
+    const displayName = String(counterpartNpc?.name || counterpartName || '').trim();
+    if (!displayName) return;
+    let entries = normalizeKeyRelationshipEntries(npc.keyRelationships, Math.max(limit, 30), 500);
+    const matches = [];
+    for (let index = 0; index < entries.length; index += 1) {
+        if (familyCounterpartMatches(state, entries[index], counterpartName || displayName, counterpartNpc)) matches.push(index);
+    }
+    if (matches.length) {
+        const first = matches[0];
+        const existingRelation = keyRelationshipParts(entries[first]).relation;
+        const preservedRelation = familyRole(existingRelation) === familyRole(relation) ? existingRelation : relation;
+        entries[first] = displayName + ' - ' + preservedRelation;
+        for (let index = matches.length - 1; index >= 1; index -= 1) entries.splice(matches[index], 1);
+    } else if (entries.length < limit) {
+        entries.push(displayName + ' - ' + relation);
+    }
+    npc.keyRelationships = normalizeKeyRelationshipEntries(entries, limit, 500);
+}
+
 function projectFamilySlotMembers(state, slot, limit) {
     const owner = (state?.npcs || []).find(npc => npc.id === slot?.ownerId);
     if (!owner) return;
     const members = Array.isArray(slot?.memberNames) ? slot.memberNames.slice(0, slot.count) : [];
     if (!members.length) return;
 
-    // Resolution is allowed even when the user's manual profile lock prevents automatic
-    // dossier text changes. This keeps the private family graph accurate without mutating
-    // user-owned keyRelationships.
     for (const memberName of members) {
         const memberNpc = familyMemberNpc(state, memberName);
         if (memberNpc && memberNpc.id !== owner.id && !slot.resolvedNpcIds.includes(memberNpc.id) && slot.resolvedNpcIds.length < slot.count) {
             slot.resolvedNpcIds.push(memberNpc.id);
             slot.updatedAt = Date.now();
         }
-    }
-    if ((owner.manualProfileFields || []).includes('keyRelationships')) return;
-
-    let entries = normalizeKeyRelationshipEntries(owner.keyRelationships, Math.max(limit, 30), 500);
-    for (const memberName of members) {
-        const memberNpc = familyMemberNpc(state, memberName);
         if (memberNpc?.id === owner.id) continue;
-        const displayName = String(memberNpc?.name || memberName).trim();
-        if (!displayName) continue;
-        const matches = [];
-        for (let index = 0; index < entries.length; index += 1) {
-            if (familyCounterpartMatches(state, entries[index], memberName, memberNpc)) matches.push(index);
-        }
-        if (matches.length) {
-            const first = matches[0];
-            const existingRelation = keyRelationshipParts(entries[first]).relation;
-            const preservedRelation = familyRole(existingRelation) === familyRole(slot.relation) ? existingRelation : slot.relation;
-            entries[first] = displayName + ' - ' + preservedRelation;
-            for (let index = matches.length - 1; index >= 1; index -= 1) entries.splice(matches[index], 1);
-        } else if (entries.length < limit) {
-            entries.push(displayName + ' - ' + slot.relation);
-        }
+        upsertFamilyRelationship(state, owner, memberName, memberNpc, slot.relation, limit);
+        const reciprocal = memberNpc ? reciprocalFamilyRelation(slot.relation) : '';
+        if (memberNpc && reciprocal) upsertFamilyRelationship(state, memberNpc, owner.name, owner, reciprocal, limit);
     }
-    owner.keyRelationships = normalizeKeyRelationshipEntries(entries, limit, 500);
 }
 
 function addFamilyFacts(state, facts, resolveReference, sourceMessageId, evidenceContext = '', playerName = '') {
@@ -957,23 +1026,10 @@ export function reconcileFamilyGraphState(stateInput, { sourceMessageId = null, 
         for (const entry of npc.keyRelationships || []) {
             const parts = keyRelationshipParts(entry);
             const other = keyRelationshipToNpc(state, entry);
-            if (!other || other.id === npc.id) continue;
-            const role = familyRole(parts.relation);
-            if (role === 'child') {
-                for (const slot of slots) {
-                    if (slot.ownerId !== npc.id || familyRole(slot.relation) !== 'child' || slot.resolvedNpcIds.includes(other.id) || slot.resolvedNpcIds.length >= slot.count) continue;
-                    slot.resolvedNpcIds.push(other.id);
-                    slot.updatedAt = Date.now();
-                    break;
-                }
-            } else if (role === 'parent') {
-                for (const slot of slots) {
-                    if (slot.ownerId !== other.id || familyRole(slot.relation) !== 'child' || slot.resolvedNpcIds.includes(npc.id) || slot.resolvedNpcIds.length >= slot.count) continue;
-                    slot.resolvedNpcIds.push(npc.id);
-                    slot.updatedAt = Date.now();
-                    break;
-                }
-            }
+            if (!other || other.id === npc.id || !familyRole(parts.relation)) continue;
+            if (resolveFamilySlotMember(slots, npc.id, parts.relation, other.id)) continue;
+            const reciprocal = reciprocalFamilyRelation(parts.relation);
+            if (reciprocal) resolveFamilySlotMember(slots, other.id, reciprocal, npc.id);
         }
     }
 

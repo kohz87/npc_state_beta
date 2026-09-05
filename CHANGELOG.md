@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.4.26
+
+- Generalizes named family projection beyond child/parent facts to direct siblings, aunts/uncles, nieces/nephews, cousins, grandparents/grandchildren, spouses, guardians/wards, and common in-law ties.
+- Adds conservative reciprocal Key relationships for relatives that already have dossiers while avoiding gender guesses when the inverse role is not established.
+- Preserves v0.4.25 named-member evidence boundaries, no-placeholder admission behavior, manual Key relationships locks, ambiguous-name fail-closed resolution, and existing twin/sibling inference.
+
 ## v0.4.25
 
 - Fixes explicit named family facts such as twin daughters being retained as countable family slots while failing to appear in the owner dossier Key relationships.

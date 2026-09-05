@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.25
+# NPC State Beta 0.4.26
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -7,7 +7,7 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 - Normal turns use the same foreground RP inference for NPC State capture. No mandatory second scanner request.
 - The model emits one hidden `<npc_state_v1>...</npc_state_v1>` observation block; NPC State validates it, applies deterministic state rules, stores per-message/per-swipe metadata, and strips the transport from chat.
 - With current Inventory Block transports, NPC State yields the terminal position: the NPC payload comes first and Inventory keeps its own final `INVENTORY_BLOCK_V05` / legacy `INVENTORY_BLOCK_UPDATE` control.
-- `present` remains the internal v0.3-compatible storage field, but its v0.4.25 meaning is **in chat**: individually relevant NPC participants at exchange end, not everyone physically nearby.
+- `present` remains the internal v0.3-compatible storage field, but its v0.4.26 meaning is **in chat**: individually relevant NPC participants at exchange end, not everyone physically nearby.
 - New NPCs use the same full semantic scan and receive all grounded foundational information established by the exchange. Unknown biography stays unknown.
 - The full separate v0.3-style scanner is retained as a contingency for manual Scan current cast, dossier Refresh, timeline rebase, edited/untracked branch recovery, and optional foreground failure fallback.
 - When embedded capture is enabled, a completely missing `<npc_state_v1>` block automatically triggers one recovery scan. Recovery for a malformed block remains separately optional/configurable.
@@ -51,7 +51,7 @@ Experimental one-pass foreground NPC continuity for SillyTavern, continuing dire
 
 ## Testing beside stable NPC State
 
-Disable the stable NPC State extension while exercising this beta. Stable may remain installed and its settings/data remain untouched. On first load for a chat with no beta sidecar, 0.4.25 clones the stable v0.3 sidecar into a beta-owned sidecar and then diverges independently.
+Disable the stable NPC State extension while exercising this beta. Stable may remain installed and its settings/data remain untouched. On first load for a chat with no beta sidecar, 0.4.26 clones the stable v0.3 sidecar into a beta-owned sidecar and then diverges independently.
 
 ## Scanner output and relationship diagnostics
 
@@ -64,6 +64,12 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - v0.4.18 requires an explicit relationship evaluation for every exchange-active NPC. A scanner may still correctly decide that an ordinary interaction causes no relationship movement, but it must say so instead of silently omitting the relationship channel.
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
+
+## General kinship projection
+
+- Grounded named family facts now cover direct siblings, aunts/uncles, nieces/nephews, cousins, grandparents/grandchildren, spouses, guardians/wards, and common in-law ties in addition to the existing child/parent family slots.
+- The owner keeps the explicit directional relation from narration, such as `Mara - sister` or `Rowan - uncle`. When the named relative already has a dossier, NPC State adds a conservative reciprocal relation without guessing unknown gender, such as `sibling`, `niece/nephew`, `grandchild`, or `spouse`.
+- Named relatives remain continuity metadata rather than automatic NPC admission. Public-evidence grounding, ambiguous short-name fail-closed behavior, manual Key relationships locks, and unnamed-family handling remain unchanged.
 
 ## Named family facts
 
@@ -85,7 +91,7 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 
 ## Relationship judgment calibration
 
-- v0.4.25 applies one shared relationship-judgment rubric to foreground capture and the full recovery/current-cast scanner. It distinguishes genuinely new change from continuity, binds reactions to the correct NPC and player target, supports contextual/indirect evidence without keyword gating, evaluates axes independently, weighs ambiguity without freezing, and considers mixed chronology before proposing a net change.
+- v0.4.26 applies one shared relationship-judgment rubric to foreground capture and the full recovery/current-cast scanner. It distinguishes genuinely new change from continuity, binds reactions to the correct NPC and player target, supports contextual/indirect evidence without keyword gating, evaluates axes independently, weighs ambiguity without freezing, and considers mixed chronology before proposing a net change.
 - Impact caps remain maxima rather than targets. The model is instructed to choose modest raw deltas from strength, significance, and novelty, while runtime continues to apply caps, priority/axis limits, duplicate protection, inertia, fractional progress, and milestone gates exactly as before.
 - Per-axis explanations remain concise and evidence-backed. Exact quotations still come only from permitted current-exchange relationship evidence; older context can inform interpretation but never becomes fresh evidence.
 - Relationship criteria in settings are additive campaign calibration. The shared rubric and deterministic evidence/mechanics contract always remain in force. Existing user-edited criteria are preserved; only the exact previous built-in default is migrated to the shorter additive default.
