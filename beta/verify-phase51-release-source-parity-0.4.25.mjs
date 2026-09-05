@@ -11,7 +11,9 @@ const verify50 = read('beta/verify-phase50-named-family-key-relationships-0.4.25
 const legacyFamilyVerifier = read('beta/verify-phase4-family-graph-and-key-merge-0.4.2.mjs');
 const workflow = read('.github/workflows/seed-beta.yml');
 
-assert.equal(manifest.version, '0.4.25', 'Release source is not v0.4.25');
+const versionMatch = String(manifest.version || '').match(/^0\.4\.(\d+)$/);
+assert(versionMatch && Number(versionMatch[1]) >= 25, 'Release source predates v0.4.25');
+const currentPatch = Number(versionMatch[1]);
 assert(schema.includes('memberNames'), 'Family slot named-member persistence missing');
 assert(scanner.includes('groundedFamilyMemberNames'), 'Named-family evidence grounding helper missing');
 assert(scanner.includes('familyMemberNpc'), 'Named-family safe dossier resolver missing');
@@ -40,8 +42,8 @@ assert(verify50.includes("members: ['Lyra', 'Talia']"), 'Exact Lyra/Talia twin-d
 assert(verify50.includes("'Lyra - daughter'"), 'Greta owner relationship projection assertion is missing');
 assert(verify50.includes("'Talia - daughter'"), 'Greta second twin relationship projection assertion is missing');
 
-// The new fix must preserve the previous short-name presence repair and the family-slot
-// architecture that predates named member projection.
+// Descendant releases may generalize family semantics, but the v0.4.25 named-member and
+// v0.4.24 short-name foundations must remain present.
 assert(scanner.includes('visibleShortActivityIdentityMention'), 'v0.4.24 short-name presence recovery regressed');
 assert(scanner.includes('shortActivityIdentityUnique'), 'v0.4.24 short-name ambiguity guard regressed');
 assert(scanner.includes('normalizeFamilySlots'), 'Existing family slot reconciliation disappeared');
@@ -53,13 +55,13 @@ assert(phase50.includes('projectFamilySlotMembers'), 'v0.4.25 transform source l
 assert(phase50.includes('profileContext'), 'v0.4.25 transform source lacks public evidence boundary plumbing');
 assert(phase50.includes("keyRelationshipReferencesPlayer(member, playerName)"), 'v0.4.25 transform does not isolate player relationships');
 
-assert(workflow.includes('Build NPC State 0.4.25 Beta'), 'Workflow is not versioned for v0.4.25');
-assert(workflow.includes('for patch in $(seq 2 25); do'), 'Workflow does not cold-replay through v0.4.25');
+assert(workflow.includes(`Build NPC State ${manifest.version} Beta`), 'Workflow version does not match current manifest');
+assert(workflow.includes(`for patch in $(seq 2 ${currentPatch}); do`), 'Workflow does not cold-replay through current release');
 assert(workflow.includes('# node beta/bump-0.4.25.mjs'), 'Workflow lacks v0.4.25 source marker');
-assert(workflow.includes("-name 'phase*-0.4.25.mjs'"), 'Workflow does not apply v0.4.25 phases');
+assert(workflow.includes("-name 'phase*-0.4.25.mjs'"), 'Workflow does not retain v0.4.25 phases');
 assert(workflow.includes('groundedFamilyMemberNames'), 'Architecture gate does not guard named-family evidence grounding');
 assert(workflow.includes('projectFamilySlotMembers'), 'Architecture gate does not guard named-family projection');
 assert(workflow.includes('memberNames'), 'Architecture gate does not guard named-family persistence');
 assert(workflow.includes('Generated beta runtime already matches build output.'), 'Workflow lacks deterministic generated-source parity detection');
 
-console.log('NPC State 0.4.25 release source parity verified');
+console.log('NPC State v0.4.25 named-family release invariants verified on descendant ' + manifest.version);
