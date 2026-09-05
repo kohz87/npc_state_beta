@@ -13,6 +13,8 @@ import {
     findNpcByReference,
     makeNpcId,
     normalizeName,
+    normalizeActualAge,
+    normalizeApparentAge,
     normalizeScannerResponseTokens,
     normalizeNpc,
     normalizeBirthdayFillMode,
@@ -43,7 +45,7 @@ import {
 } from './stale.js';
 import { clearV3PointerHint, deleteV3SidecarFile, readV3PointerHint, readV3Sidecar, retireV3Sidecar, writeV3Sidecar } from './storage.js';
 
-const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.11 recovery scanner. Obey the supplied schema and evidence rules exactly.';
+const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.12 recovery scanner. Obey the supplied schema and evidence rules exactly.';
 
 function profileContextForWindow(chat = [], messageId = null, depth = 8) {
     const end = Number.isInteger(messageId) ? Math.min(chat.length - 1, messageId) : chat.length - 1;
@@ -98,7 +100,7 @@ export function createNpcStateEngine(adapters = {}) {
     const notify = adapters.notify || (() => {});
 
     if (typeof getContext !== 'function' || typeof getChatKey !== 'function' || typeof getSettings !== 'function' || typeof generate !== 'function') {
-        throw new Error('NPC State v0.4.11 engine requires getContext, getChatKey, getSettings, and generate adapters.');
+        throw new Error('NPC State v0.4.12 engine requires getContext, getChatKey, getSettings, and generate adapters.');
     }
 
     function epoch(chatKey) { return operationEpoch.get(chatKey) || 0; }
@@ -204,7 +206,7 @@ export function createNpcStateEngine(adapters = {}) {
             if (importedStable || fingerprintUpgraded) {
                 state = await persist(chatKey, state);
                 if (importedStable) {
-                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.11 beta sidecar. Stable data was not modified.');
+                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.12 beta sidecar. Stable data was not modified.');
                 } else if (fingerprintUpgraded) {
                     notify('info', 'Upgraded branch checkpoint fingerprints for transport-safe, swipe-index-independent rollback. Existing dossiers were preserved; old rollback hashes were reset once.');
                 }
@@ -537,6 +539,7 @@ export function createNpcStateEngine(adapters = {}) {
                     fallbackDays: settings.birthdayRandomDaysPerMonth,
                 },
                 applyReturnedNpcPatches: true,
+                reconcileFamilyGraph: false,
             });
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
             const committed = recordCheckpoint(applied.state, liveChat, messageId, 'targeted-refresh');
@@ -597,6 +600,13 @@ export function createNpcStateEngine(adapters = {}) {
             const current = state.npcs[index];
             if (Number.isFinite(Number(options.expectedUpdatedAt)) && Number(current.updatedAt) !== Number(options.expectedUpdatedAt)) return { rejected: 'stale-editor' };
             const nextRaw = { ...current, ...structuredClone(patch), id: current.id, updatedAt: Math.max(Date.now(), Number(current.updatedAt || 0) + 1), manual: true };
+            const manualAgeChanged = Object.prototype.hasOwnProperty.call(patch || {}, 'age')
+                && normalizeActualAge(patch.age) !== normalizeActualAge(current.age);
+            const manualApparentAgeChanged = Object.prototype.hasOwnProperty.call(patch || {}, 'apparentAge')
+                && normalizeApparentAge(patch.apparentAge) !== normalizeApparentAge(current.apparentAge);
+            if (manualAgeChanged || manualApparentAgeChanged) {
+                nextRaw.ageProgressionBaselineAge = normalizeActualAge(manualAgeChanged ? patch.age : current.age);
+            }
             if (patch?.relationship && typeof patch.relationship === 'object') {
                 const before = normalizeRelationship(current.relationship);
                 const after = normalizeRelationship({ ...before, ...patch.relationship });

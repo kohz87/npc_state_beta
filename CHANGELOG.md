@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.12
+
+- Makes scanner validation transactional for both JSON text and already-parsed objects: activity arrays require non-empty strings, dossier/edge/family arrays require valid object members, malformed members reject the whole observation, and pending same-scan identity changes reserve names/aliases before any state mutation.
+- Tightens death archiving to completed target-specific assertions. A tracked NPC is no longer archived merely because its name appears near another character being killed or a hypothetical/future death statement.
+- Tightens relationship evidence ownership and polarity: evidence naming another known NPC as the experiencer fails closed, directional actor checks remain local to the predicate, and negated love/trust/desire/tension evidence cannot authorize a delta with the opposite sign.
+- Reworks relationship rebase rollback so post-divergence manual score edits are chronological anchors rather than whole-axis shields. Discarded automatic movement after the latest manual anchor rolls back while automatic movement that the manual edit already overwrote is not subtracted twice.
+- Resets cumulative visual-maturation provenance after manual Actual Age or Apparent Age edits, preventing stale historical baselines from authorizing oversized future visual-age jumps.
+- Makes Targeted Refresh skip global family reconciliation entirely, preventing existing family slots from mutating unrelated dossiers or graph edges during a single-NPC refresh.
+
 ## v0.4.11
 
 - Hardens scanner invariants: malformed/structurally invalid payloads fail before state mutation, automatic identity collisions fail closed, death transitions require affirmative target-attributed evidence, and durable appearance/Base synchronization compares complete canonical descriptions instead of 160-character identity keys.

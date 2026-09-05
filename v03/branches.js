@@ -116,6 +116,30 @@ function relationshipNumbersEqual(a, b) {
     return Math.abs((Number(a) || 0) - (Number(b) || 0)) < 0.000001;
 }
 
+function relationshipEventAfter(event, anchor) {
+    if (!anchor) return true;
+    const eventMessage = Number.isInteger(event?.sourceMessageId) ? event.sourceMessageId : null;
+    const anchorMessage = Number.isInteger(anchor?.sourceMessageId) ? anchor.sourceMessageId : null;
+    if (eventMessage !== null && anchorMessage !== null && eventMessage !== anchorMessage) return eventMessage > anchorMessage;
+    const eventAt = Number(event?.at) || 0;
+    const anchorAt = Number(anchor?.at) || 0;
+    if (eventAt && anchorAt) return eventAt > anchorAt;
+    return false;
+}
+function latestManualRelationshipAnchors(history = [], divergenceMessageId = null) {
+    const anchors = new Map();
+    for (const event of history) {
+        if (String(event?.impact || '').toLocaleLowerCase() !== 'manual') continue;
+        if (!Number.isInteger(event?.sourceMessageId) || event.sourceMessageId < divergenceMessageId) continue;
+        for (const axis of RELATIONSHIP_AXES) {
+            if (Number(event?.delta?.[axis]) === 0) continue;
+            const prior = anchors.get(axis);
+            if (!prior || relationshipEventAfter(event, prior)) anchors.set(axis, event);
+        }
+    }
+    return anchors;
+}
+
 export function rollbackRebasedRelationship(npcInput = {}, divergenceMessageId = null) {
     const npc = structuredClone(npcInput || {});
     if (!Number.isInteger(divergenceMessageId)) return npc;
@@ -126,27 +150,20 @@ export function rollbackRebasedRelationship(npcInput = {}, divergenceMessageId =
     const diagnostics = Array.isArray(npc.relationshipDiagnostics) ? npc.relationshipDiagnostics : [];
     const evidenceHistory = Array.isArray(npc.relationshipEvidenceHistory) ? npc.relationshipEvidenceHistory : [];
     const milestones = Array.isArray(npc.relationshipMilestones) ? npc.relationshipMilestones : [];
-    const manualProtectedAxes = new Set();
+    const manualAnchorByAxis = latestManualRelationshipAnchors(history, divergenceMessageId);
     const affectedAxes = new Set();
-
-    // Manual score edits remain authoritative even if their save happened after the
-    // divergence point. The manual event records which axes the player intentionally set.
-    for (const event of history) {
-        if (String(event?.impact || '').toLocaleLowerCase() !== 'manual') continue;
-        if (!Number.isInteger(event?.sourceMessageId) || event.sourceMessageId < divergenceMessageId) continue;
-        for (const axis of RELATIONSHIP_AXES) if (Number(event?.delta?.[axis]) !== 0) manualProtectedAxes.add(axis);
-    }
 
     // Recent diagnostics contain exact before/after integer and fractional state. Walk
     // them backwards first so a recent abandoned gate crossing can be restored exactly.
-    const covered = new Set();
+    const coveredSourceAxes = new Set();
     const staleDiagnostics = diagnostics
         .filter(event => discardedRelationshipEvent(event, divergenceMessageId))
         .sort((a, b) => Number(b?.sourceMessageId || -1) - Number(a?.sourceMessageId || -1) || Number(b?.at || 0) - Number(a?.at || 0));
     for (const event of staleDiagnostics) {
         const key = relationshipEventKey(event);
         for (const axis of RELATIONSHIP_AXES) {
-            if (manualProtectedAxes.has(axis)) continue;
+            const manualAnchor = manualAnchorByAxis.get(axis);
+            if (manualAnchor && !relationshipEventAfter(event, manualAnchor)) continue;
             const beforeScore = Number(event?.before?.[axis]) || 0;
             const afterScore = Number(event?.after?.[axis]) || 0;
             const beforeProgress = Number(event?.progressBefore?.[axis]) || 0;
@@ -155,7 +172,7 @@ export function rollbackRebasedRelationship(npcInput = {}, divergenceMessageId =
             if (relationship[axis] !== afterScore || !relationshipNumbersEqual(progress[axis], afterProgress)) continue;
             relationship[axis] = beforeScore;
             progress[axis] = beforeProgress;
-            covered.add(key + '|' + axis);
+            coveredSourceAxes.add(String(event?.sourceMessageId ?? '') + '|' + axis);
             affectedAxes.add(axis);
         }
     }
@@ -165,7 +182,8 @@ export function rollbackRebasedRelationship(npcInput = {}, divergenceMessageId =
     for (const event of history.filter(item => discardedRelationshipEvent(item, divergenceMessageId))) {
         const key = relationshipEventKey(event);
         for (const axis of RELATIONSHIP_AXES) {
-            if (manualProtectedAxes.has(axis) || covered.has(key + '|' + axis)) continue;
+            const manualAnchor = manualAnchorByAxis.get(axis);
+            if ((manualAnchor && !relationshipEventAfter(event, manualAnchor)) || coveredSourceAxes.has(String(event?.sourceMessageId ?? '') + '|' + axis)) continue;
             const delta = Number(event?.delta?.[axis]) || 0;
             if (!delta) continue;
             relationship[axis] = Math.max(-100, Math.min(100, relationship[axis] - delta));
@@ -180,7 +198,8 @@ export function rollbackRebasedRelationship(npcInput = {}, divergenceMessageId =
     for (const event of evidenceHistory.filter(item => discardedRelationshipEvent(item, divergenceMessageId))) {
         const key = relationshipEventKey(event);
         for (const axis of RELATIONSHIP_AXES) {
-            if (manualProtectedAxes.has(axis) || covered.has(key + '|' + axis)) continue;
+            const manualAnchor = manualAnchorByAxis.get(axis);
+            if ((manualAnchor && !relationshipEventAfter(event, manualAnchor)) || coveredSourceAxes.has(String(event?.sourceMessageId ?? '') + '|' + axis)) continue;
             if (Number(event?.delta?.[axis]) === 0) continue;
             progress[axis] = 0;
             affectedAxes.add(axis);
@@ -198,7 +217,7 @@ export function rollbackRebasedRelationship(npcInput = {}, divergenceMessageId =
         const axis = String(entry?.axis || '').trim().toLocaleLowerCase();
         const polarity = Math.sign(Number(entry?.polarity));
         const threshold = Number(entry?.threshold);
-        if (!RELATIONSHIP_AXES.includes(axis) || !polarity || !RELATIONSHIP_MILESTONE_THRESHOLDS.includes(threshold) || manualProtectedAxes.has(axis)) continue;
+        if (!RELATIONSHIP_AXES.includes(axis) || !polarity || !RELATIONSHIP_MILESTONE_THRESHOLDS.includes(threshold)) continue;
         const stillUnlocked = keptMilestones.some(item => String(item?.axis || '').trim().toLocaleLowerCase() === axis
             && Math.sign(Number(item?.polarity)) === polarity && Number(item?.threshold) === threshold);
         if (stillUnlocked || Math.sign(relationship[axis]) !== polarity || Math.abs(relationship[axis]) < threshold) continue;
@@ -218,7 +237,10 @@ export function rollbackRebasedRelationship(npcInput = {}, divergenceMessageId =
             ? structuredClone(npc.relationshipHistory[npc.relationshipHistory.length - 1])
             : emptyRelationshipChange();
     }
-    if (affectedAxes.size || removedMilestones.length) npc.relationshipSummary = '';
+    const discardedNarrativeRelationship = history.some(event => discardedRelationshipEvent(event, divergenceMessageId))
+        || evidenceHistory.some(event => discardedRelationshipEvent(event, divergenceMessageId))
+        || diagnostics.some(event => discardedRelationshipEvent(event, divergenceMessageId));
+    if (affectedAxes.size || removedMilestones.length || discardedNarrativeRelationship) npc.relationshipSummary = '';
     return npc;
 }
 
@@ -373,7 +395,7 @@ function preserveCurrentPresentation(restored, current) {
         for (const field of locked) {
             if (stableFields.has(field)) next[field] = structuredClone(live[field]);
         }
-        // Importance became editor-owned in 0.4.11, so branch history must not undo it.
+        // Importance became editor-owned in 0.4.12, so branch history must not undo it.
         next.importance = Number(live.importance) || 0;
         return next;
     });
