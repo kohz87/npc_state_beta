@@ -28,9 +28,20 @@ for (const path of [
 ]) assert(exists(path), 'Missing v0.4.35 source-owned file: ' + path);
 
 assert(recoveryUi.includes('PHASE72_RESPONSIVE_RECOVERY_CONTROLS'), 'Generated runtime lacks responsive recovery marker');
-assert(recoveryUi.includes('grid-template-columns:repeat(2,minmax(0,1fr))'), 'Generated runtime lacks bounded recovery action grid');
-assert(recoveryUi.includes('white-space:normal!important'), 'Generated runtime does not allow recovery button label wrapping');
-assert(recoveryUi.includes('@media(max-width:720px)'), 'Generated runtime lacks narrow recovery layout');
+const styleStart = recoveryUi.indexOf('style.textContent = `');
+const styleEnd = styleStart >= 0 ? recoveryUi.indexOf('`;', styleStart) : -1;
+assert(styleStart >= 0 && styleEnd > styleStart, 'Branch recovery style block could not be isolated');
+const styleBlock = recoveryUi.slice(styleStart, styleEnd);
+const rowRule = '#${FORCE_ID}{display:grid!important;grid-template-columns:minmax(0,1fr);gap:8px;align-items:start;width:100%;min-width:0;max-width:100%;box-sizing:border-box}';
+const actionsRule = '#${FORCE_ID} .npc-state-v3-branch-recovery-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%;min-width:0;max-width:100%;box-sizing:border-box}';
+const buttonRule = '#${FORCE_ID} button{margin:0;width:100%;min-width:0;max-width:100%;height:auto;min-height:32px;box-sizing:border-box;white-space:normal!important;overflow-wrap:anywhere;line-height:1.25}';
+assert(styleBlock.includes(rowRule), 'Force Timeline Rebase row is not locally bounded to one full-width content column');
+assert(styleBlock.includes(actionsRule), 'Force Timeline Rebase action grid is not locally bounded');
+assert(styleBlock.includes(buttonRule), 'Force Timeline Rebase buttons are not width-bounded and wrapping-safe');
+assert(styleBlock.indexOf(rowRule) < styleBlock.indexOf(actionsRule), 'Action grid rule is not scoped under the force-rebase row contract');
+assert(styleBlock.indexOf(actionsRule) < styleBlock.indexOf(buttonRule), 'Button wrapping rule is not scoped after the force-rebase action grid');
+assert(!styleBlock.includes('#${FORCE_ID} .npc-state-v3-branch-recovery-actions{display:flex'), 'Force rebase actions regressed to an unbounded flex row');
+assert(styleBlock.includes('@media(max-width:720px){#${FORCE_ID} .npc-state-v3-branch-recovery-actions{grid-template-columns:1fr}}'), 'Generated runtime lacks narrow single-column recovery actions');
 
 assert(readme.startsWith('# NPC State Beta 0.4.35'), 'README title is not v0.4.35');
 assert(readme.includes('## Responsive recovery controls'), 'README lacks v0.4.35 recovery UI documentation');
