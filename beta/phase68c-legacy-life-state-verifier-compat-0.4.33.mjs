@@ -45,12 +45,22 @@ patch('beta/verify-phase20-semantic-isolation-0.4.13.mjs', [
     [
         `// Living return must be target-specific and must not mistake "not alive" for positive life evidence.`,
         `// Living return must be target-specific and sufficiently certain; wording semantics are model-owned.`,
-        'phase20 comment',
+        'phase20 living return comment',
     ],
     [
         `    const negatedAlive = apply(archived, {\n        id: 'npc-mira', name: 'Mira', livingReturn: true, lifeState: 'alive',\n        lifeStateCertainty: 'explicit', lifeStateReason: 'Mira is not alive.',\n    }, 'Mira is not alive.', 2);\n    assert.equal(negatedAlive.npcs[0].archived, true, 'Negated alive evidence resurrected Mira');`,
         `    const uncertainAlive = apply(archived, {\n        id: 'npc-mira', name: 'Mira', livingReturn: true, lifeState: 'alive',\n        lifeStateCertainty: 'uncertain', lifeStateReason: 'Mira may still be alive.',\n    }, 'Mira may still be alive.', 2);\n    assert.equal(uncertainAlive.npcs[0].archived, true, 'Uncertain living-return evidence resurrected Mira');`,
         'phase20 living-return certainty',
+    ],
+    [
+        `// Death target binding must preserve possessives and ignore another person's survival.`,
+        `// Death target binding rejects another identity's evidence and permits mixed target-bound source spans.`,
+        'phase20 death target comment',
+    ],
+    [
+        `    const possessive = apply(base, {\n        id: 'npc-mira', name: 'Mira', lifeState: 'dead', lifeStateCertainty: 'explicit',\n        lifeStateReason: "Lucien killed Mira's attacker.",\n    }, "Lucien killed Mira's attacker.", 1);\n    assert.equal(possessive.npcs[0].archived, false, 'Possessive owner was mistaken for the death victim');`,
+        `    const otherTarget = apply(base, {\n        id: 'npc-mira', name: 'Mira', lifeState: 'dead', lifeStateCertainty: 'explicit',\n        lifeStateReason: 'Lucien killed Sora.',\n    }, 'Lucien killed Sora.', 1);\n    assert.equal(otherTarget.npcs[0].archived, false, 'Another NPC death evidence was applied to Mira');`,
+        'phase20 other death target',
     ],
 ]);
 
