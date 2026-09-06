@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.31
+# NPC State Beta 0.4.32
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -64,6 +64,14 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - v0.4.18 requires an explicit relationship evaluation for every exchange-active NPC. A scanner may still correctly decide that an ordinary interaction causes no relationship movement, but it must say so instead of silently omitting the relationship channel.
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
+
+## Operation-context ownership and rollback replay continuity
+
+- Queued manual dossier mutations are now bound to the chat that initiated them. They recheck chat identity after queue acquisition and hydration, before mutation, and immediately before checkpoint persistence.
+- Manual add/edit/restore/staleness operations receive the originating chat context explicitly instead of reading whichever chat is visible when their queue slot opens. This prevents another chat's lineage from being written into the origin chat's checkpoints.
+- Explicit relationship rollback retains the longest still-valid accepted-history replay boundary created by an earlier preserve rebase. Already accepted exchanges remain non-scoring after preserve-to-rollback transitions, while rewritten or genuinely new exchanges after the divergence remain eligible.
+- Rollback replay-boundary retention also protects the accepted exchange when preserve refresh previously failed and the user switches to rollback afterward.
+- These changes affect operation ownership and replay bookkeeping only. Relationship evidence semantics, keyword policy, inertia, caps, fractional progression, and milestone thresholds are unchanged.
 
 ## Rebase state and operation-boundary hardening
 

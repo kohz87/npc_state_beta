@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.32
+
+- Binds queued manual dossier mutations to their originating chat and aborts them if chat ownership changes after queue acquisition/hydration or before mutation/checkpoint persistence.
+- Passes the originating chat context into manual add/edit/restore/staleness mutation logic so another visible chat can never supply checkpoint lineage or source-message metadata for the origin chat.
+- Retains the longest still-valid accepted relationship replay boundary when switching from preserve rebase to explicit rollback, preventing accepted old exchanges from being scored again during rollback refresh.
+- Keeps genuinely uncounted exchanges beyond the retained boundary eligible for normal relationship progression, including repeated dialogue in a later exchange.
+- Adds focused engine regressions for queued manual-edit chat switching, hydration-time switching, preserve-to-rollback replay suppression, failed-preserve-to-rollback suppression, boundary truncation, and new post-boundary progression.
+- Leaves relationship keyword policy, semantic judgment, inertia, caps, fractional progression, and milestone behavior unchanged.
+
 ## v0.4.31
 
 - Publishes unsafe branch state to the live cache before persistence so `rebase-required` immediately blocks scans/injection/UI, including when the sidecar write fails.

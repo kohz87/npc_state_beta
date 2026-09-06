@@ -46,7 +46,7 @@ import {
 } from './stale.js';
 import { clearV3PointerHint, createRecoveryV3Sidecar, deleteV3SidecarFile, readV3PointerHint, readV3Sidecar, retireV3Sidecar, writeV3Sidecar } from './storage.js';
 
-const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.31 recovery scanner. Obey the supplied schema and evidence rules exactly.';
+const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.32 recovery scanner. Obey the supplied schema and evidence rules exactly.';
 
 function profileContextForWindow(chat = [], messageId = null, depth = 8) {
     const end = Number.isInteger(messageId) ? Math.min(chat.length - 1, messageId) : chat.length - 1;
@@ -242,7 +242,7 @@ export function createNpcStateEngine(adapters = {}) {
     }
 
     if (typeof getContext !== 'function' || typeof getChatKey !== 'function' || typeof getSettings !== 'function' || typeof generate !== 'function') {
-        throw new Error('NPC State v0.4.31 engine requires getContext, getChatKey, getSettings, and generate adapters.');
+        throw new Error('NPC State v0.4.32 engine requires getContext, getChatKey, getSettings, and generate adapters.');
     }
 
     function epoch(chatKey) { return operationEpoch.get(chatKey) || 0; }
@@ -381,7 +381,7 @@ export function createNpcStateEngine(adapters = {}) {
             if (importedStable || fingerprintUpgraded || recoveryInterrupted) {
                 state = await persist(chatKey, state);
                 if (importedStable) {
-                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.31 beta sidecar. Stable data was not modified.');
+                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.32 beta sidecar. Stable data was not modified.');
                 } else if (fingerprintUpgraded) {
                     notify('info', 'Upgraded branch checkpoint fingerprints for transport-safe, swipe-index-independent rollback. Existing dossiers were preserved; old rollback hashes were reset once.');
                 } else if (recoveryInterrupted) {
@@ -737,17 +737,25 @@ export function createNpcStateEngine(adapters = {}) {
     async function mutate(label, mutator, { checkpointReason = 'manual' } = {}) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat' || /-pending:/.test(chatKey)) return { ok: false, reason: 'no-chat' };
+        const chatChanged = stage => ({ ok: false, discarded: true, reason: 'chat-changed', stage });
         return exclusive(chatKey, async () => {
+            if (getChatKey() !== chatKey) return chatChanged('mutation-after-queue');
             const state = normalizeState(await loadChat(chatKey), chatKey);
+            if (getChatKey() !== chatKey) return chatChanged('mutation-after-load');
             if (recoveryBlocksLiveScan(state)) return { ok: false, reason: 'recovery-active', recovery: structuredClone(state.recovery) };
             if (state.branchSafety?.status !== 'safe') return { ok: false, reason: 'branch-unsafe' };
-            const result = await mutator(state);
+            const context = getContext();
+            if (getChatKey() !== chatKey) return chatChanged('mutation-before-read');
+            const chat = context.chat || [];
+            if (getChatKey() !== chatKey) return chatChanged('mutation-before-apply');
+            const result = await mutator(state, chat);
             if (result === false) return { ok: false, reason: 'rejected' };
             if (result?.rejected) return { ok: false, reason: String(result.rejected) };
-            const chat = getContext().chat || [];
+            if (getChatKey() !== chatKey) return chatChanged('mutation-before-commit');
             const messageId = latestAssistantMessageId(chat);
             let next = normalizeState(state, chatKey);
             if (messageId >= 0) next = recordCheckpoint(next, chat, messageId, checkpointReason);
+            if (getChatKey() !== chatKey) return chatChanged('mutation-before-persist');
             next.updatedAt = Date.now();
             const persisted = await persist(chatKey, next);
             return { ok: true, label, state: structuredClone(persisted), result };
@@ -757,13 +765,12 @@ export function createNpcStateEngine(adapters = {}) {
     async function addNpc(name) {
         const clean = String(name || '').trim().slice(0, 120);
         if (!clean) return { ok: false, reason: 'empty-name' };
-        return mutate('add', state => {
+        return mutate('add', (state, chat) => {
             const existing = findNpcByReference(state, clean);
             if (existing) return { npcId: existing.id, existing: true };
             if ((state.suppressedNames || []).some(value => normalizeName(value) === normalizeName(clean))) {
                 state.suppressedNames = state.suppressedNames.filter(value => normalizeName(value) !== normalizeName(clean));
             }
-            const chat = getContext().chat || [];
             const messageId = latestAssistantMessageId(chat);
             const npc = normalizeNpc({
                 id: makeNpcId(clean),
@@ -780,7 +787,7 @@ export function createNpcStateEngine(adapters = {}) {
     }
 
     async function updateNpc(reference, patch = {}, options = {}) {
-        return mutate('update', state => {
+        return mutate('update', (state, chat) => {
             const matched = findNpcByReference(state, reference);
             const index = matched ? state.npcs.findIndex(npc => npc.id === matched.id) : -1;
             if (index < 0) return false;
@@ -809,7 +816,7 @@ export function createNpcStateEngine(adapters = {}) {
                 if (Object.values(delta).some(value => value !== 0)) {
                     const event = {
                         impact: 'manual', delta, evidence: '', reason: 'Manual dossier adjustment by player.',
-                        sourceMessageId: latestAssistantMessageId(getContext().chat || []), turn: Number.isInteger(state.turn) ? state.turn : null, at: Date.now(),
+                        sourceMessageId: latestAssistantMessageId(chat), turn: Number.isInteger(state.turn) ? state.turn : null, at: Date.now(),
                     };
                     const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(getSettings().relationshipHistoryLimit);
                     nextRaw.lastRelationshipChange = event;
@@ -825,7 +832,7 @@ export function createNpcStateEngine(adapters = {}) {
             if (collision) return { rejected: 'identity-collision' };
             state.npcs[index] = next;
             if (Object.prototype.hasOwnProperty.call(patch || {}, 'keyRelationships')) {
-                const reconciled = reconcileFamilyGraphState(state, { sourceMessageId: latestAssistantMessageId(getContext().chat || []), dossierLimits: getSettings().dossierLimits });
+                const reconciled = reconcileFamilyGraphState(state, { sourceMessageId: latestAssistantMessageId(chat), dossierLimits: getSettings().dossierLimits });
                 state.npcs = reconciled.npcs;
                 state.socialGraph = reconciled.socialGraph;
                 state.familySlots = reconciled.familySlots;
@@ -857,7 +864,7 @@ export function createNpcStateEngine(adapters = {}) {
     }
 
     async function archiveNpc(reference, archived = true, reason = 'manual') {
-        return mutate(archived ? 'archive' : 'restore', state => {
+        return mutate(archived ? 'archive' : 'restore', (state, chat) => {
             const npc = findNpcByReference(state, reference);
             if (!npc) return false;
             const index = state.npcs.findIndex(item => item.id === npc.id);
@@ -875,7 +882,6 @@ export function createNpcStateEngine(adapters = {}) {
                     next.lifeStateCertainty = 'explicit';
                     next.lifeStateReason = 'Manual dossier restore by player.';
                 }
-                const chat = getContext().chat || [];
                 const messageId = latestAssistantMessageId(chat);
                 next.lastActivityTurn = narrativeTurnForMessage(chat, messageId);
                 next.lastActivityMessageId = messageId >= 0 ? messageId : null;
@@ -887,11 +893,10 @@ export function createNpcStateEngine(adapters = {}) {
     }
 
     async function resetNpcStaleness(reference) {
-        return mutate('reset-staleness', state => {
+        return mutate('reset-staleness', (state, chat) => {
             const npc = findNpcByReference(state, reference);
             if (!npc) return false;
             const index = state.npcs.findIndex(item => item.id === npc.id);
-            const chat = getContext().chat || [];
             const messageId = latestAssistantMessageId(chat);
             const next = structuredClone(npc);
             next.lastActivityTurn = narrativeTurnForMessage(chat, messageId);
