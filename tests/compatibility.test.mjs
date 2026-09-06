@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createEmptyState, normalizeNpc, normalizeState } from '../src/schema.js';
+import { NPC_STATE_VERSION, createEmptyState, normalizeNpc, normalizeState } from '../src/schema.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('schema-1 reload roundtrip preserves v0.5.0 dossier data', () => {
+test('schema-1 reload roundtrip preserves current 0.5.x dossier data', () => {
     const state = createEmptyState('chat:compat');
     state.npcs = [normalizeNpc({
         id: 'npc-mira-test',
@@ -18,7 +18,7 @@ test('schema-1 reload roundtrip preserves v0.5.0 dossier data', () => {
     })];
     const roundTrip = normalizeState(JSON.parse(JSON.stringify(state)), state.chatKey);
     assert.equal(roundTrip.schemaVersion, 1);
-    assert.equal(roundTrip.appVersion, '0.5.0');
+    assert.equal(roundTrip.appVersion, NPC_STATE_VERSION);
     assert.equal(roundTrip.npcs[0].personality, 'Warm, observant, and deliberate.');
     assert.equal(roundTrip.npcs[0].speech, 'Measured, with dry humor.');
 });
