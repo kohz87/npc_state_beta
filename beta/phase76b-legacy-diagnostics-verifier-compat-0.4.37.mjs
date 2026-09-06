@@ -33,6 +33,12 @@ function replaceRequired(source, from, to, label) {
         `    const html = dossierHtml(npc, { showDiagnostics: true });\n    const historyHtml = html.slice(html.indexOf('Recent relationship changes'), html.indexOf('Relationship evaluation &amp; scoring'));`,
         'phase42 rejected-axis diagnostics rendering',
     );
+    source = replaceRequired(
+        source,
+        `    const html = dossierHtml(ambiguous);\n    const historyHtml = html.slice(html.indexOf('Recent relationship changes'), html.indexOf('Relationship evaluation &amp; scoring'));`,
+        `    const html = dossierHtml(ambiguous, { showDiagnostics: true });\n    const historyHtml = html.slice(html.indexOf('Recent relationship changes'), html.indexOf('Relationship evaluation &amp; scoring'));`,
+        'phase42 ambiguous diagnostics rendering',
+    );
     fs.writeFileSync(path, source);
 }
 
