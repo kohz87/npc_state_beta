@@ -48,7 +48,7 @@ import {
 } from './stale.js';
 import { clearV3PointerHint, createRecoveryV3Sidecar, deleteV3SidecarFile, readV3PointerHint, readV3Sidecar, retireV3Sidecar, writeV3Sidecar } from './storage.js';
 
-const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.39 recovery scanner. Obey the supplied schema and evidence rules exactly.';
+const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.40 recovery scanner. Obey the supplied schema and evidence rules exactly.';
 
 function profileContextForWindow(chat = [], messageId = null, depth = 8) {
     const end = Number.isInteger(messageId) ? Math.min(chat.length - 1, messageId) : chat.length - 1;
@@ -204,12 +204,88 @@ export function dossierIndexProjection(npc = {}) {
         lifeState: String(npc?.lifeState || 'unknown'),
         minor: npc?.minor === true,
         portraitAvailable: Boolean(String(portrait.dataUrl || portrait.url || portrait.src || '').trim()),
+        updatedAt: Number(npc?.updatedAt) || 0,
     };
 }
 
 function npcPortraitSource(npc = {}) {
     const portrait = npc?.portrait && typeof npc.portrait === 'object' ? npc.portrait : {};
     return String(portrait.dataUrl || portrait.url || portrait.src || '').trim();
+}
+
+function projectedStringArray(value) {
+    return Array.isArray(value) ? value.map(item => String(item ?? '')).filter(Boolean) : [];
+}
+
+function projectedAppearanceForms(value) {
+    return Array.isArray(value) ? value.map(form => ({
+        name: String(form?.name || ''),
+        appearance: String(form?.appearance || ''),
+    })).filter(form => form.name || form.appearance) : [];
+}
+
+function injectionNpcProjection(npc = {}) {
+    const rel = npc?.relationship && typeof npc.relationship === 'object' ? npc.relationship : {};
+    return {
+        id: String(npc?.id || ''),
+        name: String(npc?.name || ''),
+        aliases: projectedStringArray(npc?.aliases),
+        role: String(npc?.role || ''),
+        species: String(npc?.species || ''),
+        age: String(npc?.age ?? ''),
+        apparentAge: String(npc?.apparentAge ?? ''),
+        birthday: String(npc?.birthday ?? ''),
+        appearance: String(npc?.appearance || ''),
+        currentForm: String(npc?.currentForm || ''),
+        appearanceForms: projectedAppearanceForms(npc?.appearanceForms),
+        personality: String(npc?.personality || ''),
+        behaviorProfile: projectedStringArray(npc?.behaviorProfile),
+        speech: String(npc?.speech || ''),
+        goal: String(npc?.goal || ''),
+        status: String(npc?.status || ''),
+        lifeState: String(npc?.lifeState || 'unknown'),
+        lifeStateCertainty: String(npc?.lifeStateCertainty || ''),
+        keyRelationships: projectedStringArray(npc?.keyRelationships),
+        relationship: {
+            trust: Number(rel.trust) || 0,
+            affection: Number(rel.affection) || 0,
+            desire: Number(rel.desire) || 0,
+            tension: Number(rel.tension) || 0,
+        },
+        relationshipSummary: String(npc?.relationshipSummary || ''),
+        mannerisms: projectedStringArray(npc?.mannerisms),
+        memories: projectedStringArray(npc?.memories),
+        mood: String(npc?.mood || ''),
+        location: String(npc?.location || ''),
+        background: String(npc?.background || ''),
+        present: npc?.present === true,
+        worldActive: npc?.worldActive === true,
+        archived: npc?.archived === true,
+        archiveReason: String(npc?.archiveReason || ''),
+        minor: npc?.minor === true,
+        importance: Number(npc?.importance) || 0,
+        lastInteractionMessageId: Number.isInteger(npc?.lastInteractionMessageId) ? npc.lastInteractionMessageId : null,
+        updatedAt: Number(npc?.updatedAt) || 0,
+    };
+}
+
+// PHASE82_FOREGROUND_HOT_PATH_PROJECTION: prompt construction gets only the fields it consumes.
+export function injectionStateProjection(state = {}) {
+    const observation = state?.lastObservation && typeof state.lastObservation === 'object' ? state.lastObservation : {};
+    return {
+        branchSafety: {
+            status: String(state?.branchSafety?.status || 'safe'),
+            kind: String(state?.branchSafety?.kind || ''),
+            reason: String(state?.branchSafety?.reason || ''),
+        },
+        recovery: state?.recovery ? { status: String(state.recovery.status || '') } : null,
+        lastObservation: {
+            exchangeActiveNpcIds: projectedStringArray(observation.exchangeActiveNpcIds),
+            finalPresentNpcIds: projectedStringArray(observation.finalPresentNpcIds),
+            worldActiveNpcIds: projectedStringArray(observation.worldActiveNpcIds),
+        },
+        npcs: Array.isArray(state?.npcs) ? state.npcs.map(injectionNpcProjection) : [],
+    };
 }
 
 export function createNpcStateEngine(adapters = {}) {
@@ -232,10 +308,16 @@ export function createNpcStateEngine(adapters = {}) {
     const fetchFn = adapters.fetchFn || globalThis.fetch;
     const generate = adapters.generate;
     const onStateChanged = adapters.onStateChanged || (() => {});
+    // Compatibility default remains immutable snapshots. The installed runtime opts out because its callback ignores the payload.
+    const stateChangeSnapshot = adapters.stateChangeSnapshot !== false;
     const notify = adapters.notify || (() => {});
     const recoverySessionId = String(adapters.recoverySessionId || defaultRecoverySessionId()).slice(0, 160);
     const recoveryLeaseMs = Math.max(30000, Math.min(3600000, Number(adapters.recoveryLeaseMs) || 900000));
     const recoveryNow = typeof adapters.recoveryNow === 'function' ? adapters.recoveryNow : () => Date.now();
+
+    function emitStateChanged(chatKey, state) {
+        onStateChanged(chatKey, stateChangeSnapshot ? structuredClone(state) : null);
+    }
 
     function recoveryOwnedByThisSession(recovery) {
         return Boolean(recovery?.ownerSessionId && recovery.ownerSessionId === recoverySessionId);
@@ -271,7 +353,7 @@ export function createNpcStateEngine(adapters = {}) {
     }
 
     if (typeof getContext !== 'function' || typeof getChatKey !== 'function' || typeof getSettings !== 'function' || typeof generate !== 'function') {
-        throw new Error('NPC State v0.4.39 engine requires getContext, getChatKey, getSettings, and generate adapters.');
+        throw new Error('NPC State v0.4.40 engine requires getContext, getChatKey, getSettings, and generate adapters.');
     }
 
     function epoch(chatKey) { return operationEpoch.get(chatKey) || 0; }
@@ -309,7 +391,7 @@ export function createNpcStateEngine(adapters = {}) {
         persistSettings();
         cache.set(chatKey, result.state);
         hydration.set(chatKey, { status: 'ready', error: null });
-        onStateChanged(chatKey, structuredClone(result.state));
+        emitStateChanged(chatKey, result.state);
         return result.state;
     }
 
@@ -327,7 +409,7 @@ export function createNpcStateEngine(adapters = {}) {
         persistSettings();
         cache.set(chatKey, result.state);
         hydration.set(chatKey, { status: 'ready', error: null });
-        onStateChanged(chatKey, structuredClone(result.state));
+        emitStateChanged(chatKey, result.state);
         return { state: result.state, pointer: result.pointer, previousPointer: result.previousPointer };
     }
 
@@ -410,7 +492,7 @@ export function createNpcStateEngine(adapters = {}) {
             if (importedStable || fingerprintUpgraded || recoveryInterrupted) {
                 state = await persist(chatKey, state);
                 if (importedStable) {
-                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.39 beta sidecar. Stable data was not modified.');
+                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.40 beta sidecar. Stable data was not modified.');
                 } else if (fingerprintUpgraded) {
                     notify('info', 'Upgraded branch checkpoint fingerprints for transport-safe, swipe-index-independent rollback. Existing dossiers were preserved; old rollback hashes were reset once.');
                 } else if (recoveryInterrupted) {
@@ -419,7 +501,7 @@ export function createNpcStateEngine(adapters = {}) {
             }
             cache.set(chatKey, state);
             hydration.set(chatKey, { status: 'ready', error: null });
-            onStateChanged(chatKey, structuredClone(state));
+            emitStateChanged(chatKey, state);
             return state;
         } catch (error) {
             hydration.set(chatKey, { status: 'error', error });
@@ -1723,7 +1805,7 @@ export function createNpcStateEngine(adapters = {}) {
                 const blocked = normalizeState(reconciled.state, chatKey);
                 cache.set(chatKey, blocked);
                 hydration.set(chatKey, { status: 'ready', error: null });
-                onStateChanged(chatKey, structuredClone(blocked));
+                emitStateChanged(chatKey, blocked);
                 let persisted = blocked;
                 let persistenceError = null;
                 try {
@@ -1774,6 +1856,12 @@ export function createNpcStateEngine(adapters = {}) {
             });
         }
         return result;
+    }
+
+    function getInjectionState(chatKey = getChatKey()) {
+        const key = chatKey || getChatKey();
+        const current = cache.get(key);
+        return current ? injectionStateProjection(current) : null;
     }
 
     function getDossierIndex(chatKey = getChatKey()) {
@@ -1827,6 +1915,7 @@ export function createNpcStateEngine(adapters = {}) {
         renameChatKey,
         deleteChatKey,
         invalidate,
+        getInjectionState,
         getDossierIndex,
         getDossierNpc,
         getNpcPortraitSource,

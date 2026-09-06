@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.39
+# NPC State Beta 0.4.40
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -64,6 +64,14 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - v0.4.18 requires an explicit relationship evaluation for every exchange-active NPC. A scanner may still correctly decide that an ordinary interaction causes no relationship movement, but it must say so instead of silently omitting the relationship channel.
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
+
+## Foreground hot-path performance
+
+- Foreground prompt refresh no longer clones the complete v0.4 sidecar, portraits, checkpoints, diagnostics, and relationship audit history included. It uses a purpose-built immutable injection projection containing only continuity fields consumed by prompt construction.
+- The runtime opts out of the engine's compatibility state-change snapshot because the installed callback does not consume it. The engine keeps snapshot delivery enabled by default for other callers/tests.
+- Repeated SillyTavern MESSAGE_UPDATED events no longer tear down and rebuild an unchanged in-chat NPC strip. The strip is signature-checked and reuses its existing DOM and decoded portraits when nothing relevant changed.
+- Successful embedded/recovery commits no longer trigger an immediate second full surface refresh after persistence already emitted the state-change refresh.
+- These are hot-path performance changes only. Scanner, lifecycle, relationship, branch/recovery, stale-management, and persistence semantics are unchanged.
 
 ## Dossier state projection performance
 

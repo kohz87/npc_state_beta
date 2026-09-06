@@ -76,7 +76,8 @@ export function createBundleManagementUi(adapters = {}) {
         if (typeof fn === 'function') fn(`NPC State: ${message}`);
     }
 
-    function state() { return engine.getState?.() || null; }
+    function dossierIndex() { return engine.getDossierIndex?.() || []; }
+    let rosterSignature = '';
 
     function sectionHtml() {
         return `<details id="${SECTION_ID}" class="npc-state-v3-bundle-settings">
@@ -115,14 +116,15 @@ export function createBundleManagementUi(adapters = {}) {
         if (!panel) return false;
         const select = panel.querySelector('#npc_state_v3_bundle_npc');
         const exportButton = panel.querySelector('#npc_state_v3_bundle_export_npc');
-        const current = state();
         const previous = select?.value || '';
-        const rows = [...(current?.npcs || [])].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
-        if (select) {
+        const rows = [...dossierIndex()].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+        const nextSignature = JSON.stringify(rows.map(npc => [String(npc.id || ''), String(npc.name || ''), npc.archived === true]));
+        if (select && nextSignature !== rosterSignature) {
             select.innerHTML = rows.length
                 ? rows.map(npc => `<option value="${escapeHtml(npc.id)}">${escapeHtml(npc.name)}${npc.archived ? ' · archived' : ''}</option>`).join('')
                 : '<option value="">No dossiers</option>';
             if (rows.some(npc => npc.id === previous)) select.value = previous;
+            rosterSignature = nextSignature;
         }
         if (exportButton) exportButton.disabled = !rows.length;
         const mode = panel.querySelector('#npc_state_v3_bundle_mode')?.value || 'merge';
@@ -210,6 +212,7 @@ export function createBundleManagementUi(adapters = {}) {
         section.querySelector('#npc_state_v3_bundle_export_npc')?.addEventListener('click', () => exportSelected(section).catch(error => notify('error', error.message)));
         section.querySelector('#npc_state_v3_bundle_mode')?.addEventListener('change', sync);
         section.querySelector('#npc_state_v3_bundle_import')?.addEventListener('click', () => section.querySelector(`#${FILE_ID}`)?.click?.());
+        section.addEventListener('toggle', () => { if (section.open) sync(); });
         section.querySelector(`#${FILE_ID}`)?.addEventListener('change', async event => {
             const file = event.target.files?.[0] || null;
             event.target.value = '';
@@ -221,6 +224,8 @@ export function createBundleManagementUi(adapters = {}) {
 
     function refresh() {
         if (!attach()) return false;
+        const section = globalThis.document?.getElementById?.(SECTION_ID);
+        if (section && !section.open) return true;
         return sync();
     }
 

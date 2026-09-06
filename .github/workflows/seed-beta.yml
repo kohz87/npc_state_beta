@@ -1,4 +1,4 @@
-name: Build NPC State 0.4.39 Beta
+name: Build NPC State 0.4.40 Beta
 
 on:
   workflow_dispatch:
@@ -25,15 +25,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Once CI has committed the regenerated v0.4.39 runtime, test that exact checkout
+      # Once CI has committed the regenerated v0.4.40 runtime, test that exact checkout
       # before replacing v03 from the pinned stable baseline. During the one-time transition
-      # from the checked-in v0.4.38 runtime, the cold build generates v0.4.39 first.
+      # from the checked-in v0.4.39 runtime, the cold build generates v0.4.40 first.
       - name: Source checkout behavior gate
         run: |
-          if grep -q '"version": "0.4.39"' manifest.json; then
+          if grep -q '"version": "0.4.40"' manifest.json; then
             npm test
           else
-            echo "Checked-in runtime predates v0.4.39; cold build will generate v0.4.39 first."
+            echo "Checked-in runtime predates v0.4.40; cold build will generate v0.4.40 first."
           fi
 
       - name: Fetch pinned stable NPC State baseline
@@ -50,7 +50,7 @@ jobs:
           cp /tmp/npc-state-stable/manifest.json ./manifest.json
           cp /tmp/npc-state-stable/package.json ./package.json
 
-      - name: Apply 0.4.39 transformation in ordered phases
+      - name: Apply 0.4.40 transformation in ordered phases
         run: |
           node beta/build-beta-v2.mjs
           node beta/post-build-patch.mjs
@@ -77,7 +77,7 @@ jobs:
           # Replay every release transform in numeric patch order. The historical marker
           # comments below stay source-visible because descendant verifiers intentionally
           # assert that each older release remains part of the cold-build chain.
-          for patch in $(seq 2 39); do
+          for patch in $(seq 2 40); do
             node "beta/bump-0.4.${patch}.mjs"
             for phase in $(find beta -maxdepth 1 -name "phase*-0.4.${patch}.mjs" -print | sort); do
               echo "Applying $phase"
@@ -124,6 +124,7 @@ jobs:
           # node beta/bump-0.4.37.mjs ; -name 'phase*-0.4.37.mjs'
           # node beta/bump-0.4.38.mjs ; -name 'phase*-0.4.38.mjs'
           # node beta/bump-0.4.39.mjs ; -name 'phase*-0.4.39.mjs'
+          # node beta/bump-0.4.40.mjs ; -name 'phase*-0.4.40.mjs'
 
       - name: Syntax gate
         run: |
@@ -346,7 +347,18 @@ jobs:
           grep -q "engine.getDossierNpc(reference, getChatKey())" v03/ui.js
           grep -q "engine.getNpcPortraitSource" v03/ui.js
           ! grep -q "engine.getState(" v03/ui.js
-          grep -q '"version": "0.4.39"' manifest.json
+
+          # v0.4.40 foreground hot-path projection and refresh invariants.
+          grep -q "PHASE82_FOREGROUND_HOT_PATH_PROJECTION" v03/engine.js
+          grep -q "injectionStateProjection" v03/engine.js
+          grep -q "getInjectionState" v03/engine.js
+          grep -q "stateChangeSnapshot ? structuredClone(state) : null" v03/engine.js
+          grep -q "engine.getInjectionState(key)" v03/index.js
+          grep -q "stateChangeSnapshot: false" v03/index.js
+          grep -q "inlineRosterSignature" v03/ui.js
+          grep -q "existing?.dataset.signature === signature" v03/ui.js
+          ! grep -q "const state = key === 'no-chat' ? null : engine.getState(key);" v03/index.js
+          grep -q '"version": "0.4.40"' manifest.json
 
       - name: Commit generated beta runtime
         run: |
@@ -357,5 +369,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-*.mjs
-          git commit -m "NPC State v0.4.39: avoid full-sidecar clones in dossier UI"
+          git commit -m "NPC State v0.4.40: optimize foreground hot path"
           git push
