@@ -250,7 +250,7 @@ export function rebaseToCurrentChat(state, chat = [], { relationshipMode = 'pres
 }`;
 
         source = replaceRegexOnce(source,
-            /export function rebaseToCurrentChat\(state, chat = \[\]\) \{[\s\S]*?\n\}\n\n(?=export function reconcileToCurrentBranch)/,
+            /export function rebaseToCurrentChat\(state, chat = \[\]\) \{[\s\S]*?\n\}\n\n(?=function arraysEqual)/,
             replacement + '\n\n', 'replace rebase implementation');
         write(path, source);
     }
@@ -278,7 +278,7 @@ export function rebaseToCurrentChat(state, chat = [], { relationshipMode = 'pres
             });`, 'scan apply relationship gate');
 
         source = replaceRegexOnce(source,
-/    async function reconcileBranch\(\{ rescan = false, rebase = false \} = \{\}\) \{[\s\S]*?\n    \}\n\n(?=    async function withLifecycleKeys)/,
+/    async function reconcileBranch\(\{ rescan = false, rebase = false \} = \{\}\) \{[\s\S]*?\n    \}\n\n(?=    return Object.freeze\(\{)/,
 `    async function previewRebase({ relationshipMode = 'rollback' } = {}) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat') return { ok: false, reason: 'no-chat' };
@@ -490,6 +490,86 @@ async function rebaseCurrentChat(relationshipMode = 'preserve', force = false) {
     source = source.replace("assert(recoveryUi.includes('Force Timeline Rebase...'), 'Force rebase button label is missing');", "assert(recoveryUi.includes('Keep NPC state and accept timeline'), 'Preserve rebase action is missing');");
     source = source.replace("assert(recoveryUi.includes('rebaseCurrentChat(true)'), 'Force rebase button is not wired to the explicit force path');", "assert(recoveryUi.includes(\"rebaseCurrentChat('preserve', true)\"), 'Force preserve rebase is not wired');");
     source = source.replace("assert(recoveryUi.includes('preserves that scan marker so the refresh cannot apply its relationship delta twice'), 'Force rebase confirmation does not explain duplicate relationship protection');", "assert(recoveryUi.includes('The immediate refresh cannot award relationship movement again'), 'Preserve rebase confirmation does not explain duplicate relationship protection');");
+    write(path, source);
+}
+
+// Update historical verifier contracts that intentionally refer to the old single-mode rebase API.
+{
+    const path = 'beta/verify-final-0.4.1.mjs';
+    let source = read(path);
+    source = source.replace("assert(engine.includes('applyRelationship: !alreadyScannedMessage'), 'Repeated forced scan can replay relationship deltas');", "assert(engine.includes('applyRelationship: applyRelationship === null ? !alreadyScannedMessage : applyRelationship === true'), 'Repeated forced scan relationship gate lost its idempotent default');");
+    write(path, source);
+}
+{
+    const path = 'beta/verify-phase11-branch-recovery-ui-0.4.6.mjs';
+    let source = read(path);
+    source = source.replace("assert(source.includes('Rebase to current chat'), 'Rebase action label disappeared');", "assert(source.includes('Keep NPC state and accept timeline'), 'Safe rebase action label disappeared');");
+    source = source.replace("assert(source.includes(\"globalThis.NPCState?.reconcile?.({ rebase: true, rescan: true })\"), 'Rebase action lost engine wiring');", "assert(source.includes(\"globalThis.NPCState?.reconcile?.({ rebase: true, rescan: true, relationshipMode: mode })\"), 'Rebase action lost mode-aware engine wiring');");
+    write(path, source);
+}
+{
+    const path = 'beta/verify-phase22-settings-ui-cleanup-0.4.14.mjs';
+    let source = read(path);
+    source = source.replace("assert(recovery.includes('rebaseCurrentChat(true)'), 'Force rebase behavior was accidentally removed');", "assert(recovery.includes(\"rebaseCurrentChat('preserve', true)\"), 'Force preserve rebase behavior was accidentally removed');");
+    write(path, source);
+}
+{
+    const path = 'beta/verify-phase24-release-source-parity-0.4.14.mjs';
+    let source = read(path);
+    source = source.replace("assert(recovery.includes('rebaseCurrentChat(true)'), 'Committed Force Rebase behavior is missing');", "assert(recovery.includes(\"rebaseCurrentChat('preserve', true)\"), 'Committed Force Preserve Rebase behavior is missing');");
+    source = source.replace("assert(recovery.includes('Force Timeline Rebase...'), 'Committed Force Rebase label is stale');", "assert(recovery.includes('Keep NPC state and accept timeline'), 'Committed Force Rebase preserve label is missing');");
+    source = source.replace("assert(phase15.includes('Force Timeline Rebase...') && phase15.includes('ensureForceControl(forceHost || host)'), 'v0.4.10 force-rebase verifier compatibility is not persisted');", "assert(phase15.includes('Keep NPC state and accept timeline') && phase15.includes('ensureForceControl(forceHost || host)'), 'v0.4.10 preserve-mode force-rebase verifier compatibility is not persisted');");
+    write(path, source);
+}
+
+{
+    const path = 'beta/verify-phase12-relationship-recovery-0.4.7.mjs';
+    let source = read(path);
+    source = source.replace(
+`test('cross-chat import and rebase clear timeline-local evidence, preserve durable relationship state', () => {
+    const state = apply(stateWith({ relationship: { trust: 25 } }), 'Mira trusts Lucien with her private correspondence.');
+    const bundle = createNpcStateBundle(state);
+    const imported = applyNpcStateBundleImport(createEmptyState('different-chat'), bundle);
+    assert.equal(imported.ok, true);
+    const rebased = rebaseToCurrentChat(state, [{ is_user: false, mes: 'Mira arrives.' }]);
+    for (const next of [imported.state, rebased]) {
+        assert.deepEqual(npc(next).relationshipEvidenceHistory, []);
+        assert.deepEqual(npc(next).relationshipDiagnostics, []);
+        assert.deepEqual(npc(next).relationship, npc(state).relationship);
+        assert.equal(npc(next).relationshipHistory[0].sourceMessageId, null);
+    }
+    assert.deepEqual(npc(imported.state).relationshipMilestones, npc(state).relationshipMilestones);
+    assert.deepEqual(
+        npc(rebased).relationshipMilestones,
+        npc(state).relationshipMilestones.map(entry => ({ ...entry, sourceMessageId: null, turn: null })),
+    );
+});`,
+`test('cross-chat import clears timeline-local evidence while preserve rebase quarantines it as audit history', () => {
+    const state = apply(stateWith({ relationship: { trust: 25 } }), 'Mira trusts Lucien with her private correspondence.');
+    const bundle = createNpcStateBundle(state);
+    const imported = applyNpcStateBundleImport(createEmptyState('different-chat'), bundle);
+    assert.equal(imported.ok, true);
+    const rebased = rebaseToCurrentChat(state, [{ is_user: false, mes: 'Mira arrives.' }], { relationshipMode: 'preserve' });
+    assert.deepEqual(npc(imported.state).relationshipEvidenceHistory, []);
+    assert.deepEqual(npc(imported.state).relationshipDiagnostics, []);
+    for (const next of [imported.state, rebased]) {
+        assert.deepEqual(npc(next).relationship, npc(state).relationship);
+        assert.equal(npc(next).relationshipHistory[0].sourceMessageId, null);
+    }
+    assert(npc(rebased).relationshipEvidenceHistory.length > 0);
+    assert(npc(rebased).relationshipDiagnostics.length > 0);
+    for (const row of [...npc(rebased).relationshipEvidenceHistory, ...npc(rebased).relationshipDiagnostics]) {
+        assert.equal(row.sourceMessageId, null);
+        assert.equal(row.timelineStatus, 'accepted-pre-rebase');
+        assert(Number.isInteger(row.originalSourceMessageId));
+    }
+    assert.deepEqual(npc(imported.state).relationshipMilestones, npc(state).relationshipMilestones);
+    for (const milestone of npc(rebased).relationshipMilestones) {
+        assert.equal(milestone.sourceMessageId, null);
+        assert.equal(milestone.turn, null);
+        assert.equal(milestone.timelineStatus, 'accepted-pre-rebase');
+    }
+});`);
     write(path, source);
 }
 
