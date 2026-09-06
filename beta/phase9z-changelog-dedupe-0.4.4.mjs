@@ -3,7 +3,7 @@ import fs from 'node:fs';
 const path = 'CHANGELOG.md';
 let source = fs.readFileSync(path, 'utf8');
 const header = '## v0.4.3\n';
-// Match the complete historical header. A prefix search for "## v0.4.3" also matches v0.4.30+.
+// Include the newline so v0.4.30+ cannot be mistaken for the historical v0.4.3 section.
 const start = source.indexOf(header);
 if (start < 0) throw new Error('Missing v0.4.3 changelog section for 0.4.4 dedupe');
 const next = source.indexOf('\n## ', start + header.length);
