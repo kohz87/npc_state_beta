@@ -26,7 +26,8 @@ for (let pass = 0; pass < 10; pass += 1) {
     setTextIfChanged(relationship, 'Relationship Rubric');
     setTextIfChanged(memory, 'Memory Rubric');
 }
-assert.equal(relationship.assignments + memory.assignments, 0, 'Ten stable layout passes must perform zero redundant rubric label assignments');
+const redundantLabelAssignments = relationship.assignments + memory.assignments;
+assert.equal(redundantLabelAssignments, 0, 'Ten stable layout passes must perform zero redundant rubric label assignments');
 
 const changed = countedLabel('Old label');
 setTextIfChanged(changed, 'Relationship Rubric');
@@ -52,6 +53,7 @@ try {
     assert.equal(branchReads, 10, 'Ten passes must use the narrow branch-safety API exactly once each');
     assert.equal(recoveryReads, 10, 'Ten passes must accept ten null recovery-status results without fallback');
     assert.equal(fullStateReads, 0, 'Ten passes must perform zero full-state reads');
+    assert.equal(redundantLabelAssignments + fullStateReads, 0, 'The reported 10-pass hot path must collapse both redundant label writes and full-state reads to zero');
     assert.deepEqual(readBranchSafetyStatus(), { status: 'safe', kind: '', reason: '' });
 } finally {
     if (previousNpcState === undefined) delete globalThis.NPCState;
