@@ -17,6 +17,7 @@ for (const path of [
     'beta/bump-0.4.39.mjs',
     'beta/phase80-dossier-state-projection-performance-0.4.39.mjs',
     'beta/phase80b-legacy-v0438-release-verifier-compat-0.4.39.mjs',
+    'beta/phase80c-dossier-action-lookup-projection-0.4.39.mjs',
     'beta/verify-phase80-dossier-state-projection-performance-0.4.39.mjs',
     'beta/verify-phase81-release-source-parity-0.4.39.mjs',
 ]) assert(fs.existsSync(path), 'Missing v0.4.39 source-owned file: ' + path);
