@@ -33,6 +33,7 @@ assert(scanner.includes('lifeState: npc.lifeState'), 'Recovery scanner roster st
 assert(scanner.includes('function lifeStateEvidenceMatchesStoredStatus(evidence, storedStatus)'), 'Stored-status evidence helper is missing');
 assert(scanner.includes('proof === stored'), 'Stored-status evidence is not exact normalized equality');
 assert(scanner.includes("const storedStatusDeathRepair = lifeState === 'dead'"), 'Stored-status evidence is not death-repair-only');
+assert(scanner.includes("const storedStatusBeforePatch = String(npc?.status || '')"), 'Scanner does not snapshot Status before live patching');
 assert(scanner.includes('storedStatus: storedStatusBeforePatch'), 'Scanner does not preserve pre-patch stored Status for reconciliation');
 assert(scanner.includes('STORED TERMINAL-STATUS RECONCILIATION'), 'Recovery scanner prompt lacks stored terminal-status rule');
 assert(scanner.includes('Stored Status is NEVER sufficient evidence for livingReturn'), 'Recovery scanner does not isolate stored Status from resurrection');
@@ -42,6 +43,7 @@ assert(!scanner.includes('affirmativeDeathEvidence'), 'Hardcoded death semantic 
 
 assert(injection.includes("field('Status', npc.status)"), 'Foreground continuity omits Status');
 assert(injection.includes("field('Life state', npc.lifeState)"), 'Foreground continuity omits Life state');
+assert(injection.includes("field('Life-state certainty', npc.lifeStateCertainty)"), 'Foreground continuity omits life-state certainty');
 assert(injection.includes("const lifecycle = deceased ? 'deceased'"), 'Foreground identity directory does not expose deceased lifecycle');
 assert(injection.includes('STORED TERMINAL-STATUS RECONCILIATION'), 'Foreground capture lacks stored terminal-status rule');
 assert(injection.includes('WORLD-ACTIVE CONSISTENCY'), 'Foreground capture lacks dead/worldActive rule');
