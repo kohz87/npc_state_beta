@@ -33,8 +33,8 @@ test('release, persisted schema, model contract, and settings schema remain inde
     const schema = read('src/schema.js');
     const semantic = read('src/model/semantic-updates.js');
     const index = read('src/index.js');
-    assert.equal(manifest.version, '0.5.0');
-    assert.match(schema, /NPC_STATE_VERSION = '0\.5\.0'/);
+    assert.equal(manifest.version, '0.5.1');
+    assert.match(schema, /NPC_STATE_VERSION = '0\.5\.1'/);
     assert.match(schema, /NPC_STATE_SCHEMA_VERSION = 1/);
     assert.match(semantic, /NPC_STATE_MODEL_CONTRACT_VERSION = 2/);
     assert.match(index, /const SETTINGS_SCHEMA = 1/);
