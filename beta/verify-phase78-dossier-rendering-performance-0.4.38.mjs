@@ -11,6 +11,8 @@ assert(uiSource.includes("rootMargin: '0px 360px'"), 'Cast portrait observer mus
 assert(uiSource.includes('renderLibrary({ centerSelected = false, railOnly = false, detailOnly = false } = {})'), 'Library renderer must support partial surfaces');
 assert(uiSource.includes("addEventListener('input', scheduleLibraryRailRender)"), 'Search updates must be frame-coalesced');
 assert(uiSource.includes("renderLibrary({ centerSelected: true, detailOnly: true })"), 'Cast selection must rerender only the dossier detail');
+assert(uiSource.includes("renderLibrary({ detailOnly: true })"), 'Dossier-only settings changes must avoid rebuilding the cast rail');
+assert(uiSource.includes("function closeLibrary() {\n        disconnectCastPortraitObserver();"), 'Closing the library must disconnect cast portrait observation');
 assert(!uiSource.includes("rail?.querySelectorAll('.npc-state-v3-cast-card').forEach(button => button.addEventListener"), 'Cast cards must not receive a new listener on every rail render');
 assert(dossierSource.includes('deferSource = false'), 'Portrait helper must support deferred sources');
 assert(dossierSource.includes('npc-state-v3-deferred-portrait'), 'Cast portraits must emit deferred image placeholders');
