@@ -25,6 +25,8 @@ assert(workflow.includes("# node beta/bump-0.4.31.mjs ; -name 'phase*-0.4.31.mjs
 for (const path of [
     'beta/bump-0.4.31.mjs',
     'beta/phase64-rebase-state-boundary-hardening-0.4.31.mjs',
+    'beta/phase64b-legacy-scan-verifier-compat-0.4.31.mjs',
+    'beta/phase64c-engine-regression-fixture-compat-0.4.31.mjs',
     'beta/verify-phase64-rebase-state-boundary-hardening-0.4.31.mjs',
     'beta/verify-phase65-release-source-parity-0.4.31.mjs',
 ]) assert(exists(path), 'Missing v0.4.31 source-owned file: ' + path);
