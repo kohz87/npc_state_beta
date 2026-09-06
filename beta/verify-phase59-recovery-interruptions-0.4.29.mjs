@@ -370,7 +370,7 @@ function relationshipScan(id = '') {
     });
     const replayClara = replay.state.npcs.find(npc => npc.id === clara.id);
     assert.equal(replayClara.relationship.trust, 2, 'Reapplying the same source event moved relationship twice');
-    assert(replay.diagnostics.some(event => event.reasons?.includes('trust:duplicate')), 'Same-event replay did not report duplicate protection');
+    assert((replayClara.relationshipDiagnostics || []).some(event => event.reasons?.includes('trust:duplicate')), 'Same-event replay did not report duplicate protection');
 }
 
 // Preserve deterministic relationship mechanics and the LLM semantic boundary while changing
