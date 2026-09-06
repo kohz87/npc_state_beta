@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.1
+
+### Release label consistency
+
+- Fixed the extension settings header, settings intro, roster summary, and UI error prefix still displaying `0.4.44` after the 0.5.0 release.
+- Made those UI surfaces derive their version from the shared `NPC_STATE_VERSION` release constant.
+- Made scanner and foreground injection facade release-label replacement use the same shared constant instead of hardcoded `0.5.0` text.
+- Added regression coverage that rejects a reintroduced `0.4.44` literal in the authoritative settings UI and guards facade version replacement from drifting again.
+- Persisted schema remains version `1`; model-output contract remains version `2`.
+
 ## 0.5.0
 
 ### Consolidated source and build
