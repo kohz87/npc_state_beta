@@ -309,6 +309,24 @@ export function previewRelationshipRebase(state, chat = [], { relationshipMode =
     return { relationshipMode: mode, divergenceMessageId, affectedNpcs };
 }
 
+function retainValidRelationshipReplayBoundary(boundary, chat = []) {
+    if (!Number.isInteger(boundary?.throughMessageId) || boundary.throughMessageId < 0 || !Array.isArray(boundary?.lineage)) return null;
+    const acceptedLineage = boundary.lineage.map(value => String(value || ''));
+    const currentLineage = chatLineage(chat);
+    const limit = Math.min(boundary.throughMessageId, acceptedLineage.length - 1, currentLineage.length - 1);
+    let throughMessageId = -1;
+    for (let i = 0; i <= limit; i += 1) {
+        if (acceptedLineage[i] !== currentLineage[i]) break;
+        if (String(acceptedLineage[i] || '').startsWith('a:')) throughMessageId = i;
+    }
+    if (throughMessageId < 0) return null;
+    return {
+        throughMessageId,
+        lineage: acceptedLineage.slice(0, throughMessageId + 1),
+        acceptedAt: Number(boundary.acceptedAt) || null,
+    };
+}
+
 export function rebaseToCurrentChat(state, chat = [], { relationshipMode = 'preserve' } = {}) {
     const mode = normalizeRebaseRelationshipMode(relationshipMode);
     const source = normalizeState(state, state?.chatKey || '');
@@ -351,7 +369,7 @@ export function rebaseToCurrentChat(state, chat = [], { relationshipMode = 'pres
     // PHASE64_REBASE_STATE_BOUNDARIES: preserved relationship state already represents the accepted timeline through this boundary.
     next.relationshipReplayBoundary = mode === 'preserve' && latestAssistantId >= 0
         ? { throughMessageId: latestAssistantId, lineage: chatLineage(chat, latestAssistantId), acceptedAt: rebasedAt }
-        : null;
+        : retainValidRelationshipReplayBoundary(source.relationshipReplayBoundary, chat);
     next.checkpoints = [];
     next.branchBase = null;
     next.branchHeadLineage = [];
@@ -466,7 +484,7 @@ function preserveCurrentPresentation(restored, current) {
         for (const field of locked) {
             if (stableFields.has(field)) next[field] = structuredClone(live[field]);
         }
-        // Importance became editor-owned in 0.4.31, so branch history must not undo it.
+        // Importance became editor-owned in 0.4.32, so branch history must not undo it.
         next.importance = Number(live.importance) || 0;
         return next;
     });
