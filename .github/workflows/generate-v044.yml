@@ -39,13 +39,13 @@ jobs:
 
       - name: Commit generated v0.4.44 runtime
         run: |
-          rm -f .github/workflows/generate-v044.yml
-          if git diff --quiet; then
-            echo "No generated changes to commit."
+          git checkout -- .github/workflows/seed-beta.yml .github/workflows/generate-v044.yml
+          if git diff --quiet -- v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-*.mjs; then
+            echo "No generated runtime changes to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "NPC State v0.4.44: preserve durable Important Memories"
+          git add v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-*.mjs
+          git commit -m "NPC State v0.4.44: preserve durable Important Memories [skip ci]"
           git push
