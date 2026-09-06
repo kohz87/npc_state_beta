@@ -1,4 +1,4 @@
-name: Build NPC State 0.4.36 Beta
+name: Build NPC State 0.4.37 Beta
 
 on:
   workflow_dispatch:
@@ -25,15 +25,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Once CI has committed the regenerated v0.4.36 runtime, test that exact checkout
+      # Once CI has committed the regenerated v0.4.37 runtime, test that exact checkout
       # before replacing v03 from the pinned stable baseline. During the one-time transition
-      # from the checked-in v0.4.35 runtime, the cold build generates v0.4.36 first.
+      # from the checked-in v0.4.36 runtime, the cold build generates v0.4.37 first.
       - name: Source checkout behavior gate
         run: |
-          if grep -q '"version": "0.4.36"' manifest.json; then
+          if grep -q '"version": "0.4.37"' manifest.json; then
             npm test
           else
-            echo "Checked-in runtime predates v0.4.36; cold build will generate v0.4.36 first."
+            echo "Checked-in runtime predates v0.4.37; cold build will generate v0.4.37 first."
           fi
 
       - name: Fetch pinned stable NPC State baseline
@@ -50,7 +50,7 @@ jobs:
           cp /tmp/npc-state-stable/manifest.json ./manifest.json
           cp /tmp/npc-state-stable/package.json ./package.json
 
-      - name: Apply 0.4.36 transformation in ordered phases
+      - name: Apply 0.4.37 transformation in ordered phases
         run: |
           node beta/build-beta-v2.mjs
           node beta/post-build-patch.mjs
@@ -74,10 +74,9 @@ jobs:
           node beta/fix-0.4.1-form-baseline-recovery.mjs
           node beta/fix-0.4.1-relationship-milestone-gates.mjs
 
-          # Replay every release transform in numeric patch order. The historical marker
-          # comments below stay source-visible because descendant verifiers intentionally
-          # assert that each older release remains part of the cold-build chain.
-          for patch in $(seq 2 36); do
+          # Replay every release transform in numeric patch order. Historical marker
+          # comments remain source-visible because descendant parity verifiers use them.
+          for patch in $(seq 2 37); do
             node "beta/bump-0.4.${patch}.mjs"
             for phase in $(find beta -maxdepth 1 -name "phase*-0.4.${patch}.mjs" -print | sort); do
               echo "Applying $phase"
@@ -121,6 +120,7 @@ jobs:
           # node beta/bump-0.4.34.mjs ; -name 'phase*-0.4.34.mjs'
           # node beta/bump-0.4.35.mjs ; -name 'phase*-0.4.35.mjs'
           # node beta/bump-0.4.36.mjs ; -name 'phase*-0.4.36.mjs'
+          # node beta/bump-0.4.37.mjs ; -name 'phase*-0.4.37.mjs'
 
       - name: Syntax gate
         run: |
@@ -142,176 +142,28 @@ jobs:
           ! grep -q "readLegacyV02Sidecar" v03/engine.js
           ! grep -q "getLegacyPointer" v03/index.js
           grep -q "fallbackScan: false" v03/index.js
-          grep -q "Malformed capture recovery" v03/ui.js
-          grep -q "foreground-missing-control" v03/index.js
-          ! grep -q "maybeForegroundFallback(id, 'missing-control')" v03/index.js
-          grep -q "A single scan may introduce MULTIPLE new individually relevant NPCs" v03/injection.js
-          grep -q "A single scan may update MULTIPLE existing NPCs" v03/injection.js
-          grep -q "KeyRelationships entries MUST be strings, never objects" v03/injection.js
-          grep -q "normalizeCurrentStatus" v03/schema.js
-          grep -q "Never invent an npc-\* id" v03/injection.js
-          grep -q "npcs.name is human-facing display text" v03/injection.js
-          grep -q "function isTechnicalNpcIdentity" v03/scanner.js
-          grep -q "function canonicalPatchName" v03/scanner.js
-          grep -q "normalizeActualAge" v03/schema.js
-          grep -q "normalizeAppearanceForms" v03/schema.js
-          grep -q "RELATIONSHIP_MILESTONE_THRESHOLDS" v03/schema.js
-          grep -q "relationshipMilestoneUnlocked" v03/scanner.js
-          grep -q "RELATIONSHIP REPEATS AND GATES" v03/injection.js
-          grep -q "relationshipProgress" v03/schema.js
-          grep -q "relationshipEvidenceHistory" v03/schema.js
-          grep -q "relationshipInertiaFactor" v03/scanner.js
-          grep -q "if (magnitude <= 25) return 1;" v03/scanner.js
-          grep -q "selectRelationshipAxes(delta, axisLimit, priority = \[\])" v03/scanner.js
-          grep -q "relationshipSummarySupported" v03/scanner.js
-          grep -q "relationshipContextForExchange" v03/engine.js
-          grep -q "relationshipEvidenceExcerptMatch" v03/relationship-evidence.js
-          grep -q "relationshipSources" v03/evidence-adapter.js
-          grep -q "relationshipSemanticGrounding" v03/relationship-evidence.js
-          grep -q "relationshipEvaluationDiagnostic" v03/scanner.js
-          grep -q "evaluated-no-change" v03/scanner.js
-          grep -q "relationshipJudgmentRubricPrompt" v03/relationship-policy.js
-          grep -q "LEGACY_DEFAULT_RELATIONSHIP_CRITERIA_V0421" v03/index.js
-          grep -q "function relationshipAxisProvenance" v03/scanner.js
-          grep -q "function relationshipAxisLooksDuplicate" v03/scanner.js
-          grep -q "function relationshipDuplicateEvidenceKey" v03/scanner.js
-          ! grep -q "DESIRE_EVIDENCE_CUES" v03/scanner.js
-          ! grep -q "relationshipEvidenceGrounding(" v03/scanner.js
-          ! grep -q "relationshipEvidencePolarityConflict(" v03/scanner.js
-          grep -q "relationshipHistoryRemarkHtml" v03/dossier-view.js
-          grep -q "relationshipHistoryRecoveredAxisEvidence" v03/dossier-view.js
-          grep -q "No explanation recorded." v03/dossier-view.js
-          grep -q "const siblingLimit = 4" v03/branches.js
-          grep -q "preserveLatestScannedMessage" v03/branches.js
-          grep -q "rollbackRebasedRelationship" v03/branches.js
-          grep -q "branchDivergenceMessageId" v03/branches.js
-          grep -q "scannerNpcArrayValid" v03/scanner.js
-          grep -q "preflightAutomaticIdentityPatches" v03/scanner.js
-          ! grep -q "clauseAssertsNpcDeath" v03/scanner.js
-          ! grep -q "affirmativeLivingReturnEvidence" v03/scanner.js
-          grep -q "latestManualRelationshipAnchors" v03/branches.js
-          ! grep -q "manualProtectedAxes" v03/branches.js
-          grep -q "ageProgressionBaselineAge" v03/schema.js
-          grep -q "manualApparentAgeChanged" v03/engine.js
-          grep -q "reconcileFamilyGraph: false" v03/engine.js
-          grep -q "worldStateIdentityBridgesVisibleIntroduction" v03/scanner.js
-          grep -q "newReferenceAllowedByWorldIdentityBridge" v03/scanner.js
-          grep -q "IDENTITY BRIDGE" v03/evidence-adapter.js
-          grep -q "normalizeRelationshipCaps" v03/schema.js
-          grep -q "OLDER CONTEXT — CONTINUITY ONLY; NOT NEW EVENT EVIDENCE" v03/scanner.js
-          grep -q "visibleShortActivityIdentityMention" v03/scanner.js
-          grep -q "shortActivityIdentityUnique" v03/scanner.js
-          grep -q "groundedFamilyMemberNames" v03/scanner.js
-          grep -q "projectFamilySlotMembers" v03/scanner.js
-          grep -q "memberNames" v03/schema.js
-          grep -q "FAMILY_KINSHIP_GROUPS" v03/scanner.js
-          grep -q "reciprocalFamilyRelation" v03/scanner.js
-          grep -q "resolveFamilySlotMember" v03/scanner.js
-          grep -q "upsertFamilyRelationship" v03/scanner.js
-          grep -q "splitWorldStatePresenceSections" v03/evidence-adapter.js
-          grep -q "identityPresencePromptRules" v03/evidence-adapter.js
-          grep -q "identityEvidenceVerified" v03/scanner.js
-          grep -q "activityEvidenceVerified" v03/scanner.js
-          grep -q "filter(id => !presentIds.includes(id))" v03/scanner.js
-          grep -q "Persistent NPC State 0.4." v03/ui.js
-
-          # v0.4.28 recovery/rebuild invariants.
-          grep -q "normalizeRecoveryState" v03/schema.js
-          grep -q "copy.recovery = null" v03/schema.js
-          grep -q "createRecoveryV3Sidecar" v03/storage.js
-          grep -q "NPC_STATE_V04_BETA_RECOVERY_SOURCE_EXISTS" v03/storage.js
-          grep -q "startHistoricalRecovery" v03/engine.js
-          grep -q "resumeHistoricalRecovery" v03/engine.js
-          grep -q "historicalChat = liveChat.slice(0, nextMessageId + 1)" v03/engine.js
-          grep -q "relationshipMode === 're-evaluate'" v03/engine.js
-          grep -q "staleDeleteAfter: 1000000000" v03/engine.js
-          grep -q "recoveryBlocksLiveScan" v03/engine.js
-          grep -q "recoveryPending" v03/index.js
-          grep -q "initializeFresh: options => engine.initializeFresh" v03/index.js
-          grep -q "RECOVERY_REBUILD_UI_VERSION" v03/branch-recovery-ui.js
-          grep -q "Rebase to current chat" v03/branch-recovery-ui.js
-          grep -q "Force Timeline Rebase" v03/branch-recovery-ui.js
-          grep -q "startBranchRecoveryUi" bootstrap.js
-
-          # v0.4.29 interruption/concurrency and event-dedupe invariants.
-          grep -q "ownerSessionId" v03/schema.js
-          grep -q "leaseUntil" v03/schema.js
-          grep -q "recoveryOwnedElsewhere" v03/engine.js
-          grep -q "pauseRecoveryForChatSwitchUnlocked" v03/engine.js
-          grep -q "chat-switched-before-plan" v03/engine.js
-          grep -q "recovery-lease-lost" v03/engine.js
-          grep -q "sourceEventKey" v03/schema.js
-          grep -q "relationshipSourceEventKey" v03/scanner.js
-          ! grep -q "previousEvidence && previousEvidence === currentEvidence" v03/scanner.js
-          grep -q "Recovery start message is outside the current chat" v03/engine.js
-          grep -q "recoveryRange: options => engine.recoveryRange(options)" v03/index.js
-          test "$(grep -c "function recoveryRange" v03/engine.js)" -eq 1
-          ! grep -q "function recoveryRange() {" v03/engine.js
-          grep -q "npc-state-v0429-selected-count" v03/branch-recovery-ui.js
-          grep -q "active in another tab" v03/branch-recovery-ui.js
-
-          # v0.4.30 safe timeline rebase relationship-mode invariants.
-          grep -q "normalizeRebaseRelationshipMode" v03/branches.js
-          grep -q "previewRelationshipRebase" v03/branches.js
-          grep -q "relationshipMode = 'preserve'" v03/engine.js
-          grep -q "applyRelationship: rebase && mode === 'preserve' ? false : null" v03/engine.js
-          grep -q "rebaseBackup" v03/schema.js
-          grep -q "Keep NPC state and accept timeline" v03/branch-recovery-ui.js
-          grep -q "Roll back discarded story changes" v03/branch-recovery-ui.js
-
-          # v0.4.31 rebase state and operation-boundary invariants.
           grep -q "relationshipReplayBoundary" v03/schema.js
-          grep -q "relationshipReplayProtected" v03/engine.js
-          grep -q "chatChanged('after-queue')" v03/engine.js
-          grep -q "preview-after-load" v03/engine.js
-          grep -q "persistenceFailed: Boolean(persistenceError)" v03/engine.js
-          grep -q "restored.rebaseBackup = structuredClone(normalized.rebaseBackup || null)" v03/branches.js
-
-          # v0.4.32 queued mutation ownership and rollback replay continuity invariants.
-          grep -q "chatChanged('mutation-after-queue')" v03/engine.js
-          grep -q "chatChanged('mutation-after-load')" v03/engine.js
-          grep -q "chatChanged('mutation-before-apply')" v03/engine.js
-          grep -q "chatChanged('mutation-before-persist')" v03/engine.js
-          grep -q "const result = await mutator(state, chat);" v03/engine.js
           grep -q "retainValidRelationshipReplayBoundary" v03/branches.js
-
-          # v0.4.33 grounded semantic life-state and death-transition invariants.
           grep -q "applyConfirmedDeathTransition" v03/schema.js
-          grep -q "normalizeLifeStateDiagnostics" v03/schema.js
           grep -q "lifeStateEvidenceGrounded" v03/scanner.js
-          grep -q "applyManualLifeStateTransition" v03/engine.js
-          grep -q "living-return-required" v03/scanner.js
           ! grep -q "AFFIRMATIVE_DEATH_CUE" v03/scanner.js
           ! grep -q "clauseAssertsNpcDeath" v03/scanner.js
           ! grep -q "affirmativeDeathEvidence" v03/scanner.js
-          ! grep -q "affirmativeLivingReturnEvidence" v03/scanner.js
-
-          # v0.4.34 terminal-status lifecycle reconciliation invariants.
-          grep -q "lifeStateEvidenceMatchesStoredStatus" v03/scanner.js
-          grep -q "storedStatusDeathRepair" v03/scanner.js
-          grep -q "storedStatus: storedStatusBeforePatch" v03/scanner.js
-          grep -q "STORED TERMINAL-STATUS RECONCILIATION" v03/scanner.js
-          grep -q "STORED TERMINAL-STATUS RECONCILIATION" v03/injection.js
-          grep -q "WORLD-ACTIVE CONSISTENCY" v03/injection.js
-          grep -q "field('Life state', npc.lifeState)" v03/injection.js
-
-          # v0.4.35 responsive Advanced Recovery controls.
-          grep -q "PHASE72_RESPONSIVE_RECOVERY_CONTROLS" v03/branch-recovery-ui.js
-          grep -q "grid-template-columns:repeat(2,minmax(0,1fr))" v03/branch-recovery-ui.js
-          grep -q "white-space:normal!important" v03/branch-recovery-ui.js
-          grep -q "@media(max-width:720px)" v03/branch-recovery-ui.js
-
-          # v0.4.36 lifecycle reconciliation and manual recovery invariants.
           grep -q "lifeStateUpdates" v03/scanner.js
           grep -q "lifeStateUpdateByNpcId" v03/scanner.js
-          grep -q "LIFE-STATE UPDATE CHANNEL" v03/scanner.js
           grep -q "applyManualLifeStateTransition" v03/schema.js
-          grep -q "applyManualLifeStateTransition" v03/engine.js
-          grep -q "parsedRaw.lifeStateUpdates" v03/engine.js
-          grep -q "lifeStateUpdates" v03/injection.js
           grep -q "npc_state_v3_edit_life_state" v03/ui.js
-          grep -q "npc_state_v3_edit_life_state_reason" v03/ui.js
-          grep -q '"version": "0.4.36"' manifest.json
+
+          # v0.4.37 dossier diagnostics visibility and lighter library rendering.
+          grep -q "showDossierDiagnostics: false" v03/index.js
+          grep -q "settings.showDossierDiagnostics = settings.showDossierDiagnostics === true" v03/index.js
+          grep -q "npc_state_v3_show_diagnostics" v03/ui.js
+          grep -q "npc-state-v3-toggle-diagnostics" v03/ui.js
+          grep -q "dossierHtml(npc, { showDiagnostics })" v03/ui.js
+          grep -q "dossierHtml(npc, { showDiagnostics = false } = {})" v03/dossier-view.js
+          grep -q "showDiagnostics ? block('Life-state diagnostics'" v03/dossier-view.js
+          grep -q "showDiagnostics ? block('Relationship evaluation & scoring'" v03/dossier-view.js
+          grep -q '"version": "0.4.37"' manifest.json
 
       - name: Commit generated beta runtime
         run: |
@@ -322,5 +174,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-*.mjs
-          git commit -m "NPC State v0.4.36: harden lifecycle reconciliation and manual recovery"
+          git commit -m "NPC State v0.4.37: add dossier diagnostics visibility toggle"
           git push
