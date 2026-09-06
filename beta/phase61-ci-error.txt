@@ -1,1 +1,214 @@
-Expected one phase61 regex anchor for engine reconcile mode split, found 0
+FAIL verify-0.4.1.mjs
+file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-0.4.1.mjs:12
+    recordCheckpoint,
+    ^^^^^^^^^^^^^^^^
+SyntaxError: The requested module '../v03/branches.js' does not provide an export named 'recordCheckpoint'
+    at ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+
+FAIL verify-final-0.4.1.mjs
+file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-final-0.4.1.mjs:6
+    if (!condition) throw new Error(message);
+                          ^
+
+Error: Repeated forced scan can replay relationship deltas
+    at assert (file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-final-0.4.1.mjs:6:27)
+    at file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-final-0.4.1.mjs:56:5
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+
+FAIL verify-phase11-branch-recovery-ui-0.4.6.mjs
+file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-phase11-branch-recovery-ui-0.4.6.mjs:4
+function assert(condition, message) { if (!condition) throw new Error(message); }
+                                                            ^
+
+Error: Rebase action lost engine wiring
+    at assert (file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-phase11-branch-recovery-ui-0.4.6.mjs:4:61)
+    at file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-phase11-branch-recovery-ui-0.4.6.mjs:17:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+
+FAIL verify-phase12-relationship-recovery-0.4.7.mjs
+file:///home/runner/work/npc_state_beta/npc_state_beta/v03/engine.js:1
+import { chatLineage, bestCheckpoint, ensureBranchBase, fingerprintMessage, normalizeRebaseRelationshipMode, previewRelationshipRebase, rebaseToCurrentChat, reconcileToCurrentBranch, recordCheckpoint } from './branches.js';
+                      ^^^^^^^^^^^^^^
+SyntaxError: The requested module './branches.js' does not provide an export named 'bestCheckpoint'
+    at ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+
+FAIL verify-phase14-rebase-relationship-rollback-0.4.9.mjs
+file:///home/runner/work/npc_state_beta/npc_state_beta/v03/branches.js:319
+    const latestAssistantId = latestAssistantMessageId(chat);
+                              ^
+
+ReferenceError: latestAssistantMessageId is not defined
+    at rebaseToCurrentChat (file:///home/runner/work/npc_state_beta/npc_state_beta/v03/branches.js:319:31)
+    at file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-phase14-rebase-relationship-rollback-0.4.9.mjs:124:21
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+
+FAIL verify-phase15-force-rebase-0.4.10.mjs
+file:///home/runner/work/npc_state_beta/npc_state_beta/v03/branches.js:319
+    const latestAssistantId = latestAssistantMessageId(chat);
+                              ^
+
+ReferenceError: latestAssistantMessageId is not defined
+    at rebaseToCurrentChat (file:///home/runner/work/npc_state_beta/npc_state_beta/v03/branches.js:319:31)
+    at file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-phase15-force-rebase-0.4.10.mjs:22:21
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+
+FAIL verify-phase17-second-order-hardening-0.4.12.mjs
+file:///home/runner/work/npc_state_beta/npc_state_beta/v03/engine.js:1
+import { chatLineage, bestCheckpoint, ensureBranchBase, fingerprintMessage, normalizeRebaseRelationshipMode, previewRelationshipRebase, rebaseToCurrentChat, reconcileToCurrentBranch, recordCheckpoint } from './branches.js';
+                      ^^^^^^^^^^^^^^
+SyntaxError: The requested module './branches.js' does not provide an export named 'bestCheckpoint'
+    at ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+
+FAIL verify-phase2-bounded-sibling-checkpoints-0.4.2.mjs
+file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-phase2-bounded-sibling-checkpoints-0.4.2.mjs:3
+import { fingerprintMessage, recordCheckpoint, reconcileToCurrentBranch } from '../v03/branches.js';
+                             ^^^^^^^^^^^^^^^^
+SyntaxError: The requested module '../v03/branches.js' does not provide an export named 'recordCheckpoint'
+    at ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+
+FAIL verify-phase22-settings-ui-cleanup-0.4.14.mjs
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Force rebase behavior was accidentally removed
+    at file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-phase22-settings-ui-cleanup-0.4.14.mjs:54:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v22.23.2
+
+FAIL verify-phase24-release-source-parity-0.4.14.mjs
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Committed Force Rebase behavior is missing
+    at file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-phase24-release-source-parity-0.4.14.mjs:33:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v22.23.2
+
+FAIL verify-phase4-persistence-hardening-0.4.3.mjs
+file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-phase4-persistence-hardening-0.4.3.mjs:21
+    if (!condition) throw new Error(message);
+                          ^
+
+Error: recordCheckpoint does not invoke byte-pressure pruning
+    at assert (file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-phase4-persistence-hardening-0.4.3.mjs:21:27)
+    at file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-phase4-persistence-hardening-0.4.3.mjs:130:1
+
+Node.js v22.23.2
+
+FAIL verify-phase5-chat-lifecycle-0.4.2.mjs
+file:///home/runner/work/npc_state_beta/npc_state_beta/v03/engine.js:1
+import { chatLineage, bestCheckpoint, ensureBranchBase, fingerprintMessage, normalizeRebaseRelationshipMode, previewRelationshipRebase, rebaseToCurrentChat, reconcileToCurrentBranch, recordCheckpoint } from './branches.js';
+                      ^^^^^^^^^^^^^^
+SyntaxError: The requested module './branches.js' does not provide an export named 'bestCheckpoint'
+    at ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+
+FAIL verify-phase57-recovery-rebuild-0.4.28.mjs
+file:///home/runner/work/npc_state_beta/npc_state_beta/v03/engine.js:1
+import { chatLineage, bestCheckpoint, ensureBranchBase, fingerprintMessage, normalizeRebaseRelationshipMode, previewRelationshipRebase, rebaseToCurrentChat, reconcileToCurrentBranch, recordCheckpoint } from './branches.js';
+                      ^^^^^^^^^^^^^^
+SyntaxError: The requested module './branches.js' does not provide an export named 'bestCheckpoint'
+    at ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+
+FAIL verify-phase59-recovery-interruptions-0.4.29.mjs
+file:///home/runner/work/npc_state_beta/npc_state_beta/v03/engine.js:1
+import { chatLineage, bestCheckpoint, ensureBranchBase, fingerprintMessage, normalizeRebaseRelationshipMode, previewRelationshipRebase, rebaseToCurrentChat, reconcileToCurrentBranch, recordCheckpoint } from './branches.js';
+                      ^^^^^^^^^^^^^^
+SyntaxError: The requested module './branches.js' does not provide an export named 'bestCheckpoint'
+    at ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+
+FAIL verify-phase61-safe-rebase-relationship-modes-0.4.29.mjs
+file:///home/runner/work/npc_state_beta/npc_state_beta/v03/branches.js:319
+    const latestAssistantId = latestAssistantMessageId(chat);
+                              ^
+
+ReferenceError: latestAssistantMessageId is not defined
+    at rebaseToCurrentChat (file:///home/runner/work/npc_state_beta/npc_state_beta/v03/branches.js:319:31)
+    at file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-phase61-safe-rebase-relationship-modes-0.4.29.mjs:98:21
+
+Node.js v22.23.2
+
+FAIL verify-phase7-deep-audit-hardening-0.4.3.mjs
+file:///home/runner/work/npc_state_beta/npc_state_beta/beta/verify-phase7-deep-audit-hardening-0.4.3.mjs:13
+import { recordCheckpoint, reconcileToCurrentBranch } from '../v03/branches.js';
+         ^^^^^^^^^^^^^^^^
+SyntaxError: The requested module '../v03/branches.js' does not provide an export named 'recordCheckpoint'
+    at ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+
