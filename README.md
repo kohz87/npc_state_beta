@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.33
+# NPC State Beta 0.4.34
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -64,6 +64,13 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - v0.4.18 requires an explicit relationship evaluation for every exchange-active NPC. A scanner may still correctly decide that an ordinary interaction causes no relationship movement, but it must say so instead of silently omitting the relationship channel.
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
+
+## Terminal-status lifecycle reconciliation
+
+- Existing dossier Status and Life state are now supplied together to foreground, recovery, and targeted scanners. This prevents an old terminal condition from being hidden behind a bare active/unarchived roster entry.
+- A scanner may repair a legacy lifecycle mismatch when the stored Status itself unambiguously establishes that the same dossier is dead, slain, or terminally/irreversibly dissolved. The model still owns that semantic judgment; the backend does not parse death vocabulary.
+- For this narrow repair, the backend accepts only the exact stored Status as dossier-scoped evidence, with explicit/strong certainty. Stored status can never authorize livingReturn or another dead-to-alive transition.
+- A repaired death uses the normal confirmed-death invariant immediately, so the dossier becomes deceased/archived and cannot remain in worldActive/off-screen activity.
 
 ## Grounded semantic life-state transitions
 
