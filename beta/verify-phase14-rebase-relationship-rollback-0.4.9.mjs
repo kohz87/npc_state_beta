@@ -121,19 +121,19 @@ assert.equal(branchDivergenceMessageId({ branchHeadLineage: chatLineage(oldChat)
         checkpoints: [],
         branchBase: null,
     };
-    const rebased = rebaseToCurrentChat(state, rewrittenChat);
+    const rebased = rebaseToCurrentChat(state, rewrittenChat, { relationshipMode: 'rollback' });
     const npc = rebased.npcs[0];
     assert.equal(npc.relationship.trust, 49, 'Full rebase did not roll back the discarded relationship event');
     assert.equal(npc.relationshipProgress.trust, 0.2, 'Full rebase lost exact recoverable fractional state');
     assert.equal(relationshipMilestoneUnlocked(npc.relationshipMilestones, 'trust', 1, 50), false, 'Full rebase retained discarded +50 breakthrough');
     const surviving25 = npc.relationshipMilestones.find(entry => entry.axis === 'trust' && entry.threshold === 25 && entry.polarity === 1);
     assert(surviving25 && surviving25.sourceMessageId === null && surviving25.turn === null, 'Accepted surviving milestone kept stale pre-rebase message provenance');
-    assert.equal(npc.relationshipEvidenceHistory.length, 0, 'Full rebase retained timeline-local relationship evidence');
-    assert.equal(npc.relationshipDiagnostics.length, 0, 'Full rebase retained timeline-local relationship diagnostics');
+    assert.equal(npc.relationshipEvidenceHistory.length, 0, 'Explicit rollback retained discarded relationship evidence');
+    assert.equal(npc.relationshipDiagnostics.length, 0, 'Explicit rollback retained discarded relationship diagnostics');
 }
 
 const recoveryUi = fs.readFileSync(new URL('../v03/branch-recovery-ui.js', import.meta.url), 'utf8');
-assert(recoveryUi.includes('Relationship changes and milestone breakthroughs attributable to discarded branch messages are rolled back'), 'Rebase confirmation still implies all relationship state is preserved');
+assert(recoveryUi.includes('Roll back discarded story changes'), 'Explicit rollback action is missing');
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
 const manifestParts = String(manifest.version || '').split('.').map(Number);
 assert(manifestParts[0] === 0 && manifestParts[1] === 4 && manifestParts[2] >= 9, 'Manifest regressed below the 0.4.9 rebase rollback release');

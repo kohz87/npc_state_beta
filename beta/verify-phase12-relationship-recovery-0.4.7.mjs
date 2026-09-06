@@ -176,23 +176,31 @@ test('diagnostics are bounded, survive normalization, and escape markup', () => 
     assert(!dossierHtml(npc(state)).includes('<img src=x onerror'));
 });
 
-test('cross-chat import and rebase clear timeline-local evidence, preserve durable relationship state', () => {
+test('cross-chat import clears timeline-local evidence while preserve rebase quarantines it as audit history', () => {
     const state = apply(stateWith({ relationship: { trust: 25 } }), 'Mira trusts Lucien with her private correspondence.');
     const bundle = createNpcStateBundle(state);
     const imported = applyNpcStateBundleImport(createEmptyState('different-chat'), bundle);
     assert.equal(imported.ok, true);
-    const rebased = rebaseToCurrentChat(state, [{ is_user: false, mes: 'Mira arrives.' }]);
+    const rebased = rebaseToCurrentChat(state, [{ is_user: false, mes: 'Mira arrives.' }], { relationshipMode: 'preserve' });
+    assert.deepEqual(npc(imported.state).relationshipEvidenceHistory, []);
+    assert.deepEqual(npc(imported.state).relationshipDiagnostics, []);
     for (const next of [imported.state, rebased]) {
-        assert.deepEqual(npc(next).relationshipEvidenceHistory, []);
-        assert.deepEqual(npc(next).relationshipDiagnostics, []);
         assert.deepEqual(npc(next).relationship, npc(state).relationship);
         assert.equal(npc(next).relationshipHistory[0].sourceMessageId, null);
     }
+    assert(npc(rebased).relationshipEvidenceHistory.length > 0);
+    assert(npc(rebased).relationshipDiagnostics.length > 0);
+    for (const row of [...npc(rebased).relationshipEvidenceHistory, ...npc(rebased).relationshipDiagnostics]) {
+        assert.equal(row.sourceMessageId, null);
+        assert.equal(row.timelineStatus, 'accepted-pre-rebase');
+        assert(Number.isInteger(row.originalSourceMessageId));
+    }
     assert.deepEqual(npc(imported.state).relationshipMilestones, npc(state).relationshipMilestones);
-    assert.deepEqual(
-        npc(rebased).relationshipMilestones,
-        npc(state).relationshipMilestones.map(entry => ({ ...entry, sourceMessageId: null, turn: null })),
-    );
+    for (const milestone of npc(rebased).relationshipMilestones) {
+        assert.equal(milestone.sourceMessageId, null);
+        assert.equal(milestone.turn, null);
+        assert.equal(milestone.timelineStatus, 'accepted-pre-rebase');
+    }
 });
 
 test('embedded replay is idempotent across paraphrases and reloads', async () => {

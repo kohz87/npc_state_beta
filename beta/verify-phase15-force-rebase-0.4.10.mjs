@@ -19,7 +19,7 @@ const chat = [
     state.branchSafety = { status: 'safe', kind: '', reason: '' };
     state.lastScannedMessageId = 1;
 
-    const rebased = rebaseToCurrentChat(state, chat);
+    const rebased = rebaseToCurrentChat(state, chat, { relationshipMode: 'preserve' });
     assert.equal(rebased.lastScannedMessageId, 1, 'Safe same-lineage force rebase forgot that the latest exchange was already scanned');
     assert.deepEqual(rebased.npcs[0].relationship, state.npcs[0].relationship, 'Safe same-lineage force rebase changed relationship state');
     assert.equal(rebased.branchSafety.status, 'safe', 'Safe force rebase did not establish a safe new baseline');
@@ -40,18 +40,18 @@ const chat = [
     state.branchSafety = { status: 'safe', kind: '', reason: '' };
     state.lastScannedMessageId = 1;
 
-    const rebased = rebaseToCurrentChat(state, rewrittenChat);
+    const rebased = rebaseToCurrentChat(state, rewrittenChat, { relationshipMode: 'preserve' });
     assert.equal(rebased.lastScannedMessageId, null, 'Divergent force rebase incorrectly preserved an already-scanned marker from the old lineage');
 }
 
 const recoveryUi = fs.readFileSync(new URL('../v03/branch-recovery-ui.js', import.meta.url), 'utf8');
 assert(recoveryUi.includes("const FORCE_ID = 'npc_state_v3_force_rebase'"), 'Force rebase control id is missing');
 assert(recoveryUi.includes('Force Timeline Rebase'), 'Recovery settings do not expose the force rebase action');
-assert(recoveryUi.includes('Force Timeline Rebase...'), 'Force rebase button label is missing');
-assert(recoveryUi.includes('rebaseCurrentChat(true)'), 'Force rebase button is not wired to the explicit force path');
+assert(recoveryUi.includes('Keep NPC state and accept timeline'), 'Preserve rebase action is missing');
+assert(recoveryUi.includes("rebaseCurrentChat('preserve', true)"), 'Force preserve rebase is not wired');
 assert(recoveryUi.includes('ensureForceControl(forceHost || host)'), 'Safe branch state does not render the force rebase action inside Advanced Recovery');
 assert(recoveryUi.includes('forceControl?.remove?.()'), 'Required-rebase state does not suppress the duplicate force control');
-assert(recoveryUi.includes('preserves that scan marker so the refresh cannot apply its relationship delta twice'), 'Force rebase confirmation does not explain duplicate relationship protection');
+assert(recoveryUi.includes('The immediate refresh cannot award relationship movement again'), 'Preserve rebase confirmation does not explain duplicate relationship protection');
 
 const branches = fs.readFileSync(new URL('../v03/branches.js', import.meta.url), 'utf8');
 assert(branches.includes('preserveLatestScannedMessage'), 'Branch rebase lacks safe-lineage scan-marker preservation');

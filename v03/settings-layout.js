@@ -11,6 +11,7 @@ const RECOVERY_GROUP_ID = 'npc_state_v04_recovery_branch';
 const SCANNER_GROUP_ID = 'npc_state_v3_scanner_rules';
 const ADVANCED_GROUP_ID = 'npc_state_v0414_advanced';
 const ADVANCED_RECOVERY_ID = 'npc_state_v0414_advanced_recovery';
+// PHASE61_SAFE_REBASE_RELATIONSHIP_MODES: force rebase exposes preserve and rollback as separate modes.
 const MAINTENANCE_GROUP_ID = 'npc_state_v3_maintenance';
 const CAST_SECTION_ID = 'npc_state_v3_cast_settings';
 
@@ -153,7 +154,7 @@ function ensureAdvancedRecovery(group) {
         const summary = makeElement('summary');
         const label = makeElement('b', '', 'Advanced Recovery');
         const body = makeElement('div', 'npc-state-v3-advanced-recovery-body');
-        const intro = makeElement('div', 'npc-state-v3-advanced-recovery-intro', 'Force Timeline Rebase bypasses normal branch detection. Use it only when ordinary recovery cannot identify the timeline change correctly.');
+        const intro = makeElement('div', 'npc-state-v3-advanced-recovery-intro', 'Force Timeline Rebase bypasses normal branch detection. It can keep current NPC relationship state while accepting the visible timeline, or explicitly roll back discarded story relationship changes after showing a preview.');
         if (summary && label) summary.appendChild(label);
         if (summary) section.appendChild(summary);
         if (body && intro) body.appendChild(intro);

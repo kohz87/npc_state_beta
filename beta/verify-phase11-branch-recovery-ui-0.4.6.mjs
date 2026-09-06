@@ -13,8 +13,8 @@ assert(source.includes("recovery?.querySelector?.('.npc-state-v3-settings-group-
 assert(source.includes("if (recovery && 'open' in recovery) recovery.open = true;"), 'Recovery category does not automatically open when rebase is required');
 assert(source.includes("host.prepend?.(banner);"), 'Recovery banner does not use direct-child-safe placement');
 assert(!source.includes('host.insertBefore(banner, heading.nextSibling)'), 'Legacy nested-heading insertion bug remains');
-assert(source.includes('Rebase to current chat'), 'Rebase action label disappeared');
-assert(source.includes("globalThis.NPCState?.reconcile?.({ rebase: true, rescan: true })"), 'Rebase action lost engine wiring');
+assert(source.includes('Keep NPC state and accept timeline'), 'Safe rebase action label disappeared');
+assert(source.includes("globalThis.NPCState?.reconcile?.({ rebase: true, rescan: true, relationshipMode: mode })"), 'Rebase action lost mode-aware engine wiring');
 
 const bootstrap = read('bootstrap.js');
 assert(bootstrap.includes("await import('./v03/branch-recovery-ui.js')"), 'Branch recovery UI is not loaded by bootstrap');

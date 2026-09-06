@@ -170,6 +170,17 @@ function text(value, max = 1200) {
     return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
+// PHASE61_SAFE_REBASE_RELATIONSHIP_MODES: accepted pre-rebase records remain inspectable but cannot claim current-timeline provenance.
+function normalizeRebaseRelationshipAudit(raw = {}) {
+    const status = String(raw?.timelineStatus || '').trim().toLocaleLowerCase();
+    return {
+        timelineStatus: status === 'accepted-pre-rebase' ? 'accepted-pre-rebase' : 'current',
+        originalSourceMessageId: Number.isInteger(raw?.originalSourceMessageId) ? raw.originalSourceMessageId : null,
+        originalSourceEventKey: text(raw?.originalSourceEventKey, 240),
+        rebasedAt: Number(raw?.rebasedAt) || null,
+    };
+}
+
 function collectionEntry(value, itemMax = 500) {
     if (value && typeof value === 'object' && !Array.isArray(value)) {
         const candidates = [value.text, value.value, value.summary, value.description, value.name, value.label, value.memory, value.mannerism, value.behavior, value.trait, value.alias];
@@ -553,6 +564,7 @@ function normalizeRelationshipAxisReasons(value = {}) {
 export function normalizeRelationshipEvidenceHistory(value = []) {
     const source = Array.isArray(value) ? value : [];
     return source.slice(-RELATIONSHIP_EVIDENCE_HISTORY_LIMIT * 2).map(raw => ({
+        ...normalizeRebaseRelationshipAudit(raw),
         delta: raw?.delta && typeof raw.delta === 'object' ? normalizeRelationship(raw.delta) : null,
         impact: ['ordinary', 'meaningful', 'major', 'extreme'].includes(String(raw?.impact)) ? String(raw.impact) : 'ordinary',
         reason: text(raw?.reason, 800),
@@ -569,6 +581,7 @@ export function normalizeRelationshipEvidenceHistory(value = []) {
 
 export function normalizeRelationshipDiagnostics(value = []) {
     return (Array.isArray(value) ? value : []).slice(-12).map(raw => ({
+        ...normalizeRebaseRelationshipAudit(raw),
         impact: text(raw?.impact, 20),
         reason: text(raw?.reason, 800),
         evidence: text(raw?.evidence, 800),
@@ -638,6 +651,7 @@ export function normalizeRelationshipMilestones(value, relationship = DEFAULT_RE
         const threshold = Number(raw.threshold);
         if (!axis || !polarity || !RELATIONSHIP_MILESTONE_THRESHOLDS.includes(threshold)) continue;
         const entry = {
+            ...normalizeRebaseRelationshipAudit(raw),
             axis,
             polarity,
             threshold,
@@ -741,6 +755,7 @@ export function normalizeNpc(input = {}, options = {}) {
     const archiveReason = text(input.archiveReason, 80);
     const archived = input.archived === true;
     const relationshipHistory = Array.isArray(input.relationshipHistory) ? input.relationshipHistory.slice(-24).map(item => ({
+        ...normalizeRebaseRelationshipAudit(item),
         impact: ['none', 'ordinary', 'meaningful', 'major', 'extreme', 'manual'].includes(String(item?.impact)) ? String(item.impact) : 'ordinary',
         delta: normalizeRelationship(item?.delta),
         evidence: text(item?.evidence, 800),
@@ -793,6 +808,7 @@ export function normalizeNpc(input = {}, options = {}) {
         relationshipHistory,
         lastRelationshipChange: input.lastRelationshipChange ? {
             ...emptyRelationshipChange(),
+            ...normalizeRebaseRelationshipAudit(input.lastRelationshipChange),
             impact: ['none', 'ordinary', 'meaningful', 'major', 'extreme', 'manual'].includes(String(input.lastRelationshipChange.impact)) ? String(input.lastRelationshipChange.impact) : 'none',
             delta: normalizeRelationship(input.lastRelationshipChange.delta),
             evidence: text(input.lastRelationshipChange.evidence, 800),
@@ -861,6 +877,7 @@ export function createEmptyState(chatKey = '') {
         branchFingerprintVersion: 3,
         migration: null,
         recovery: null,
+        rebaseBackup: null,
         createdAt: Date.now(),
         updatedAt: Date.now(),
     };
@@ -893,6 +910,17 @@ export function normalizeState(input = {}, chatKey = '') {
             lineage: rawBranchBase.lineage.map(value => String(value || '')).filter(Boolean),
             createdAt: Number(rawBranchBase.createdAt) || Date.now(),
             snapshot: structuredClone(rawBranchBase.snapshot),
+        }
+        : null;
+    const rawRebaseBackup = input.rebaseBackup && typeof input.rebaseBackup === 'object' && !Array.isArray(input.rebaseBackup) ? input.rebaseBackup : null;
+    const rebaseBackup = rawRebaseBackup?.snapshot && typeof rawRebaseBackup.snapshot === 'object'
+        ? {
+            createdAt: Number(rawRebaseBackup.createdAt) || Date.now(),
+            relationshipMode: ['preserve', 'rollback'].includes(String(rawRebaseBackup.relationshipMode || '')) ? String(rawRebaseBackup.relationshipMode) : 'preserve',
+            divergenceMessageId: Number.isInteger(rawRebaseBackup.divergenceMessageId) ? rawRebaseBackup.divergenceMessageId : null,
+            sourceLastScannedMessageId: Number.isInteger(rawRebaseBackup.sourceLastScannedMessageId) ? rawRebaseBackup.sourceLastScannedMessageId : null,
+            sourceLineage: Array.isArray(rawRebaseBackup.sourceLineage) ? rawRebaseBackup.sourceLineage.map(value => String(value || '')).filter(Boolean) : [],
+            snapshot: structuredClone(rawRebaseBackup.snapshot),
         }
         : null;
     const rawSafety = input.branchSafety && typeof input.branchSafety === 'object' ? input.branchSafety : {};
@@ -935,6 +963,7 @@ export function normalizeState(input = {}, chatKey = '') {
         branchFingerprintVersion: Math.max(0, Math.trunc(Number(input.branchFingerprintVersion) || 0)),
         migration: input.migration && typeof input.migration === 'object' ? structuredClone(input.migration) : null,
         recovery: normalizeRecoveryState(input.recovery),
+        rebaseBackup,
         createdAt: Number(input.createdAt) || Date.now(),
         updatedAt: Number(input.updatedAt) || Date.now(),
     };
@@ -959,6 +988,7 @@ export function snapshotForCheckpoint(state) {
     copy.checkpoints = [];
     copy.branchBase = null;
     copy.recovery = null;
+    copy.rebaseBackup = null;
     // Portrait binary/data URLs are durable presentation assets, not timeline state.
     // Excluding them keeps up to 48 rollback checkpoints from multiplying megabytes
     // of identical image data. Restoration merges the current portrait back by id.

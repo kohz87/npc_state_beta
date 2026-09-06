@@ -30,14 +30,14 @@ assert(layout.includes('[scanning, injection, birthday, evolution, relationships
 
 assert(recovery.includes("ADVANCED_RECOVERY_ID = 'npc_state_v0414_advanced_recovery'"), 'Committed recovery UI does not target Advanced Recovery');
 assert(recovery.includes('ensureForceControl(forceHost || host)'), 'Committed recovery UI does not place Force Rebase in Advanced Recovery');
-assert(recovery.includes('rebaseCurrentChat(true)'), 'Committed Force Rebase behavior is missing');
-assert(recovery.includes('Force Timeline Rebase...'), 'Committed Force Rebase label is stale');
+assert(recovery.includes("rebaseCurrentChat('preserve', true)"), 'Committed Force Preserve Rebase behavior is missing');
+assert(recovery.includes('Keep NPC state and accept timeline'), 'Committed Force Rebase preserve label is missing');
 assert(css.includes('/* v0.4.14 settings hierarchy cleanup */'), 'Committed responsive CSS lacks v0.4.14 hierarchy rules');
 
 // Compatibility changes must be physically present in release source, not created only during CI.
 assert(phase9.includes("['npc_state_v04_tracking', 'Scanning & Capture']"), 'v0.4.4 settings verifier compatibility is not persisted');
 assert(phase9.includes('[scanning, injection, birthday, evolution, relationships, recovery, advanced, portrait, actions, cast]'), 'v0.4.4 settings order compatibility is not persisted');
-assert(phase15.includes('Force Timeline Rebase...') && phase15.includes('ensureForceControl(forceHost || host)'), 'v0.4.10 force-rebase verifier compatibility is not persisted');
+assert(phase15.includes('Keep NPC state and accept timeline') && phase15.includes('ensureForceControl(forceHost || host)'), 'v0.4.10 preserve-mode force-rebase verifier compatibility is not persisted');
 assert(phase20.includes('Manifest regressed below v0.4.13'), 'v0.4.13 semantic verifier descendant assertion is not persisted');
 assert(phase21.includes('Manifest regressed below v0.4.13'), 'v0.4.13 source-parity descendant assertion is not persisted');
 

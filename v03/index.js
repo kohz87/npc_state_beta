@@ -749,6 +749,7 @@ globalThis.NPCState = Object.freeze({
     hydrationStatus: () => engine.hydrationStatus(getChatKey()),
     recoveryStatus: () => engine.recoveryStatus(getChatKey()),
     recoveryRange: options => engine.recoveryRange(options),
+    previewRebase: options => engine.previewRebase(options), // PHASE61_SAFE_REBASE_RELATIONSHIP_MODES
     isRecoveryRunning: () => engine.isRecoveryRunning(getChatKey()),
     initializeFresh: options => engine.initializeFresh(options),
     rebuildFromChat: options => engine.startHistoricalRecovery(options),
