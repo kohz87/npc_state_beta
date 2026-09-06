@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { buildInjection } from '../v03/injection.js';
 import {
-    applyManualLifeStateTransition,
     createEmptyState,
     normalizeNpc,
 } from '../v03/schema.js';
@@ -24,6 +23,7 @@ if (manifest.version !== '0.4.36' || !scannerSource.includes('lifeStateUpdateByN
     process.exit(0);
 }
 
+const { applyManualLifeStateTransition } = await import('../v03/schema.js');
 const dissolvedStatus = 'Deceased; physical body and mortal essence dissolved into pure ambient mana with no continuing living form.';
 
 function aliveState(status = dissolvedStatus, key = 'v0436-life-state') {
