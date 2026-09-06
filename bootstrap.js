@@ -40,4 +40,16 @@ if (!document.querySelector('link[data-npc-state-settings-responsive]')) {
     link.dataset.npcStateSettingsResponsive = '1';
     document.head.appendChild(link);
 }
-import('./src/index.js');
+await import('./src/index.js');
+const { startSettingsLayoutCoordinator } = await import('./src/settings-layout.js');
+startSettingsLayoutCoordinator();
+const { startRelationshipHistoryUi } = await import('./src/relationship-history-ui.js');
+startRelationshipHistoryUi();
+const { startBranchRecoveryUi } = await import('./src/branch-recovery-ui.js');
+startBranchRecoveryUi();
+const { startManualOperationFeedback } = await import('./src/manual-operation-feedback.js');
+startManualOperationFeedback();
+const { startEditorTopLayerBridge } = await import('./src/editor-top-layer.js');
+startEditorTopLayerBridge();
+const { startPortraitAttachmentBridge } = await import('./src/portrait-attachment.js');
+startPortraitAttachmentBridge();
