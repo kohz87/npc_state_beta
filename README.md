@@ -1,18 +1,18 @@
 # NPC State Beta
 
-NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.5.0 consolidates the runtime into checked-in authoritative source and replaces brittle English semantic gates with a compact model-led update contract.
+NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.5.1 is a patch over the consolidated 0.5.x runtime that fixes release-label drift in the settings UI and model-facing facades.
 
-## Release 0.5.0
+## Release 0.5.1
 
 The current source of truth is `src/`. A clean checkout is sufficient to validate, test, and package the extension. The build no longer clones an older repository or replays historical patch scripts.
 
 Release version, persisted state schema, and model-output contract are intentionally separate:
 
-- Extension release: `0.5.0`
+- Extension release: `0.5.1`
 - Persisted state schema: `1` (unchanged)
 - Model semantic update contract: `2`
 
-Existing v0.4.x sidecars and settings continue using their established storage identity. This release does not rename storage keys or require dossier deletion/rebuild.
+The 0.5.1 patch makes the settings header, settings intro, roster summary, scanner facade, and foreground injection facade derive their release label from the shared `NPC_STATE_VERSION` constant. Existing v0.4.x sidecars and settings continue using their established storage identity. This release does not rename storage keys or require dossier deletion/rebuild.
 
 ## Model-led semantic updates
 
