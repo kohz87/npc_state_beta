@@ -481,7 +481,7 @@ async function settledBranchReconcile({ reason = 'branch-change', messageId = nu
     try {
         await sleep(90);
         if (getChatKey() !== key) return;
-        const recovery = engine.getState(key)?.recovery;
+        const recovery = engine.recoveryStatus(key);
         if (['running', 'paused', 'failed', 'stale'].includes(String(recovery?.status || ''))) {
             if (recovery?.status === 'running') await engine.pauseHistoricalRecovery('Chat history changed while recovery was running. Resume will validate completed history and replan only the unprocessed suffix when safe.');
             refreshSurfaces();

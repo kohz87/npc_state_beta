@@ -187,7 +187,9 @@ export function createPortraitPromptUi(adapters = {}) {
 
     function panel() { return globalThis.document?.getElementById?.(SECTION_ID) || null; }
     function promptOverlay() { return globalThis.document?.getElementById?.(PROMPT_OVERLAY_ID) || null; }
-    function state() { return engine.getState?.() || null; }
+    function dossierIndex() { return engine.getDossierIndex?.() || []; }
+    function dossierNpc(reference) { return engine.getDossierNpc?.(reference) || null; }
+    let npcChoiceSignature = '';
 
     function savedDraft() {
         const settings = getSettings();
@@ -277,7 +279,7 @@ export function createPortraitPromptUi(adapters = {}) {
 
     function chosenNpc(root = panel()) {
         const id = root?.querySelector('#npc_state_v3_portrait_npc')?.value || '';
-        return id ? findNpcByReference(state(), id) : null;
+        return id ? dossierNpc(id) : null;
     }
 
     function renderPreview(root = panel()) {
@@ -306,11 +308,15 @@ export function createPortraitPromptUi(adapters = {}) {
         const select = root.querySelector('#npc_state_v3_portrait_npc');
         if (!select) return false;
         const previous = select.value || '';
-        const rows = [...(state()?.npcs || [])].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
-        select.innerHTML = rows.length
-            ? rows.map(npc => `<option value="${escapeHtml(npc.id)}">${escapeHtml(npc.name)}${npc.archived ? ' · archived' : ''}</option>`).join('')
-            : '<option value="">No dossiers</option>';
-        if (rows.some(npc => npc.id === previous)) select.value = previous;
+        const rows = [...dossierIndex()].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+        const nextSignature = JSON.stringify(rows.map(npc => [String(npc.id || ''), String(npc.name || ''), npc.archived === true]));
+        if (nextSignature !== npcChoiceSignature) {
+            select.innerHTML = rows.length
+                ? rows.map(npc => `<option value="${escapeHtml(npc.id)}">${escapeHtml(npc.name)}${npc.archived ? ' · archived' : ''}</option>`).join('')
+                : '<option value="">No dossiers</option>';
+            if (rows.some(npc => npc.id === previous)) select.value = previous;
+            npcChoiceSignature = nextSignature;
+        }
         return true;
     }
 
@@ -461,7 +467,7 @@ export function createPortraitPromptUi(adapters = {}) {
 
     function renderPromptOverlay(root = promptOverlay()) {
         const shell = root?.querySelector('.npc-state-v3-prompt-shell');
-        const npc = shell ? findNpcByReference(state(), shell.dataset.npcId || '') : null;
+        const npc = shell ? dossierNpc(shell.dataset.npcId || '') : null;
         const select = root?.querySelector('#npc_state_v3_prompt_preset');
         const presetId = select?.value || '';
         const selectedSettings = portraitPromptSettingsForPreset(getSettings(), presetId);
@@ -492,7 +498,7 @@ export function createPortraitPromptUi(adapters = {}) {
     }
 
     function openFor(reference) {
-        const npc = findNpcByReference(state(), reference);
+        const npc = dossierNpc(reference);
         if (!npc || !globalThis.document?.body) return false;
         ensureStyleSheet();
         closePrompt();
@@ -545,6 +551,7 @@ export function createPortraitPromptUi(adapters = {}) {
         if (actions?.before) actions.before(section);
         else drawer.appendChild(section);
         bind(section);
+        section.addEventListener('toggle', () => { if (section.open) refresh(); });
         draft = savedDraft();
         dirty = false;
         loadDraftFields(section);
@@ -558,6 +565,7 @@ export function createPortraitPromptUi(adapters = {}) {
         bindDossierBridge();
         if (!attach()) return false;
         const root = panel();
+        if (root && !root.open && !promptOverlay()) return true;
         if (!dirty) {
             draft = savedDraft();
             loadDraftFields(root);
@@ -595,13 +603,13 @@ export function createPortraitPromptUi(adapters = {}) {
     }
 
     function buildPairFor(reference, presetId = '') {
-        const npc = findNpcByReference(state(), reference);
+        const npc = dossierNpc(reference);
         const settings = portraitPromptSettingsForPreset(getSettings(), presetId);
         return npc ? buildPortraitPrompts(npc, settings) : { positive: '', negative: '', combined: '' };
     }
 
     function buildFor(reference, presetId = '') {
-        const npc = findNpcByReference(state(), reference);
+        const npc = dossierNpc(reference);
         const settings = portraitPromptSettingsForPreset(getSettings(), presetId);
         return npc ? buildPortraitPrompt(npc, settings) : '';
     }
