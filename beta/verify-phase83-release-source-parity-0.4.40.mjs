@@ -9,9 +9,10 @@ const uiSource = fs.readFileSync('v03/ui.js', 'utf8');
 const readme = fs.readFileSync('README.md', 'utf8');
 const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
 
-assert.equal(manifest.version, '0.4.40', 'Manifest must be v0.4.40');
-assert(workflow.includes('name: Build NPC State 0.4.40 Beta'), 'Workflow title must be v0.4.40');
-assert(workflow.includes('for patch in $(seq 2 40); do'), 'Cold replay must include patch 40');
+const patch = Number(String(manifest.version || '').split('.')[2]);
+assert(String(manifest.version || '').startsWith('0.4.') && patch >= 40, 'Manifest must be v0.4.40+');
+assert(/name: Build NPC State 0\.4\.(?:4[0-9]|[5-9][0-9]+) Beta/.test(workflow), 'Workflow title must be v0.4.40+');
+assert(/for patch in \$\(seq 2 (?:4[0-9]|[5-9][0-9]+)\); do/.test(workflow), 'Cold replay must include patch 40 or later');
 assert(workflow.includes("# node beta/bump-0.4.40.mjs ; -name 'phase*-0.4.40.mjs'"), 'Workflow must retain v0.4.40 source-parity marker');
 for (const path of [
     'beta/bump-0.4.40.mjs',

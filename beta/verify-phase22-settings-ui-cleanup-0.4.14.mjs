@@ -55,8 +55,8 @@ assert(recovery.includes("rebaseCurrentChat('preserve', true)"), 'Force preserve
 assert(recovery.includes('recovery.open = true'), 'Required recovery no longer opens the main Recovery section');
 
 // Relationship and memory rubrics are separated without changing their authoritative controls.
-assert(layout.includes("label.textContent = 'Relationship Rubric'"), 'Relationship rubric label missing');
-assert(layout.includes("label.textContent = 'Memory Rubric'"), 'Memory rubric label missing');
+assert(layout.includes("setTextIfChanged(label, 'Relationship Rubric')"), 'Relationship rubric label missing or no longer idempotent');
+assert(layout.includes("setTextIfChanged(label, 'Memory Rubric')"), 'Memory rubric label missing or no longer idempotent');
 assert(layout.includes("const maintenance = ensureMaintenance(drawer);"), 'Maintenance was not grouped beneath Advanced');
 assert(layout.includes('[scanning, injection, birthday, evolution, relationships, recovery, advanced, portrait, actions, cast]'), 'Settings order drifted');
 

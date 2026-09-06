@@ -419,7 +419,7 @@ async function maybeForegroundFallback(messageId, reason) {
     return runSeparateRecoveryScan(messageId, 'foreground-' + reason);
 }
 
-// PHASE74D_LIVE_FOREGROUND_LIFE_STATE_CONTRACT: only newly generated embedded payloads require the v0.4.40 lifecycle channel.
+// PHASE74D_LIVE_FOREGROUND_LIFE_STATE_CONTRACT: only newly generated embedded payloads require the v0.4.41 lifecycle channel.
 async function processEmbeddedScan(messageId) {
     const ctx = getContext();
     const id = Number(messageId);
@@ -753,6 +753,7 @@ globalThis.NPCState = Object.freeze({
     refreshFromChat: reference => engine.refreshDossier(reference),
     importStructuredDossier: reference => engine.importStructuredDossier(reference),
     getState: () => engine.getState(getChatKey()),
+    branchSafetyStatus: () => engine.branchSafetyStatus(getChatKey()),
     hydrationStatus: () => engine.hydrationStatus(getChatKey()),
     recoveryStatus: () => engine.recoveryStatus(getChatKey()),
     recoveryRange: options => engine.recoveryRange(options),
