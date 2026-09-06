@@ -103,12 +103,17 @@ function replaceCountRequired(source, from, to, expected, label) {
         `        const result = await engine.scan(id, { manual: false, force: true });\n        // A successful commit already refreshed via engine.onStateChanged. Only a stale discarded run needs a local surface catch-up.\n        if (result?.discarded) refreshSurfaces();`,
         'separate recovery duplicate refresh',
     );
-    source = replaceCountRequired(
+    source = replaceRequired(
+        source,
+        `        if (result?.ok) refreshSurfaces();\n        return result;`,
+        `        // Ordinary commits already refreshed via persistence. Skips have no persistence callback.\n        if (result?.ok && result?.skipped) refreshSurfaces();\n        return result;`,
+        'live embedded duplicate refresh',
+    );
+    source = replaceRequired(
         source,
         `    if (result?.ok) refreshSurfaces();\n    return result;`,
         `    // Ordinary commits already refreshed via persistence. Skips have no persistence callback.\n    if (result?.ok && result?.skipped) refreshSurfaces();\n    return result;`,
-        2,
-        'embedded duplicate refresh',
+        'stored embedded duplicate refresh',
     );
 
     fs.writeFileSync(path, source);
