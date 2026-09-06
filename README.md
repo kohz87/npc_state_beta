@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.29
+# NPC State Beta 0.4.30
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -64,6 +64,15 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - v0.4.18 requires an explicit relationship evaluation for every exchange-active NPC. A scanner may still correctly decide that an ordinary interaction causes no relationship movement, but it must say so instead of silently omitting the relationship channel.
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
+
+## Safe timeline rebase relationship modes
+
+- Timeline acceptance and relationship rollback are now separate decisions. **Keep NPC state and accept timeline** is the safe default; **Roll back discarded story changes** is an explicit destructive alternative.
+- Preserve mode keeps relationship meters, fractional progress, milestones, history, the last relationship change, and summaries exactly as accepted before the rebase.
+- Preserved relationship evidence and diagnostics remain available as accepted pre-rebase audit history, while stale message ids and source-event keys are quarantined so they cannot masquerade as evidence from the new timeline.
+- Rollback mode previews affected NPCs and relationship changes before confirmation, then reverses only discarded-story relationship state supported by recoverable provenance.
+- Every explicit rebase stores a restorable pre-rebase snapshot before persistence. The immediate preserve-mode refresh cannot award relationship movement again, preventing duplicate changes when scan markers are reset by timeline repair.
+- Recovery and Advanced Recovery now expose the two modes directly and explain their consequences instead of treating rebase as an implicit relationship reset.
 
 ## Recovery interruption and concurrency hardening
 

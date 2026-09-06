@@ -18,9 +18,9 @@ const regeneratedLegacyFixture = read('beta/verify-0.4.1.mjs');
 const changelog = read('CHANGELOG.md');
 const readme = read('README.md');
 
-assert(/^0\.4\.(?:28|29)$/.test(String(manifest.version)), 'Manifest is older than v0.4.28');
-assert(/name: Build NPC State 0\.4\.(?:28|29) Beta/.test(workflow), 'Workflow title is older than v0.4.28');
-assert(/for patch in \$\(seq 2 (?:28|29)\); do/.test(workflow), 'Cold replay does not include v0.4.28+');
+assert(/^0\.4\.(?:2[89]|[3-9]\d)$/.test(String(manifest.version)), 'Manifest is older than v0.4.28');
+assert(/name: Build NPC State 0\.4\.(?:2[89]|[3-9]\d) Beta/.test(workflow), 'Workflow title is older than v0.4.28');
+assert(/for patch in \$\(seq 2 (?:2[89]|[3-9]\d)\); do/.test(workflow), 'Cold replay does not include v0.4.28+');
 assert(workflow.includes("# node beta/bump-0.4.28.mjs ; -name 'phase*-0.4.28.mjs'"), 'Workflow lacks v0.4.28 source marker');
 assert(!workflow.includes('for patch in $(seq 2 27); do'), 'Cold replay regressed below v0.4.28');
 assert(workflow.includes('beta/verify-*.mjs'), 'Generated-file parity still uses an incomplete hard-coded verifier list');
@@ -127,7 +127,7 @@ assert(engine.includes('rollback') || read('v03/branches.js').includes('rollback
 assert(ui.includes('Rebase to current chat') && ui.includes('Force Timeline Rebase'), 'Existing branch rebase controls disappeared');
 
 assert(changelog.includes('## v0.4.28'), 'Changelog lacks v0.4.28');
-assert(/# NPC State Beta 0\.4\.(?:28|29)/.test(readme), 'README title is older than v0.4.28');
+assert(/# NPC State Beta 0\.4\.(?:2[89]|[3-9]\d)/.test(readme), 'README title is older than v0.4.28');
 assert(readme.includes('## Recovery and chronological rebuild'), 'README lacks recovery documentation');
 
 console.log('NPC State 0.4.28+ release source parity verified');

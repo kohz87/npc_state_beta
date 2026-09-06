@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.30
+
+- Separates timeline acceptance from relationship rollback. Preserve mode is now the safe default; rollback is an explicit alternative.
+- Preserve mode keeps relationship meters, fractional progress, milestones, history, the last relationship change, and relationship summaries intact across timeline rebase.
+- Retains relationship evidence and diagnostics as accepted pre-rebase audit history while quarantining stale message and source-event provenance from the newly accepted timeline.
+- Adds a rollback impact preview and saves a restorable pre-rebase snapshot before either rebase mode is persisted.
+- Prevents the immediate preserve-mode refresh from applying relationship movement again, closing duplicate-award cases after scan-marker or timeline resets.
+- Replaces the ambiguous rebase action with **Keep NPC state and accept timeline** and **Roll back discarded story changes**, including matching Advanced Recovery guidance.
+- Adds preserve/rollback regression coverage and replay-safe legacy verifier compatibility so repeated cold builds remain deterministic.
+
 ## v0.4.29
 
 - Binds historical reconstruction to its originating chat before planning, generation, suffix validation, and completion; switching chats pauses the original run without consuming or replanning against the other chat.
