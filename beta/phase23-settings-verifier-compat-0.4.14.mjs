@@ -72,24 +72,29 @@ assert(layout.includes("ensureParentDetails(drawer, RECOVERY_GROUP_ID, 'Recovery
 {
     const path = 'beta/verify-phase15-force-rebase-0.4.10.mjs';
     let source = fs.readFileSync(path, 'utf8');
-    source = replaceCompatible(
-        source,
-        "assert(recoveryUi.includes('Force timeline rebase'), 'Recovery settings do not expose the force rebase action');",
-        "assert(recoveryUi.includes('Force Timeline Rebase'), 'Recovery settings do not expose the force rebase action');",
-        'force rebase heading assertion',
-    );
-    source = replaceCompatible(
-        source,
-        "assert(recoveryUi.includes('Force rebase to current chat'), 'Force rebase button label is missing');",
-        "assert(recoveryUi.includes('Force Timeline Rebase...'), 'Force rebase button label is missing');",
-        'force rebase button assertion',
-    );
-    source = replaceCompatible(
-        source,
-        "assert(recoveryUi.includes('ensureForceControl(host)'), 'Safe branch state does not render the force rebase action');",
-        "assert(recoveryUi.includes('ensureForceControl(forceHost || host)'), 'Safe branch state does not render the force rebase action inside Advanced Recovery');",
-        'force rebase placement assertion',
-    );
+    // Phase61 replaces the historical single force-rebase action with explicit
+    // preserve/rollback controls. If that final contract is already present,
+    // leave it untouched during later cold replays.
+    if (!source.includes("Keep NPC state and accept timeline")) {
+        source = replaceCompatible(
+            source,
+            "assert(recoveryUi.includes('Force timeline rebase'), 'Recovery settings do not expose the force rebase action');",
+            "assert(recoveryUi.includes('Force Timeline Rebase'), 'Recovery settings do not expose the force rebase action');",
+            'force rebase heading assertion',
+        );
+        source = replaceCompatible(
+            source,
+            "assert(recoveryUi.includes('Force rebase to current chat'), 'Force rebase button label is missing');",
+            "assert(recoveryUi.includes('Force Timeline Rebase...'), 'Force rebase button label is missing');",
+            'force rebase button assertion',
+        );
+        source = replaceCompatible(
+            source,
+            "assert(recoveryUi.includes('ensureForceControl(host)'), 'Safe branch state does not render the force rebase action');",
+            "assert(recoveryUi.includes('ensureForceControl(forceHost || host)'), 'Safe branch state does not render the force rebase action inside Advanced Recovery');",
+            'force rebase placement assertion',
+        );
+    }
     fs.writeFileSync(path, source);
 }
 
