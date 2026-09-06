@@ -203,14 +203,15 @@ function rosterForPrompt(state) {
 function dossierCollectionRules(limits) {
     return [
         `DOSSIER COLLECTION LIMITS: behaviorProfile=${limits.behaviorProfile}, mannerisms=${limits.mannerisms}, keyRelationships=${limits.keyRelationships}, memories=${limits.memories}.`,
-        '- behaviorProfile, mannerisms, and memories are EVOLVING CURATED COLLECTIONS. Use null when unchanged; when revised, return the COMPLETE authoritative replacement set.',
+        '- behaviorProfile and mannerisms are EVOLVING CURATED COLLECTIONS. Use null when unchanged; when revised, return the COMPLETE authoritative replacement set. Important Memories are different: for an EXISTING NPC, memories is a durable MERGE PATCH, not a whole-list replacement.',
         '- keyRelationships is counterpart-merge continuity, not a fragile whole-list replacement. Use null when unchanged. When a tie is newly established or materially revised, return only the affected canonical Other NPC - relationship entries; NPC State preserves omitted still-valid ties locally. Use keyRelationshipChanges only for an explicit supported removal.',
-        '- Replacement-array behavior applies to behaviorProfile, mannerisms, and memories. Key relationships instead merge by named counterpart so omission cannot silently erase family/friend/guardian continuity.',
+        '- Replacement-array behavior applies only to behaviorProfile and mannerisms. Important Memories merge semantically with stored memories, and key relationships merge by named counterpart, so omission cannot silently erase durable continuity.',
         '- Prefer current canonical truth, lasting importance, and future usefulness over chronology. Merge redundant or overlapping entries instead of keeping old and rewritten duplicates beside each other.',
-        '- Never exceed the configured limit for that collection. When full, a more important or more current entry should displace a lower-value one.',
-        '- For behaviorProfile, mannerisms, and memories, use [] only when evidence supports deliberately clearing the whole collection. For keyRelationships, [] means no relationship additions/changes; it never clears existing ties.',
+        '- Never exceed the configured limit for that collection. For Important Memories, preserve established entries and add distinct new memories only while capacity remains; a routine scan must never evict an older stored memory merely because the model omitted it.',
+        '- For behaviorProfile and mannerisms, use [] only when evidence supports deliberately clearing the whole collection. For an EXISTING NPC, memories: [] means no memory additions and NEVER clears stored memories. For keyRelationships, [] likewise means no additions/changes; it never clears existing ties.',
         '- Keep individual collection entries concise, grounded, and independently useful later.',
         '- MEMORY SEMANTIC HYGIENE: Important Memories represent distinct durable events/facts, not paraphrase logs. If two candidate memories describe the same event with the same participants/outcome, return one concise richest version. Do not merge merely because the same people or topic recur: rescue and later training, two different promises, or separate injuries remain separate memories.',
+        '- DURABLE IMPORTANT MEMORY MERGE: for an EXISTING NPC, return only newly established durable memories or a materially richer wording of an already stored event. Do not repeat the stored list merely to preserve it. Omitted entries remain stored locally; null or [] means no additions.',
         '- For significant NPC-to-NPC relationships, especially explicit family, kinship, spouse, guardian, or dependent ties, keyRelationships is mandatory dossier data. When such a tie is established, include the other NPC by name and the directional relationship from THIS NPC perspective in each involved NPC keyRelationships whenever that NPC has a returned dossier. socialEdges is complementary graph data and MUST NOT substitute for keyRelationships. For an EXISTING NPC, revealing or changing a significant tie is a material keyRelationships change: return the affected counterpart entry; omitted existing counterparts are preserved by NPC State. Remove an established tie only through keyRelationshipChanges with action remove and explicit evidence.',
         '- KeyRelationships entries MUST be strings, never objects. Use the canonical form Other NPC name - relationship from THIS NPC perspective, for example Mira - sister or Tomas - father. A short clarifying note may follow after a colon when useful.',
     ];
@@ -218,7 +219,7 @@ function dossierCollectionRules(limits) {
 
 export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', relationshipCaps = DEFAULT_RELATIONSHIP_CAPS, memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State v0.4.43 recovery scanner requires an assistant message and its preceding user exchange.');
+    if (!exchange) throw new Error('NPC State v0.4.44 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
@@ -244,7 +245,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         lifeStateUpdates: [{ id: 'existing NPC id when known, otherwise empty', name: 'canonical NPC name', lifeState: 'alive|dead|unknown', lifeStateCertainty: 'explicit|strong|uncertain', lifeStateReason: 'grounded current source span OR exact stored Status for terminal-status repair', livingReturn: false }],
     };
     return [
-        'You are NPC State v0.4.43, a private structured continuity scanner for a roleplay chat.',
+        'You are NPC State v0.4.44, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
         '',
         `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
@@ -345,7 +346,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         body: compactText(block?.body, 12000),
     }));
     return [
-        'You are NPC State v0.4.43 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
+        'You are NPC State v0.4.44 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
         'Return JSON only. This is reference-data reconciliation, NOT a current scene/event scan.',
         'Only the supplied Megumin New_NPC / NPC_Update blocks are authoritative sources for this operation.',
         'TARGET DOSSIER: ' + JSON.stringify(rosterForPrompt({ npcs: [npc] })[0]),
@@ -384,7 +385,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State v0.4.43 performing a targeted dossier reconciliation.',
+        'You are NPC State v0.4.44 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
@@ -436,7 +437,7 @@ function scannerNpcArrayValid(value) {
     });
 }
 function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupplemental = false, requireLifeStateUpdates = false } = {}) {
-    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.43 recovery scanner JSON must be an object.');
+    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.44 recovery scanner JSON must be an object.');
     const has = key => Object.prototype.hasOwnProperty.call(parsed, key);
     const presentKey = has('inChatNpcIds') ? 'inChatNpcIds' : (has('finalPresentNpcIds') ? 'finalPresentNpcIds' : '');
     if (requireContract) {
@@ -449,7 +450,7 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
         if (has('familyFacts') && !scannerObjectArrayValid(parsed.familyFacts)) invalid.push('familyFacts[object]');
         // PHASE74C_LIVE_LIFE_STATE_CONTRACT: live model consumers opt into mandatory lifecycle evaluation while the public parser stays fixture-compatible.
         if ((requireLifeStateUpdates || has('lifeStateUpdates')) && !scannerObjectArrayValid(parsed.lifeStateUpdates)) invalid.push('lifeStateUpdates[object]');
-        if (invalid.length) throw new Error('NPC State v0.4.43 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
+        if (invalid.length) throw new Error('NPC State v0.4.44 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
     }
     return {
         exchangeActiveNpcIds: uniqueStrings(parsed.exchangeActiveNpcIds),
@@ -464,14 +465,14 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
 
 export function parseScanJson(raw, { requireLifeStateUpdates = false } = {}) {
     const text = String(raw ?? '').trim();
-    if (!text) throw new Error('NPC State v0.4.43 recovery scanner returned an empty response.');
+    if (!text) throw new Error('NPC State v0.4.44 recovery scanner returned an empty response.');
     const unfenced = text.replace(/^\x60\x60\x60(?:json)?\s*/i, '').replace(/\s*\x60\x60\x60$/i, '').trim();
     const first = unfenced.indexOf('{');
     const last = unfenced.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('NPC State v0.4.43 recovery scanner returned no JSON object.');
+    if (first < 0 || last <= first) throw new Error('NPC State v0.4.44 recovery scanner returned no JSON object.');
     let parsed;
     try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
-    catch (error) { throw new Error('NPC State v0.4.43 recovery scanner returned malformed JSON: ' + error.message); }
+    catch (error) { throw new Error('NPC State v0.4.44 recovery scanner returned malformed JSON: ' + error.message); }
     return normalizeScanPayload(parsed, { requireContract: true, requireLifeStateUpdates });
 }
 
@@ -560,7 +561,7 @@ function preflightAutomaticIdentityPatches(state, patches = [], referenceCandida
                 // handled by automaticIdentityPatchConflicts() as a local patch rejection.
                 // A newly claimed key is a same-observation conflict and invalidates the payload.
                 if (!initialIdentityKeys.has(key)) {
-                    throw new Error('NPC State v0.4.43 scanner identity collision inside one observation: ' + value + '.');
+                    throw new Error('NPC State v0.4.44 scanner identity collision inside one observation: ' + value + '.');
                 }
             }
         }
@@ -1382,9 +1383,8 @@ function applyDynamicPatch(npc, patch, options = {}) {
     // applyRelationshipChange so a blocked/duplicate/unsupported event cannot rewrite it.
     if (Array.isArray(patch?.memories)) {
         const limits = normalizeDossierLimits(options.dossierLimits);
-        next.memories = options.supplementalPass === true
-            ? normalizeMemoryEntries([...(next.memories || []), ...patch.memories], limits.memories, 700)
-            : normalizeMemoryEntries(patch.memories, limits.memories, 700);
+        // PHASE90_DURABLE_IMPORTANT_MEMORY_MERGE: scanner output is an observation patch, not authority to erase omitted durable memories.
+        next.memories = normalizeMemoryEntries([...(next.memories || []), ...patch.memories], limits.memories, 700);
     }
     return next;
 }

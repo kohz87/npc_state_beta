@@ -8,9 +8,9 @@ const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
 const indexSource = fs.readFileSync('v03/index.js', 'utf8');
 const coordinatorSource = fs.readFileSync('v03/completeness-coordinator.js', 'utf8');
 
-assert.equal(manifest.version, '0.4.43', 'Manifest must be v0.4.43');
-assert(workflow.includes('name: Build NPC State 0.4.43 Beta'), 'Workflow title must be v0.4.43');
-assert(workflow.includes('for patch in $(seq 2 43); do'), 'Cold replay must include patch 43');
+assert(/^0\.4\.(?:4[3-9]|[5-9]\d|\d{3,})$/.test(manifest.version), 'Manifest must be v0.4.43+');
+assert(/name: Build NPC State 0\.4\.(?:4[3-9]|[5-9]\d|\d{3,}) Beta/.test(workflow), 'Workflow title must be v0.4.43+');
+assert(/for patch in \$\(seq 2 (?:4[3-9]|[5-9]\d|\d{3,})\); do/.test(workflow), 'Cold replay must include patch 43 or later');
 assert(workflow.includes("# node beta/bump-0.4.43.mjs ; -name 'phase*-0.4.43.mjs'"), 'Workflow must retain v0.4.43 source-parity marker');
 for (const path of [
     'beta/bump-0.4.43.mjs',
