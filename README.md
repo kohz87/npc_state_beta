@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.32
+# NPC State Beta 0.4.33
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -64,6 +64,14 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - v0.4.18 requires an explicit relationship evaluation for every exchange-active NPC. A scanner may still correctly decide that an ordinary interaction causes no relationship movement, but it must say so instead of silently omitting the relationship channel.
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
+
+## Grounded semantic life-state transitions
+
+- Life-state semantics are judged by the scanner model. The backend no longer maintains its own English death/living phrase grammar; instead it verifies that the model-provided life-state evidence is grounded in permitted current narrative or World_State text.
+- Confirmed scanner deaths accept the scanner contract's explicit or strong certainty levels, while uncertain proposals remain rejected. Rejected life-state proposals are retained in bounded lifeStateDiagnostics with a concrete reason such as missing evidence, unverifiable evidence, insufficient certainty, or missing living-return authorization.
+- Confirmed death uses one shared transition invariant: lifeState becomes dead, the dossier is archived immediately as deceased, presence/activity are cleared, and dossier/relationship history is preserved. Authoritative manual dossier updates use the same transition.
+- Normalization repairs legacy dead-but-unarchived dossiers into the same deceased archival invariant without deleting their dossier data.
+- livingReturn remains the required channel for reviving a previously confirmed-dead dossier, but its semantic interpretation is likewise left to the model while the backend verifies evidence provenance and certainty.
 
 ## Operation-context ownership and rollback replay continuity
 

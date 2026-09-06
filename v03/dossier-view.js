@@ -257,6 +257,21 @@ function relationshipHistoryHtml(npc = {}) {
     }).join('') + '</ol>';
 }
 
+function lifeStateDiagnosticsHtml(npc = {}) {
+    const rows = (Array.isArray(npc.lifeStateDiagnostics) ? npc.lifeStateDiagnostics : []).slice(-12).reverse();
+    if (!rows.length) return '<p class="npc-state-muted">No rejected life-state updates recorded.</p>';
+    return '<ol class="npc-state-v3-history-list">' + rows.map(event => {
+        const state = String(event?.proposedState || 'life-state update').trim();
+        const certainty = String(event?.certainty || '').trim();
+        const code = String(event?.code || 'rejected').trim();
+        const detail = String(event?.detail || 'Rejected by life-state validation.').trim();
+        const evidence = String(event?.evidence || '').replace(/\s+/g, ' ').trim();
+        return '<li><div><b>' + escapeHtml(code) + '</b><span>' + escapeHtml(state + (certainty ? ' · ' + certainty : '')) + '</span></div>'
+            + '<p>' + escapeHtml(detail) + '</p>'
+            + (evidence ? '<small>Evidence: ' + escapeHtml(evidence) + '</small>' : '') + '</li>';
+    }).join('') + '</ol>';
+}
+
 function relationshipDiagnosticsHtml(npc = {}) {
     const signed = value => (Number(value) > 0 ? '+' : '') + Number(value || 0);
     const axes = RELATIONSHIP_AXES.map(axis => {
@@ -375,6 +390,7 @@ export function dossierHtml(npc) {
             ${block('Key relationships', listHtml(npc.keyRelationships))}
             ${block('Important memories', listHtml(npc.memories, 'No persistent memories recorded yet.'), 'npc-state-v3-block-wide')}
             ${block('Background', paragraphHtml(npc.background), 'npc-state-v3-block-wide')}
+            ${block('Life-state diagnostics', lifeStateDiagnosticsHtml(npc), 'npc-state-v3-block-wide')}
             ${block('Recent relationship changes', relationshipHistoryHtml(npc), 'npc-state-v3-block-wide')}
             ${block('Relationship evaluation & scoring', relationshipDiagnosticsHtml(npc), 'npc-state-v3-block-wide')}
           </div>

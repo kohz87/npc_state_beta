@@ -1,4 +1,4 @@
-export const NPC_STATE_VERSION = '0.4.32';
+export const NPC_STATE_VERSION = '0.4.33';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     const number = Number(value);
@@ -605,6 +605,22 @@ export function normalizeRelationshipDiagnostics(value = []) {
     }));
 }
 
+export function normalizeLifeStateDiagnostics(value = []) {
+    return (Array.isArray(value) ? value : []).slice(-12).map(raw => ({
+        proposedState: ['alive', 'dead', 'unknown'].includes(String(raw?.proposedState || '').trim().toLocaleLowerCase())
+            ? String(raw.proposedState).trim().toLocaleLowerCase()
+            : '',
+        certainty: text(raw?.certainty, 80),
+        evidence: text(raw?.evidence, 1200),
+        code: text(raw?.code, 80),
+        detail: text(raw?.detail, 500),
+        livingReturn: raw?.livingReturn === true,
+        sourceMessageId: Number.isInteger(raw?.sourceMessageId) ? raw.sourceMessageId : null,
+        turn: Number.isInteger(raw?.turn) ? raw.turn : null,
+        at: Number(raw?.at) || null,
+    })).filter(item => item.code);
+}
+
 function normalizeMilestonePolarity(value) {
     const number = Number(value);
     return number > 0 ? 1 : (number < 0 ? -1 : 0);
@@ -747,13 +763,31 @@ export function emptyRelationshipChange() {
     };
 }
 
+export function applyConfirmedDeathTransition(input = {}, options = {}) {
+    const next = structuredClone(input && typeof input === 'object' ? input : {});
+    const alreadyDeceased = String(next.lifeState || '').trim().toLocaleLowerCase() === 'dead'
+        || (next.archived === true && String(next.archiveReason || '').trim().toLocaleLowerCase() === 'deceased');
+    const at = Number(options.at) || Date.now();
+    next.lifeState = 'dead';
+    next.lifeStateCertainty = text(options.certainty ?? next.lifeStateCertainty, 80) || 'explicit';
+    next.lifeStateReason = text(options.reason ?? next.lifeStateReason, 500);
+    next.archived = true;
+    next.archiveReason = 'deceased';
+    next.archivedAt = alreadyDeceased && Number(next.archivedAt) ? Number(next.archivedAt) : at;
+    next.present = false;
+    next.worldActive = false;
+    return next;
+}
+
 export function normalizeNpc(input = {}, options = {}) {
     const now = Number(options.now) || Date.now();
     const name = text(input.name || input.label || 'Unknown NPC', 120);
     const id = text(input.id, 160) || makeNpcId(name, options.nonce);
     const locked = new Set(list(input.manualProfileFields, STABLE_PROFILE_FIELDS.length, 80));
-    const archiveReason = text(input.archiveReason, 80);
-    const archived = input.archived === true;
+    const lifeState = ['alive', 'dead', 'unknown'].includes(String(input.lifeState)) ? String(input.lifeState) : 'unknown';
+    const confirmedDead = lifeState === 'dead';
+    const archiveReason = confirmedDead ? 'deceased' : text(input.archiveReason, 80);
+    const archived = confirmedDead || input.archived === true;
     const relationshipHistory = Array.isArray(input.relationshipHistory) ? input.relationshipHistory.slice(-24).map(item => ({
         ...normalizeRebaseRelationshipAudit(item),
         impact: ['none', 'ordinary', 'meaningful', 'major', 'extreme', 'manual'].includes(String(item?.impact)) ? String(item.impact) : 'ordinary',
@@ -803,6 +837,7 @@ export function normalizeNpc(input = {}, options = {}) {
         relationshipProgress,
         relationshipEvidenceHistory,
         relationshipDiagnostics: normalizeRelationshipDiagnostics(input.relationshipDiagnostics),
+        lifeStateDiagnostics: normalizeLifeStateDiagnostics(input.lifeStateDiagnostics),
         relationshipMilestones,
         relationshipSummary: text(input.relationshipSummary, 1000),
         relationshipHistory,
@@ -826,7 +861,7 @@ export function normalizeNpc(input = {}, options = {}) {
         status: normalizeCurrentStatus(input.status),
         present: archived ? false : input.present === true,
         worldActive: archived ? false : input.worldActive === true,
-        lifeState: ['alive', 'dead', 'unknown'].includes(String(input.lifeState)) ? String(input.lifeState) : 'unknown',
+        lifeState,
         lifeStateCertainty: text(input.lifeStateCertainty, 80),
         lifeStateReason: text(input.lifeStateReason, 500),
         archived,

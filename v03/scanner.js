@@ -11,6 +11,7 @@ import {
     RELATIONSHIP_MILESTONE_THRESHOLDS,
     STABLE_PROFILE_FIELDS,
     applyBirthdayFill,
+    applyConfirmedDeathTransition,
     applyRelationshipMilestoneCrossings,
     findNpcByReference,
     makeNpcId,
@@ -23,6 +24,7 @@ import {
     normalizeDossierLimits,
     normalizeFamilySlots,
     normalizeKeyRelationshipEntries,
+    normalizeLifeStateDiagnostics,
     normalizeMemoryEntries,
     normalizeName,
     normalizeNpc,
@@ -209,7 +211,7 @@ function dossierCollectionRules(limits) {
 
 export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', relationshipCaps = DEFAULT_RELATIONSHIP_CAPS, memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State v0.4.32 recovery scanner requires an assistant message and its preceding user exchange.');
+    if (!exchange) throw new Error('NPC State v0.4.33 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
@@ -234,7 +236,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         familyFacts: [{ owner: 'existing NPC id/name', relation: 'family/kinship role, e.g. daughter|parent|sister|brother|aunt|uncle|niece|nephew|cousin|grandparent|grandchild|spouse|guardian|ward|in-law', count: 2, members: ['explicitly named members from visible evidence; [] when unnamed'], descriptor: 'optional family detail e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit family/kinship fact' }],
     };
     return [
-        'You are NPC State v0.4.32, a private structured continuity scanner for a roleplay chat.',
+        'You are NPC State v0.4.33, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
         '',
         `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
@@ -274,8 +276,9 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- Existing form descriptions are sticky continuity facts. Never change an established form because later prose casually uses different dimensions, colors, anatomy, or proportions. Normally appearanceFormChanges requires an explicit CURRENT-exchange correction or real persistent physical change/growth/evolution. The only inferred exception is mode age_progression after an accepted birthday/elapsed ageChange and an authorized meaningful maturation interval, and it may touch only forms listed in ageProgression.affectedForms. Every revision still requires grounded transition/change evidence.',
         ...dossierCollectionRules(limits),
         '- Do not infer romance, obedience, hostility, personality, motives, secrets, age, species, or relationships without evidence.',
-        '- Confirmed death requires explicit current-timeline evidence. Ambiguous danger/injury is not death. lifeStateReason must state the concrete evidence and is backend-grounded against visible narrative or World_State.',
-        '- livingReturn is true only when a previously archived/dead dossier is explicitly alive, surviving, resurrected, or physically returned. It also requires a grounded lifeStateReason; merely outputting lifeState alive never resurrects a confirmed dead dossier.',
+        '- LIFE-STATE SEMANTICS: you are responsible for interpreting attribution, pronouns, indirect reports, negation, hypothetical language, and certainty. The backend validates lifeStateReason against permitted current narrative/World_State source text but does not reinterpret its English wording. Never propose dead from negated, hypothetical, merely dangerous, or uncertain evidence.',
+        '- Confirmed death: set lifeState dead only with grounded current-timeline evidence and lifeStateCertainty explicit or strong. lifeStateReason must quote or closely preserve a concrete permitted source span AND include enough of that span to bind the target NPC by canonical name, established alias, or safe unique short identity. For pronouns, include the nearby antecedent sentence in lifeStateReason. A confirmed death is archived immediately as deceased.',
+        '- livingReturn is true only when a previously archived/dead dossier is explicitly established alive again with lifeStateCertainty explicit or strong. Its grounded lifeStateReason must likewise contain enough source span to bind the target NPC; merely outputting lifeState alive never resurrects a confirmed dead dossier.',
         '- Stable scalar profile fields should contain only newly established or clearly supported facts. Omit/empty scalar fields rather than guessing.',
         '- DURABLE SCALAR CANON: established ordinary Appearance, Species, Background, Role, and Birthday are sticky. Do not restate them with a different value merely because wording drifts. Any real revision must include canonChanges with the same field/value plus grounded evidence. appearance refine adds compatible lasting detail; appearance change needs a lasting physical change; appearance age_progression is allowed only by the accepted birthday/elapsed maturation gate above; species accepts explicit correction/revelation or a genuine permanent species change; background accepts grounded refinement/revelation/correction; role change needs an actual promotion/reassignment/retirement/etc. Scanner importance is non-authoritative and must not be used to raise dossier priority.',
         '- DURABLE PROFILE EVOLUTION: a new NPC may establish grounded foundational personality/behavior/speech/mannerisms from its first rich scene. For an EXISTING established field, never rewrite personality, behaviorProfile, speech, or mannerisms merely because one scene looks different. Any genuine change requires a matching profileChanges entry with field, mode, stable concept label, and concrete evidence. refine adds compatible detail only and must not smuggle no-longer/became/increasingly transitions or morality flips. gradual development requires the same concept to be independently supported on a later scan. explicit requires narration that clearly establishes a lasting/corrective change. batch requires an actual narrated time skip plus development across that skipped period. A one-off gesture is not a permanent mannerism; mannerism seeding needs recurring/habit language or repeated confirmation.',
@@ -317,7 +320,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         body: compactText(block?.body, 12000),
     }));
     return [
-        'You are NPC State v0.4.32 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
+        'You are NPC State v0.4.33 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
         'Return JSON only. This is reference-data reconciliation, NOT a current scene/event scan.',
         'Only the supplied Megumin New_NPC / NPC_Update blocks are authoritative sources for this operation.',
         'TARGET DOSSIER: ' + JSON.stringify(rosterForPrompt({ npcs: [npc] })[0]),
@@ -356,7 +359,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State v0.4.32 performing a targeted dossier reconciliation.',
+        'You are NPC State v0.4.33 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
@@ -407,7 +410,7 @@ function scannerNpcArrayValid(value) {
     });
 }
 function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupplemental = false } = {}) {
-    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.32 recovery scanner JSON must be an object.');
+    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.33 recovery scanner JSON must be an object.');
     const has = key => Object.prototype.hasOwnProperty.call(parsed, key);
     const presentKey = has('inChatNpcIds') ? 'inChatNpcIds' : (has('finalPresentNpcIds') ? 'finalPresentNpcIds' : '');
     if (requireContract) {
@@ -418,7 +421,7 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
         if (!scannerNpcArrayValid(parsed.npcs)) invalid.push('npcs[object-with-string-identity]');
         if ((!allowOmittedSupplemental || has('socialEdges')) && !scannerObjectArrayValid(parsed.socialEdges)) invalid.push('socialEdges[object]');
         if (has('familyFacts') && !scannerObjectArrayValid(parsed.familyFacts)) invalid.push('familyFacts[object]');
-        if (invalid.length) throw new Error('NPC State v0.4.32 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
+        if (invalid.length) throw new Error('NPC State v0.4.33 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
     }
     return {
         exchangeActiveNpcIds: uniqueStrings(parsed.exchangeActiveNpcIds),
@@ -432,14 +435,14 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
 
 export function parseScanJson(raw) {
     const text = String(raw ?? '').trim();
-    if (!text) throw new Error('NPC State v0.4.32 recovery scanner returned an empty response.');
+    if (!text) throw new Error('NPC State v0.4.33 recovery scanner returned an empty response.');
     const unfenced = text.replace(/^\x60\x60\x60(?:json)?\s*/i, '').replace(/\s*\x60\x60\x60$/i, '').trim();
     const first = unfenced.indexOf('{');
     const last = unfenced.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('NPC State v0.4.32 recovery scanner returned no JSON object.');
+    if (first < 0 || last <= first) throw new Error('NPC State v0.4.33 recovery scanner returned no JSON object.');
     let parsed;
     try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
-    catch (error) { throw new Error('NPC State v0.4.32 recovery scanner returned malformed JSON: ' + error.message); }
+    catch (error) { throw new Error('NPC State v0.4.33 recovery scanner returned malformed JSON: ' + error.message); }
     return normalizeScanPayload(parsed, { requireContract: true });
 }
 
@@ -528,7 +531,7 @@ function preflightAutomaticIdentityPatches(state, patches = [], referenceCandida
                 // handled by automaticIdentityPatchConflicts() as a local patch rejection.
                 // A newly claimed key is a same-observation conflict and invalidates the payload.
                 if (!initialIdentityKeys.has(key)) {
-                    throw new Error('NPC State v0.4.32 scanner identity collision inside one observation: ' + value + '.');
+                    throw new Error('NPC State v0.4.33 scanner identity collision inside one observation: ' + value + '.');
                 }
             }
         }
@@ -1865,90 +1868,46 @@ function applyRelationshipChange(npc, patch, options = {}) {
     if (!reasons.length) reasons.push(relationshipStateChanged ? 'applied' : 'no-visible-change');
     return relationshipDiagnostic(npc, next, change, options, reasons, crossings);
 }
-const AFFIRMATIVE_DEATH_CUE = /\b(?:dies|died|dead|killed|slew|slain|murdered|lifeless|no pulse|stopped breathing|ceased breathing)\b/i;
-const AFFIRMATIVE_LIVING_CUE = /\b(?:alive|surviv(?:e|ed|es|ing)|resurrect(?:ed|s|ing)?|reviv(?:e|ed|es|ing)|not dead|was not dead|did not die|never died|returns? alive|returned alive|emerges? alive|emerged alive)\b/i;
-const LIFE_ASSERTION_BLOCKER = new Set(['if', 'unless', 'whether', 'might', 'may', 'could', 'would', 'will', 'shall', 'should', 'perhaps', 'possibly', 'maybe', 'likely', 'expected', 'expect', 'expects', 'predicted', 'predicts', 'almost', 'nearly', 'not', 'never']);
-function lifeEvidenceText(value) {
-    return String(value || '').normalize('NFKC')
-        .replace(/[’]/g, "'")
-        .replace(/\b(\w+)n['’]t\b/gi, '$1 not')
-        .replace(/\s+/g, ' ')
-        .trim();
+function lifeStateEvidenceGrounded(evidence, context) {
+    const proof = evidenceTextKey(evidence, 1600);
+    const source = evidenceTextKey(context, 30000);
+    // Life-state changes are high-impact continuity transitions. Unlike ordinary profile
+    // refinement, their evidence provenance must be source-span grounded rather than
+    // accepted by the broader fuzzy profile matcher. Semantic meaning remains model-owned.
+    return Boolean(proof && source && source.includes(proof));
 }
-function lifeEvidenceComparable(value) {
-    return lifeEvidenceText(value).toLocaleLowerCase();
+
+function lifeStateEvidenceTargetsNpc(state, npc, evidence) {
+    const proof = String(evidence || '').trim();
+    if (!proof) return false;
+    const variants = [npc?.name, ...(Array.isArray(npc?.aliases) ? npc.aliases : [])]
+        .map(value => String(value || '').trim()).filter(Boolean);
+    if (variants.some(value => containsNormalizedPhrase(proof, value))) return true;
+    // Multi-token canonical names may be referred to by a unique short identity already
+    // accepted by the general presence system. This is identity binding only; it does not
+    // infer death, survival, negation, attribution, or grammatical role.
+    return shortActivityIdentityCandidates(npc).some(candidate =>
+        shortActivityIdentityUnique(state, npc, candidate) && identityTokenMention(proof, candidate));
 }
-function lifeEvidenceKey(value) {
-    return lifeEvidenceComparable(value).replace(/[^\p{L}\p{N}\s]+/gu, ' ').replace(/\s+/g, ' ').trim();
+
+function lifeStateCertaintyConfirmed(value) {
+    return ['explicit', 'strong', 'confirmed'].includes(String(value || '').trim().toLocaleLowerCase());
 }
-function escapedLifeName(value) {
-    return lifeEvidenceKey(value).split(/\s+/).filter(Boolean)
-        .map(token => token.replace(/[.*+?^$()|[\]\\]/g, '\\$&')).join('\\s+');
-}
-function lifeAssertionBlocked(text, index) {
-    const prefix = text.slice(0, Math.max(0, index)).trim().split(/\s+/).filter(Boolean).slice(-6);
-    return prefix.some(word => LIFE_ASSERTION_BLOCKER.has(word.replace(/[^\p{L}\p{N}]+/gu, '')));
-}
-function clauseAssertsNpcLiving(clause, variant) {
-    const text = lifeEvidenceComparable(clause);
-    const name = escapedLifeName(variant);
-    if (!text || !name) return false;
-    const patterns = [
-        new RegExp('\\b' + name + '\\b\\s+(?:is|was|remains|remained|appears|appeared)\\s+(?:still\\s+)?alive\\b', 'i'),
-        new RegExp('\\b' + name + '\\b\\s+(?:(?:has|had)\\s+)?surviv(?:ed|es)\\b', 'i'),
-        new RegExp('\\b' + name + '\\b\\s+(?:is|was|has\\s+been|had\\s+been)\\s+(?:revived|resurrected)\\b', 'i'),
-        new RegExp('\\b' + name + '\\b\\s+(?:returns?|returned|emerges?|emerged)\\s+alive\\b', 'i'),
-        new RegExp('\\b' + name + '\\b\\s+(?:is|was)\\s+not\\s+dead\\b', 'i'),
-        new RegExp('\\b' + name + '\\b\\s+(?:did|does)\\s+not\\s+die\\b', 'i'),
-        new RegExp('\\b' + name + '\\b\\s+never\\s+died\\b', 'i'),
-    ];
-    for (const pattern of patterns) {
-        const match = pattern.exec(text);
-        if (match && !lifeAssertionBlocked(text, match.index || 0)) return true;
-    }
-    return false;
-}
-function clauseAssertsNpcDeath(clause, variant) {
-    const text = lifeEvidenceComparable(clause);
-    const name = escapedLifeName(variant);
-    if (!text || !name || clauseAssertsNpcLiving(clause, variant)) return false;
-    const patterns = [
-        new RegExp('\\b' + name + '\\b\\s+(?:(?:has|had)\\s+)?(?:died|dies)\\b', 'i'),
-        new RegExp('\\b' + name + '\\b\\s+(?:is|was|lay|lies|remained|remains|appeared|appears)\\s+(?:already\\s+)?(?:dead|lifeless)\\b', 'i'),
-        new RegExp('\\b' + name + '\\b\\s+(?:has|had)\\s+no\\s+pulse\\b', 'i'),
-        new RegExp('\\b' + name + '\\b\\s+(?:stopped|ceased)\\s+breathing\\b', 'i'),
-        new RegExp('\\b' + name + '\\b\\s+(?:was|is|has\\s+been|had\\s+been)\\s+(?:killed|slain|murdered)\\b', 'i'),
-        new RegExp("\\b(?:killed|slew|slain|murdered)\\s+(?:the\\s+)?" + name + "\\b(?!\\s*'s\\b)", 'i'),
-    ];
-    for (const pattern of patterns) {
-        const match = pattern.exec(text);
-        if (match && !lifeAssertionBlocked(text, match.index || 0)) return true;
-    }
-    return false;
-}
-function npcLifeVariants(npc) {
-    return [npc?.name, ...(npc?.aliases || [])].map(value => String(value || '').trim()).filter(Boolean);
-}
-function lifeEvidenceClauses(value) {
-    return lifeEvidenceText(value).split(/[.!?;\n]+|\b(?:but|however|although|yet)\b/i).map(item => item.trim()).filter(Boolean);
-}
-function affirmativeDeathEvidence(npc, evidence, context) {
-    const proof = lifeEvidenceText(evidence);
-    const variants = npcLifeVariants(npc);
-    if (!proof || !variants.length || !AFFIRMATIVE_DEATH_CUE.test(proof)) return false;
-    if (!variants.some(value => clauseAssertsNpcDeath(proof, value))) return false;
-    const clauses = lifeEvidenceClauses(context);
-    if (!clauses.length) return true;
-    return clauses.some(clause => variants.some(value => clauseAssertsNpcDeath(clause, value)) && profileEvidenceGrounded(proof, clause));
-}
-function affirmativeLivingReturnEvidence(npc, evidence, context) {
-    const proof = lifeEvidenceText(evidence);
-    const variants = npcLifeVariants(npc);
-    if (!proof || !variants.length || !AFFIRMATIVE_LIVING_CUE.test(proof)) return false;
-    if (!variants.some(value => clauseAssertsNpcLiving(proof, value))) return false;
-    const clauses = lifeEvidenceClauses(context);
-    if (!clauses.length) return true;
-    return clauses.some(clause => variants.some(value => clauseAssertsNpcLiving(clause, value)) && profileEvidenceGrounded(proof, clause));
+
+function lifeStateDiagnostic(npc, patch, options, code, detail) {
+    const next = structuredClone(npc);
+    next.lifeStateDiagnostics = normalizeLifeStateDiagnostics([...(next.lifeStateDiagnostics || []), {
+        proposedState: String(patch?.lifeState || '').trim().toLocaleLowerCase(),
+        certainty: String(patch?.lifeStateCertainty || '').trim(),
+        evidence: String(patch?.lifeStateReason || '').trim(),
+        code,
+        detail,
+        livingReturn: patch?.livingReturn === true,
+        sourceMessageId: Number.isInteger(options?.sourceMessageId) ? options.sourceMessageId : null,
+        turn: Number.isInteger(options?.turn) ? options.turn : null,
+        at: Date.now(),
+    }]);
+    return next;
 }
 
 
@@ -1961,16 +1920,19 @@ function applyLifeState(npc, patch, options = {}) {
     const lifeContext = policy?.detected
         ? [policy.visibleText, policy.worldStateText].filter(Boolean).join('\n')
         : String(options.profileContext || '');
-    const grounded = Boolean(reason && (!lifeContext.trim() || profileEvidenceGrounded(reason, lifeContext)));
-    const deathCue = affirmativeDeathEvidence(npc, reason, lifeContext);
-    const livingReturnCue = affirmativeLivingReturnEvidence(npc, reason, lifeContext);
+    const grounded = lifeStateEvidenceGrounded(reason, lifeContext);
+    const targeted = lifeStateEvidenceTargetsNpc(options.state, npc, reason);
     const wasDead = String(npc?.lifeState || '').toLocaleLowerCase() === 'dead'
         || (npc?.archived === true && String(npc?.archiveReason || '').toLocaleLowerCase() === 'deceased');
+    const reject = (code, detail) => lifeStateDiagnostic(next, patch, options, code, detail);
 
-    // A dead/archived dossier may return only through the explicit livingReturn channel,
-    // and that channel must point back to visible/world current-continuity evidence.
+    // The scanner model owns semantic interpretation. The backend verifies only that its
+    // evidence came from permitted source text and that a death judgment is sufficiently certain.
     if (patch?.livingReturn === true) {
-        if (!grounded || !livingReturnCue) return next;
+        if (!reason) return reject('missing-evidence', 'livingReturn requires grounded lifeStateReason evidence.');
+        if (!grounded) return reject('unverifiable-evidence', 'livingReturn evidence was not found as a permitted current narrative or World_State source span.');
+        if (!targeted) return reject('target-mismatch', 'livingReturn evidence does not bind this dossier to the cited source span.');
+        if (!lifeStateCertaintyConfirmed(certainty)) return reject('insufficient-certainty', 'livingReturn requires lifeStateCertainty explicit or strong.');
         next.archived = false;
         next.archiveReason = '';
         next.archivedAt = null;
@@ -1981,25 +1943,25 @@ function applyLifeState(npc, patch, options = {}) {
     }
 
     if (lifeState === 'dead') {
-        if (!['explicit', 'confirmed'].includes(certainty.toLocaleLowerCase()) || !grounded || !deathCue) return next;
-        next.lifeState = 'dead';
-        next.lifeStateCertainty = certainty;
-        next.lifeStateReason = reason;
-        next.archived = true;
-        next.archiveReason = 'deceased';
-        next.archivedAt = Date.now();
-        next.present = false;
-        next.worldActive = false;
-        return next;
+        if (!reason) return reject('missing-evidence', 'Confirmed death requires grounded lifeStateReason evidence.');
+        if (!grounded) return reject('unverifiable-evidence', 'Death evidence was not found as a permitted current narrative or World_State source span.');
+        if (!targeted) return reject('target-mismatch', 'Death evidence does not bind this dossier to the cited source span.');
+        if (!lifeStateCertaintyConfirmed(certainty)) return reject('insufficient-certainty', 'Confirmed death requires lifeStateCertainty explicit or strong.');
+        return applyConfirmedDeathTransition(next, { certainty, reason, at: Date.now() });
     }
 
     // Merely outputting alive must never resurrect a confirmed dead dossier.
-    if (lifeState === 'alive' && wasDead) return next;
-    if (['alive', 'unknown'].includes(lifeState) && grounded) {
+    if (lifeState === 'alive' && wasDead) return reject('living-return-required', 'A confirmed-dead dossier can return to alive only through livingReturn with grounded evidence.');
+    if (['alive', 'unknown'].includes(lifeState)) {
+        if (!reason) return reject('missing-evidence', 'Life-state updates require grounded lifeStateReason evidence.');
+        if (!grounded) return reject('unverifiable-evidence', 'Life-state evidence was not found as a permitted current narrative or World_State source span.');
+        if (!targeted) return reject('target-mismatch', 'Life-state evidence does not bind this dossier to the cited source span.');
         next.lifeState = lifeState;
         next.lifeStateCertainty = certainty;
         next.lifeStateReason = reason;
+        return next;
     }
+    if (lifeState) return reject('unsupported-state', 'Scanner proposed an unsupported lifeState value.');
     return next;
 }
 
@@ -2467,7 +2429,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         if (canPatch) {
             npc = applyStablePatch(npc, patch, { playerName, dossierLimits, isBootstrap: createdNpcIds.has(npc.id), profileContext: String(options.profileContext || ''), sourceMessageId, turn });
             npc = applyDynamicPatch(npc, patch, { dossierLimits });
-            npc = applyLifeState(npc, patch, options);
+            npc = applyLifeState(npc, patch, { ...options, state });
             if (applyRelationship && exchangeSet.has(npc.id)) npc = applyRelationshipChange(npc, patch, {
                 relationshipCaps: options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 relationshipContext: String(options.relationshipContext || ''),
@@ -2490,7 +2452,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             // Off-screen activity may update current whereabouts/status and explicit life-state
             // continuity, but never stable profile, memories, or relationship progression.
             npc = applyLivePatch(npc, patch);
-            npc = applyLifeState(npc, patch, options);
+            npc = applyLifeState(npc, patch, { ...options, state });
             npc.updatedAt = Math.max(Date.now(), Number(npc.updatedAt || 0) + 1);
         }
         if (applyRelationship && exchangeSet.has(npc.id) && !patch) {

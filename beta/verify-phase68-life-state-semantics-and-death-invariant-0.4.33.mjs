@@ -96,6 +96,28 @@ for (const [text, certainty] of [
     assert.equal(mira.lifeStateDiagnostics.at(-1)?.sourceMessageId, 6, 'Life-state diagnostic lost source message provenance');
 }
 
+// Shared-token fuzzy overlap must not count as life-state evidence provenance.
+{
+    const reason = 'Mira dies when the tower collapses.';
+    const state = applyScanResult(aliveState(), deathResult(reason, 'explicit'), {
+        sourceMessageId: 61, turn: 61, applyReturnedNpcPatches: true,
+        profileContext: 'Mira escapes the tower alive.',
+    }).state;
+    assert.equal(npc(state).lifeState, 'alive', 'Fuzzy token overlap accepted an ungrounded death');
+    assert.equal(npc(state).lifeStateDiagnostics.at(-1)?.code, 'unverifiable-evidence', 'Fuzzy-overlap rejection was not diagnosed');
+}
+
+// A perfectly grounded source span for another NPC must not mutate Mira. This is identity
+// binding, not semantic death interpretation.
+{
+    const state = applyScanResult(aliveState(), deathResult('Sora is deceased.', 'explicit'), {
+        sourceMessageId: 62, turn: 62, applyReturnedNpcPatches: true,
+        profileContext: 'Sora is deceased.',
+    }).state;
+    assert.equal(npc(state).lifeState, 'alive', 'Another NPC death evidence killed Mira');
+    assert.equal(npc(state).lifeStateDiagnostics.at(-1)?.code, 'target-mismatch', 'Cross-NPC death rejection was not diagnosed');
+}
+
 // The model owns semantic certainty too. Grounded but uncertain death is not a confirmed death.
 {
     const text = 'The messenger suspects Mira may have died during the night.';
@@ -111,19 +133,32 @@ for (const [text, certainty] of [
     let state = applyDeath('Mira is deceased.', 'explicit');
     state = applyScanResult(state, {
         exchangeActiveNpcIds: ['Mira'], inChatNpcIds: ['Mira'], worldActiveNpcIds: [],
-        npcs: [{ id: 'npc-mira-life', name: 'Mira', lifeState: 'alive', lifeStateCertainty: 'strong', lifeStateReason: 'The physician confirms she survived after all.', livingReturn: false }],
+        npcs: [{ id: 'npc-mira-life', name: 'Mira', lifeState: 'alive', lifeStateCertainty: 'strong', lifeStateReason: 'The physician examines Mira. He confirms she survived after all.', livingReturn: false }],
         socialEdges: [], familyFacts: [],
-    }, { sourceMessageId: 7, turn: 7, applyReturnedNpcPatches: true, profileContext: 'The physician confirms she survived after all.' }).state;
+    }, { sourceMessageId: 7, turn: 7, applyReturnedNpcPatches: true, profileContext: 'The physician examines Mira. He confirms she survived after all.' }).state;
     assert.equal(npc(state).lifeState, 'dead', 'Plain alive proposal resurrected a confirmed-dead dossier');
     assert.equal(npc(state).lifeStateDiagnostics.at(-1)?.code, 'living-return-required', 'Missing livingReturn rejection was not diagnosed');
 
     state = applyScanResult(state, {
         exchangeActiveNpcIds: ['Mira'], inChatNpcIds: ['Mira'], worldActiveNpcIds: [],
-        npcs: [{ id: 'npc-mira-life', name: 'Mira', lifeState: 'alive', lifeStateCertainty: 'strong', lifeStateReason: 'The physician confirms she survived after all.', livingReturn: true }],
+        npcs: [{ id: 'npc-mira-life', name: 'Mira', lifeState: 'alive', lifeStateCertainty: 'strong', lifeStateReason: 'The physician examines Mira. He confirms she survived after all.', livingReturn: true }],
         socialEdges: [], familyFacts: [],
-    }, { sourceMessageId: 8, turn: 8, applyReturnedNpcPatches: true, profileContext: 'The physician confirms she survived after all.' }).state;
+    }, { sourceMessageId: 8, turn: 8, applyReturnedNpcPatches: true, profileContext: 'The physician examines Mira. He confirms she survived after all.' }).state;
     assert.equal(npc(state).lifeState, 'alive', 'Grounded livingReturn was rejected');
     assert.equal(npc(state).archived, false, 'Grounded livingReturn remained archived');
+}
+
+// A target-bound but uncertain living-return judgment remains non-authoritative.
+{
+    let state = applyDeath('Mira is deceased.', 'explicit');
+    const reason = 'A physician examines Mira and says she may still be alive.';
+    state = applyScanResult(state, {
+        exchangeActiveNpcIds: ['Mira'], inChatNpcIds: ['Mira'], worldActiveNpcIds: [],
+        npcs: [{ id: 'npc-mira-life', name: 'Mira', lifeState: 'alive', lifeStateCertainty: 'uncertain', lifeStateReason: reason, livingReturn: true }],
+        socialEdges: [], familyFacts: [],
+    }, { sourceMessageId: 63, turn: 63, applyReturnedNpcPatches: true, profileContext: reason }).state;
+    assert.equal(npc(state).lifeState, 'dead', 'Uncertain living-return judgment was treated as authoritative');
+    assert.equal(npc(state).lifeStateDiagnostics.at(-1)?.code, 'insufficient-certainty', 'Uncertain living-return rejection was not diagnosed');
 }
 
 // Normalization is a defensive invariant for legacy or external paths: dead can never remain
@@ -229,6 +264,9 @@ assert(!scannerSource.includes('AFFIRMATIVE_DEATH_CUE'), 'Hardcoded death cue re
 assert(!scannerSource.includes('clauseAssertsNpcDeath'), 'Hardcoded death sentence parser still exists');
 assert(!scannerSource.includes('affirmativeDeathEvidence'), 'Hardcoded death semantic gate still exists');
 assert(scannerSource.includes('lifeStateEvidenceGrounded'), 'Grounded life-state evidence validator is missing');
+assert(scannerSource.includes('source.includes(proof)'), 'Life-state provenance still uses fuzzy profile grounding');
+assert(scannerSource.includes('lifeStateEvidenceTargetsNpc'), 'Life-state target identity binding is missing');
+assert(scannerSource.includes("reject('target-mismatch'"), 'Life-state target mismatch diagnostic is missing');
 assert(scannerSource.includes("['explicit', 'strong', 'confirmed']"), 'Scanner certainty contract is not aligned');
 
 console.log('NPC State v0.4.33 grounded life-state semantics and death invariant verified');

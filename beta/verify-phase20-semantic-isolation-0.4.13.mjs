@@ -38,7 +38,7 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
     assert.doesNotThrow(() => parseScanJson(JSON.stringify(payload({ npcs: [{ id: '', name: 'Mira', aliases: ['M'] }] }))));
 }
 
-// Living return must be target-specific and must not mistake "not alive" for positive life evidence.
+// Living return must be target-specific and sufficiently certain; wording semantics are model-owned.
 {
     const archived = createEmptyState('living-return-target');
     archived.npcs = [normalizeNpc({
@@ -53,11 +53,11 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
     assert.equal(otherAlive.npcs[0].archived, true, 'Another NPC living resurrected Mira');
     assert.equal(otherAlive.npcs[0].lifeState, 'dead');
 
-    const negatedAlive = apply(archived, {
+    const uncertainAlive = apply(archived, {
         id: 'npc-mira', name: 'Mira', livingReturn: true, lifeState: 'alive',
-        lifeStateCertainty: 'explicit', lifeStateReason: 'Mira is not alive.',
-    }, 'Mira is not alive.', 2);
-    assert.equal(negatedAlive.npcs[0].archived, true, 'Negated alive evidence resurrected Mira');
+        lifeStateCertainty: 'uncertain', lifeStateReason: 'Mira may still be alive.',
+    }, 'Mira may still be alive.', 2);
+    assert.equal(uncertainAlive.npcs[0].archived, true, 'Uncertain living-return evidence resurrected Mira');
 
     const returned = apply(archived, {
         id: 'npc-mira', name: 'Mira', livingReturn: true, lifeState: 'alive',
@@ -67,16 +67,16 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
     assert.equal(returned.npcs[0].lifeState, 'alive');
 }
 
-// Death target binding must preserve possessives and ignore another person's survival.
+// Death target binding rejects another identity's evidence and permits mixed target-bound source spans.
 {
     const base = createEmptyState('death-target-possessive');
     base.npcs = [normalizeNpc({ id: 'npc-mira', name: 'Mira', lifeState: 'alive' })];
 
-    const possessive = apply(base, {
+    const otherTarget = apply(base, {
         id: 'npc-mira', name: 'Mira', lifeState: 'dead', lifeStateCertainty: 'explicit',
-        lifeStateReason: "Lucien killed Mira's attacker.",
-    }, "Lucien killed Mira's attacker.", 1);
-    assert.equal(possessive.npcs[0].archived, false, 'Possessive owner was mistaken for the death victim');
+        lifeStateReason: 'Lucien killed Sora.',
+    }, 'Lucien killed Sora.', 1);
+    assert.equal(otherTarget.npcs[0].archived, false, 'Another NPC death evidence was applied to Mira');
 
     const mixed = apply(base, {
         id: 'npc-mira', name: 'Mira', lifeState: 'dead', lifeStateCertainty: 'explicit',

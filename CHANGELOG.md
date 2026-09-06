@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.33
+
+- Removes hardcoded English sentence-pattern gating from scanner life-state semantics. The model now interprets attribution, pronouns, indirect reports, negation, and death/living meaning while the backend validates the supplied evidence against permitted source text.
+- Aligns confirmed-death certainty with the scanner contract: explicit and strong grounded proposals may apply; uncertain proposals are rejected.
+- Adds bounded lifeStateDiagnostics so rejected scanner life-state proposals report why they were not applied instead of disappearing as silent no-ops.
+- Introduces one confirmed-death transition invariant shared by scanner and authoritative manual updates: immediately archive as deceased, clear presence/activity, preserve the dossier and relationship history, and retain the first deceased archival timestamp.
+- Repairs legacy dead-but-unarchived dossier states during normalization.
+- Adds behavioral regressions for indirect reports, possessive death wording, found-dead/deceased/passed-away/pronoun formulations, evidence provenance, uncertainty rejection, rejection diagnostics, manual death archival, legacy repair, and history preservation.
+
 ## v0.4.32
 
 - Binds queued manual dossier mutations to their originating chat and aborts them if chat ownership changes after queue acquisition/hydration or before mutation/checkpoint persistence.

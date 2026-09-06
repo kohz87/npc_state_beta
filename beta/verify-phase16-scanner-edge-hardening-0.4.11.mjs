@@ -56,13 +56,13 @@ assert.doesNotThrow(() => parseScanJson(JSON.stringify(payload())));
     assert.equal(next.npcs.find(npc => npc.id === 'npc-mira')?.appearance, 'Mira baseline.');
 }
 
-// Negated death cannot archive; affirmative target-attributed death can.
+// Life-state evidence for another NPC cannot archive Mira; target-bound confirmed death can.
 {
     const base = createEmptyState('death-negation');
     base.npcs = [normalizeNpc({ id: 'npc-mira', name: 'Mira', lifeState: 'alive' })];
     const denied = apply(base, {
-        id: 'npc-mira', name: 'Mira', lifeState: 'dead', lifeStateCertainty: 'explicit', lifeStateReason: 'Mira is not dead.',
-    }, 'Mira is not dead. She remains conscious.', 1);
+        id: 'npc-mira', name: 'Mira', lifeState: 'dead', lifeStateCertainty: 'explicit', lifeStateReason: 'Sora is dead.',
+    }, 'Sora is dead.', 1);
     assert.equal(denied.npcs[0].archived, false);
     assert.notEqual(denied.npcs[0].lifeState, 'dead');
 

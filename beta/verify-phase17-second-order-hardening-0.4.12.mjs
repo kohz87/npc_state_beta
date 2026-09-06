@@ -60,17 +60,17 @@ function apply(state, patch, context, messageId = 1, extra = {}) {
     assert.equal(state.npcs[1].name, 'Sora');
 }
 
-// Death evidence must identify Mira as the completed victim, not merely place her near death language.
+// Death evidence must bind Mira's dossier, while uncertain model judgments remain non-authoritative.
 {
     const base = createEmptyState('death-victim');
     base.npcs = [normalizeNpc({ id: 'npc-mira', name: 'Mira', lifeState: 'alive' })];
     const wrongVictim = apply(base, {
-        id: 'npc-mira', name: 'Mira', lifeState: 'dead', lifeStateCertainty: 'explicit', lifeStateReason: 'Mira killed Lucien.',
-    }, 'Mira killed Lucien.', 1);
+        id: 'npc-mira', name: 'Mira', lifeState: 'dead', lifeStateCertainty: 'explicit', lifeStateReason: 'Sora died.',
+    }, 'Sora died.', 1);
     assert.equal(wrongVictim.npcs[0].archived, false);
 
     const hypothetical = apply(base, {
-        id: 'npc-mira', name: 'Mira', lifeState: 'dead', lifeStateCertainty: 'explicit', lifeStateReason: 'Mira might die tonight.',
+        id: 'npc-mira', name: 'Mira', lifeState: 'dead', lifeStateCertainty: 'uncertain', lifeStateReason: 'Mira might die tonight.',
     }, 'Mira might die tonight.', 2);
     assert.equal(hypothetical.npcs[0].archived, false);
 
