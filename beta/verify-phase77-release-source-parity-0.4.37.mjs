@@ -20,6 +20,7 @@ assert(workflow.includes('npc-state-v3-toggle-diagnostics'), 'Architecture gate 
 for (const path of [
     'beta/bump-0.4.37.mjs',
     'beta/phase76-dossier-diagnostics-toggle-0.4.37.mjs',
+    'beta/phase76b-legacy-diagnostics-verifier-compat-0.4.37.mjs',
     'beta/verify-phase76-dossier-diagnostics-toggle-0.4.37.mjs',
     'beta/verify-phase77-release-source-parity-0.4.37.mjs',
 ]) assert(fs.existsSync(path), 'Missing v0.4.37 source-owned file: ' + path);
@@ -32,6 +33,12 @@ assert(uiSource.includes('dossierHtml(npc, { showDiagnostics })'), 'Runtime must
 assert(dossierSource.includes('dossierHtml(npc, { showDiagnostics = false } = {})'), 'Runtime dossier must default raw diagnostics hidden');
 assert(dossierSource.includes("showDiagnostics ? block('Life-state diagnostics'"), 'Life-state diagnostics must not render while hidden');
 assert(dossierSource.includes("showDiagnostics ? block('Relationship evaluation & scoring'"), 'Relationship diagnostics must not render while hidden');
+
+const phase12 = fs.readFileSync('beta/verify-phase12-relationship-recovery-0.4.7.mjs', 'utf8');
+const phase42 = fs.readFileSync('beta/verify-phase42-relationship-history-remarks-0.4.21.mjs', 'utf8');
+assert(phase12.includes('dossierHtml(npc(state), { showDiagnostics: true })'), 'Historical relationship diagnostics verifier must explicitly opt in');
+assert(phase42.includes('dossierHtml(npc, { showDiagnostics: true })'), 'Historical rejected-axis diagnostics verifier must explicitly opt in');
+
 assert(readme.includes('## Dossier diagnostics visibility'), 'README must document diagnostics visibility');
 assert(changelog.includes('## v0.4.37\n'), 'CHANGELOG must contain v0.4.37');
 
