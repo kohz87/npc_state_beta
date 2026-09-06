@@ -1,5 +1,6 @@
 import * as core from './scanner-core.js';
 import { normalizeNpcAdmissionMode } from './schema.js';
+import { adaptLegacySemanticPayload } from './model/legacy-semantic-adapter.js';
 import {
     applyModelLedFamilyFacts,
     applyModelLedSemanticUpdates,
@@ -70,10 +71,11 @@ export function newNpcAdmissionAllows(patch, mode = 'balanced') {
 
 export function applyScanResult(stateInput, resultInput, options = {}) {
     const parsed = typeof resultInput === 'string' ? parseScanJson(resultInput) : structuredClone(resultInput || {});
-    const prepared = prepareModelLedPayload(stateInput, parsed, options.admissionMode);
+    const adapted = adaptLegacySemanticPayload(stateInput, parsed, options);
+    const prepared = prepareModelLedPayload(stateInput, adapted, options.admissionMode);
     const applied = core.applyScanResult(stateInput, prepared, options);
-    const semantic = applyModelLedSemanticUpdates(applied.state, parsed, options);
-    const family = applyModelLedFamilyFacts(semantic.state, parsed, options);
+    const semantic = applyModelLedSemanticUpdates(applied.state, adapted, options);
+    const family = applyModelLedFamilyFacts(semantic.state, adapted, options);
     return {
         ...applied,
         state: family.state,
