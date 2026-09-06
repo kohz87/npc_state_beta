@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.39
+
+- Replaces Dossier Library full-sidecar reads with lightweight roster projections and a clone of only the selected NPC.
+- Keeps portrait data URLs out of roster projections; lazy cast portrait hydration requests one immutable source at a time from the engine cache.
+- Moves roster summary, inline in-chat cards, archive/delete lookup, and editor-open reads off the full `getState()` clone path.
+- Preserves the public full-state snapshot API and changes no scanner, lifecycle, relationship, recovery, branch, stale-management, or persistence semantics.
+
 ## v0.4.38
 
 - Removes the Dossier Library full-screen backdrop blur to avoid continuous page recompositing while the overlay is open.

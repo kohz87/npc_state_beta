@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.38
+# NPC State Beta 0.4.39
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -64,6 +64,13 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - v0.4.18 requires an explicit relationship evaluation for every exchange-active NPC. A scanner may still correctly decide that an ordinary interaction causes no relationship movement, but it must say so instead of silently omitting the relationship channel.
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
+
+## Dossier state projection performance
+
+- The Dossier Library no longer obtains a full cloned NPC State sidecar just to build its roster or open one dossier. It uses lightweight roster projections plus a clone of only the selected NPC.
+- Portrait data URLs are excluded from roster projections. Cast-card portraits request their immutable source only when a card approaches the visible rail, so opening/searching the library does not clone every stored portrait.
+- Roster summaries and inline in-chat cards use the same lightweight read path. The public full-state API remains available for compatibility.
+- These are read-path/runtime performance changes only. Scanner, lifecycle, relationship, recovery, branch, stale-management, and persistence semantics are unchanged.
 
 ## Dossier rendering performance
 

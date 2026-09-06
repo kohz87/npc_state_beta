@@ -48,7 +48,7 @@ import {
 } from './stale.js';
 import { clearV3PointerHint, createRecoveryV3Sidecar, deleteV3SidecarFile, readV3PointerHint, readV3Sidecar, retireV3Sidecar, writeV3Sidecar } from './storage.js';
 
-const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.38 recovery scanner. Obey the supplied schema and evidence rules exactly.';
+const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.39 recovery scanner. Obey the supplied schema and evidence rules exactly.';
 
 function profileContextForWindow(chat = [], messageId = null, depth = 8) {
     const end = Number.isInteger(messageId) ? Math.min(chat.length - 1, messageId) : chat.length - 1;
@@ -185,6 +185,33 @@ function defaultRecoverySessionId() {
     return 'recovery-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
 }
 
+// PHASE80_DOSSIER_STATE_PROJECTION: UI reads must not clone the whole sidecar.
+export function dossierIndexProjection(npc = {}) {
+    const portrait = npc?.portrait && typeof npc.portrait === 'object' ? npc.portrait : {};
+    return {
+        id: String(npc?.id || ''),
+        name: String(npc?.name || ''),
+        aliases: Array.isArray(npc?.aliases) ? npc.aliases.map(value => String(value || '')).filter(Boolean) : [],
+        role: String(npc?.role || ''),
+        species: String(npc?.species || ''),
+        age: String(npc?.age ?? ''),
+        apparentAge: String(npc?.apparentAge ?? ''),
+        birthday: String(npc?.birthday ?? ''),
+        present: npc?.present === true,
+        worldActive: npc?.worldActive === true,
+        archived: npc?.archived === true,
+        archiveReason: String(npc?.archiveReason || ''),
+        lifeState: String(npc?.lifeState || 'unknown'),
+        minor: npc?.minor === true,
+        portraitAvailable: Boolean(String(portrait.dataUrl || portrait.url || portrait.src || '').trim()),
+    };
+}
+
+function npcPortraitSource(npc = {}) {
+    const portrait = npc?.portrait && typeof npc.portrait === 'object' ? npc.portrait : {};
+    return String(portrait.dataUrl || portrait.url || portrait.src || '').trim();
+}
+
 export function createNpcStateEngine(adapters = {}) {
     const cache = new Map();
     const hydration = new Map();
@@ -244,7 +271,7 @@ export function createNpcStateEngine(adapters = {}) {
     }
 
     if (typeof getContext !== 'function' || typeof getChatKey !== 'function' || typeof getSettings !== 'function' || typeof generate !== 'function') {
-        throw new Error('NPC State v0.4.38 engine requires getContext, getChatKey, getSettings, and generate adapters.');
+        throw new Error('NPC State v0.4.39 engine requires getContext, getChatKey, getSettings, and generate adapters.');
     }
 
     function epoch(chatKey) { return operationEpoch.get(chatKey) || 0; }
@@ -383,7 +410,7 @@ export function createNpcStateEngine(adapters = {}) {
             if (importedStable || fingerprintUpgraded || recoveryInterrupted) {
                 state = await persist(chatKey, state);
                 if (importedStable) {
-                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.38 beta sidecar. Stable data was not modified.');
+                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.39 beta sidecar. Stable data was not modified.');
                 } else if (fingerprintUpgraded) {
                     notify('info', 'Upgraded branch checkpoint fingerprints for transport-safe, swipe-index-independent rollback. Existing dossiers were preserved; old rollback hashes were reset once.');
                 } else if (recoveryInterrupted) {
@@ -1749,6 +1776,30 @@ export function createNpcStateEngine(adapters = {}) {
         return result;
     }
 
+    function getDossierIndex(chatKey = getChatKey()) {
+        const key = chatKey || getChatKey();
+        const current = cache.get(key);
+        return current ? (current.npcs || []).map(dossierIndexProjection) : null;
+    }
+
+    function getDossierNpc(reference, chatKey = getChatKey()) {
+        const key = chatKey || getChatKey();
+        const current = cache.get(key);
+        if (!current) return null;
+        const raw = String(reference || '');
+        const npc = (current.npcs || []).find(item => item?.id === raw) || findNpcByReference(current, raw);
+        return npc ? structuredClone(npc) : null;
+    }
+
+    function getNpcPortraitSource(reference, chatKey = getChatKey()) {
+        const key = chatKey || getChatKey();
+        const current = cache.get(key);
+        if (!current) return '';
+        const raw = String(reference || '');
+        const npc = (current.npcs || []).find(item => item?.id === raw) || findNpcByReference(current, raw);
+        return npcPortraitSource(npc);
+    }
+
     return Object.freeze({
         loadChat,
         scan,
@@ -1776,6 +1827,10 @@ export function createNpcStateEngine(adapters = {}) {
         renameChatKey,
         deleteChatKey,
         invalidate,
+        getDossierIndex,
+        getDossierNpc,
+        getNpcPortraitSource,
+        // Full immutable state snapshots remain available for compatibility/debugging.
         getState: chatKey => cache.has(chatKey || getChatKey()) ? structuredClone(cache.get(chatKey || getChatKey())) : null,
         hydrationStatus: chatKey => hydration.get(chatKey || getChatKey()) || { status: cache.has(chatKey || getChatKey()) ? 'ready' : 'unloaded', error: null },
         recoveryStatus: chatKey => {

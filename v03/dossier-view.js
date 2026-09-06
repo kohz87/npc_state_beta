@@ -62,8 +62,9 @@ export function filterDossierNpcs(npcs = [], query = '') {
 
 function portraitHtml(npc, className, { decorative = false, deferSource = false } = {}) {
     const src = portraitSource(npc);
+    const available = Boolean(src || npc?.portraitAvailable);
+    if (available && deferSource) return '<img class="' + className + ' npc-state-v3-deferred-portrait" alt="' + (decorative ? '' : escapeHtml(npc?.name || 'NPC') + ' portrait') + '" loading="lazy" decoding="async">';
     if (src) {
-        if (deferSource) return '<img class="' + className + ' npc-state-v3-deferred-portrait" alt="' + (decorative ? '' : escapeHtml(npc?.name || 'NPC') + ' portrait') + '" loading="lazy" decoding="async">';
         return `<img class="${className}" src="${escapeHtml(src)}" alt="${decorative ? '' : `${escapeHtml(npc?.name || 'NPC')} portrait`}">`;
     }
     const initial = escapeHtml(String(npc?.name || '?').charAt(0).toUpperCase() || '?');
