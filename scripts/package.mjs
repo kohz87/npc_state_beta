@@ -7,7 +7,7 @@ const dist = path.join(root, 'dist');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
 const packageRoot = `npc_state_beta-${manifest.version}`;
 const archivePath = path.join(dist, `${packageRoot}.zip`);
-const roots = ['bootstrap.js', 'manifest.json', 'LICENSE', 'README.md', 'CHANGELOG.md', 'src'];
+const roots = ['bootstrap.js', 'manifest.json', 'LICENSE', 'README.md', 'CHANGELOG.md', 'DEVELOPMENT.md', 'src'];
 
 function crc32(buffer) {
     let crc = 0xffffffff;
@@ -24,10 +24,7 @@ function collect(relative, out = []) {
     if (stat.isDirectory()) {
         for (const name of fs.readdirSync(absolute).sort()) collect(path.join(relative, name), out);
     } else {
-        out.push({
-            name: `${packageRoot}/${relative.split(path.sep).join('/')}`,
-            data: fs.readFileSync(absolute),
-        });
+        out.push({ name: `${packageRoot}/${relative.split(path.sep).join('/')}`, data: fs.readFileSync(absolute) });
     }
     return out;
 }

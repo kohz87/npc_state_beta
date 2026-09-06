@@ -21,7 +21,7 @@ function relevantDossiers(state = {}) {
 }
 
 export function buildInjection(state, settings = {}) {
-    const base = core.buildInjection(state, settings);
+    const base = core.buildInjection(state, settings).replaceAll('v0.4.44', 'v0.5.0');
     if (!base || settings.autoScan === false) return base;
     return [
         base,

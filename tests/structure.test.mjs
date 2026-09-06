@@ -28,10 +28,14 @@ test('extension entry paths stay valid at SillyTavern nesting depth', () => {
     assert.match(read('src/index.js'), /\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/script\.js/);
 });
 
-test('release, persisted schema, and settings schema remain independent concepts', () => {
+test('release, persisted schema, model contract, and settings schema remain independent concepts', () => {
+    const manifest = JSON.parse(read('manifest.json'));
     const schema = read('src/schema.js');
+    const semantic = read('src/model/semantic-updates.js');
     const index = read('src/index.js');
-    assert.match(schema, /NPC_STATE_VERSION = '0\.4\.44'/);
+    assert.equal(manifest.version, '0.5.0');
+    assert.match(schema, /NPC_STATE_VERSION = '0\.5\.0'/);
     assert.match(schema, /NPC_STATE_SCHEMA_VERSION = 1/);
+    assert.match(semantic, /NPC_STATE_MODEL_CONTRACT_VERSION = 2/);
     assert.match(index, /const SETTINGS_SCHEMA = 1/);
 });

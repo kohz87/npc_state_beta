@@ -7,6 +7,6 @@
     "js": "bootstrap.js",
     "css": "src/style.css",
     "author": "kohz87",
-    "version": "0.4.44",
+    "version": "0.5.0",
     "minimum_client_version": "1.18.0"
 }

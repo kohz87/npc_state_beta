@@ -17,6 +17,10 @@ function nonSystemIds(chat = [], through = null, limit = 30) {
     return out.slice(-Math.max(2, Math.min(60, Number(limit) || 30)));
 }
 
+function released(text) {
+    return String(text || '').replaceAll('v0.4.44', 'v0.5.0');
+}
+
 function semanticAppend({ npcs = [], mode = 'scan', sourceIds = [] } = {}) {
     return [
         semanticUpdatePrompt({ npcs, mode, allowedSourceIds: sourceIds }),
@@ -26,25 +30,25 @@ function semanticAppend({ npcs = [], mode = 'scan', sourceIds = [] } = {}) {
 }
 
 export function buildScanPrompt(args = {}) {
-    const base = core.buildScanPrompt(args);
+    const base = released(core.buildScanPrompt(args));
     const ids = nonSystemIds(args.chat || [], args.assistantMessageId, Math.max(4, Number(args.scanDepth) || 8) + 2);
     return `${base}\n\n${semanticAppend({ npcs: args.state?.npcs || [], mode: 'scan', sourceIds: ids })}`;
 }
 
 export function buildCompletenessPrompt(args = {}) {
-    const base = core.buildCompletenessPrompt(args);
+    const base = released(core.buildCompletenessPrompt(args));
     const ids = nonSystemIds(args.chat || [], args.assistantMessageId, Math.max(4, Number(args.scanDepth) || 8) + 2);
     return `${base}\n\n${semanticAppend({ npcs: args.state?.npcs || [], mode: 'completeness', sourceIds: ids })}`;
 }
 
 export function buildTargetedRefreshPrompt(args = {}) {
-    const base = core.buildTargetedRefreshPrompt(args);
+    const base = released(core.buildTargetedRefreshPrompt(args));
     const ids = nonSystemIds(args.chat || [], args.assistantMessageId, Math.max(2, Math.min(30, Math.round(Number(args.scanDepth) || 12))));
     return `${base}\n\n${semanticAppend({ npcs: args.npc ? [args.npc] : [], mode: 'refresh', sourceIds: ids })}`;
 }
 
 export function buildStructuredDossierImportPrompt(args = {}) {
-    const base = core.buildStructuredDossierImportPrompt(args);
+    const base = released(core.buildStructuredDossierImportPrompt(args));
     const ids = (Array.isArray(args.blocks) ? args.blocks : []).map(block => block?.messageId).filter(Number.isInteger);
     return `${base}\n\n${semanticAppend({ npcs: args.npc ? [args.npc] : [], mode: 'structured-import', sourceIds: ids })}`;
 }

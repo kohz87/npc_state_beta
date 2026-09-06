@@ -1,0 +1,453 @@
+# Changelog
+
+## v0.4.44
+
+- Fixes Important Memories being silently replaced or cleared on ordinary existing-NPC scans when the model returned only the current memory subset or the schema-default `memories: []`.
+- Existing NPC memories now merge durably: omitted memories persist, distinct new memories fill remaining configured capacity, and richer semantic duplicates may refine the stored wording without spending another slot.
+- Keeps semantic duplicate hygiene and configured memory limits while preventing routine foreground/recovery scans from resetting the collection.
+- Leaves new-NPC memory bootstrap, relationship scoring, lifecycle semantics, presence, profile evolution, and recovery/rebase behavior unchanged.
+
+## v0.4.43
+
+- Fixes the disabled **Scan after each response** path so an ordinary embedded digest does not perform post-response completion bookkeeping or a second message/UI mutation.
+- Persists completion metadata with chat-save only instead of updateMessageBlock(), preventing metadata-only NPC State bookkeeping from tearing down freshly rendered Megumin Suite block cards.
+- Keeps duplicate completed-response events deduplicated in memory while the optional completeness pass is off, without launching another embedded digest or separate scanner request.
+- Leaves the ordinary embedded digest, enabled completeness request, recovery scans, relationship scoring, lifecycle semantics, and branch/recovery behavior unchanged.
+
+## v0.4.42
+
+- Adds an optional NPC scan Connection Profile selector for all separate scanner requests and JSON retries while leaving normal roleplay generation on the main SillyTavern connection.
+- Adds an opt-in post-response dossier completeness pass, off by default, that supplements successful embedded updates and suppresses itself when a full recovery scan already covered the response.
+- Adds same-exchange safety for completeness: no relationship replay, narrative-turn advancement, stale aging, duplicate seen counters, or same-message gradual-progression credit; supplemental collections merge instead of erasing valid dossier state.
+- Adds durable per-message/swipe completion deduplication and stale-result guards for chat/source changes, reset/rebuild, manual scans, refresh/import, and concurrent user/editor mutations.
+- Missing, unsupported, changed, or failing explicitly selected Connection Profiles fail safely with no silent fallback to the main model.
+
+## v0.4.41
+
+- Breaks a self-triggering settings MutationObserver loop by guarding Relationship Rubric and Memory Rubric label writes with equality checks.
+- Adds a lightweight branch-safety status read for recovery/rebase overlays instead of cloning the complete NPC State sidecar.
+- Treats a null recovery-status result as authoritative no-active-recovery state instead of falling back to another full-state snapshot.
+- Changes no scanner, lifecycle, relationship, branch/recovery, admission, dossier, or persistence semantics.
+
+## v0.4.40
+
+- Adds an injection-specific immutable state projection so normal foreground prompt refreshes never clone portrait payloads, checkpoint/rebase snapshots, diagnostics, or relationship audit history.
+- Avoids the engine state-change snapshot clone in the installed runtime callback while retaining snapshot delivery as the engine default for compatibility.
+- Makes the in-chat NPC strip idempotent across repeated MESSAGE_UPDATED events and uses async/lazy image decoding when it must rebuild.
+- Removes redundant post-persist surface refreshes from successful embedded and separate recovery scan paths.
+- Changes no scanner, lifecycle, relationship, branch/recovery, stale-management, admission, or persistence semantics.
+
+## v0.4.39
+
+- Replaces Dossier Library full-sidecar reads with lightweight roster projections and a clone of only the selected NPC.
+- Keeps portrait data URLs out of roster projections; lazy cast portrait hydration requests one immutable source at a time from the engine cache.
+- Moves roster summary, inline in-chat cards, archive/delete lookup, and editor-open reads off the full `getState()` clone path.
+- Preserves the public full-state snapshot API and changes no scanner, lifecycle, relationship, recovery, branch, stale-management, or persistence semantics.
+
+## v0.4.38
+
+- Removes the Dossier Library full-screen backdrop blur to avoid continuous page recompositing while the overlay is open.
+- Defers cast-rail portrait sources and hydrates only nearby cards, preventing large portrait data URLs from being duplicated into the initial rail HTML.
+- Separates rail-only and detail-only dossier rerenders, delegates cast-card selection, and frame-coalesces search updates.
+- Keeps diagnostics hidden-by-default behavior from v0.4.37 and changes no scanner, lifecycle, relationship, recovery, or persistence semantics.
+
+## v0.4.37
+
+- Adds a persistent Show dossier diagnostics toggle, off by default.
+- Adds a matching quick toggle in the dossier More menu.
+- When hidden, life-state and relationship-scoring diagnostic blocks are not rendered into the dossier DOM; diagnostic state is still retained and Recent relationship changes remains visible.
+- No scanner, lifecycle, relationship scoring, admission, or stale-management semantics changed.
+
+## v0.4.36
+
+- Adds a dedicated lifeStateUpdates scanner channel so terminal lifecycle repairs are not lost when an otherwise inactive NPC is omitted from the ordinary npcs patch list.
+- Makes stored terminal Status reconciliation mandatory in foreground, recovery, and targeted-refresh prompts, including explicitly deceased irreversible dissolution/destruction while preserving the model-owned semantic boundary.
+- Adds manual Life state editing to the dossier editor. Dead archives immediately as deceased; Alive/Unknown can recover a deceased dossier while leaving unrelated manual/stale archives untouched.
+- Adds lifecycle/manual-recovery regressions and cold-build release parity. Relationship, scoring, admission, and stale-management policy are unchanged.
+
+## v0.4.35
+
+- Fixes Advanced Recovery / Force Timeline Rebase controls overflowing or clipping at ordinary settings-drawer widths.
+- Gives the force-rebase row a dedicated single-column content layout instead of inheriting the generic horizontal settings-row flex contract.
+- Recovery actions now use a bounded responsive grid; buttons are full-width within their grid cells and long labels wrap safely.
+- Narrow viewports stack the preserve and rollback actions vertically. No recovery, rebase, relationship, or lifecycle semantics changed.
+
+## v0.4.34
+
+- Fixes legacy/current dossiers whose stored activity/condition already describes terminal death or irreversible dissolution while lifeState/worldActive still says alive/off-screen.
+- Exposes Status plus Life state to foreground, recovery, and targeted scanner continuity so the model can see and reconcile the contradiction.
+- Adds a narrow dossier-scoped evidence path: an explicit/strong dead proposal may use the exact existing Status string as evidence for legacy death repair, while the backend still performs no English death-word parsing.
+- Stored Status is never valid evidence for livingReturn or dead-to-alive changes.
+- Reconciled deaths immediately use the shared deceased archival transition, clearing in-chat/off-screen activity while preserving dossier and relationship history.
+- Adds regressions for dissolved-to-mana, deceased-and-absorbed, slain-corpse conditions, worldActive conflict resolution, exact-status provenance, and resurrection isolation.
+
+## v0.4.33
+
+- Removes hardcoded English sentence-pattern gating from scanner life-state semantics. The model now interprets attribution, pronouns, indirect reports, negation, and death/living meaning while the backend validates the supplied evidence against permitted source text.
+- Aligns confirmed-death certainty with the scanner contract: explicit and strong grounded proposals may apply; uncertain proposals are rejected.
+- Adds bounded lifeStateDiagnostics so rejected scanner life-state proposals report why they were not applied instead of disappearing as silent no-ops.
+- Introduces one confirmed-death transition invariant shared by scanner and authoritative manual updates: immediately archive as deceased, clear presence/activity, preserve the dossier and relationship history, and retain the first deceased archival timestamp.
+- Repairs legacy dead-but-unarchived dossier states during normalization.
+- Adds behavioral regressions for indirect reports, possessive death wording, found-dead/deceased/passed-away/pronoun formulations, evidence provenance, uncertainty rejection, rejection diagnostics, manual death archival, legacy repair, and history preservation.
+
+## v0.4.32
+
+- Binds queued manual dossier mutations to their originating chat and aborts them if chat ownership changes after queue acquisition/hydration or before mutation/checkpoint persistence.
+- Passes the originating chat context into manual add/edit/restore/staleness mutation logic so another visible chat can never supply checkpoint lineage or source-message metadata for the origin chat.
+- Retains the longest still-valid accepted relationship replay boundary when switching from preserve rebase to explicit rollback, preventing accepted old exchanges from being scored again during rollback refresh.
+- Keeps genuinely uncounted exchanges beyond the retained boundary eligible for normal relationship progression, including repeated dialogue in a later exchange.
+- Adds focused engine regressions for queued manual-edit chat switching, hydration-time switching, preserve-to-rollback replay suppression, failed-preserve-to-rollback suppression, boundary truncation, and new post-boundary progression.
+- Leaves relationship keyword policy, semantic judgment, inertia, caps, fractional progression, and milestone behavior unchanged.
+
+## v0.4.31
+
+- Publishes unsafe branch state to the live cache before persistence so `rebase-required` immediately blocks scans/injection/UI, including when the sidecar write fails.
+- Binds queued rebase and rollback preview to their originating chat and rechecks ownership after queue/load and before commit or follow-up refresh.
+- Persists an accepted relationship replay boundary for preserve-mode rebase, preventing the same accepted exchanges from scoring again after failed refresh, manual retry, or reload while allowing genuinely new exchanges to progress normally.
+- Preserves `rebaseBackup` across checkpoint rollback so branch restoration cannot erase the latest pre-rebase recovery snapshot.
+- Adds engine-level regressions for unsafe-state publication, persistence failure, queued chat switching, preview chat switching, replay protection across failure/reload, new post-boundary events, and backup retention.
+- Leaves relationship keyword policy, semantic judgment, inertia, caps, fractional progression, and milestone behavior unchanged.
+
+## v0.4.30
+
+- Separates timeline acceptance from relationship rollback. Preserve mode is now the safe default; rollback is an explicit alternative.
+- Preserve mode keeps relationship meters, fractional progress, milestones, history, the last relationship change, and relationship summaries intact across timeline rebase.
+- Retains relationship evidence and diagnostics as accepted pre-rebase audit history while quarantining stale message and source-event provenance from the newly accepted timeline.
+- Adds a rollback impact preview and saves a restorable pre-rebase snapshot before either rebase mode is persisted.
+- Prevents the immediate preserve-mode refresh from applying relationship movement again, closing duplicate-award cases after scan-marker or timeline resets.
+- Replaces the ambiguous rebase action with **Keep NPC state and accept timeline** and **Roll back discarded story changes**, including matching Advanced Recovery guidance.
+- Adds preserve/rollback regression coverage and replay-safe legacy verifier compatibility so repeated cold builds remain deterministic.
+
+## v0.4.29
+
+- Binds historical reconstruction to its originating chat before planning, generation, suffix validation, and completion; switching chats pauses the original run without consuming or replanning against the other chat.
+- Adds persisted recovery session ownership with an expiring lease so a second tab observes an active run instead of immediately pausing it as an interrupted reload.
+- Makes cancellation outrank pending-generation failures and releases recovery ownership on pause, failure, cancellation, stale history, and completion.
+- Rejects invalid custom message ranges before sidecar replacement and previews the exact selected assistant-exchange count in the recovery UI.
+- Replaces quotation-text-wide relationship duplicate suppression with source-event identity, preserving same-event replay protection while allowing identical wording in distinct exchanges.
+- Adds multi-chat, multi-instance, cancellation-failure, range-validation, and relationship-event regression coverage while preserving milestones, inertia, caps, and LLM semantic judgment.
+
+## v0.4.28
+
+- Adds explicit missing-sidecar fresh initialization and a resumable chronological reconstruction coordinator that never exposes future chat messages to earlier historical scans.
+- Persists rebuild range, relationship mode, message plan, lineage fingerprints, progress, failure state, pause/cancel state, and completion state in the replacement sidecar.
+- Adds two relationship recovery modes: start meters fresh while rebuilding all other dossier state, or re-evaluate history with the existing relationship evidence/progression engine unchanged.
+- Defers stale deletion until reconstruction completion, blocks ordinary writes while recovery chronology is incomplete, and safely replans only the unprocessed suffix after chat edits.
+- Extends Recovery & Branch Safety with missing-file recovery, all/latest/custom range selection, progress, resume, pause, cancel, and rebuild controls.
+- Fixes source/build consistency by committing every verifier fixture changed by cold transforms and checking the committed 0.4.28 checkout before regenerating from the pinned stable baseline.
+
+## v0.4.27
+
+- Makes new-NPC identity and presence grounding source-agnostic: plain visible narrative is sufficient, with exact current-visible identity/activity evidence available for indirect semantic binding.
+- Separates Megumin World_State NPCs Present and Off-Screen corroboration so names listed as present cannot be accepted as off-screen world activity merely because they occur somewhere in the structured block.
+- Allows a publicly grounded short proper-name anchor to enrich to one unique compatible World_State canonical name while continuing to reject structured-only identities, ambiguous anchors, private-only references, and unsupported surnames.
+- Makes in-chat and world-active mutually exclusive final states, preserves the v0.4.24 short-name bridge, and leaves relationship scoring/progression, family projection, saved state, and historical scores unchanged.
+
+## v0.4.26
+
+- Generalizes named family projection beyond child/parent facts to direct siblings, aunts/uncles, nieces/nephews, cousins, grandparents/grandchildren, spouses, guardians/wards, and common in-law ties.
+- Adds conservative reciprocal Key relationships for relatives that already have dossiers while avoiding gender guesses when the inverse role is not established.
+- Preserves v0.4.25 named-member evidence boundaries, no-placeholder admission behavior, manual Key relationships locks, ambiguous-name fail-closed resolution, and existing twin/sibling inference.
+
+## v0.4.25
+
+- Fixes explicit named family facts such as twin daughters being retained as countable family slots while failing to appear in the owner dossier Key relationships.
+- Adds optional named members to family facts and deterministically projects grounded member names into the owner keyRelationships without creating placeholder NPC dossiers.
+- Preserves unnamed-family slot behavior, manual key-relationship locks, evidence boundaries, counterpart merge semantics, and conservative sibling/twin resolution.
+
+## v0.4.24
+
+- Fixes existing NPCs remaining off-screen when visible narrative uses an unambiguous short name such as `Brina` while the canonical dossier/World_State uses `Brina Cole`.
+- Grounds short-name activity only for established multi-part identities and only when the short token is unique across stored NPC names/aliases; ambiguous/shared or generic tokens fail closed.
+- Preserves the structured-evidence firewall: World_State and NPC_Inner_Chatter alone still cannot establish in-chat presence, and no relationship, profile, life-state, or scoring mechanics are changed.
+
+## v0.4.23
+
+- Resolves recovery prompt ambiguity by labeling older material as continuity-only, explicitly allowing prior attitudes/baselines/already-counted developments to inform interpretation while keeping fresh relationship quotations current-exchange-only.
+- Aligns foreground and recovery relationship numeric guidance with the effective configured relationship caps through the same shared normalization used by runtime scoring. Valid configured caps keep their existing behavior; milestone gates, inertia, fractional progress, axis limits, priority selection, and duplicate protection remain unchanged.
+- Extends offline semantic evaluation coverage with Desire increases/decreases, Affection decreases, materially ambiguous attraction, and unchanged negative attitudes. No production keyword gates or runtime semantic vetoes were added.
+- Preserves v0.4.21 Recent relationship changes remarks, saved scores/history, and v0.4.22 general judgment calibration without rescanning or backfilling.
+
+## v0.4.22
+
+- Adds a shared general relationship-judgment rubric across foreground capture and full recovery/current-cast scanning: new-change continuity, correct attribution, contextual inference without keyword gating, ambiguity calibration, axis independence, proportionality, mixed chronology, balanced direction, and anti-circular reasoning.
+- Keeps the exact current-exchange per-axis quotation/explanation contract while explicitly preventing prior summaries, meter values, diagnostics, and relationship history from becoming fresh evidence.
+- Makes impact caps explicit maxima rather than default targets and reminds the model not to double-apply runtime inertia/milestone reductions or inflate proposals to overcome them.
+- Preserves user-authored custom relationship criteria as additive calibration; only the exact prior built-in default migrates to a concise additive default.
+- Adds deterministic prompt-path/regression checks and varied offline evaluation fixtures with anti-freezing coverage. Numerical relationship mechanics and v0.4.21 history remarks remain unchanged.
+
+## v0.4.21
+
+- Preserves accepted per-axis relationship evidence/explanations in `relationshipHistory` through normalization, save/reload, and existing state import/export paths.
+- Keeps nonempty overall reasons as the primary recent-change remark; otherwise renders concise, escaped axis-labelled explanations only for axes whose scores actually changed.
+- Recovers older missing remarks only from an unambiguous evidence/diagnostic event matched by event identity plus corroborating metadata, with a neutral `No explanation recorded.` fallback for missing or ambiguous history.
+- Leaves relationship scores, caps, inertia, fractional progress, milestone gates, axis selection, duplicate protection, manual edits, and branch/rebase behavior unchanged.
+
+## v0.4.20
+
+- Replaces runtime keyword/overlap relationship-semantic vetoes with a bounded per-axis evidence contract: exact current-exchange excerpts plus model-authored explanations.
+- Verifies quotation provenance against visible narrative and permitted private relationship context while keeping World_State and reference/control blocks out of unrestricted relationship evidence.
+- Preserves score bounds, configured caps, inertia, fractional progress, milestone gates, manual edits, branch/rebase behavior, and unrelated-NPC safeguards.
+- Fixes tied axis-limit overflow using validated model priority with deterministic magnitude/canonical fallback, and records precise per-axis provenance, cap, duplicate, gate, and axis-limit diagnostics.
+- Keeps legacy saves compatible without rewriting historical scores; legacy nonzero scanner payloads that lack per-axis evidence are rejected safely instead of being semantically guessed by runtime.
+
+## v0.4.19
+
+- Grounds multi-axis relationship proposals per axis so one unsupported axis no longer invalidates otherwise grounded movement.
+- Preserves grounded subsets through existing axis limits, inertia, fractional progress, milestone gates, duplicate protection, and relationship history.
+- Adds axis-specific rejection diagnostics and `partial-applied` visibility while retaining the original scanner proposal for auditability.
+- Keeps Desire explicit-only and prevents unsupported Desire from poisoning valid Trust, Affection, or Tension changes.
+
+## v0.4.18
+
+- Requires explicit player-relationship evaluation for every exchange-active NPC, including deliberate no-change results.
+- Records bounded diagnostic telemetry for `evaluated-no-change`, `evaluation-missing`, and `evaluation-invalid` without polluting actual relationship history or changing scores.
+- Makes foreground and recovery scanner prompts require `relationshipChange.evaluated: true` and a concise reason when impact is `none`.
+- Keeps existing relationship grounding, progression inertia, milestone gates, Desire isolation, and rescan duplicate-safety behavior unchanged.
+
+## v0.4.17
+
+- Aligns deepening relationship inertia with the actual milestone bands: 0–25 ×1.00, 26–50 ×0.80, 51–75 ×0.60, 76–90 ×0.40, and 91–100 ×0.25. Fractional accumulation and easier movement back toward neutral are preserved.
+- Keeps the 25/50/75/90 milestone gates and raw evidence minima unchanged, so difficulty comes from the progression curve plus narrative gates rather than mismatched overlapping thresholds.
+- Separates semantic evidence validity from impact difficulty: single-axis Trust, Affection, and Tension paraphrases can be grounded across impact tiers when a concrete player-attributed event for the target NPC is present.
+- Keeps broad Desire inference disabled and preserves actor ownership, target direction, polarity, contradiction, failure, and multi-axis ambiguity safeguards.
+
+## v0.4.16
+
+- Fixes ordinary Trust changes being rejected as `ungrounded` when the scanner described a real current-exchange event with a reasonable paraphrase instead of reusing the narration's exact words.
+- Adds a narrow semantic grounding fallback for player-attributed task completion, timely delivery, competent execution, and reliability evidence while preserving the existing lexical match path.
+- Keeps actor-direction, polarity, Desire, milestone, and higher-impact evidence protections unchanged; unrelated NPC performance, passive task completion, failed work, and generic praise still fail closed.
+
+## v0.4.15
+
+- Fixes new-NPC admission when visible prose introduces a specific character by role while the same current World_State supplies that character's canonical proper name.
+- Adds a narrow role-to-World_State identity bridge so scenes such as visible "the clerk" plus "Kora Lind — Guild Clerk" create the expected dossier.
+- Keeps the structured evidence firewall intact: World_State alone, NPC_Inner_Chatter alone, and unrelated visible roles still cannot create a dossier.
+- Preserves balanced, named-preferred, and manual admission semantics; manual mode still blocks automatic new dossiers.
+
+## v0.4.14
+
+- Reorganizes the settings panel without changing stored setting keys, defaults, listeners, scanner behavior, dossier behavior, persistence, or branch semantics.
+- Renames the primary Tracking category to Scanning & Capture and moves Scanner Response Limit plus malformed-capture recovery into that operational section.
+- Renames Birthday Continuity to Birthday & Aging, separates Relationships from Advanced, and moves the memory rubric plus maintenance tools beneath Advanced.
+- Keeps Recovery & Branch Safety focused on branch handling and nests Force Timeline Rebase under an explicit Advanced Recovery disclosure.
+- Refreshes responsive spacing and warning treatment so the same hierarchy remains readable in narrow SillyTavern sidebars.
+
+## v0.4.13
+
+- Binds death and resurrection evidence to the tracked NPC and the matched life-state predicate. Possessive references such as "Mira's attacker" no longer identify Mira as the victim, another NPC's survival no longer cancels Mira's death, and negated/other-person alive statements cannot resurrect an archived dossier.
+- Replaces whole-evidence relationship actor checks with predicate-local nearest-actor binding, so mentioning Mira before a later Sora-to-player trust predicate cannot move Mira's relationship state.
+- Narrows relationship polarity handling to the relevant predicate and adds composite decrease handling such as "tension easing", while preserving legitimate statements such as "no longer afraid and trusts Lucien" and "less trusting".
+- Requires scanner NPC id/name/alias identity values to be actual strings rather than stringifying nested objects or other invalid types.
+- Makes Structured Dossier Import skip global family reconciliation, preventing an import for one NPC from mutating unrelated family dossiers or graph edges.
+- Persists the forward-compatible verifier fixtures used during release builds so a fresh checkout and CI execute the same regression suite without hidden test-source rewrites.
+
+## v0.4.12
+
+- Makes scanner validation transactional for both JSON text and already-parsed objects: activity arrays require non-empty strings, dossier/edge/family arrays require valid object members, malformed members reject the whole observation, and pending same-scan identity changes reserve names/aliases before any state mutation.
+- Tightens death archiving to completed target-specific assertions. A tracked NPC is no longer archived merely because its name appears near another character being killed or a hypothetical/future death statement.
+- Tightens relationship evidence ownership and polarity: evidence naming another known NPC as the experiencer fails closed, directional actor checks remain local to the predicate, and negated love/trust/desire/tension evidence cannot authorize a delta with the opposite sign.
+- Reworks relationship rebase rollback so post-divergence manual score edits are chronological anchors rather than whole-axis shields. Discarded automatic movement after the latest manual anchor rolls back while automatic movement that the manual edit already overwrote is not subtracted twice.
+- Resets cumulative visual-maturation provenance after manual Actual Age or Apparent Age edits, preventing stale historical baselines from authorizing oversized future visual-age jumps.
+- Makes Targeted Refresh skip global family reconciliation entirely, preventing existing family slots from mutating unrelated dossiers or graph edges during a single-NPC refresh.
+
+## v0.4.11
+
+- Hardens scanner invariants: malformed/structurally invalid payloads fail before state mutation, automatic identity collisions fail closed, death transitions require affirmative target-attributed evidence, and durable appearance/Base synchronization compares complete canonical descriptions instead of 160-character identity keys.
+- Adds cumulative visual-aging baselines so individually small birthday/elapsed transitions can eventually satisfy ordinary or long-lived maturation thresholds without forcing a single large time skip. The baseline advances only when visible maturation is actually accepted, while age corrections reset it without aging appearance.
+- Makes family sibling/twin inference respect manual Key Relationships locks and makes Targeted Refresh an explicit allowlist that discards familyFacts and all non-target graph output.
+- Makes relationship grounding actor-aware for NPC-to-player direction and scopes negation/conflict checks to the relevant relationship predicate, preventing unrelated negation from rejecting valid trust evidence and reverse-direction statements from moving the wrong NPC meter.
+- Repairs the legacy injection-budget verifier so it checks the identity-directory slice rather than rejecting an NPC that legitimately appears in the separately budgeted dossier section.
+
+## v0.4.10
+
+- Adds an explicit **Force rebase to current chat** recovery action under Recovery & Branch Safety, available even when branch safety is currently marked safe. Safe same-lineage force rebases preserve the latest already-scanned marker so the follow-up continuity refresh cannot score the same relationship event twice; genuine divergences continue to clear that marker and use the existing rollback/recovery path.
+
+## v0.4.9
+
+- Fixes explicit timeline rebase retaining relationship changes and 25/50/75/90 gate breakthroughs from discarded branch messages. Rebase now reverses attributable non-manual relationship changes where recoverable, removes stale milestone unlocks, restores fractional state from recent scoring diagnostics when available, and clamps unrecoverable over-gate residue back to the first now-locked boundary. Manual relationship edits remain authoritative.
+
+## v0.4.8
+
+- Makes relationship milestone raw-evidence minima invariant: 25 requires meaningful-or-stronger with raw >=1, 50 major-or-stronger with raw >=3, 75 extreme with raw >=5, and 90 extreme with raw >=8. Lower configured tier caps no longer silently weaken a gate; movement toward neutral remains unblocked and inertia still applies only after raw evidence qualification.
+
+## v0.4.7
+
+- Preserves untouched relationship milestones on manual dossier saves; only changed axes gain manual milestone adjustments, and partial score edits preserve omitted axes.
+- Makes relationship event deduplication direction/outcome-aware, preserves raw evidence deltas, and clears timeline-local evidence during cross-chat imports and rebases. Null timeline references no longer behave as turn zero.
+- Adds clause-local relationship grounding with conservative negation/outcome checks and matching source-quote guidance. These local checks reduce contradictory evidence acceptance without claiming full natural-language entailment.
+- Makes embedded relationship application idempotent at the engine boundary across payload paraphrases and reloads, while requiring branch reconciliation for changed processed content.
+- Adds bounded private scoring diagnostics and dossier gate/fractional-progress details, including rejected attempts and per-axis unlocks.
+- Adds Maximum scanner response tokens under Recovery & Branch Safety (512–15,000; default 7,000), shared by standalone scans, targeted Refresh, structured imports, and JSON retries. Foreground RP limits and scan history depth are unchanged.
+- Repairs outdated regression expectations, makes historical verifier transformations repeatable, and runs all checked-in verifier suites in CI.
+
+## v0.4.6
+
+- Fixes the timeline-rebase recovery control after the categorized settings redesign. When branch safety requires an explicit rebase, the warning and **Rebase to current chat** action now mount inside **Recovery & Branch Safety**, which is opened automatically while recovery is required.
+
+## v0.4.5
+
+- Simplifies appearance presentation to two authoritative reader-facing surfaces: resolved Current appearance and the complete Appearance forms registry. Redundant standalone Current form and Shared / ordinary appearance lines are removed from dossier display and foreground continuity while all underlying storage, editing, form synchronization, age progression, portrait, and scanner safeguards remain unchanged.
+
+## v0.4.4
+
+- Reorganizes the growing settings surface into compact semantic collapsible categories without changing tracking, persistence, branch, Inventory, or dossier behavior. Tracking remains open by default while secondary categories stay collapsed.
+
+## v0.4.3
+
+- Adds optional passive Birthday continuity metadata with durable evidence-backed correction, manual locking/editing, scanner/injection/dossier/structured-import support, and fantasy-calendar-safe freeform storage. Optional Off/Unknown/Random fill can populate missing birthdays locally; Random uses a configurable month/day pool and stable internal generated provenance so later explicit canon supersedes generated values without displaying provenance labels. Birthday metadata never derives from age, advances age, tracks calendar dates, or independently authorizes age-linked appearance evolution.
+
+- Deep-audit follow-up grounds automatic relationship changes for EXISTING NPCs against the actual current relationship-evidence context too. A model-written evidence sentence that is absent from the exchange can no longer move visible scores, accumulate hidden fractional progress, or enter semantic relationship-evidence history. Manual dossier relationship edits remain authoritative and bypass the scanner path.
+
+- Deep-audit hardening closes cross-feature edge cases found after the phased release: long-message NPC/reference matching no longer truncates at identity-key length; gradual character development requires a genuinely different assistant message; form corrections, Key Relationship removals, and family facts are grounded against source evidence; World_State world-active authority is backend-filtered; unrelated <Blocks> wrappers stay inert while truncated recognized wrappers fail closed; life/death/resurrection changes are evidence-gated; Named preferred cannot be bypassed by a mislabeled role identity; explicitly named returning NPCs receive foreground dossier priority; fully disabling capture+continuity removes the prompt; manual name/alias collisions are rejected; deceased manual restore normalizes back to alive; and branch rollback preserves current user-locked canon plus editor-owned Importance.
+
+- Appearance/maturation hardening synchronizes legacy Base-compatible appearance, resolves current appearance consistently across dossier/injection/portrait surfaces, allows grounded shared appearance updates for form-aware NPCs, and adds conservative age-linked visual evolution after accepted birthday/elapsed age transitions without changing age normalization or age-continuity rules. Corrections/manual age edits do not mature appearance; long-lived, ageless, and unknown maturation stays conservative; accelerated growth is supported; unrelated canonical traits and manual locks remain protected.
+
+- Phase 6 adds lightweight new-NPC admission control without reviving the v0.2 candidate database: Balanced preserves current behavior, Named preferred auto-admits only proper/personal names, and Manual prevents scanner-created dossiers while existing NPC updates continue. It also adds read-only NPCState.debugStatus() / scanMetrics() diagnostics covering sidecar revision, branch safety, checkpoint count/bytes, current activity sets, structured-block detection, admission mode, and actual injection selection/budget.
+- Phase 5 restores deliberate Megumin New_NPC / NPC_Update dossier import without weakening the structured-evidence firewall. An explicit dossier More-menu/API action may reconcile only durable identity/profile/forms/key-relationship/memory fields from matching master-block sources; it cannot alter presence, live state, life/archive state, Importance, player relationship scores/summaries/history, or social activity. Chats without matching Megumin blocks return locally with no model call or write.
+- Phase 4 restores owner-wide character lifecycle handling for SillyTavern CHARACTER_RENAMED/CHARACTER_DELETED, adds bounded 1s/2s/5s retries for transient network/408/425/429/5xx sidecar mutations without ever retrying logical revision conflicts, and adds a 4 MiB serialized checkpoint-history pressure ceiling on top of the existing 48-global/4-sibling count limits.
+- Phase 3 adds deterministic semantic hygiene for Important Memories. Near-duplicate paraphrases of the same grounded event collapse to one richer concise entry during normalization and scan application, while separate events involving the same people/topic remain distinct. This is local token/event-concept matching only, with no embeddings or extra model calls.
+- Phase 2 makes ordinary Appearance, Species, Background, and Role durable scalar canon with an explicit evidence-backed canonChanges revision channel. Scanner-supplied importance can no longer ratchet dossier priority upward; stored importance remains user/editor-owned while foreground selection uses computed runtime salience from In-chat/current activity plus that manual preference.
+- Phase 1 replaces raw player-relationship meter injection with a compact qualitative lens and reserves most dynamic prompt budget for likely-relevant full dossiers. Large identity directories and optional new-NPC history can no longer starve In-chat continuity, while exact numeric relationship values remain private backend state for gates, inertia, and scoring.
+- Begins the phased v0.4.3 continuity, durability, structured-source, and observability pass. Each phase is applied and verified independently on top of the complete v0.4.2 chain.
+
+## v0.4.2
+
+- Phase 7B adds optional one-pass new-NPC history enrichment without restoring v0.2 backfill calls. When enabled, the foreground capture receives at most six prior non-system messages / 3500 visible characters, with Megumin reference blocks and NPC/Inventory transports removed. The capsule can enrich only durable foundational facts and memories after the current exchange independently admits the new NPC. Backend current-exchange identity matching prevents history-only dossier creation, and new-NPC numeric relationship evidence must still be grounded in the live exchange. A settings toggle disables the capsule entirely.
+- Phase 7A adds an explicit evidence-gated ageChange channel. Established chronological ages remain sticky against casual contradictory prose; automatic revision now requires a grounded birthday, explicit elapsed-time update, or explicit correction that states the resulting numeric age. Appearance guesses and unstated arithmetic fail closed, while manual dossier edits remain authoritative.
+- Phase 6 adds a narrowly auto-detected Megumin <Blocks> evidence adapter. Non-Megumin text is unchanged and gets no extra foreground rules. World_State may ground live/off-screen state but not In-chat/action/new-NPC admission; NPC_Inner_Chatter may ground private mood/goal/relationship context but not presence/action/speech/visible reaction; other master-block children are excluded from ordinary event evidence. Backend activity/new-NPC admission, relationship/profile grounding, and stale-reference retention use the same authority filter.
+- Phase 5 restores owner-safe chat lifecycle hardening for CHAT_RENAMED, CHAT_DELETED, and GROUP_CHAT_DELETED. Rename copies and verifies the destination sidecar, revision-retires the source before pointer publication, and only then removes the retired file; deletion likewise retires before pointer removal. Filename-only delete events act only on a unique owner-qualified beta pointer, ambiguous same-name chats fail closed, no active owner is borrowed, stale-tab writes to retired sources are rejected, and lifecycle handlers are time-bounded so SillyTavern event delivery cannot hang indefinitely.
+- Phase 4 makes Key Relationships omission-safe by merging per named counterpart and requiring an explicit evidence-backed removal channel. It also adds a bounded private family-slot graph for countable unnamed relatives, partial later resolution, graph provenance/confidence, and conservative shared-parent sibling/twin-sibling inference without creating placeholder NPC dossiers. Family slots persist through sidecars/checkpoints and optional portable-bundle data.
+- Phase 2 follow-up makes checkpoint recency strictly monotonic so rapid sibling swipes created within the same millisecond still evict the true oldest sibling deterministically.
+- Phase 3 restores durable characterization safeguards for Personality, Behavioral Profile, Speech, and Mannerisms. New NPCs can still establish a rich baseline immediately, but established fields require grounded refine/gradual/explicit/batch evidence; gradual concepts need cross-scan confirmation, explicit changes need lasting-change cues, batch changes need a real narrated time skip, refinement cannot hide identity flips, and one-off gestures cannot become permanent mannerisms.
+- Phase 2 restores bounded exact sibling swipe snapshots: up to four distinct content-lineage checkpoints may coexist for one assistant message, while v0.4.2 keeps swipe-index-independent fingerprints, the global 48-checkpoint bound, and stored embedded-payload replay as fallback after older sibling eviction.
+- Phase 1 restores v0.2 relationship hardening on top of the v0.4 milestone gates: fractional evidence progress, depth inertia, tier axis-count limits with tied-overflow rejection, recent semantic event dedupe, a narration-backed Desire firewall, and Relationship Summary depth validation. Blocked/duplicate events cannot rewrite the summary, while checkpoint-blocked evidence is retained only in the short hidden dedupe ledger.
+- Begins the phased v0.4.2 hardening line. Each recovery phase is applied and verified independently before the next phase is introduced.
+
+## v0.4.1
+
+- Restored deterministic relationship milestone gates from the pre-v0.3 relationship model: each axis/direction now checkpoints at 25/50/75/90, requires meaningful/major/extreme evidence to deepen past those boundaries, records hidden directional unlock history, allows movement toward neutral, preserves already-passed legacy depths, and upgrades the exact old stock evidence rubric without overwriting custom rubrics.
+- Baseline form recovery: rescanning a previously half-captured multi-form NPC can recover the legacy ordinary appearance as Base when the exchange explicitly ends back in that body, even if an alternate form such as Beast was already stored by an older scan.
+- Multi-stage form capture hardening: temporary/reversible magical or spectral body transformations can now be recorded as forms when they materially change anatomy, partial manifestation and full-beast states can both be captured from one exchange, and an existing single-form appearance is preserved as a neutral Base form when alternates first appear.
+- Form-aware appearance: multi-form NPCs now track currentForm plus durable named appearanceForms, preserve unrelated/established forms across transformations, require evidence-gated revisions for explicit physical changes, inject known forms back into relevant turns, expose form editing in dossiers, and use the current form for portrait prompts while ordinary NPC appearance remains backward-compatible.
+- Age semantics hardening: actual age is now numeric chronological data only, existing numeric ages are scanner-sticky instead of being re-estimated, recovery/Refresh prompts receive the stored age, and life-stage labels such as child/adult/elderly are rejected from age fields.
+- Hardened new-NPC display-name authority: `npc-*` transport ids/slugs can no longer become dossier names; grounded human aliases/activity references are promoted to the canonical display name, existing bad technical names self-repair when a trustworthy alias exists, and unresolved machine-only identities fail closed instead of polluting the roster.
+- Hardened new-NPC identity authority: model-invented ids are ignored for new dossiers, existing dossiers reconcile by canonical name when an unknown id is returned, proper names take priority over role labels, and same-payload activity/social references map to the locally allocated stable id.
+- Clarified dossier current status semantics: status now means the NPC concrete immediate activity, situation, or condition, never active/inactive/in-chat/off-screen/archive lifecycle state. Lifecycle-only status pollution is rejected deterministically and existing generic values normalize away on load.
+- Missing embedded foreground capture now automatically falls back to one full separate current-cast scan whenever embedded scanning is enabled; the recovery toggle now applies only to malformed embedded blocks.
+- Silenced foreground missing-capture warnings when NPC State or embedded auto-scan is intentionally disabled; any stray NPC transport is cleanup-only and never applied.
+- Preserved social edges between secondary existing NPCs when both have valid returned dossier patches, even if an imperfect activity array omitted them.
+- Isolated stored foreground payload replay per active swipe: when a concrete swipe record exists, missing swipe metadata no longer falls back to potentially stale message-level metadata from another variant.
+- Made forced rescans of an already-scanned assistant message relationship-idempotent: dossier/profile reconciliation may run again, but the same current-exchange relationship delta is not applied twice.
+- Closed the pre-lock embedded stale-payload race: foreground apply now carries the exact cleaned assistant text that produced the payload and rejects it if that message was edited, replaced, deleted, or shifted before the engine lock begins.
+- Deep hardening: fixed 0.4.1 bundle self-compatibility, beta relationship-history namespace isolation, embedded stale-operation protection, unsafe-branch mutation gates, and deterministic targeted Refresh isolation.
+- Deep hardening: added Inventory Block v0.5 transport compatibility, portrait-light rollback snapshots, generic structured collection normalization, total injection-budget accounting, and per-message checkpoint compaction for swipe-heavy chats.
+- Canonicalized assistant-message branch fingerprints so transient `<npc_state_v1>` / Inventory controls and swipe-index renumbering do not make unchanged visible narrative look like a different branch; existing 0.4.1 sidecars perform a one-time rollback-hash reset while preserving dossiers, relationships, and memories.
+- Applied every returned existing-NPC dossier patch in foreground/recovery scans instead of silently discarding secondary NPC updates when an activity-reference array is incomplete; relationship deltas remain exchange-gated and world-only updates remain restricted.
+- Canonicalized assistant-message branch fingerprints so transient `<npc_state_v1>` and `INVENTORY_BLOCK_UPDATE` controls do not make an unchanged visible narrative look like a different branch after post-generation cleanup; existing 0.4.1 sidecars perform a one-time rollback-hash reset while preserving dossiers, relationships, and memories.
+- Canonicalized assistant-message branch fingerprints so transient `<npc_state_v1>` and `INVENTORY_BLOCK_UPDATE` controls do not make an unchanged visible narrative look like a different branch after post-generation cleanup; this improves recent message-delete rollback reliability.
+- Fixed multi-NPC existing-dossier updates so every valid returned NPC patch in the same foreground/recovery output can be applied even when the model imperfectly omits a secondary existing NPC from an activity array; relationship deltas remain exchange-gated and world-only NPCs retain restricted update semantics.
+- Fixed multi-NPC embedded bootstrap so one foreground payload can create every individually relevant new NPC in the same response; idless new `npcs` entries are now retained as bootstrap candidates even if the model imperfectly omits a secondary name from the activity arrays.
+- Normalized structured **Key relationships** values at the schema and scanner boundaries so object-shaped model output can no longer persist or render as `[object Object]`; prompts now require canonical string entries such as `Mira - sister`.
+- Hardened **Key relationships** capture: explicit family/kinship/spouse/guardian/dependent ties must be recorded in each involved NPC dossier, while `socialEdges` remains complementary graph data rather than a substitute; newly revealed ties now count as material collection updates for existing NPCs.
+- Fixed new-NPC bootstrap capture so **Behavioral profile** and **Mannerisms** (plus other evolving collections) are populated from grounded first-scene evidence instead of defaulting to `null`; `null` remains the unchanged sentinel for existing dossiers.
+- Retained the full separate structured scanner as a contingency while keeping normal automatic turns on the one-pass embedded foreground path.
+- Added optional **Automatic recovery scanner** fallback for missing or malformed `<npc_state_v1>` capture. It is off by default; manual **Scan current cast** remains available regardless.
+- Restored changed-branch recovery without reintroducing a mandatory second request: tracked swipes restore from checkpoints, stored swipe payloads can replay locally when needed, and edited/untracked branches fall back to the separate scanner when branch rescan is enabled.
+- Invalidated stored embedded metadata on assistant edits so stale machine observations cannot be reapplied to rewritten prose.
+- Hardened foreground transport stripping so duplicate NPC blocks are rejected and removed, truncated NPC output is fail-closed, and Inventory Block 0.4 terminal controls are preserved.
+- Standardized the separate recovery scanner on the same **in-chat** semantics as embedded mode instead of the v0.3.2 strict physical-presence rule.
+- Updated dossier/status/settings wording from **Present** / strict physical presence to **In chat** / individually relevant current participants while keeping the internal `present` field for v0.3 sidecar compatibility.
+- Removed the v0.2 migration path from the 0.4 beta. The supported upgrade path is stable v0.3.x -> independent v0.4.1 beta clone.
+- Kept stable v0.3 relationship/history, memories, dossier evolution, portraits, bundles, stale management, branch checkpoints/rebase, manual tools, social graph, Megumin integration, and sidecar protections intact.
+
+## v0.4.0-beta.1
+
+- Reworked normal automatic NPC accounting into a **foreground embedded scan** performed by the same LLM generation that writes the RP response, eliminating the routine second `generateRaw` scanner request.
+- Added the hidden `<npc_state_v1>...</npc_state_v1>` transport. NPC State extracts, validates, applies, and removes this machine payload from the visible/stored assistant message after generation.
+- Kept the existing v0.3 scanner as an explicit **recovery and reconciliation path** for `Scan current cast` and dossier Refresh instead of running it automatically after every response.
+- Added a full current-exchange semantic capture contract rather than a sparse database-patch contract. The model reports current NPC observations while NPC State remains authoritative for identity matching, relationship caps, relationship history, dossier curation, stale lifecycle, checkpoints, and persistence.
+- Added rich **new NPC bootstrap capture** through the same embedded scan used for existing NPCs. Newly introduced individually relevant NPCs may populate grounded identity, role, species, age/apparent age, appearance, personality, behavior, speech, mannerisms, background, mood, location, goals, status, relationship evidence, memories, social ties, life state, and importance without inventing unsupported biography.
+- Changed automatic live-cast semantics from strict physical presence to **in-chat presence**. `inChatNpcIds` tracks individually relevant NPCs still participating in the active scene/conversation at exchange end; incidental crowds, background workers, nearby guards, and merely mentioned characters no longer become live cast solely from proximity.
+- Preserved `exchangeActiveNpcIds` as the current-exchange participation signal and `worldActiveNpcIds` as the explicit off-screen activity signal, keeping interaction, in-chat presence, and off-screen activity independent.
+- Added a compact known-NPC identity directory plus fuller continuity dossiers for likely relevant NPCs so surprise returning NPCs can still resolve identity without serializing every full dossier into every prompt.
+- Added foreground transport failure handling: a missing, duplicate, truncated, or invalid NPC block is rejected without automatic dossier mutation, leaving manual `Scan current cast` available as recovery.
+- Added per-message and per-swipe beta metadata for accepted foreground observations so embedded transport can be removed from visible prose while retaining message-local bookkeeping.
+- Updated branch/edit/swipe reconciliation to avoid automatically launching the old background scanner during ordinary branch changes in the beta path.
+- Added explicit **Inventory Block 0.4 coexistence ordering**: NPC State never claims the final machine position and instructs the model to place `<npc_state_v1>` before Inventory Block's terminal `INVENTORY_BLOCK_UPDATE` control.
+- Hardened NPC transport stripping so it removes only the NPC State block and preserves peer machine controls such as Inventory Block's update payload regardless of which extension processes the response first.
+- Added an Inventory coexistence smoke test verifying that NPC State parsing succeeds, its own transport is stripped, and `INVENTORY_BLOCK_UPDATE` survives untouched.
+- Isolated beta runtime settings under `npc_state_beta` so stable NPC State and the beta do not share extension settings state.
+- Isolated beta sidecar filenames, pointer hints, and writer locks so beta testing cannot overwrite the stable v0.3 sidecar.
+- Added one-time **stable v0.3 → beta sidecar cloning** when a chat has stable NPC State data but no beta sidecar yet. The beta reads the compatible v0.3 payload once, writes an independent beta-owned copy, and diverges from stable thereafter.
+- Added CI gates for the beta transformation, generated-runtime JavaScript syntax, foreground parser behavior, Inventory Block transport preservation, and stable/beta storage isolation.
+- Kept the v0.3 dossier schema and durable state model compatible so existing relationships, histories, memories, portraits, profile locks, archives, social ties, stale state, bundles, and branch machinery continue forward without a schema reset.
+
+## v0.3.2
+
+- Added explicit **Rebase to current chat** recovery when edits or deletions cross NPC State's oldest recoverable v0.3 checkpoint.
+- Replaced the dead-end `prebaseline-diverged` UX with a recoverable **Timeline rebase required** state that distinguishes pure prebaseline truncation from an incompatible rewrite.
+- Rebasing preserves durable dossiers, portraits, relationship state/history, memories, manual profile locks, archives, retention flags, social ties, suppression data, and deletion tombstones while clearing strict presence, off-screen activity, latest observation, chat-local message references, and incompatible branch checkpoints.
+- Relative stale inactivity age is rebased to the surviving chat instead of being blindly reset, and social/relationship source message IDs are cleared because deletion can shift chat indices.
+- A successful rebase establishes the surviving chat as a fresh branch baseline and force-scans its latest assistant exchange even when automatic scanning is disabled.
+- Added a conditional recovery card inside Tracking plus clearer scan/refresh warnings so `branch-unsafe` is no longer exposed as an unexplained internal status.
+
+## v0.3.1
+
+- Added configurable **Dossier Evolution** working caps for Important memories, Key relationships, Mannerisms, and Behavioral profile. Defaults remain 5 / 12 / 8 / 8, with guarded maximums of 20 / 30 / 16 / 16.
+- Separated user working caps from higher schema storage ceilings so increasing a limit genuinely persists more entries, while lowering a limit does not immediately destructively truncate untouched dossier data.
+- Reworked the four bounded dossier collections from append-only accumulation into self-curating canonical sets. Scanner `null` means preserve the current collection; an array is the complete authoritative replacement and may merge, rewrite, retire, reorder, clear, or displace entries as canon evolves.
+- Updated the scanner prompt to include each collection's current contents and configured cap so still-relevant older facts can survive curation even when the latest exchange does not repeat them.
+- Updated targeted dossier refresh to use the same curated-replacement semantics without replaying player relationship deltas or changing global physical presence.
+- Manual dossier editing now obeys the configured working caps instead of hardcoded 5 / 12 / 8 / 8 limits.
+- Canonicalized apparent age to one numeric approximation such as `~25`; vague decade bands and ranges are rejected rather than stored as apparent age.
+- Reserved Trust / Affection / Desire / Tension plus Relationship Summary for NPC-to-player state. Key relationships and social edges are non-player ties, and unlocked legacy player duplicates are cleaned during scan/refresh.
+- Restored manual **Attach portrait**, **Change portrait**, and **Remove portrait** controls in the canonical dossier More menu while retaining the local image-prompt workflow.
+- Moved the dossier editor into the browser top layer on supported clients, resolving mobile/tablet clipping and host stacking-context failures while retaining the direct editor Save/Cancel flow.
+- Hardened the Megumin/Inventory shared tab integration so NPC State can recreate a missing Present NPC holder after host rebuilds and recover across extension load-order changes.
+
+## v0.3.0
+
+- Rebuilt NPC State around a clean v0.3 runtime instead of extending the v0.2 compatibility stack.
+- Replaced automatic cast-wide backfill queues and detached per-NPC refresh chains with one current-cast scan transaction.
+- Separated current-exchange participation, strict final-scene physical presence, and off-screen world activity.
+- Defined full reconciliation targets as exactly `exchangeActive + finalPresent`.
+- Restricted relationship-score changes to current-exchange evidence while allowing older context for profile and memory recovery.
+- Added serialized per-chat operations, stale-result invalidation, atomic state commits, branch-safe v0.3 checkpoints, and stable-ID deletion tombstones.
+- Added independent revisioned v0.3 sidecars with cross-tab write protection and fail-closed missing-file handling.
+- Added a one-way v0.2 importer that preserves durable dossier data while leaving the original v0.2 sidecar untouched.
+- Added one searchable canonical Dossier Library for present, world-active, off-screen, and archived NPCs.
+- Redesigned the canonical Dossier Library around a dominant portrait hero instead of a permanent cast sidebar.
+- Added a searchable horizontal portrait cast rail fixed at the bottom of the dossier viewer, with selected-card centering, previous/next controls, touch scrolling, and lifecycle status on each card.
+- Reorganized dossier content into distinct Current, Relationship, Personality, Appearance, Behavioral profile, Speech, Mannerisms, Key relationships, Important memories, Background, and relationship-history blocks.
+- Restored the portrait-heavy split-view grammar on desktop and landscape tablet so the portrait remains visible while the dossier document scrolls independently.
+- Added responsive portrait-tablet and phone layouts that stack the portrait hero over one readable document column while retaining the bottom cast rail.
+- Preserved the selected dossier's reading position across background refreshes, and explicit opens from other NPC State surfaces clear stale cast-search filters so the requested stable ID remains visible.
+- Bound editor saves to an exact NPC ID and optimistic dossier version so cross-NPC and stale same-NPC overwrites are rejected.
+- Added a UI-only Megumin master-block adapter that mounts the existing present-NPC roster as an `NPC State` tab when Megumin's tab/panel hosts are present, with standalone inline fallback when they are not.
+- Kept Megumin outside the state architecture: the adapter owns no scanning, persistence, dossier import, or World State parsing.
+- Added narrative-turn stale NPC management with configurable 30-turn archive and 50-turn total-inactivity cleanup defaults. Re-scanning the same assistant message does not advance stale age.
+- Stale retention activity is refreshed by current interaction, final physical presence, explicit off-screen world activity, and canonical-name/alias references in the current exchange.
+- Added automatic restoration for stale-archived NPCs that become narratively active again while leaving manual/deceased archives outside the stale cleanup path.
+- Added hard stale-pruning protection for retention-protected dossiers and manually locked stable profiles.
+- Kept automatic stale cleanup softer than manual Delete: stale cleanup does not create a permanent tombstone, while explicit user deletion still does.
+- Added a manual stale-review surface with Open dossier, Reset activity, Protect, Archive/Restore, and Delete controls.
+- Added portable v0.3 bundle export for full-chat backups and selected-NPC dossiers, preserving normalized dossiers, memories, relationships/history, social graph, portraits, suppression names, tombstones, archive/retention/stale data, and stable IDs.
+- Kept branch checkpoints/baselines/lineage, latest observation state, sidecar revisions, migration/runtime state, and engine operation locks out of the bundle format.
+- Added schema/version validation and whitelist normalization for every imported bundle before it reaches persistence.
+- Added explicit stable-ID conflict handling: safe merge can keep or replace matching IDs, abort or skip hard ID/name conflicts, and never silently resurrect local manual tombstones or apply imported tombstones over live local dossiers.
+- Added full-chat Replace durable state as a separate restore mode that replaces portable durable domains while retaining destination branch/runtime machinery and clearing imported live presence.
+- Cross-chat imports now clear chat-local message references, rebase stale inactivity age, and safely drop social edges whose counterpart stable ID does not exist in the destination.
+- Bundle preview/export are read-only; a successful bundle import is serialized into one sidecar commit and destination branch checkpoint, while rejected conflicts commit nothing.
+- Added lightweight portrait prompt support with named reusable presets containing paired positive and negative channels, separate shared positive/negative prompt templates, and Natural/Tags/Hybrid formatting for the auto-built dossier character block.
+- Existing single positive/negative portrait preset settings migrate into the first named `Default` preset without losing user text.
+- Added New, Duplicate, Delete, rename, and default-selection controls for a multi-preset portrait library while keeping prompt templates shared across presets.
+- Added **Generate image prompt** to the canonical dossier `More` menu. It opens a focused per-NPC positive/negative prompt dialog where any saved preset can be selected and copied without changing the default preset.
+- Realigned portrait settings into explicit control rows and cards so titles, explanatory text, selects, inputs, and positive/negative textareas remain visually aligned on desktop and mobile.
+- Added local placeholder resolution and live selected-NPC positive/negative preview with Copy Positive, Copy Negative, and Copy Both controls without adding any image API, automatic portrait generation, regeneration queue, or portrait workflow state.
+- Preserved first-pass single portrait-preset/generation-prompt settings by migrating them into the positive channel, while intentionally blank presets/templates remain blank.
+- Added focused v0.3 behavioral tests as the supported release gate.
+- Moved the complete v0.2.23 repository snapshot, including its source, tests, reports, changelog, and documentation, under `legacy/v0.2.x/`.
+- Made the repository root and default `main` branch the supported v0.3 install surface for SillyTavern.
+
+Historical v0.2 release notes remain in the stable repository under `legacy/v0.2.x/CHANGELOG.md`.
