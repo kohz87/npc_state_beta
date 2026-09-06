@@ -9,7 +9,7 @@ const engineSource = fs.readFileSync('v03/engine.js', 'utf8');
 const scannerSource = fs.readFileSync('v03/scanner.js', 'utf8');
 assert(scannerSource.includes('POST-RESPONSE DOSSIER COMPLETENESS PASS'), 'Completeness prompt contract missing');
 assert(scannerSource.includes('supplementalPass !== true && presentIds.includes'), 'Completeness must not increment seen counters');
-assert(scannerSource.includes('supplementalPass === true\n            ? normalizeMemoryEntries'), 'Completeness memories must merge instead of replacing');
+assert(scannerSource.includes('PHASE90_DURABLE_IMPORTANT_MEMORY_MERGE') && scannerSource.includes('normalizeMemoryEntries([...(next.memories || []), ...patch.memories]'), 'Completeness and ordinary scans must share durable memory merge semantics');
 assert(engineSource.includes('preservePresence: true'), 'Completeness must preserve committed presence');
 assert(engineSource.includes('preserveObservation: true'), 'Completeness must preserve committed observation');
 assert(engineSource.includes('applyRelationship: false'), 'Completeness must hard-disable relationship scoring');

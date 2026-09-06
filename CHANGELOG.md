@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.44
+
+- Fixes Important Memories being silently replaced or cleared on ordinary existing-NPC scans when the model returned only the current memory subset or the schema-default `memories: []`.
+- Existing NPC memories now merge durably: omitted memories persist, distinct new memories fill remaining configured capacity, and richer semantic duplicates may refine the stored wording without spending another slot.
+- Keeps semantic duplicate hygiene and configured memory limits while preventing routine foreground/recovery scans from resetting the collection.
+- Leaves new-NPC memory bootstrap, relationship scoring, lifecycle semantics, presence, profile evolution, and recovery/rebase behavior unchanged.
+
 ## v0.4.43
 
 - Fixes the disabled **Scan after each response** path so an ordinary embedded digest does not perform post-response completion bookkeeping or a second message/UI mutation.

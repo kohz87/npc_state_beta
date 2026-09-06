@@ -33,7 +33,7 @@ const legacy = normalizeNpc({
 });
 assert(legacy.memories.length === 2, 'Legacy dossier memory duplicates survived normalization');
 
-// Scanner replacement arrays receive the same semantic hygiene.
+// Scanner memory merge patches receive the same semantic hygiene while preserving omitted durable memories.
 let state = createEmptyState('phase3-memory');
 state.npcs = [normalizeNpc({ id: 'npc-sora-memory', name: 'Sora', memories: ['An older unrelated memory.'] })];
 state = applyScanResult(state, {
@@ -49,8 +49,8 @@ state = applyScanResult(state, {
     socialEdges: [],
 }, { sourceMessageId: 4, turn: 4, applyReturnedNpcPatches: true }).state;
 const sora = state.npcs.find(npc => npc.id === 'npc-sora-memory');
-assert(sora.memories.length === 2, 'Scanner memory array was not semantically compacted');
-assert(!sora.memories.includes('An older unrelated memory.'), 'Authoritative memory replacement semantics were accidentally changed into append-only behavior');
+assert(sora.memories.length === 3, 'Scanner memory merge was not semantically compacted while preserving prior memory');
+assert(sora.memories.includes('An older unrelated memory.'), 'Existing durable memory was erased by an ordinary scanner patch');
 
 const limited = normalizeMemoryEntries([
     'Mira promised to return the silver key.',
@@ -71,6 +71,6 @@ assert(injection.includes('MEMORY SEMANTIC HYGIENE'), 'Foreground memory semanti
 const schemaSource = fs.readFileSync(new URL('../v03/schema.js', import.meta.url), 'utf8');
 const scannerSource = fs.readFileSync(new URL('../v03/scanner.js', import.meta.url), 'utf8');
 assert(schemaSource.includes('export function normalizeMemoryEntries'), 'Shared semantic memory normalizer missing');
-assert(scannerSource.includes('normalizeMemoryEntries(patch.memories'), 'Scanner does not use semantic memory normalizer');
+assert(scannerSource.includes('normalizeMemoryEntries([...(next.memories || []), ...patch.memories]'), 'Scanner does not use durable semantic memory merge');
 
 console.log('NPC State 0.4.3 Phase 3 memory hygiene verification passed');
