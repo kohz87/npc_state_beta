@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.42
+# NPC State Beta 0.4.43
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -64,6 +64,13 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - v0.4.18 requires an explicit relationship evaluation for every exchange-active NPC. A scanner may still correctly decide that an ordinary interaction causes no relationship movement, but it must say so instead of silently omitting the relationship channel.
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
+
+## Post-response scan toggle and block-render stability
+
+- **Scan after each response** now gates the optional completeness path cleanly. When the toggle is off, an ordinary successful embedded NPC digest is not followed by completion metadata bookkeeping or a second post-response UI mutation. Duplicate completion events are deduplicated in memory without touching the message DOM.
+- Completion metadata that is needed when the optional pass is enabled is now persisted with chat-save only. Metadata-only bookkeeping no longer calls SillyTavern's updateMessageBlock(), so it does not tear down freshly rendered peer-extension cards such as Megumin Suite blocks.
+- The ordinary embedded foreground digest is unchanged: NPC State still consumes its hidden <npc_state_v1> transport once, applies the state update, and performs the one message rerender needed to remove that transport.
+- Full recovery scans, malformed-capture handling, relationship scoring, lifecycle semantics, and branch/recovery rules are unchanged.
 
 ## Separate scan connection and completeness pass
 

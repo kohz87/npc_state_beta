@@ -390,6 +390,14 @@ function activeCompletionMeta(message) {
     return message.extra?.npc_state_beta_completion_v1 || null;
 }
 
+// PHASE88_RENDERLESS_COMPLETION_METADATA: message.extra bookkeeping must not rebuild peer-rendered message DOM.
+function persistMessageMetadata(ctx) {
+    try {
+        const save = ctx?.saveChat?.();
+        if (save?.catch) save.catch(() => {});
+    } catch {}
+}
+
 function storeCompletionMeta(ctx, messageId, value) {
     const message = ctx?.chat?.[messageId];
     if (!message) return;
@@ -399,7 +407,7 @@ function storeCompletionMeta(ctx, messageId, value) {
     const swipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
     const swipe = Array.isArray(message.swipe_info) ? message.swipe_info[swipeId] : null;
     if (swipe) { swipe.extra ??= {}; swipe.extra.npc_state_beta_completion_v1 = structuredClone(meta); }
-    persistMessageMutation(ctx, messageId);
+    persistMessageMetadata(ctx);
 }
 
 function activeEmbeddedMeta(message) {
@@ -486,7 +494,7 @@ async function maybeForegroundFallback(messageId, reason) {
     return runSeparateRecoveryScan(messageId, 'foreground-' + reason);
 }
 
-// PHASE74D_LIVE_FOREGROUND_LIFE_STATE_CONTRACT: only newly generated embedded payloads require the v0.4.42 lifecycle channel.
+// PHASE74D_LIVE_FOREGROUND_LIFE_STATE_CONTRACT: only newly generated embedded payloads require the v0.4.43 lifecycle channel.
 async function processEmbeddedScan(messageId) {
     const ctx = getContext();
     const id = Number(messageId);

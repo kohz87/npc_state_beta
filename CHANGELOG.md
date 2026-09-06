@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.43
+
+- Fixes the disabled **Scan after each response** path so an ordinary embedded digest does not perform post-response completion bookkeeping or a second message/UI mutation.
+- Persists completion metadata with chat-save only instead of updateMessageBlock(), preventing metadata-only NPC State bookkeeping from tearing down freshly rendered Megumin Suite block cards.
+- Keeps duplicate completed-response events deduplicated in memory while the optional completeness pass is off, without launching another embedded digest or separate scanner request.
+- Leaves the ordinary embedded digest, enabled completeness request, recovery scans, relationship scoring, lifecycle semantics, and branch/recovery behavior unchanged.
+
 ## v0.4.42
 
 - Adds an optional NPC scan Connection Profile selector for all separate scanner requests and JSON retries while leaving normal roleplay generation on the main SillyTavern connection.
