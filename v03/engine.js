@@ -96,7 +96,7 @@ function assistantMessageIdsInRange(chat = [], startMessageId = 0, endMessageId 
     }
     return out;
 }
-function recoveryRangeForChat(chat = [], startMessageId = null, endMessageId = null) {
+function computeRecoveryRangeForChat(chat = [], startMessageId = null, endMessageId = null) {
     const maxMessageId = chat.length - 1;
     const explicitStart = startMessageId !== null && startMessageId !== undefined;
     const explicitEnd = endMessageId !== null && endMessageId !== undefined;
@@ -1453,7 +1453,7 @@ export function createNpcStateEngine(adapters = {}) {
         const context = getContext();
         if (getChatKey() !== chatKey) return { ok: false, reason: 'chat-switched-before-plan' };
         const chat = context.chat || [];
-        const plan = recoveryRangeForChat(chat, startMessageId, endMessageId);
+        const plan = computeRecoveryRangeForChat(chat, startMessageId, endMessageId);
         const mode = normalizeRecoveryRelationshipMode(relationshipMode);
         if (getChatKey() !== chatKey) return { ok: false, reason: 'chat-switched-before-install' };
         recoverySignals.set(chatKey, { pause: false, cancel: false, reason: '' });
@@ -1579,23 +1579,13 @@ export function createNpcStateEngine(adapters = {}) {
             throw error;
         }
         const chat = context.chat || [];
-        const range = recoveryRangeForChat(chat, startMessageId, endMessageId);
+        const range = computeRecoveryRangeForChat(chat, startMessageId, endMessageId);
         return {
             firstAssistantMessageId: range.firstAssistantMessageId,
             latestAssistantMessageId: range.latestAssistantMessageId,
             assistantExchangeCount: range.messageIds.length,
             startMessageId: range.startMessageId,
             endMessageId: range.endMessageId,
-        };
-    }
-
-    function recoveryRange() {
-        const chat = getContext().chat || [];
-        const range = recoveryRangeForChat(chat, null, null);
-        return {
-            firstAssistantMessageId: range.firstAssistantMessageId,
-            latestAssistantMessageId: range.latestAssistantMessageId,
-            assistantExchangeCount: range.messageIds.length,
         };
     }
 
