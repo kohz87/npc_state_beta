@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.34
+# NPC State Beta 0.4.35
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -64,6 +64,12 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - v0.4.18 requires an explicit relationship evaluation for every exchange-active NPC. A scanner may still correctly decide that an ordinary interaction causes no relationship movement, but it must say so instead of silently omitting the relationship channel.
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
+
+## Responsive recovery controls
+
+- Advanced Recovery no longer forces the Force Timeline Rebase description and its long action buttons into one horizontal settings row.
+- The rebase control now owns a full-width responsive layout: descriptive text sits above the actions, action buttons share available width without overflowing, and their labels may wrap instead of being clipped.
+- Narrow layouts collapse the recovery actions to one column while preserving the existing preserve-versus-rollback behavior and confirmations.
 
 ## Terminal-status lifecycle reconciliation
 
