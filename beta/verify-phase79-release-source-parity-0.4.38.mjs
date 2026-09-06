@@ -16,6 +16,7 @@ assert(workflow.includes("# node beta/bump-0.4.38.mjs ; -name 'phase*-0.4.38.mjs
 for (const path of [
     'beta/bump-0.4.38.mjs',
     'beta/phase78-dossier-rendering-performance-0.4.38.mjs',
+    'beta/phase78b-legacy-v0437-release-verifier-compat-0.4.38.mjs',
     'beta/verify-phase78-dossier-rendering-performance-0.4.38.mjs',
     'beta/verify-phase79-release-source-parity-0.4.38.mjs',
 ]) assert(fs.existsSync(path), 'Missing v0.4.38 source-owned file: ' + path);
@@ -28,5 +29,10 @@ assert(styleSource.includes('backdrop-filter:none'), 'Generated runtime must dis
 assert(!styleSource.includes('backdrop-filter:blur(3px)'), 'Generated runtime must not restore the expensive dossier blur');
 assert(readme.includes('## Dossier rendering performance'), 'README must document dossier performance changes');
 assert(changelog.includes('## v0.4.38\n'), 'CHANGELOG must contain v0.4.38');
+
+const legacy37 = fs.readFileSync('beta/verify-phase77-release-source-parity-0.4.37.mjs', 'utf8');
+assert(legacy37.includes('Manifest must be v0.4.37+'), 'v0.4.37 release verifier must remain descendant-compatible after patch 38');
+assert(legacy37.includes('Workflow title must be v0.4.37+'), 'v0.4.37 workflow verifier must remain descendant-compatible after patch 38');
+assert(legacy37.includes('Cold replay must include patch 37 or later'), 'v0.4.37 cold-replay verifier must remain descendant-compatible after patch 38');
 
 console.log('PASS v0.4.38 release source parity');
