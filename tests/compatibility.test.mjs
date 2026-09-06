@@ -126,7 +126,7 @@ test('preserve rebase retains relationship state while rollback mode removes aba
     assert.ok(rolled.npcs[0].relationshipHistory.length <= preserved.npcs[0].relationshipHistory.length);
 });
 
-test('engine keeps stale-operation, completeness, and alternate connection protections wired', () => {
+test('engine keeps stale-operation, completeness, and alternate routing protections wired', () => {
     const engine = read('src/engine.js');
     assert.match(engine, /reason: 'stale-operation'/);
     assert.match(engine, /reason: 'stale-completeness'/);
@@ -134,6 +134,6 @@ test('engine keeps stale-operation, completeness, and alternate connection prote
     assert.match(engine, /applyRelationship: false/);
     assert.match(engine, /preservePresence: true/);
     assert.match(engine, /preserveObservation: true/);
-    assert.match(engine, /connectionProfile/);
+    assert.match(engine, /resolveGenerationRoute/);
     assert.doesNotMatch(engine, /set.*main.*connection/i);
 });
