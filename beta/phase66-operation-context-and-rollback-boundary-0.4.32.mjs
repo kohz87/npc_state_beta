@@ -18,6 +18,16 @@ function replaceInRange(source, startMarker, endMarker, from, to, label) {
     return before + section + source.slice(end);
 }
 
+function removeInRange(source, startMarker, endMarker, needle, label) {
+    const start = source.indexOf(startMarker);
+    const end = source.indexOf(endMarker, start + startMarker.length);
+    if (start < 0 || end < 0) throw new Error('Missing v0.4.32 mutation range: ' + label);
+    const before = source.slice(0, start);
+    let section = source.slice(start, end);
+    if (section.includes(needle)) section = section.replace(needle, '');
+    return before + section + source.slice(end);
+}
+
 // Keep only the still-valid accepted relationship prefix when an explicit rollback follows
 // a preserve rebase. This protects previously accepted exchanges without suppressing rewritten
 // or genuinely new exchanges after the first lineage divergence.
@@ -59,12 +69,11 @@ function replaceInRange(source, startMarker, endMarker, from, to, label) {
         `        return mutate('add', (state, chat) => {`,
         'add NPC origin chat',
     );
-    source = replaceInRange(
+    source = removeInRange(
         source,
         `    async function addNpc(name) {`,
         `\n    async function updateNpc(reference, patch = {}, options = {}) {`,
-        `            const chat = getContext().chat || [];\n            const messageId = latestAssistantMessageId(chat);\n            const npc = normalizeNpc({`,
-        `            const messageId = latestAssistantMessageId(chat);\n            const npc = normalizeNpc({`,
+        `            const chat = getContext().chat || [];\n`,
         'add NPC origin chat context',
     );
 
@@ -101,12 +110,11 @@ function replaceInRange(source, startMarker, endMarker, from, to, label) {
         `        return mutate(archived ? 'archive' : 'restore', (state, chat) => {`,
         'archive/restore origin chat',
     );
-    source = replaceInRange(
+    source = removeInRange(
         source,
         `    async function archiveNpc(reference, archived = true, reason = 'manual') {`,
         `\n    async function resetNpcStaleness(reference) {`,
-        `                const chat = getContext().chat || [];\n                const messageId = latestAssistantMessageId(chat);\n                next.lastActivityTurn = narrativeTurnForMessage(chat, messageId);`,
-        `                const messageId = latestAssistantMessageId(chat);\n                next.lastActivityTurn = narrativeTurnForMessage(chat, messageId);`,
+        `                const chat = getContext().chat || [];\n`,
         'restore origin chat context',
     );
 
@@ -118,12 +126,11 @@ function replaceInRange(source, startMarker, endMarker, from, to, label) {
         `        return mutate('reset-staleness', (state, chat) => {`,
         'stale reset origin chat',
     );
-    source = replaceInRange(
+    source = removeInRange(
         source,
         `    async function resetNpcStaleness(reference) {`,
         `\n    async function deleteNpc(reference) {`,
-        `            const chat = getContext().chat || [];\n            const messageId = latestAssistantMessageId(chat);\n            const next = structuredClone(npc);`,
-        `            const messageId = latestAssistantMessageId(chat);\n            const next = structuredClone(npc);`,
+        `            const chat = getContext().chat || [];\n`,
         'stale reset origin chat context',
     );
 
