@@ -115,10 +115,10 @@ async function rebaseCurrentChat(relationshipMode = 'preserve', force = false) {
     } catch (error) {
         const rebasedState = state();
         if (rebasedState?.branchSafety?.status === 'safe') {
-            console.warn('[NPC State v0.4.32] timeline rebase committed, but the follow-up scan failed', error);
+            console.warn('[NPC State v0.4.33] timeline rebase committed, but the follow-up scan failed', error);
             globalThis.toastr?.warning?.('NPC State: timeline rebased successfully, but the latest exchange refresh failed. Use Scan current cast to retry. ' + (error?.message || error));
         } else {
-            console.error('[NPC State v0.4.32] timeline rebase failed safely', error);
+            console.error('[NPC State v0.4.33] timeline rebase failed safely', error);
             globalThis.toastr?.error?.('NPC State: timeline rebase failed without replacing your durable dossiers. ' + (error?.message || error));
         }
     } finally {
@@ -234,7 +234,7 @@ async function initializeFreshFromUi() {
         if (!result?.ok) throw new Error(result?.reason || 'fresh initialization failed');
         globalThis.toastr?.success?.('NPC State: fresh recovery sidecar initialized.');
     } catch (error) {
-        console.error('[NPC State v0.4.32] fresh recovery initialization failed safely', error);
+        console.error('[NPC State v0.4.33] fresh recovery initialization failed safely', error);
         globalThis.toastr?.error?.('NPC State: fresh initialization failed without guessing a replacement pointer. ' + (error?.message || error));
     } finally {
         running = false;
@@ -283,7 +283,7 @@ async function startRecoveryFromUi(control) {
         if (!result?.ok) throw new Error(result?.reason || result?.recovery?.error || 'historical recovery failed');
         if (result.complete) globalThis.toastr?.success?.('NPC State: historical reconstruction complete.');
     } catch (error) {
-        console.error('[NPC State v0.4.32] historical rebuild failed safely', error);
+        console.error('[NPC State v0.4.33] historical rebuild failed safely', error);
         globalThis.toastr?.error?.('NPC State: historical reconstruction stopped safely. Resume retries from the last committed exchange. ' + (error?.message || error));
     } finally {
         running = false;
@@ -300,7 +300,7 @@ async function resumeRecoveryFromUi() {
         if (!result?.ok) throw new Error(result?.reason || result?.recovery?.error || 'resume failed');
         if (result.complete) globalThis.toastr?.success?.('NPC State: historical reconstruction complete.');
     } catch (error) {
-        console.error('[NPC State v0.4.32] recovery resume failed safely', error);
+        console.error('[NPC State v0.4.33] recovery resume failed safely', error);
         globalThis.toastr?.error?.('NPC State: recovery resume stopped safely. ' + (error?.message || error));
     } finally {
         running = false;
