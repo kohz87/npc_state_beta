@@ -244,7 +244,73 @@ export function rollbackRebasedRelationship(npcInput = {}, divergenceMessageId =
     return npc;
 }
 
-export function rebaseToCurrentChat(state, chat = []) {
+export function normalizeRebaseRelationshipMode(value = 'preserve') {
+    const mode = String(value ?? 'preserve').trim().toLocaleLowerCase() || 'preserve';
+    if (mode !== 'preserve' && mode !== 'rollback') {
+        const error = new Error('Relationship rebase mode must be preserve or rollback.');
+        error.code = 'NPC_STATE_V04_BETA_REBASE_RELATIONSHIP_MODE';
+        throw error;
+    }
+    return mode;
+}
+
+// PHASE61_SAFE_REBASE_RELATIONSHIP_MODES: old message ids/event keys are retained only in original* audit fields.
+function quarantineRebasedRelationshipAudit(entry, rebasedAt) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return entry;
+    const originalSourceMessageId = Number.isInteger(entry.originalSourceMessageId)
+        ? entry.originalSourceMessageId
+        : (Number.isInteger(entry.sourceMessageId) ? entry.sourceMessageId : null);
+    const originalSourceEventKey = String(entry.originalSourceEventKey || entry.sourceEventKey || '').slice(0, 240);
+    const next = {
+        ...entry,
+        sourceMessageId: null,
+        turn: null,
+        timelineStatus: 'accepted-pre-rebase',
+        originalSourceMessageId,
+        rebasedAt,
+    };
+    if (Object.prototype.hasOwnProperty.call(entry, 'sourceEventKey') || originalSourceEventKey) {
+        next.originalSourceEventKey = originalSourceEventKey;
+        next.sourceEventKey = '';
+    }
+    return next;
+}
+
+export function previewRelationshipRebase(state, chat = [], { relationshipMode = 'rollback' } = {}) {
+    const mode = normalizeRebaseRelationshipMode(relationshipMode);
+    const source = normalizeState(state, state?.chatKey || '');
+    const divergenceMessageId = branchDivergenceMessageId(source, chat);
+    if (mode === 'preserve') return { relationshipMode: mode, divergenceMessageId, affectedNpcs: [] };
+    const affectedNpcs = [];
+    for (const npc of source.npcs || []) {
+        const rolled = rollbackRebasedRelationship(npc, divergenceMessageId);
+        const axes = RELATIONSHIP_AXES.filter(axis => Number(npc.relationship?.[axis] || 0) !== Number(rolled.relationship?.[axis] || 0));
+        const historyRemoved = Math.max(0, (npc.relationshipHistory || []).length - (rolled.relationshipHistory || []).length);
+        const milestonesRemoved = Math.max(0, (npc.relationshipMilestones || []).length - (rolled.relationshipMilestones || []).length);
+        const evidenceRemoved = Math.max(0, (npc.relationshipEvidenceHistory || []).length - (rolled.relationshipEvidenceHistory || []).length);
+        const diagnosticsRemoved = Math.max(0, (npc.relationshipDiagnostics || []).length - (rolled.relationshipDiagnostics || []).length);
+        const summaryCleared = Boolean(npc.relationshipSummary) && !rolled.relationshipSummary;
+        if (!axes.length && !historyRemoved && !milestonesRemoved && !evidenceRemoved && !diagnosticsRemoved && !summaryCleared) continue;
+        affectedNpcs.push({
+            npcId: npc.id,
+            name: npc.name,
+            before: structuredClone(npc.relationship),
+            after: structuredClone(rolled.relationship),
+            progressBefore: structuredClone(npc.relationshipProgress),
+            progressAfter: structuredClone(rolled.relationshipProgress),
+            axes,
+            historyRemoved,
+            milestonesRemoved,
+            evidenceRemoved,
+            diagnosticsRemoved,
+            summaryCleared,
+        });
+    }
+    return { relationshipMode: mode, divergenceMessageId, affectedNpcs };
+}
+
+export function rebaseToCurrentChat(state, chat = [], { relationshipMode = 'preserve' } = {}) {
+    const mode = normalizeRebaseRelationshipMode(relationshipMode);
     const source = normalizeState(state, state?.chatKey || '');
     const currentLineage = chatLineage(chat);
     const currentTurn = narrativeTurnFromLineage(currentLineage);
@@ -254,10 +320,12 @@ export function rebaseToCurrentChat(state, chat = []) {
     const preserveLatestScannedMessage = divergenceMessageId === null
         && Number.isInteger(source.lastScannedMessageId)
         && source.lastScannedMessageId === latestAssistantId;
+    const rebasedAt = Date.now();
+    const preRebaseSnapshot = snapshotForCheckpoint(source);
     const next = normalizeState(source, source.chatKey);
 
     next.npcs = next.npcs.map(npc => {
-        const rebased = rollbackRebasedRelationship(npc, divergenceMessageId);
+        const rebased = mode === 'rollback' ? rollbackRebasedRelationship(npc, divergenceMessageId) : structuredClone(npc);
         rebased.present = false;
         rebased.worldActive = false;
         rebased.firstSeenMessageId = null;
@@ -270,30 +338,29 @@ export function rebaseToCurrentChat(state, chat = []) {
         } else {
             rebased.lastActivityTurn = currentTurn;
         }
-        if (rebased.lastRelationshipChange) rebased.lastRelationshipChange = { ...rebased.lastRelationshipChange, sourceMessageId: null, turn: null };
-        rebased.relationshipHistory = (rebased.relationshipHistory || []).map(event => ({ ...event, sourceMessageId: null, turn: null }));
-        // Surviving relationship milestones become part of the newly accepted branch base.
-        // Clear old message provenance so a later rebase cannot discard an already accepted unlock.
-        rebased.relationshipMilestones = (rebased.relationshipMilestones || []).map(entry => ({ ...entry, sourceMessageId: null, turn: null }));
-        // Recent evidence/diagnostics are timeline-local and must not survive the rebase.
-        rebased.relationshipEvidenceHistory = [];
-        rebased.relationshipDiagnostics = [];
+        if (rebased.lastRelationshipChange) rebased.lastRelationshipChange = quarantineRebasedRelationshipAudit(rebased.lastRelationshipChange, rebasedAt);
+        rebased.relationshipHistory = (rebased.relationshipHistory || []).map(event => quarantineRebasedRelationshipAudit(event, rebasedAt));
+        rebased.relationshipMilestones = (rebased.relationshipMilestones || []).map(entry => quarantineRebasedRelationshipAudit(entry, rebasedAt));
+        rebased.relationshipEvidenceHistory = (rebased.relationshipEvidenceHistory || []).map(entry => quarantineRebasedRelationshipAudit(entry, rebasedAt));
+        rebased.relationshipDiagnostics = (rebased.relationshipDiagnostics || []).map(entry => quarantineRebasedRelationshipAudit(entry, rebasedAt));
         return rebased;
     });
     next.socialGraph = (next.socialGraph || []).map(edge => ({ ...edge, sourceMessageId: null }));
-    next.lastObservation = {
-        messageId: null,
-        exchangeActiveNpcIds: [],
-        finalPresentNpcIds: [],
-        worldActiveNpcIds: [],
-        targetNpcIds: [],
-    };
+    next.lastObservation = { messageId: null, exchangeActiveNpcIds: [], finalPresentNpcIds: [], worldActiveNpcIds: [], targetNpcIds: [] };
     next.lastScannedMessageId = preserveLatestScannedMessage ? source.lastScannedMessageId : null;
     next.checkpoints = [];
     next.branchBase = null;
     next.branchHeadLineage = [];
     next.branchSafety = { status: 'safe', kind: '', reason: '' };
-    next.updatedAt = Date.now();
+    next.rebaseBackup = {
+        createdAt: rebasedAt,
+        relationshipMode: mode,
+        divergenceMessageId,
+        sourceLastScannedMessageId: Number.isInteger(source.lastScannedMessageId) ? source.lastScannedMessageId : null,
+        sourceLineage: Array.isArray(source.branchHeadLineage) ? [...source.branchHeadLineage] : [],
+        snapshot: preRebaseSnapshot,
+    };
+    next.updatedAt = rebasedAt;
     return ensureBranchBase(normalizeState(next, source.chatKey), chat);
 }
 
@@ -395,7 +462,7 @@ function preserveCurrentPresentation(restored, current) {
         for (const field of locked) {
             if (stableFields.has(field)) next[field] = structuredClone(live[field]);
         }
-        // Importance became editor-owned in 0.4.29, so branch history must not undo it.
+        // Importance became editor-owned in 0.4.30, so branch history must not undo it.
         next.importance = Number(live.importance) || 0;
         return next;
     });

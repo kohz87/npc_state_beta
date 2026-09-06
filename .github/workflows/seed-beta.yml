@@ -1,4 +1,4 @@
-name: Build NPC State 0.4.29 Beta
+name: Build NPC State 0.4.30 Beta
 
 on:
   workflow_dispatch:
@@ -25,17 +25,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Once CI has committed the regenerated v0.4.29 runtime, test that exact checkout
-      # before replacing v03 from the pinned stable baseline. A one-time exception lets the
-      # phase59f source transform remove the shadowed v0.4.28 recoveryRange declaration.
+      # Once CI has committed the regenerated v0.4.30 runtime, test that exact checkout
+      # before replacing v03 from the pinned stable baseline. During the one-time transition
+      # from the checked-in v0.4.29 runtime, the cold build generates v0.4.30 first.
       - name: Source checkout behavior gate
         run: |
-          if grep -q '"version": "0.4.29"' manifest.json && ! grep -q "function recoveryRange() {" v03/engine.js; then
+          if grep -q '"version": "0.4.30"' manifest.json && ! grep -q "function recoveryRange() {" v03/engine.js; then
             npm test
-          elif grep -q '"version": "0.4.29"' manifest.json; then
-            echo "Checked-in v0.4.29 runtime still contains the legacy recoveryRange shadow; cold build will apply phase59f before source parity becomes mandatory."
+          elif grep -q '"version": "0.4.30"' manifest.json; then
+            echo "Checked-in v0.4.30 runtime still contains the legacy recoveryRange shadow; cold build will repair it before source parity becomes mandatory."
           else
-            echo "Checked-in runtime is still the v0.4.28 source baseline; cold build will generate v0.4.29 first."
+            echo "Checked-in runtime predates v0.4.30; cold build will generate v0.4.30 first."
           fi
 
       - name: Fetch pinned stable NPC State baseline
@@ -52,7 +52,7 @@ jobs:
           cp /tmp/npc-state-stable/manifest.json ./manifest.json
           cp /tmp/npc-state-stable/package.json ./package.json
 
-      - name: Apply 0.4.29 transformation in ordered phases
+      - name: Apply 0.4.30 transformation in ordered phases
         run: |
           node beta/build-beta-v2.mjs
           node beta/post-build-patch.mjs
@@ -79,7 +79,7 @@ jobs:
           # Replay every release transform in numeric patch order. The historical marker
           # comments below stay source-visible because descendant verifiers intentionally
           # assert that each older release remains part of the cold-build chain.
-          for patch in $(seq 2 29); do
+          for patch in $(seq 2 30); do
             node "beta/bump-0.4.${patch}.mjs"
             for phase in $(find beta -maxdepth 1 -name "phase*-0.4.${patch}.mjs" -print | sort); do
               echo "Applying $phase"
@@ -116,6 +116,7 @@ jobs:
           # node beta/bump-0.4.27.mjs ; -name 'phase*-0.4.27.mjs'
           # node beta/bump-0.4.28.mjs ; -name 'phase*-0.4.28.mjs'
           # node beta/bump-0.4.29.mjs ; -name 'phase*-0.4.29.mjs'
+          # node beta/bump-0.4.30.mjs ; -name 'phase*-0.4.30.mjs'
 
       - name: Syntax gate
         run: |
@@ -244,7 +245,16 @@ jobs:
           ! grep -q "function recoveryRange() {" v03/engine.js
           grep -q "npc-state-v0429-selected-count" v03/branch-recovery-ui.js
           grep -q "active in another tab" v03/branch-recovery-ui.js
-          grep -q '"version": "0.4.29"' manifest.json
+
+          # v0.4.30 safe timeline rebase relationship-mode invariants.
+          grep -q "normalizeRebaseRelationshipMode" v03/branches.js
+          grep -q "previewRelationshipRebase" v03/branches.js
+          grep -q "relationshipMode = 'preserve'" v03/engine.js
+          grep -q "applyRelationship: rebase && mode === 'preserve' ? false : null" v03/engine.js
+          grep -q "rebaseBackup" v03/schema.js
+          grep -q "Keep NPC state and accept timeline" v03/branch-recovery-ui.js
+          grep -q "Roll back discarded story changes" v03/branch-recovery-ui.js
+          grep -q '"version": "0.4.30"' manifest.json
 
       - name: Commit generated beta runtime
         run: |
@@ -255,5 +265,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-*.mjs
-          git commit -m "NPC State v0.4.29: harden recovery interruptions and event dedupe"
+          git commit -m "NPC State v0.4.30: preserve relationships across timeline rebase"
           git push

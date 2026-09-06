@@ -1,4 +1,5 @@
-import { chatLineage, bestCheckpoint, ensureBranchBase, fingerprintMessage, rebaseToCurrentChat, reconcileToCurrentBranch, recordCheckpoint } from './branches.js';
+import { chatLineage, bestCheckpoint, ensureBranchBase, fingerprintMessage, normalizeRebaseRelationshipMode, previewRelationshipRebase, rebaseToCurrentChat, reconcileToCurrentBranch, recordCheckpoint } from './branches.js';
+// PHASE61_SAFE_REBASE_RELATIONSHIP_MODES: preserve-mode rebase cannot mutate relationship state during its immediate refresh.
 import { buildExchangeEvidencePolicy, profileEvidenceText, relationshipEvidenceText, retentionEvidenceText, structuredDossierBlocksForNpc } from './evidence-adapter.js';
 import {
     applyNpcStateBundleImport,
@@ -45,7 +46,7 @@ import {
 } from './stale.js';
 import { clearV3PointerHint, createRecoveryV3Sidecar, deleteV3SidecarFile, readV3PointerHint, readV3Sidecar, retireV3Sidecar, writeV3Sidecar } from './storage.js';
 
-const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.29 recovery scanner. Obey the supplied schema and evidence rules exactly.';
+const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.30 recovery scanner. Obey the supplied schema and evidence rules exactly.';
 
 function profileContextForWindow(chat = [], messageId = null, depth = 8) {
     const end = Number.isInteger(messageId) ? Math.min(chat.length - 1, messageId) : chat.length - 1;
@@ -233,7 +234,7 @@ export function createNpcStateEngine(adapters = {}) {
     }
 
     if (typeof getContext !== 'function' || typeof getChatKey !== 'function' || typeof getSettings !== 'function' || typeof generate !== 'function') {
-        throw new Error('NPC State v0.4.29 engine requires getContext, getChatKey, getSettings, and generate adapters.');
+        throw new Error('NPC State v0.4.30 engine requires getContext, getChatKey, getSettings, and generate adapters.');
     }
 
     function epoch(chatKey) { return operationEpoch.get(chatKey) || 0; }
@@ -372,7 +373,7 @@ export function createNpcStateEngine(adapters = {}) {
             if (importedStable || fingerprintUpgraded || recoveryInterrupted) {
                 state = await persist(chatKey, state);
                 if (importedStable) {
-                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.29 beta sidecar. Stable data was not modified.');
+                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.30 beta sidecar. Stable data was not modified.');
                 } else if (fingerprintUpgraded) {
                     notify('info', 'Upgraded branch checkpoint fingerprints for transport-safe, swipe-index-independent rollback. Existing dossiers were preserved; old rollback hashes were reset once.');
                 } else if (recoveryInterrupted) {
@@ -408,7 +409,7 @@ export function createNpcStateEngine(adapters = {}) {
         }
     }
 
-    async function scan(messageId, { manual = false, force = false } = {}) {
+    async function scan(messageId, { manual = false, force = false, applyRelationship = null } = {}) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat' || /-pending:/.test(chatKey)) return { ok: false, reason: 'no-chat' };
         const settings = getSettings();
@@ -463,7 +464,7 @@ export function createNpcStateEngine(adapters = {}) {
                     fallbackDays: settings.birthdayRandomDaysPerMonth,
                 },
                 applyReturnedNpcPatches: true,
-                applyRelationship: !alreadyScannedMessage,
+                applyRelationship: applyRelationship === null ? !alreadyScannedMessage : applyRelationship === true,
             });
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
             const retentionExchange = { ...exchange, user: exchange.user ? { ...exchange.user, mes: retentionEvidenceText(exchange.user.mes) } : null, assistant: exchange.assistant ? { ...exchange.assistant, mes: retentionEvidenceText(exchange.assistant.mes) } : null };
@@ -1589,43 +1590,64 @@ export function createNpcStateEngine(adapters = {}) {
         };
     }
 
-    async function reconcileBranch({ rescan = false, rebase = false } = {}) {
+    async function previewRebase({ relationshipMode = 'rollback' } = {}) {
+        const chatKey = getChatKey();
+        if (!chatKey || chatKey === 'no-chat') return { ok: false, reason: 'no-chat' };
+        const state = await loadChat(chatKey);
+        if (!state) return { ok: false, reason: 'not-hydrated' };
+        const mode = normalizeRebaseRelationshipMode(relationshipMode);
+        return { ok: true, ...previewRelationshipRebase(state, getContext().chat || [], { relationshipMode: mode }) };
+    }
+
+    async function reconcileBranch({ rescan = false, rebase = false, relationshipMode = 'preserve' } = {}) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat') return { ok: false, reason: 'no-chat' };
         invalidate(chatKey);
         let result;
+        const mode = rebase ? normalizeRebaseRelationshipMode(relationshipMode) : 'preserve';
         await exclusive(chatKey, async () => {
             const state = await loadChat(chatKey);
             if (recoveryBlocksLiveScan(state)) {
-                result = { ok: false, reason: 'recovery-active', recovery: structuredClone(state?.recovery) };
+                result = { ok: false, reason: 'recovery-active', recovery: decoratedRecoveryStatus(state.recovery, chatKey) };
                 return;
             }
             const chat = getContext().chat || [];
             if (rebase) {
-                const rebased = rebaseToCurrentChat(state, chat);
+                const rebased = rebaseToCurrentChat(state, chat, { relationshipMode: mode });
+                if (!rebased.rebaseBackup?.snapshot) throw new Error('Timeline rebase refused to persist without a restorable pre-rebase snapshot.');
                 const persisted = await persist(chatKey, rebased);
                 result = {
                     ok: true,
                     changed: true,
                     rebased: true,
+                    relationshipMode: mode,
                     unsafeDivergence: false,
                     checkpoint: persisted.branchBase || null,
+                    rebaseBackup: persisted.rebaseBackup ? { createdAt: persisted.rebaseBackup.createdAt, relationshipMode: persisted.rebaseBackup.relationshipMode } : null,
                     state: structuredClone(persisted),
                 };
                 return;
             }
             const reconciled = reconcileToCurrentBranch(state, chat);
+            if (reconciled.unsafeDivergence) {
+                result = { ok: false, changed: false, unsafeDivergence: true, branchSafety: structuredClone(reconciled.state.branchSafety), state: structuredClone(reconciled.state) };
+                return;
+            }
             if (!reconciled.changed) {
-                result = { ok: true, changed: false, unsafeDivergence: false, checkpoint: bestCheckpoint(state, chat) };
+                result = { ok: true, changed: false, unsafeDivergence: false, checkpoint: reconciled.checkpoint || null, state: structuredClone(reconciled.state) };
                 return;
             }
             const persisted = await persist(chatKey, reconciled.state);
-            result = { ok: true, changed: true, unsafeDivergence: reconciled.unsafeDivergence === true, checkpoint: reconciled.checkpoint, state: structuredClone(persisted) };
+            result = { ok: true, changed: true, unsafeDivergence: false, checkpoint: reconciled.checkpoint || null, state: structuredClone(persisted) };
         });
-        if (result?.unsafeDivergence) return result;
+        if (result?.unsafeDivergence || !result?.ok) return result;
         if (rescan && (rebase || getSettings().branchRescan !== false)) {
             const id = latestAssistantMessageId(getContext().chat || []);
-            if (id >= 0) result.rescan = await scan(id, { manual: rebase === true, force: true });
+            if (id >= 0) result.rescan = await scan(id, {
+                manual: rebase === true,
+                force: true,
+                applyRelationship: rebase && mode === 'preserve' ? false : null,
+            });
         }
         return result;
     }
@@ -1652,6 +1674,7 @@ export function createNpcStateEngine(adapters = {}) {
         pauseHistoricalRecovery,
         cancelHistoricalRecovery,
         recoveryRange,
+        previewRebase,
         reconcileBranch,
         renameChatKey,
         deleteChatKey,

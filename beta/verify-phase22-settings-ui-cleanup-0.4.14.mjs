@@ -51,7 +51,7 @@ assert(recovery.includes("ADVANCED_RECOVERY_ID = 'npc_state_v0414_advanced_recov
 assert(recovery.includes('hostForForceControl'), 'Force rebase lacks an advanced host resolver');
 assert(recovery.includes('ensureForceControl(forceHost || host)'), 'Force rebase is not placed under Advanced Recovery when available');
 assert(recovery.includes('<b>Force Timeline Rebase</b>'), 'Force rebase warning label was not clarified');
-assert(recovery.includes('rebaseCurrentChat(true)'), 'Force rebase behavior was accidentally removed');
+assert(recovery.includes("rebaseCurrentChat('preserve', true)"), 'Force preserve rebase behavior was accidentally removed');
 assert(recovery.includes('recovery.open = true'), 'Required recovery no longer opens the main Recovery section');
 
 // Relationship and memory rubrics are separated without changing their authoritative controls.

@@ -16,9 +16,10 @@ const readme = read('README.md');
 const changelog = read('CHANGELOG.md');
 const behavior = read('beta/verify-phase59-recovery-interruptions-0.4.29.mjs');
 
-assert.equal(manifest.version, '0.4.29', 'Manifest is not v0.4.29');
-assert(workflow.includes('name: Build NPC State 0.4.29 Beta'), 'Workflow title is not v0.4.29');
-assert(workflow.includes('for patch in $(seq 2 29); do'), 'Cold replay does not include v0.4.29');
+const manifestMatch = String(manifest.version || '').match(/^0\.4\.(\d+)$/);
+assert(manifestMatch && Number(manifestMatch[1]) >= 29, 'Manifest regressed below v0.4.29');
+assert(/name: Build NPC State 0\.4\.(?:29|[3-9]\d) Beta/.test(workflow), 'Workflow title regressed below v0.4.29');
+assert(/for patch in \$\(seq 2 (?:29|[3-9]\d)\); do/.test(workflow), 'Cold replay regressed below v0.4.29');
 assert(workflow.includes("# node beta/bump-0.4.29.mjs ; -name 'phase*-0.4.29.mjs'"), 'Workflow lacks v0.4.29 source marker');
 assert(workflow.includes('Source checkout behavior gate'), 'Workflow lacks checked-in source behavior gate');
 assert(workflow.includes("git diff --quiet -- v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-*.mjs"), 'Generated parity does not cover all verifier fixtures');
@@ -109,8 +110,8 @@ assert(behavior.includes("assert.equal(clara.relationship.trust, 2, 'Identical q
 assert(behavior.includes("assert.equal(replayClara.relationship.trust, 2, 'Reapplying the same source event moved relationship twice')"), 'Same-event replay protection regression is missing');
 assert(behavior.includes("event.reasons?.includes('trust:duplicate')"), 'Same-event duplicate diagnostic regression is missing');
 
-assert(readme.includes('# NPC State Beta 0.4.29'), 'README title is not v0.4.29');
+assert(/^# NPC State Beta 0\.4\.(?:29|[3-9]\d)/m.test(readme), 'README title regressed below v0.4.29');
 assert(readme.includes('## Recovery interruption and concurrency hardening'), 'README lacks v0.4.29 recovery hardening section');
 assert(changelog.includes('## v0.4.29'), 'CHANGELOG lacks v0.4.29 entry');
 
-console.log('NPC State 0.4.29 release source parity verified');
+console.log('NPC State 0.4.29+ release source parity verified');

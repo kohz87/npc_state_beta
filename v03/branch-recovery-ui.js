@@ -61,35 +61,65 @@ function placeBanner(host, banner) {
     host.prepend?.(banner);
 }
 
-async function rebaseCurrentChat(force = false) {
+function relationshipRollbackPreviewText(preview = {}) {
+    const rows = Array.isArray(preview.affectedNpcs) ? preview.affectedNpcs : [];
+    if (!rows.length) return 'No traced relationship meter, history, milestone, evidence, or diagnostic changes would be rolled back.';
+    const lines = rows.slice(0, 12).map(row => {
+        const meters = (row.axes || []).map(axis => axis + ' ' + Number(row.before?.[axis] || 0) + ' -> ' + Number(row.after?.[axis] || 0));
+        const removals = [];
+        if (row.historyRemoved) removals.push('history -' + row.historyRemoved);
+        if (row.milestonesRemoved) removals.push('milestones -' + row.milestonesRemoved);
+        if (row.evidenceRemoved) removals.push('evidence -' + row.evidenceRemoved);
+        if (row.diagnosticsRemoved) removals.push('diagnostics -' + row.diagnosticsRemoved);
+        if (row.summaryCleared) removals.push('summary cleared');
+        return '- ' + (row.name || row.npcId || 'NPC') + ': ' + [...meters, ...removals].join(', ');
+    });
+    if (rows.length > 12) lines.push('- ...and ' + (rows.length - 12) + ' more NPCs');
+    return lines.join('\n');
+}
+
+// PHASE61_SAFE_REBASE_RELATIONSHIP_MODES: timeline acceptance and relationship rollback are separate user decisions.
+async function rebaseCurrentChat(relationshipMode = 'preserve', force = false) {
     if (running) return;
     const current = state();
     const required = branchRecoveryRequired(current);
     if (!required && force !== true) return render();
-    const accepted = globalThis.confirm?.(
-        (!required && force === true
-            ? 'Force rebase NPC State to the current chat timeline even though branch safety is currently marked safe?\n\n'
-            : 'Rebase NPC State to the current chat timeline?\n\n') +
-        'This preserves durable profile canon, memories, portraits, manual locks, archives, social ties, deletion tombstones, and manual relationship edits. Relationship changes and milestone breakthroughs attributable to discarded branch messages are rolled back before the new branch base is accepted. It then clears live in-chat state, chat-local message references, and incompatible branch checkpoints before scanning the latest surviving assistant exchange.\n\n' +
-        'If this exact latest exchange was already scanned on the same lineage, NPC State preserves that scan marker so the refresh cannot apply its relationship delta twice. Older facts without recoverable timeline provenance may still remain until later scans revise them or you edit the dossier manually.'
-    );
+    const mode = relationshipMode === 'rollback' ? 'rollback' : 'preserve';
+    let accepted = false;
+    if (mode === 'rollback') {
+        let preview;
+        try { preview = await globalThis.NPCState?.previewRebase?.({ relationshipMode: 'rollback' }); }
+        catch (error) { globalThis.toastr?.error?.('NPC State: could not preview relationship rollback. ' + (error?.message || error)); return; }
+        if (!preview?.ok) { globalThis.toastr?.error?.('NPC State: could not preview relationship rollback. ' + (preview?.reason || 'preview failed')); return; }
+        accepted = globalThis.confirm?.(
+            'Roll back discarded story changes and accept the current chat timeline?\n\n' +
+            relationshipRollbackPreviewText(preview) + '\n\n' +
+            'This reverses relationship movement, fractional progress, milestones, history, and summaries only where discarded-message provenance supports the rollback. A restorable pre-rebase snapshot is saved first.'
+        );
+    } else {
+        accepted = globalThis.confirm?.(
+            (!required && force === true ? 'Force Timeline Rebase to the current visible chat?\n\n' : 'Keep NPC state and accept the current chat timeline?\n\n') +
+            'Relationship meters, fractional progress, milestones, history, the last relationship change, and summaries are preserved. Existing relationship audit records are retained as accepted pre-rebase history with stale message provenance quarantined. The immediate refresh cannot award relationship movement again. A restorable pre-rebase snapshot is saved first.'
+        );
+    }
     if (!accepted) return;
     running = true;
     render();
     const toast = globalThis.toastr?.info?.('NPC State: rebasing to the current chat timeline...', '', { timeOut: 0, extendedTimeOut: 0 });
     try {
-        const result = await globalThis.NPCState?.reconcile?.({ rebase: true, rescan: true });
+        const result = await globalThis.NPCState?.reconcile?.({ rebase: true, rescan: true, relationshipMode: mode });
         if (!result?.ok) throw new Error(result?.reason || 'rebase failed');
-        if (result.rescan?.ok) globalThis.toastr?.success?.('NPC State: timeline rebased and the latest surviving exchange was scanned.');
-        else globalThis.toastr?.success?.('NPC State: timeline rebased. No surviving assistant exchange needed a scan.');
+        const modeText = mode === 'rollback' ? 'discarded relationship changes rolled back' : 'NPC relationship state preserved';
+        if (result.rescan?.ok) globalThis.toastr?.success?.('NPC State: timeline rebased, ' + modeText + ', and the latest surviving exchange was refreshed.');
+        else globalThis.toastr?.success?.('NPC State: timeline rebased with ' + modeText + '.');
     } catch (error) {
         const rebasedState = state();
         if (rebasedState?.branchSafety?.status === 'safe') {
-            console.warn('[NPC State v0.4.29] timeline rebase committed, but the follow-up scan failed', error);
-            globalThis.toastr?.warning?.(`NPC State: timeline rebased successfully, but the latest exchange scan failed. Use Scan current cast to retry. ${error?.message || error}`);
+            console.warn('[NPC State v0.4.30] timeline rebase committed, but the follow-up scan failed', error);
+            globalThis.toastr?.warning?.('NPC State: timeline rebased successfully, but the latest exchange refresh failed. Use Scan current cast to retry. ' + (error?.message || error));
         } else {
-            console.error('[NPC State v0.4.29] timeline rebase failed safely', error);
-            globalThis.toastr?.error?.(`NPC State: timeline rebase failed without replacing your durable dossiers. ${error?.message || error}`);
+            console.error('[NPC State v0.4.30] timeline rebase failed safely', error);
+            globalThis.toastr?.error?.('NPC State: timeline rebase failed without replacing your durable dossiers. ' + (error?.message || error));
         }
     } finally {
         running = false;
@@ -112,8 +142,9 @@ function ensureForceControl(host) {
     if (control.dataset.renderKey !== renderKey) {
         control.dataset.renderKey = renderKey;
         control.dataset.running = running ? '1' : '0';
-        control.innerHTML = `<span><b>Force Timeline Rebase</b><small>Bypasses normal branch detection and rebuilds against the currently visible chat. Durable dossier canon and manual edits are preserved.</small></span><button type="button" class="menu_button npc-state-v3-force-rebase-current" ${running ? 'disabled' : ''}><i class="fa-solid fa-code-branch"></i> ${running ? 'Rebasing...' : 'Force Timeline Rebase...'} </button>`;
-        control.querySelector('.npc-state-v3-force-rebase-current')?.addEventListener('click', () => rebaseCurrentChat(true));
+        control.innerHTML = `<span><b>Force Timeline Rebase</b><small>Accept the current visible chat as canon. Keeping NPC state is the safe default; rollback is a separate destructive choice with a relationship preview.</small></span><div class="npc-state-v3-branch-recovery-actions"><button type="button" class="menu_button npc-state-v3-force-rebase-preserve" ${running ? 'disabled' : ''}><i class="fa-solid fa-shield-heart"></i> Keep NPC state and accept timeline</button><button type="button" class="menu_button npc-state-v3-force-rebase-rollback" ${running ? 'disabled' : ''}><i class="fa-solid fa-rotate-left"></i> Roll back discarded story changes</button></div>`;
+        control.querySelector('.npc-state-v3-force-rebase-preserve')?.addEventListener('click', () => rebaseCurrentChat('preserve', true));
+        control.querySelector('.npc-state-v3-force-rebase-rollback')?.addEventListener('click', () => rebaseCurrentChat('rollback', true));
     }
     return control;
 }
@@ -203,7 +234,7 @@ async function initializeFreshFromUi() {
         if (!result?.ok) throw new Error(result?.reason || 'fresh initialization failed');
         globalThis.toastr?.success?.('NPC State: fresh recovery sidecar initialized.');
     } catch (error) {
-        console.error('[NPC State v0.4.29] fresh recovery initialization failed safely', error);
+        console.error('[NPC State v0.4.30] fresh recovery initialization failed safely', error);
         globalThis.toastr?.error?.('NPC State: fresh initialization failed without guessing a replacement pointer. ' + (error?.message || error));
     } finally {
         running = false;
@@ -252,7 +283,7 @@ async function startRecoveryFromUi(control) {
         if (!result?.ok) throw new Error(result?.reason || result?.recovery?.error || 'historical recovery failed');
         if (result.complete) globalThis.toastr?.success?.('NPC State: historical reconstruction complete.');
     } catch (error) {
-        console.error('[NPC State v0.4.29] historical rebuild failed safely', error);
+        console.error('[NPC State v0.4.30] historical rebuild failed safely', error);
         globalThis.toastr?.error?.('NPC State: historical reconstruction stopped safely. Resume retries from the last committed exchange. ' + (error?.message || error));
     } finally {
         running = false;
@@ -269,7 +300,7 @@ async function resumeRecoveryFromUi() {
         if (!result?.ok) throw new Error(result?.reason || result?.recovery?.error || 'resume failed');
         if (result.complete) globalThis.toastr?.success?.('NPC State: historical reconstruction complete.');
     } catch (error) {
-        console.error('[NPC State v0.4.29] recovery resume failed safely', error);
+        console.error('[NPC State v0.4.30] recovery resume failed safely', error);
         globalThis.toastr?.error?.('NPC State: recovery resume stopped safely. ' + (error?.message || error));
     } finally {
         running = false;
@@ -423,8 +454,9 @@ export function renderBranchRecoveryUi() {
     if (banner.dataset.renderKey !== renderKey) {
         banner.dataset.renderKey = renderKey;
         banner.dataset.running = running ? '1' : '0';
-        banner.innerHTML = `<b>Timeline rebase required</b><small>${messageForKind(kind)} Durable dossiers are intact. Rebase only if the remaining chat is now the canon you want to keep.</small><div class="npc-state-v3-branch-recovery-actions"><button type="button" class="menu_button npc-state-v3-rebase-current"><i class="fa-solid fa-code-branch"></i> ${running ? 'Rebasing...' : 'Rebase to current chat'}</button></div>`;
-        banner.querySelector('.npc-state-v3-rebase-current')?.addEventListener('click', rebaseCurrentChat);
+        banner.innerHTML = `<b>Timeline rebase required</b><small>${messageForKind(kind)} Durable dossiers are intact. Rebase to current chat only if the remaining chat is now the canon you want to keep. Choose whether relationship state is preserved or explicitly rolled back.</small><div class="npc-state-v3-branch-recovery-actions"><button type="button" class="menu_button npc-state-v3-rebase-preserve"><i class="fa-solid fa-shield-heart"></i> ${running ? 'Rebasing...' : 'Keep NPC state and accept timeline'}</button><button type="button" class="menu_button npc-state-v3-rebase-rollback"><i class="fa-solid fa-rotate-left"></i> Roll back discarded story changes</button></div>`;
+        banner.querySelector('.npc-state-v3-rebase-preserve')?.addEventListener('click', () => rebaseCurrentChat('preserve', false));
+        banner.querySelector('.npc-state-v3-rebase-rollback')?.addEventListener('click', () => rebaseCurrentChat('rollback', false));
     }
     return true;
 }
