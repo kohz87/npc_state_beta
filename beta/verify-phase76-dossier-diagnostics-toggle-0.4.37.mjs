@@ -64,18 +64,30 @@ const npc = {
     minor: false,
 };
 
+const diagnosticSnapshot = JSON.stringify({
+    lifeStateDiagnostics: npc.lifeStateDiagnostics,
+    relationshipDiagnostics: npc.relationshipDiagnostics,
+});
+
 const hidden = dossierHtml(npc);
 assert(hidden.includes('Show diagnostics'), 'Hidden dossier must expose Show diagnostics quick action');
 assert(!hidden.includes('Life-state diagnostics'), 'Hidden dossier must omit life-state diagnostics block');
 assert(!hidden.includes('Relationship evaluation &amp; scoring'), 'Hidden dossier must omit relationship scoring diagnostics block');
 assert(!hidden.includes('Rejected test diagnostic marker.'), 'Hidden dossier must not render diagnostic payload content');
+assert(!hidden.includes('Gate status and recent relationship evaluations'), 'Hidden dossier must not build relationship diagnostic detail HTML');
 assert(hidden.includes('Recent relationship changes'), 'Relationship history must remain visible when diagnostics are hidden');
+assert.equal(JSON.stringify({ lifeStateDiagnostics: npc.lifeStateDiagnostics, relationshipDiagnostics: npc.relationshipDiagnostics }), diagnosticSnapshot, 'Hiding diagnostics must not erase or mutate stored diagnostic state');
+
+const explicitHidden = dossierHtml(npc, { showDiagnostics: false });
+assert.equal(explicitHidden, hidden, 'Default hidden behavior must match an explicit false visibility option');
 
 const shown = dossierHtml(npc, { showDiagnostics: true });
 assert(shown.includes('Hide diagnostics'), 'Visible dossier must expose Hide diagnostics quick action');
 assert(shown.includes('Life-state diagnostics'), 'Visible dossier must render life-state diagnostics block');
 assert(shown.includes('Relationship evaluation &amp; scoring'), 'Visible dossier must render relationship scoring diagnostics block');
 assert(shown.includes('Rejected test diagnostic marker.'), 'Visible dossier must render stored diagnostic content');
+assert(shown.includes('Gate status and recent relationship evaluations'), 'Visible dossier must render relationship diagnostic detail HTML');
 assert(shown.includes('Recent relationship changes'), 'Relationship history must remain visible when diagnostics are shown');
+assert.equal(JSON.stringify({ lifeStateDiagnostics: npc.lifeStateDiagnostics, relationshipDiagnostics: npc.relationshipDiagnostics }), diagnosticSnapshot, 'Showing diagnostics must also remain presentation-only');
 
 console.log('PASS v0.4.37 dossier diagnostics visibility toggle');
