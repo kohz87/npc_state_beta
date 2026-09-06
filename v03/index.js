@@ -415,6 +415,7 @@ async function maybeForegroundFallback(messageId, reason) {
     return runSeparateRecoveryScan(messageId, 'foreground-' + reason);
 }
 
+// PHASE74D_LIVE_FOREGROUND_LIFE_STATE_CONTRACT: only newly generated embedded payloads require the v0.4.36 lifecycle channel.
 async function processEmbeddedScan(messageId) {
     const ctx = getContext();
     const id = Number(messageId);
@@ -425,7 +426,7 @@ async function processEmbeddedScan(messageId) {
         stripNpcTransportOnly(id);
         return { ok: false, reason: 'auto-disabled' };
     }
-    const consumed = consumeNpcStateControl(message.mes);
+    const consumed = consumeNpcStateControl(message.mes, { requireLifeStateUpdates: true });
     if (!consumed.found) {
         console.warn('[NPC State Beta] Foreground response omitted <npc_state_v1>; running one full recovery scan.');
         return runSeparateRecoveryScan(id, 'foreground-missing-control');

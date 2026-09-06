@@ -421,7 +421,7 @@ function scannerNpcArrayValid(value) {
         return Boolean(direct || alias);
     });
 }
-function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupplemental = false } = {}) {
+function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupplemental = false, requireLifeStateUpdates = false } = {}) {
     if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.36 recovery scanner JSON must be an object.');
     const has = key => Object.prototype.hasOwnProperty.call(parsed, key);
     const presentKey = has('inChatNpcIds') ? 'inChatNpcIds' : (has('finalPresentNpcIds') ? 'finalPresentNpcIds' : '');
@@ -433,7 +433,8 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
         if (!scannerNpcArrayValid(parsed.npcs)) invalid.push('npcs[object-with-string-identity]');
         if ((!allowOmittedSupplemental || has('socialEdges')) && !scannerObjectArrayValid(parsed.socialEdges)) invalid.push('socialEdges[object]');
         if (has('familyFacts') && !scannerObjectArrayValid(parsed.familyFacts)) invalid.push('familyFacts[object]');
-        if (has('lifeStateUpdates') && !scannerObjectArrayValid(parsed.lifeStateUpdates)) invalid.push('lifeStateUpdates[object]');
+        // PHASE74C_LIVE_LIFE_STATE_CONTRACT: live model consumers opt into mandatory lifecycle evaluation while the public parser stays fixture-compatible.
+        if ((requireLifeStateUpdates || has('lifeStateUpdates')) && !scannerObjectArrayValid(parsed.lifeStateUpdates)) invalid.push('lifeStateUpdates[object]');
         if (invalid.length) throw new Error('NPC State v0.4.36 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
     }
     return {
@@ -447,7 +448,7 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
     };
 }
 
-export function parseScanJson(raw) {
+export function parseScanJson(raw, { requireLifeStateUpdates = false } = {}) {
     const text = String(raw ?? '').trim();
     if (!text) throw new Error('NPC State v0.4.36 recovery scanner returned an empty response.');
     const unfenced = text.replace(/^\x60\x60\x60(?:json)?\s*/i, '').replace(/\s*\x60\x60\x60$/i, '').trim();
@@ -457,7 +458,7 @@ export function parseScanJson(raw) {
     let parsed;
     try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
     catch (error) { throw new Error('NPC State v0.4.36 recovery scanner returned malformed JSON: ' + error.message); }
-    return normalizeScanPayload(parsed, { requireContract: true });
+    return normalizeScanPayload(parsed, { requireContract: true, requireLifeStateUpdates });
 }
 
 function isTechnicalNpcIdentity(value) {

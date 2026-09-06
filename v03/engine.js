@@ -403,7 +403,7 @@ export function createNpcStateEngine(adapters = {}) {
     async function invokeJson(prompt, label = 'scan') {
         const responseLength = normalizeScannerResponseTokens(getSettings().scannerResponseTokens);
         let raw = await generate({ systemPrompt: SYSTEM_PROMPT, prompt, responseLength, label });
-        try { return parseScanJson(raw); }
+        try { return parseScanJson(raw, { requireLifeStateUpdates: true }); }
         catch (firstError) {
             raw = await generate({
                 systemPrompt: SYSTEM_PROMPT,
@@ -411,7 +411,7 @@ export function createNpcStateEngine(adapters = {}) {
                 responseLength,
                 label: `${label}-json-retry`,
             });
-            try { return parseScanJson(raw); }
+            try { return parseScanJson(raw, { requireLifeStateUpdates: true }); }
             catch (secondError) {
                 secondError.cause = firstError;
                 throw secondError;

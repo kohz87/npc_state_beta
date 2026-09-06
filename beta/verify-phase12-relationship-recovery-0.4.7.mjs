@@ -72,7 +72,7 @@ test('token setting clamps safely and preserves the 7000 default', () => {
 test('scan and malformed JSON retry use the same chosen budget', async () => {
     const calls = [];
     let h;
-    h = await harness({}, async request => { calls.push(request); h.config.scannerResponseTokens = 7000; return calls.length === 1 ? 'malformed' : JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [], socialEdges: [] }); }, { scannerResponseTokens: 15000 });
+    h = await harness({}, async request => { calls.push(request); h.config.scannerResponseTokens = 7000; return calls.length === 1 ? 'malformed' : JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [], socialEdges: [], lifeStateUpdates: [] }); }, { scannerResponseTokens: 15000 });
     const result = await h.engine.scan(1, { manual: true });
     assert.equal(result.ok, true);
     assert.deepEqual(calls.map(call => call.responseLength), [15000, 15000]);

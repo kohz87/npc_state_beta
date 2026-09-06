@@ -9,7 +9,7 @@ const phase15 = read('beta/verify-phase15-force-rebase-0.4.10.mjs');
 const phase16 = read('beta/verify-phase16-scanner-edge-hardening-0.4.11.mjs');
 const phase17 = read('beta/verify-phase17-second-order-hardening-0.4.12.mjs');
 
-assert(phase12.includes("JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [], socialEdges: [] })"), 'v0.4.7 retry fixture is not persisted in release source');
+assert(phase12.includes("JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [], socialEdges: [], lifeStateUpdates: [] })"), 'v0.4.7 retry fixture is not persisted in current release source');
 assert(phase13.includes('Manifest is not a 0.4.8+ descendant'), 'v0.4.8 descendant assertion is not persisted in release source');
 assert(phase15.includes('Manifest is older than the 0.4.10 force-rebase baseline'), 'v0.4.10 descendant assertion is not persisted in release source');
 assert(phase16.includes('invalid payload structure or members') && phase16.includes('Manifest regressed below 0.4.11'), 'v0.4.11 verifier compatibility is not persisted in release source');
