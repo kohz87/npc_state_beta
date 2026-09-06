@@ -29,4 +29,16 @@ for (const path of filesWithFamilyFacts) {
     }
 }
 
+{
+    const path = 'beta/verify-phase21-release-source-parity-0.4.13.mjs';
+    let source = fs.readFileSync(path, 'utf8');
+    const from = `assert(phase12.includes("JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [], socialEdges: [] })"), 'v0.4.7 retry fixture is not persisted in release source');`;
+    const to = `assert(phase12.includes("JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [], socialEdges: [], lifeStateUpdates: [] })"), 'v0.4.7 retry fixture is not persisted in current release source');`;
+    if (!source.includes(to)) {
+        if (!source.includes(from)) throw new Error('Missing phase21 retry-fixture parity anchor');
+        source = source.replace(from, to);
+        fs.writeFileSync(path, source);
+    }
+}
+
 console.log('Migrated historical live-model fixtures to the NPC State v0.4.36 lifecycle contract');
