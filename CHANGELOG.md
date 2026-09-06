@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.41
+
+- Breaks a self-triggering settings MutationObserver loop by guarding Relationship Rubric and Memory Rubric label writes with equality checks.
+- Adds a lightweight branch-safety status read for recovery/rebase overlays instead of cloning the complete NPC State sidecar.
+- Treats a null recovery-status result as authoritative no-active-recovery state instead of falling back to another full-state snapshot.
+- Changes no scanner, lifecycle, relationship, branch/recovery, admission, dossier, or persistence semantics.
+
 ## v0.4.40
 
 - Adds an injection-specific immutable state projection so normal foreground prompt refreshes never clone portrait payloads, checkpoint/rebase snapshots, diagnostics, or relationship audit history.

@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.40
+# NPC State Beta 0.4.41
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -64,6 +64,13 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - v0.4.18 requires an explicit relationship evaluation for every exchange-active NPC. A scanner may still correctly decide that an ordinary interaction causes no relationship movement, but it must say so instead of silently omitting the relationship channel.
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
+
+## Settings observer and recovery UI performance
+
+- The settings layout coordinator now changes the Relationship Rubric and Memory Rubric labels only when their text actually differs. Repeated layout passes therefore do not create their own child-list mutations and cannot keep the settings MutationObserver alive in a self-triggering loop.
+- Branch/recovery overlays no longer call the compatibility full-state snapshot just to inspect branch safety. A dedicated branch-safety read returns only that small record.
+- Recovery status uses the existing lightweight recovery-status API directly. A valid null result means there is no active recovery and does not fall through to a second full-state read.
+- These changes affect UI scheduling/read amplification only. Scanner, lifecycle, relationship, recovery, branch-rebase, persistence, and dossier semantics are unchanged.
 
 ## Foreground hot-path performance
 

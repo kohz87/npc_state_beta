@@ -1,4 +1,4 @@
-/* NPC State v0.4.40 settings hierarchy coordinator.
+/* NPC State v0.4.41 settings hierarchy coordinator.
    This module only reorganizes existing settings DOM. It moves live nodes rather
    than recreating controls, so the authoritative listeners owned by ui.js and the
    feature modules stay attached. */
@@ -209,6 +209,11 @@ function ensureParentDetails(drawer, id, title, className, openByDefault = false
     return group;
 }
 
+// PHASE84_SETTINGS_OBSERVER_RECOVERY_HOTPATH: keep coordinator writes idempotent so its child-list observer cannot feed itself.
+export function setTextIfChanged(node, value) {
+    if (node && node.textContent !== value) node.textContent = value;
+}
+
 function ensureRelationships(drawer) {
     const relationship = drawer?.querySelector?.('#npc_state_v3_relationship_criteria')?.closest?.('details') || null;
     if (!relationship) return globalThis.document?.getElementById?.(SCANNER_GROUP_ID) || null;
@@ -216,7 +221,7 @@ function ensureRelationships(drawer) {
     const body = group?.querySelector?.('.npc-state-v3-settings-group-body');
     if (!body) return group;
     const label = relationship.querySelector?.('summary b');
-    if (label) label.textContent = 'Relationship Rubric';
+    setTextIfChanged(label, 'Relationship Rubric');
     if (relationship.parentElement !== body) body.appendChild(relationship);
     return group;
 }
@@ -230,7 +235,7 @@ function ensureAdvanced(drawer) {
     if (!body) return group;
     if (memory) {
         const label = memory.querySelector?.('summary b');
-        if (label) label.textContent = 'Memory Rubric';
+        setTextIfChanged(label, 'Memory Rubric');
         if (memory.parentElement !== body) body.appendChild(memory);
     }
     if (maintenance && maintenance.parentElement !== body) body.appendChild(maintenance);

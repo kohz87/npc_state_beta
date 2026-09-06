@@ -10,13 +10,22 @@ let observer = null;
 let scheduled = false;
 let running = false;
 
-function state() {
-    try { return globalThis.NPCState?.getState?.() || null; }
+export function readBranchSafetyStatus() {
+    try { return globalThis.NPCState?.branchSafetyStatus?.() ?? null; }
     catch { return null; }
 }
 
-export function branchRecoveryRequired(value = state()) {
-    return Boolean(value?.branchSafety && value.branchSafety.status !== 'safe');
+export function readRecoveryStatus() {
+    try {
+        const api = globalThis.NPCState;
+        if (typeof api?.recoveryStatus === 'function') return api.recoveryStatus();
+        return null;
+    } catch { return null; }
+}
+
+export function branchRecoveryRequired(value = readBranchSafetyStatus()) {
+    const safety = value?.branchSafety || value;
+    return Boolean(safety && safety.status !== 'safe');
 }
 
 function messageForKind(kind = '') {
@@ -87,7 +96,7 @@ function relationshipRollbackPreviewText(preview = {}) {
 // PHASE61_SAFE_REBASE_RELATIONSHIP_MODES: timeline acceptance and relationship rollback are separate user decisions.
 async function rebaseCurrentChat(relationshipMode = 'preserve', force = false) {
     if (running) return;
-    const current = state();
+    const current = readBranchSafetyStatus();
     const required = branchRecoveryRequired(current);
     if (!required && force !== true) return render();
     const mode = relationshipMode === 'rollback' ? 'rollback' : 'preserve';
@@ -119,12 +128,12 @@ async function rebaseCurrentChat(relationshipMode = 'preserve', force = false) {
         if (result.rescan?.ok) globalThis.toastr?.success?.('NPC State: timeline rebased, ' + modeText + ', and the latest surviving exchange was refreshed.');
         else globalThis.toastr?.success?.('NPC State: timeline rebased with ' + modeText + '.');
     } catch (error) {
-        const rebasedState = state();
-        if (rebasedState?.branchSafety?.status === 'safe') {
-            console.warn('[NPC State v0.4.40] timeline rebase committed, but the follow-up scan failed', error);
+        const rebasedSafety = readBranchSafetyStatus();
+        if (rebasedSafety?.status === 'safe') {
+            console.warn('[NPC State v0.4.41] timeline rebase committed, but the follow-up scan failed', error);
             globalThis.toastr?.warning?.('NPC State: timeline rebased successfully, but the latest exchange refresh failed. Use Scan current cast to retry. ' + (error?.message || error));
         } else {
-            console.error('[NPC State v0.4.40] timeline rebase failed safely', error);
+            console.error('[NPC State v0.4.41] timeline rebase failed safely', error);
             globalThis.toastr?.error?.('NPC State: timeline rebase failed without replacing your durable dossiers. ' + (error?.message || error));
         }
     } finally {
@@ -161,10 +170,7 @@ function hydration() {
     catch { return { status: 'error', error: null }; }
 }
 
-function recovery() {
-    try { return globalThis.NPCState?.recoveryStatus?.() || state()?.recovery || null; }
-    catch { return state()?.recovery || null; }
-}
+function recovery() { return readRecoveryStatus(); }
 
 function recoveryRunning() {
     try { return globalThis.NPCState?.isRecoveryRunning?.() === true; }
@@ -240,7 +246,7 @@ async function initializeFreshFromUi() {
         if (!result?.ok) throw new Error(result?.reason || 'fresh initialization failed');
         globalThis.toastr?.success?.('NPC State: fresh recovery sidecar initialized.');
     } catch (error) {
-        console.error('[NPC State v0.4.40] fresh recovery initialization failed safely', error);
+        console.error('[NPC State v0.4.41] fresh recovery initialization failed safely', error);
         globalThis.toastr?.error?.('NPC State: fresh initialization failed without guessing a replacement pointer. ' + (error?.message || error));
     } finally {
         running = false;
@@ -289,7 +295,7 @@ async function startRecoveryFromUi(control) {
         if (!result?.ok) throw new Error(result?.reason || result?.recovery?.error || 'historical recovery failed');
         if (result.complete) globalThis.toastr?.success?.('NPC State: historical reconstruction complete.');
     } catch (error) {
-        console.error('[NPC State v0.4.40] historical rebuild failed safely', error);
+        console.error('[NPC State v0.4.41] historical rebuild failed safely', error);
         globalThis.toastr?.error?.('NPC State: historical reconstruction stopped safely. Resume retries from the last committed exchange. ' + (error?.message || error));
     } finally {
         running = false;
@@ -306,7 +312,7 @@ async function resumeRecoveryFromUi() {
         if (!result?.ok) throw new Error(result?.reason || result?.recovery?.error || 'resume failed');
         if (result.complete) globalThis.toastr?.success?.('NPC State: historical reconstruction complete.');
     } catch (error) {
-        console.error('[NPC State v0.4.40] recovery resume failed safely', error);
+        console.error('[NPC State v0.4.41] recovery resume failed safely', error);
         globalThis.toastr?.error?.('NPC State: recovery resume stopped safely. ' + (error?.message || error));
     } finally {
         running = false;
@@ -429,7 +435,7 @@ export function renderBranchRecoveryUi() {
     ensureStyles();
     const host = hostForBanner();
     const forceHost = hostForForceControl();
-    const current = state();
+    const current = readBranchSafetyStatus();
     ensureRecoveryControl(host);
     const existing = globalThis.document?.getElementById?.(BANNER_ID);
     const forceControl = globalThis.document?.getElementById?.(FORCE_ID) || null;
@@ -448,7 +454,7 @@ export function renderBranchRecoveryUi() {
     const recovery = recoveryGroup();
     if (recovery && 'open' in recovery) recovery.open = true;
 
-    const kind = String(current.branchSafety?.kind || '');
+    const kind = String(current?.kind || '');
     let banner = existing;
     if (!banner) {
         banner = globalThis.document.createElement('div');
