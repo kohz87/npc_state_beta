@@ -9,6 +9,15 @@ function requireReplace(source, from, to, label) {
     return source.replace(from, to);
 }
 
+function replaceInRange(source, startMarker, endMarker, from, to, label) {
+    const start = source.indexOf(startMarker);
+    const end = source.indexOf(endMarker, start + startMarker.length);
+    if (start < 0 || end < 0) throw new Error('Missing v0.4.32 mutation range: ' + label);
+    const before = source.slice(0, start);
+    const section = requireReplace(source.slice(start, end), from, to, label);
+    return before + section + source.slice(end);
+}
+
 // Keep only the still-valid accepted relationship prefix when an explicit rollback follows
 // a preserve rebase. This protects previously accepted exchanges without suppressing rewritten
 // or genuinely new exchanges after the first lineage divergence.
@@ -42,39 +51,77 @@ function requireReplace(source, from, to, label) {
         'chat-owned mutate helper',
     );
 
-    source = requireReplace(source, `        return mutate('add', state => {`, `        return mutate('add', (state, chat) => {`, 'add NPC origin chat');
-    source = requireReplace(
+    source = replaceInRange(
         source,
+        `    async function addNpc(name) {`,
+        `\n    async function updateNpc(reference, patch = {}, options = {}) {`,
+        `        return mutate('add', state => {`,
+        `        return mutate('add', (state, chat) => {`,
+        'add NPC origin chat',
+    );
+    source = replaceInRange(
+        source,
+        `    async function addNpc(name) {`,
+        `\n    async function updateNpc(reference, patch = {}, options = {}) {`,
         `            const chat = getContext().chat || [];\n            const messageId = latestAssistantMessageId(chat);\n            const npc = normalizeNpc({`,
         `            const messageId = latestAssistantMessageId(chat);\n            const npc = normalizeNpc({`,
         'add NPC origin chat context',
     );
 
-    source = requireReplace(source, `        return mutate('update', state => {`, `        return mutate('update', (state, chat) => {`, 'update NPC origin chat');
-    source = requireReplace(
+    source = replaceInRange(
         source,
+        `    async function updateNpc(reference, patch = {}, options = {}) {`,
+        `\n    async function fillMissingBirthdays() {`,
+        `        return mutate('update', state => {`,
+        `        return mutate('update', (state, chat) => {`,
+        'update NPC origin chat',
+    );
+    source = replaceInRange(
+        source,
+        `    async function updateNpc(reference, patch = {}, options = {}) {`,
+        `\n    async function fillMissingBirthdays() {`,
         `                        sourceMessageId: latestAssistantMessageId(getContext().chat || []), turn: Number.isInteger(state.turn) ? state.turn : null, at: Date.now(),`,
         `                        sourceMessageId: latestAssistantMessageId(chat), turn: Number.isInteger(state.turn) ? state.turn : null, at: Date.now(),`,
         'manual relationship event origin chat',
     );
-    source = requireReplace(
+    source = replaceInRange(
         source,
+        `    async function updateNpc(reference, patch = {}, options = {}) {`,
+        `\n    async function fillMissingBirthdays() {`,
         `                const reconciled = reconcileFamilyGraphState(state, { sourceMessageId: latestAssistantMessageId(getContext().chat || []), dossierLimits: getSettings().dossierLimits });`,
         `                const reconciled = reconcileFamilyGraphState(state, { sourceMessageId: latestAssistantMessageId(chat), dossierLimits: getSettings().dossierLimits });`,
         'family graph origin chat',
     );
 
-    source = requireReplace(source, `        return mutate(archived ? 'archive' : 'restore', state => {`, `        return mutate(archived ? 'archive' : 'restore', (state, chat) => {`, 'archive/restore origin chat');
-    source = requireReplace(
+    source = replaceInRange(
         source,
+        `    async function archiveNpc(reference, archived = true, reason = 'manual') {`,
+        `\n    async function resetNpcStaleness(reference) {`,
+        `        return mutate(archived ? 'archive' : 'restore', state => {`,
+        `        return mutate(archived ? 'archive' : 'restore', (state, chat) => {`,
+        'archive/restore origin chat',
+    );
+    source = replaceInRange(
+        source,
+        `    async function archiveNpc(reference, archived = true, reason = 'manual') {`,
+        `\n    async function resetNpcStaleness(reference) {`,
         `                const chat = getContext().chat || [];\n                const messageId = latestAssistantMessageId(chat);\n                next.lastActivityTurn = narrativeTurnForMessage(chat, messageId);`,
         `                const messageId = latestAssistantMessageId(chat);\n                next.lastActivityTurn = narrativeTurnForMessage(chat, messageId);`,
         'restore origin chat context',
     );
 
-    source = requireReplace(source, `        return mutate('reset-staleness', state => {`, `        return mutate('reset-staleness', (state, chat) => {`, 'stale reset origin chat');
-    source = requireReplace(
+    source = replaceInRange(
         source,
+        `    async function resetNpcStaleness(reference) {`,
+        `\n    async function deleteNpc(reference) {`,
+        `        return mutate('reset-staleness', state => {`,
+        `        return mutate('reset-staleness', (state, chat) => {`,
+        'stale reset origin chat',
+    );
+    source = replaceInRange(
+        source,
+        `    async function resetNpcStaleness(reference) {`,
+        `\n    async function deleteNpc(reference) {`,
         `            const chat = getContext().chat || [];\n            const messageId = latestAssistantMessageId(chat);\n            const next = structuredClone(npc);`,
         `            const messageId = latestAssistantMessageId(chat);\n            const next = structuredClone(npc);`,
         'stale reset origin chat context',
