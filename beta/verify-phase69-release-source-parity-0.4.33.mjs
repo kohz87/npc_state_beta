@@ -29,6 +29,7 @@ for (const path of [
     'beta/phase68-life-state-semantics-and-death-invariant-0.4.33.mjs',
     'beta/phase68b-life-state-evidence-target-binding-0.4.33.mjs',
     'beta/phase68c-legacy-life-state-verifier-compat-0.4.33.mjs',
+    'beta/phase68d-life-state-regression-expansion-0.4.33.mjs',
     'beta/verify-phase68-life-state-semantics-and-death-invariant-0.4.33.mjs',
     'beta/verify-phase69-release-source-parity-0.4.33.mjs',
 ]) assert(exists(path), 'Missing v0.4.33 source-owned file: ' + path);
