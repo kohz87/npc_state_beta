@@ -12,6 +12,7 @@ assert.equal(manifest.version, '0.4.44', 'Manifest must be v0.4.44');
 assert(workflow.includes('name: Build NPC State 0.4.44 Beta'), 'Workflow title must be v0.4.44');
 assert(workflow.includes('for patch in $(seq 2 44); do'), 'Cold replay must include patch 44');
 assert(workflow.includes("# node beta/bump-0.4.44.mjs ; -name 'phase*-0.4.44.mjs'"), 'Workflow must retain v0.4.44 source-parity marker');
+assert(!fs.existsSync('.github/workflows/generate-v044.yml'), 'Temporary v0.4.44 generator workflow must not ship');
 for (const path of [
     'beta/bump-0.4.44.mjs',
     'beta/phase90-durable-important-memory-merge-0.4.44.mjs',
