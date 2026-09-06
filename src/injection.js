@@ -1,4 +1,5 @@
 import * as core from './injection-core.js';
+import { NPC_STATE_VERSION } from './schema.js';
 import { semanticUpdatePrompt } from './model/semantic-updates.js';
 
 export * from './injection-core.js';
@@ -22,7 +23,7 @@ function relevantDossiers(state = {}) {
 
 export function buildInjection(state, settings = {}) {
     const raw = core.buildInjection(state, settings);
-    const base = typeof raw === 'string' ? raw.replaceAll('v0.4.44', 'v0.5.0') : raw;
+    const base = typeof raw === 'string' ? raw.replaceAll('v0.4.44', `v${NPC_STATE_VERSION}`) : raw;
     if (!base || settings.autoScan === false) return base;
     return [
         base,
