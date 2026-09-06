@@ -53,7 +53,8 @@ function file(path) {
     const index = file('v03/index.js');
     const ui = file('v03/ui.js');
     assert(engine.includes('const alreadyScannedMessage = state.lastScannedMessageId === messageId'), 'Repeated-scan idempotence flag missing');
-    assert(engine.includes('applyRelationship: applyRelationship === null ? !alreadyScannedMessage : applyRelationship === true'), 'Repeated forced scan relationship gate lost its idempotent default');
+    assert(engine.includes('const relationshipApplyRequested = applyRelationship === null ? !alreadyScannedMessage : applyRelationship === true'), 'Repeated forced scan relationship gate lost its idempotent default');
+    assert(engine.includes('applyRelationship: relationshipApplyRequested && !replayProtectedRelationship'), 'Accepted rebase replay boundary is not composed with the repeated-scan gate');
     assert(engine.includes("typeof options.expectedMessageText === 'string'"), 'Pre-lock embedded expected-message guard missing');
     assert(index.includes('expectedMessageText: consumed.cleanedText'), 'Foreground expected-message text is not wired into embedded apply');
     assert(index.includes("settings.enabled === false || settings.autoScan === false"), 'Disabled foreground quiet path missing');

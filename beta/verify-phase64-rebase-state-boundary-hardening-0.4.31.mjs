@@ -78,7 +78,9 @@ function makeServer() {
         if (url === '/api/files/upload' && method === 'POST') {
             if (failUploads > 0) {
                 failUploads -= 1;
-                throw new Error('synthetic sidecar upload failure');
+                // Use a non-transient response so this test exercises the engine's
+                // fail-closed state publication without spending time in storage retries.
+                return response(400, 'synthetic sidecar upload failure');
             }
             const body = JSON.parse(String(init.body || '{}'));
             const text = Buffer.from(String(body.data || ''), 'base64').toString('utf8');
