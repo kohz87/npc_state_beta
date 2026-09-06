@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.38
+
+- Removes the Dossier Library full-screen backdrop blur to avoid continuous page recompositing while the overlay is open.
+- Defers cast-rail portrait sources and hydrates only nearby cards, preventing large portrait data URLs from being duplicated into the initial rail HTML.
+- Separates rail-only and detail-only dossier rerenders, delegates cast-card selection, and frame-coalesces search updates.
+- Keeps diagnostics hidden-by-default behavior from v0.4.37 and changes no scanner, lifecycle, relationship, recovery, or persistence semantics.
+
 ## v0.4.37
 
 - Adds a persistent Show dossier diagnostics toggle, off by default.
