@@ -1,4 +1,4 @@
-/* NPC State v0.4.41 settings hierarchy coordinator.
+/* NPC State v0.4.42 settings hierarchy coordinator.
    This module only reorganizes existing settings DOM. It moves live nodes rather
    than recreating controls, so the authoritative listeners owned by ui.js and the
    feature modules stay attached. */
@@ -95,6 +95,8 @@ function ensureScanning(drawer) {
         '#npc_state_v04_new_npc_history',
         '#npc_state_v04_admission',
         '#npc_state_v047_response_tokens',
+        '#npc_state_v3_scan_profile',
+        '#npc_state_v3_scan_after_response',
         '#npc_state_v04_fallback',
     ]);
 }

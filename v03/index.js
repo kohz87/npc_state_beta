@@ -17,7 +17,9 @@ import {
 import { createPortraitPromptUi } from './portrait-ui.js';
 import { DEFAULT_BIRTHDAY_RANDOM_CALENDAR, DEFAULT_RELATIONSHIP_CAPS, DOSSIER_LIMIT_DEFAULTS, NPC_STATE_VERSION, normalizeScannerResponseTokens, normalizeBirthdayFillMode, normalizeDossierLimits, normalizeNpcAdmissionMode, normalizeRelationshipCaps } from './schema.js';
 import { runSharedQuietGeneration } from './shared-generation-queue.js';
-import { checkpointStorageBytes } from './branches.js';
+import { generateWithScanRoute, resolveScanGenerationRoute, scanConnectionProfileOptions } from './scan-connection.js';
+import { createCompletenessCoordinator } from './completeness-coordinator.js';
+import { checkpointStorageBytes, fingerprintMessage } from './branches.js';
 import { createStaleManagementUi } from './stale-ui.js';
 import { createNpcStateUi } from './ui.js';
 
@@ -31,6 +33,8 @@ let ui = null;
 let staleUi = null;
 let bundleUi = null;
 let portraitUi = null;
+let completionCoordinator = null;
+const completenessUiStatus = new Map();
 
 const PRE_GATE_RELATIONSHIP_CRITERIA = `Relationship deltas measure only changes caused by the current USER+ASSISTANT exchange.
 Trust: confidence in the player's reliability, honesty, competence, safety, or judgment.
@@ -57,6 +61,8 @@ const V3_DEFAULTS = Object.freeze({
     autoScan: true,
     scanDepth: 8,
     scannerResponseTokens: 7000,
+    scanConnectionProfileId: '',
+    scanAfterEachResponse: false,
     inject: true,
     injectDepth: 1,
     injectLimit: 6,
@@ -105,6 +111,8 @@ function getSettings() {
     if (relationshipCriteriaText === PRE_GATE_RELATIONSHIP_CRITERIA.trim() || relationshipCriteriaText === LEGACY_DEFAULT_RELATIONSHIP_CRITERIA_V0421.trim()) settings.relationshipCriteria = DEFAULT_RELATIONSHIP_CRITERIA;
     settings.schemaVersion = SETTINGS_SCHEMA;
     settings.scannerResponseTokens = normalizeScannerResponseTokens(settings.scannerResponseTokens);
+    settings.scanConnectionProfileId = String(settings.scanConnectionProfileId || '').trim().slice(0, 240);
+    settings.scanAfterEachResponse = settings.scanAfterEachResponse === true;
     settings.scanDepth = Math.max(2, Math.min(30, Math.round(Number(settings.scanDepth) || 8)));
     settings.newNpcAdmissionMode = normalizeNpcAdmissionMode(settings.newNpcAdmissionMode);
     settings.birthdayFillMode = normalizeBirthdayFillMode(settings.birthdayFillMode);
@@ -160,16 +168,29 @@ function notify(kind, message) {
     if (typeof fn === 'function') fn(`NPC State: ${message}`);
 }
 
-async function generateJson({ systemPrompt, prompt, responseLength }) {
-    const ctx = getContext();
-    if (typeof ctx.generateRaw !== 'function') throw new Error('SillyTavern generateRaw() is unavailable.');
-    return runSharedQuietGeneration('npc-state-scan', () => ctx.generateRaw({
-        systemPrompt,
-        prompt,
-        quietToLoud: false,
-        instructOverride: true,
-        responseLength,
+async function generateJson({ systemPrompt, prompt, responseLength, route = null, signal = null }) {
+    const selectedRoute = route || resolveScanGenerationRoute(getContext, getSettings().scanConnectionProfileId);
+    return runSharedQuietGeneration('npc-state-scan', () => generateWithScanRoute({
+        getContext, route: selectedRoute, systemPrompt, prompt, responseLength, signal,
     }));
+}
+
+function resolveNpcScanRoute() {
+    return resolveScanGenerationRoute(getContext, getSettings().scanConnectionProfileId);
+}
+
+function npcScanProfileOptions() {
+    return scanConnectionProfileOptions(getContext);
+}
+
+function currentCompletenessStatus(chatKey = getChatKey()) {
+    return structuredClone(completenessUiStatus.get(chatKey) || { status: 'idle', messageId: null, detail: '' });
+}
+
+function setCompletenessStatus(chatKey, status, messageId = null, detail = '') {
+    if (!chatKey || chatKey === 'no-chat') return;
+    completenessUiStatus.set(chatKey, { status, messageId, detail: String(detail || '').slice(0, 400) });
+    ui?.refresh();
 }
 
 function cleanForegroundHistoryText(value) {
@@ -253,6 +274,7 @@ const engine = createNpcStateEngine({
     getHeaders: () => getRequestHeaders(),
     fetchFn: (...args) => globalThis.fetch(...args),
     generate: generateJson,
+    resolveGenerationRoute: resolveNpcScanRoute,
     notify,
     stateChangeSnapshot: false,
     onStateChanged: () => {
@@ -270,7 +292,21 @@ ui = createNpcStateUi({
     getChatKey,
     getSettings,
     persistSettings,
+    getScanConnectionProfiles: npcScanProfileOptions,
+    getCompletenessStatus: currentCompletenessStatus,
     onSettingsChanged: updateInjection,
+});
+
+completionCoordinator = createCompletenessCoordinator({
+    getSource: sourceForCompletedResponse,
+    getSettings,
+    runEmbedded: processEmbeddedScan,
+    runCompleteness: (messageId, options) => engine.completenessScan(messageId, options),
+    readRecord: source => activeCompletionMeta(source.message),
+    writeRecord: (source, value) => storeCompletionMeta(source.ctx, source.messageId, value),
+    setStatus: setCompletenessStatus,
+    invalidateCompleteness: chatKey => engine.invalidateCompleteness(chatKey),
+    logError: error => console.error('[NPC State Beta] automatic completeness scan failed safely', error),
 });
 
 staleUi = createStaleManagementUi({
@@ -341,6 +377,31 @@ function latestAssistantMessageId(chat = []) {
     return -1;
 }
 
+export function completedResponseIdentity(chatKey, messageId, message = {}) {
+    const swipeId = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
+    return [String(chatKey || ''), Number(messageId), swipeId, fingerprintMessage(message)].join('|');
+}
+
+function activeCompletionMeta(message) {
+    if (!message) return null;
+    const swipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
+    const swipe = Array.isArray(message.swipe_info) ? message.swipe_info?.[swipeId] : null;
+    if (swipe) return swipe.extra?.npc_state_beta_completion_v1 || null;
+    return message.extra?.npc_state_beta_completion_v1 || null;
+}
+
+function storeCompletionMeta(ctx, messageId, value) {
+    const message = ctx?.chat?.[messageId];
+    if (!message) return;
+    const meta = { version: 1, ...structuredClone(value), at: Date.now() };
+    message.extra ??= {};
+    message.extra.npc_state_beta_completion_v1 = meta;
+    const swipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
+    const swipe = Array.isArray(message.swipe_info) ? message.swipe_info[swipeId] : null;
+    if (swipe) { swipe.extra ??= {}; swipe.extra.npc_state_beta_completion_v1 = structuredClone(meta); }
+    persistMessageMutation(ctx, messageId);
+}
+
 function activeEmbeddedMeta(message) {
     if (!message) return null;
     const swipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
@@ -387,10 +448,16 @@ function invalidateEmbeddedMeta(messageId) {
     const id = Number(messageId);
     const message = ctx?.chat?.[id];
     if (!Number.isInteger(id) || !message || message.is_user || message.is_system) return false;
-    if (message.extra) delete message.extra.npc_state_beta_v1;
+    if (message.extra) {
+        delete message.extra.npc_state_beta_v1;
+        delete message.extra.npc_state_beta_completion_v1;
+    }
     const swipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
     const swipe = Array.isArray(message.swipe_info) ? message.swipe_info[swipeId] : null;
-    if (swipe?.extra) delete swipe.extra.npc_state_beta_v1;
+    if (swipe?.extra) {
+        delete swipe.extra.npc_state_beta_v1;
+        delete swipe.extra.npc_state_beta_completion_v1;
+    }
     persistMessageMutation(ctx, id);
     return true;
 }
@@ -405,21 +472,21 @@ async function runSeparateRecoveryScan(messageId, reason = 'recovery') {
         // A successful commit already refreshed via engine.onStateChanged. Only a stale discarded run needs a local surface catch-up.
         if (result?.discarded) refreshSurfaces();
         if (!result?.ok && !result?.discarded) console.warn('[NPC State Beta] Separate recovery scan did not commit:', reason, result?.reason);
-        return result;
+        return result?.ok ? { ...result, coverage: 'full-recovery' } : { ...result, coverage: 'failure' };
     } catch (error) {
         console.error('[NPC State Beta] separate recovery scan failed safely', reason, error);
         notify('error', 'recovery scanner failed without committing partial state. ' + (error?.message || error));
-        return { ok: false, reason: 'recovery-scan-failed', error };
+        return { ok: false, reason: 'recovery-scan-failed', coverage: 'failure', error };
     }
 }
 
 async function maybeForegroundFallback(messageId, reason) {
-    if (getSettings().fallbackScan !== true) return { ok: false, reason };
+    if (getSettings().fallbackScan !== true) return { ok: false, reason, coverage: 'failure' };
     console.warn('[NPC State Beta] Embedded capture failed; invoking separate recovery scanner:', reason);
     return runSeparateRecoveryScan(messageId, 'foreground-' + reason);
 }
 
-// PHASE74D_LIVE_FOREGROUND_LIFE_STATE_CONTRACT: only newly generated embedded payloads require the v0.4.41 lifecycle channel.
+// PHASE74D_LIVE_FOREGROUND_LIFE_STATE_CONTRACT: only newly generated embedded payloads require the v0.4.42 lifecycle channel.
 async function processEmbeddedScan(messageId) {
     const ctx = getContext();
     const id = Number(messageId);
@@ -428,7 +495,7 @@ async function processEmbeddedScan(messageId) {
     const settings = getSettings();
     if (settings.enabled === false || settings.autoScan === false) {
         stripNpcTransportOnly(id);
-        return { ok: false, reason: 'auto-disabled' };
+        return { ok: false, reason: 'auto-disabled', coverage: 'skipped' };
     }
     const consumed = consumeNpcStateControl(message.mes, { requireLifeStateUpdates: true });
     if (!consumed.found) {
@@ -452,12 +519,30 @@ async function processEmbeddedScan(messageId) {
         const result = await engine.applyEmbeddedScan(id, consumed.parsed, { expectedMessageText: consumed.cleanedText });
         // Ordinary commits already refreshed via persistence. Skips have no persistence callback.
         if (result?.ok && result?.skipped) refreshSurfaces();
-        return result;
+        return { ...result, coverage: result?.ok && !result?.skipped ? 'embedded' : 'embedded-skipped' };
     } catch (error) {
         console.error('[NPC State Beta] embedded scan failed safely', error);
         notify('error', 'embedded scan failed without committing partial state. ' + (error?.message || error));
-        return { ok: false, reason: 'apply-failed', error };
+        return { ok: false, reason: 'apply-failed', coverage: 'failure', error };
     }
+}
+
+function sourceForCompletedResponse(messageId) {
+    const ctx = getContext();
+    const id = Number(messageId);
+    const message = ctx?.chat?.[id];
+    if (!Number.isInteger(id) || !message || message.is_user || message.is_system) return { valid: false, reason: 'not-assistant-message' };
+    const chatKey = getChatKey();
+    return {
+        valid: true, ctx, chatKey, messageId: id, message,
+        identity: completedResponseIdentity(chatKey, id, message),
+        expectedFingerprint: fingerprintMessage(message),
+        expectedSwipeId: Number.isInteger(message.swipe_id) ? message.swipe_id : 0,
+    };
+}
+
+export function processCompletedAssistantResponse(messageId) {
+    return completionCoordinator.process(messageId);
 }
 
 async function reapplyStoredEmbeddedPayload(messageId) {
@@ -621,7 +706,7 @@ function registerEvents() {
         // Background bookkeeping must not hold SillyTavern's awaited event bus open.
         // This also lets peer post-response processors finish and release any shared
         // hidden-generation barrier before NPC State reaches generateRaw().
-        void processEmbeddedScan(messageId);
+        void processCompletedAssistantResponse(messageId);
     });
 
     const load = async () => {
@@ -722,6 +807,9 @@ function npcStateDebugStatus() {
         recoveryRunning: engine.isRecoveryRunning(chatKey),
         structuredEvidenceDetected: (getContext().chat || []).slice(-30).some(message => hasRecognizedStructuredBlocks(message?.mes)),
         admissionMode: normalizeNpcAdmissionMode(settings.newNpcAdmissionMode),
+        scanConnectionProfileId: settings.scanConnectionProfileId || '',
+        scanAfterEachResponse: settings.scanAfterEachResponse === true,
+        completeness: currentCompletenessStatus(chatKey),
         injection: state ? injectionDiagnostics(state, { ...settings, foregroundCurrentUserText: latestForegroundUserText(getContext().chat || []) }) : null,
     };
 }
@@ -744,6 +832,8 @@ globalThis.NPCState = Object.freeze({
     version: NPC_STATE_VERSION,
     debugStatus: npcStateDebugStatus,
     scanMetrics: npcStateScanMetrics,
+    scanConnectionProfiles: npcScanProfileOptions,
+    completenessStatus: () => currentCompletenessStatus(getChatKey()),
     scan: () => {
         const chat = getContext().chat || [];
         let id = -1;

@@ -106,6 +106,8 @@ export function createNpcStateUi(adapters = {}) {
     const getSettings = adapters.getSettings;
     const persistSettings = adapters.persistSettings || (() => {});
     const onSettingsChanged = adapters.onSettingsChanged || (() => {});
+    const getScanConnectionProfiles = adapters.getScanConnectionProfiles || (() => ({ available: false, profiles: [], error: '' }));
+    const getCompletenessStatus = adapters.getCompletenessStatus || (() => ({ status: 'idle', messageId: null, detail: '' }));
     let selectedNpcId = '';
     let activeEditorNpcId = '';
     let mountTimer = null;
@@ -120,7 +122,7 @@ export function createNpcStateUi(adapters = {}) {
     async function safely(label, task) {
         try { return await task(); }
         catch (error) {
-            console.error(`[NPC State v0.4.41] ${label} failed safely`, error);
+            console.error(`[NPC State v0.4.42] ${label} failed safely`, error);
             notify('error', `NPC State: ${label} failed. No partial dossier write was committed. ${error?.message || error}`);
             return { ok: false, reason: 'error', error };
         }
@@ -131,9 +133,9 @@ export function createNpcStateUi(adapters = {}) {
 
     function settingsHtml() {
         return `<div id="${SETTINGS_ID}" class="extension_container npc-state-extension npc-state-v3-settings">
-          <div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>NPC State <span class="npc-state-version">0.4.41</span></b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
+          <div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>NPC State <span class="npc-state-version">0.4.42</span></b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
           <div class="inline-drawer-content npc-state-drawer">
-            <div class="npc-state-intro">v0.4.41 uses foreground embedded capture for normal turns. Exchange participation, in-chat relevance, and explicit off-screen activity are independent signals. Stable v0.3 dossiers can be cloned once into an independent beta sidecar.</div>
+            <div class="npc-state-intro">v0.4.42 uses foreground embedded capture for normal turns. Exchange participation, in-chat relevance, and explicit off-screen activity are independent signals. Stable v0.3 dossiers can be cloned once into an independent beta sidecar.</div>
             <div class="npc-state-settings-grid">
               <label class="npc-state-setting-row"><span><b>Enable NPC State</b><small>Disabling stops automatic scanning and injection. Manual dossier tools remain available.</small></span><input id="npc_state_v3_enabled" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Auto Scan</b><small>Uses the same foreground RP generation. If the embedded block is missing, NPC State automatically runs one full separate current-cast scan.</small></span><input id="npc_state_v3_auto" type="checkbox"></label>
@@ -142,6 +144,8 @@ export function createNpcStateUi(adapters = {}) {
               <label class="npc-state-setting-row"><span><b>Enrich new NPCs from recent history</b><small>Adds a small visible-history capsule to the same foreground generation. Current exchange still decides admission, live state, and relationship changes. No extra model call.</small></span><input id="npc_state_v04_new_npc_history" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>New NPC admission</b><small>Balanced keeps current behavior. Named preferred ignores first-seen unnamed role labels. Manual prevents scanner-created dossiers while existing NPCs still update.</small></span><select id="npc_state_v04_admission" class="text_pole"><option value="balanced">Balanced</option><option value="named_preferred">Named preferred</option><option value="manual">Manual</option></select></label>
               <label class="npc-state-setting-row"><span><b>Scanner Response Limit</b><small>Output ceiling for separate scans, dossier Refresh, structured imports, and retries. Range: 512-15,000 tokens. Increase for large casts. Does not change RP output or history depth.</small></span><input id="npc_state_v047_response_tokens" class="text_pole npc-state-number" type="number" min="512" max="15000" step="1"></label>
+              <label class="npc-state-setting-row"><span><b>NPC scan connection profile</b><small>Current connection preserves existing behavior. A saved supported SillyTavern Connection Profile applies only to separate NPC scans and JSON retries; normal roleplay and embedded NPC output stay on your main connection.</small></span><select id="npc_state_v3_scan_profile" class="text_pole"><option value="">Current connection</option></select></label>
+              <label class="npc-state-setting-row"><span><b>Scan after each response</b><small>After a successful embedded update, run one additional dossier-completeness scan through the configured NPC scan connection. Off by default. Usually adds one request per completed response, plus a JSON retry if needed.</small><small id="npc_state_v3_completeness_status" class="npc-state-muted"></small></span><input id="npc_state_v3_scan_after_response" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Birthday fill</b><small>Passive metadata only. Off leaves blanks; Unknown stores Unknown; Random assigns one stable configured-calendar date. It never advances age.</small></span><select id="npc_state_v04_birthday_fill" class="text_pole"><option value="off">Off</option><option value="unknown">Unknown</option><option value="random">Random</option></select></label>
               <label class="npc-state-setting-row"><span><b>Birthday random calendar</b><small>One month/season per line as Name or Name:days. Fantasy names are preserved exactly.</small></span><textarea id="npc_state_v04_birthday_calendar" class="text_pole" rows="5"></textarea></label>
               <label class="npc-state-setting-row"><span><b>Fallback days per month</b><small>Used only for random-calendar lines without :days.</small></span><input id="npc_state_v04_birthday_days" class="text_pole npc-state-number" type="number" min="1" max="999"></label>
@@ -167,6 +171,32 @@ export function createNpcStateUi(adapters = {}) {
           </div></div></div>`;
     }
 
+    function syncScanConnectionProfile(panel, settings) {
+        const select = panel.querySelector('#npc_state_v3_scan_profile');
+        if (!select) return;
+        const info = getScanConnectionProfiles();
+        const selected = String(settings.scanConnectionProfileId || '');
+        const rows = [{ id: '', name: 'Current connection' }, ...(info.profiles || [])];
+        if (selected && !rows.some(row => row.id === selected)) rows.push({ id: selected, name: 'Unavailable profile · ' + selected });
+        const signature = JSON.stringify(rows);
+        if (select.dataset.profileSignature !== signature) {
+            select.innerHTML = rows.map(row => '<option value="' + escapeHtml(row.id) + '">' + escapeHtml(row.name) + '</option>').join('');
+            select.dataset.profileSignature = signature;
+        }
+        select.value = rows.some(row => row.id === selected) ? selected : '';
+        select.title = info.available === false && info.error ? info.error : '';
+    }
+
+    function syncCompletenessStatus(panel) {
+        const holder = panel.querySelector('#npc_state_v3_completeness_status');
+        if (!holder) return;
+        const status = getCompletenessStatus();
+        if (status.status === 'pending') holder.textContent = ' Pending…';
+        else if (status.status === 'running') holder.textContent = ' Running…';
+        else if (status.status === 'failed') holder.textContent = ' Failed: ' + String(status.detail || 'request did not commit');
+        else holder.textContent = '';
+    }
+
     function syncSettings() {
         const settings = getSettings();
         const limits = normalizeDossierLimits(settings.dossierLimits);
@@ -177,6 +207,9 @@ export function createNpcStateUi(adapters = {}) {
         panel.querySelector('#npc_state_v04_fallback').checked = settings.fallbackScan === true;
         panel.querySelector('#npc_state_v3_scan_depth').value = settings.scanDepth;
         panel.querySelector('#npc_state_v047_response_tokens').value = normalizeScannerResponseTokens(settings.scannerResponseTokens);
+        panel.querySelector('#npc_state_v3_scan_after_response').checked = settings.scanAfterEachResponse === true;
+        syncScanConnectionProfile(panel, settings);
+        syncCompletenessStatus(panel);
         panel.querySelector('#npc_state_v04_new_npc_history').checked = settings.newNpcHistoryEnrichment !== false;
         panel.querySelector('#npc_state_v04_admission').value = settings.newNpcAdmissionMode || 'balanced';
         panel.querySelector('#npc_state_v04_birthday_fill').value = settings.birthdayFillMode || 'off';
@@ -214,6 +247,13 @@ export function createNpcStateUi(adapters = {}) {
             event.target.value = getSettings().newNpcAdmissionMode;
             persistSettings(); onSettingsChanged();
         });
+        panel.querySelector('#npc_state_v3_scan_profile')?.addEventListener('focus', () => syncScanConnectionProfile(panel, getSettings()));
+        panel.querySelector('#npc_state_v3_scan_profile')?.addEventListener('change', event => {
+            getSettings().scanConnectionProfileId = String(event.target.value || '').trim().slice(0, 240);
+            persistSettings();
+            syncScanConnectionProfile(panel, getSettings());
+        });
+        bindCheck('#npc_state_v3_scan_after_response', 'scanAfterEachResponse');
         panel.querySelector('#npc_state_v047_response_tokens')?.addEventListener('change', event => {
             getSettings().scannerResponseTokens = normalizeScannerResponseTokens(event.target.value);
             event.target.value = getSettings().scannerResponseTokens;
@@ -321,7 +361,7 @@ export function createNpcStateUi(adapters = {}) {
         const active = current.filter(npc => !npc.archived);
         const archived = current.filter(npc => npc.archived);
         const rows = list => list.map(npc => `<button class="menu_button npc-state-v3-roster-open" data-npc-id="${escapeHtml(npc.id)}">${npc.present ? '● ' : (npc.worldActive ? '◌ ' : '')}${escapeHtml(npc.name)}</button>`).join('');
-        holder.innerHTML = `<small class="npc-state-muted">Persistent NPC State 0.4.41 database · ${active.length} active · ${archived.length} archived</small><div class="npc-state-roster-chips">${rows(active)}${rows(archived)}</div>`;
+        holder.innerHTML = `<small class="npc-state-muted">Persistent NPC State 0.4.42 database · ${active.length} active · ${archived.length} archived</small><div class="npc-state-roster-chips">${rows(active)}${rows(archived)}</div>`;
         holder.querySelectorAll('.npc-state-v3-roster-open').forEach(button => button.addEventListener('click', () => openLibrary(button.dataset.npcId)));
     }
 
