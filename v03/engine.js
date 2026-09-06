@@ -46,7 +46,7 @@ import {
 } from './stale.js';
 import { clearV3PointerHint, createRecoveryV3Sidecar, deleteV3SidecarFile, readV3PointerHint, readV3Sidecar, retireV3Sidecar, writeV3Sidecar } from './storage.js';
 
-const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.30 recovery scanner. Obey the supplied schema and evidence rules exactly.';
+const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.31 recovery scanner. Obey the supplied schema and evidence rules exactly.';
 
 function profileContextForWindow(chat = [], messageId = null, depth = 8) {
     const end = Number.isInteger(messageId) ? Math.min(chat.length - 1, messageId) : chat.length - 1;
@@ -86,6 +86,14 @@ function recoveryBlocksLiveScan(state) {
 }
 function recoveryLineageEqual(left = [], right = []) {
     return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+// PHASE64_REBASE_STATE_BOUNDARIES: accepted preserve-rebase history cannot be scored again after refresh failure/reload.
+function relationshipReplayProtected(state, chat = [], messageId = null) {
+    const boundary = state?.relationshipReplayBoundary;
+    if (!Number.isInteger(messageId) || messageId < 0 || !Number.isInteger(boundary?.throughMessageId) || messageId > boundary.throughMessageId) return false;
+    const accepted = Array.isArray(boundary.lineage) ? boundary.lineage.slice(0, messageId + 1) : [];
+    const current = chatLineage(chat, messageId);
+    return accepted.length === current.length && accepted.every((value, index) => value === current[index]);
 }
 function assistantMessageIdsInRange(chat = [], startMessageId = 0, endMessageId = null) {
     const last = Number.isInteger(endMessageId) ? Math.min(endMessageId, chat.length - 1) : chat.length - 1;
@@ -234,7 +242,7 @@ export function createNpcStateEngine(adapters = {}) {
     }
 
     if (typeof getContext !== 'function' || typeof getChatKey !== 'function' || typeof getSettings !== 'function' || typeof generate !== 'function') {
-        throw new Error('NPC State v0.4.30 engine requires getContext, getChatKey, getSettings, and generate adapters.');
+        throw new Error('NPC State v0.4.31 engine requires getContext, getChatKey, getSettings, and generate adapters.');
     }
 
     function epoch(chatKey) { return operationEpoch.get(chatKey) || 0; }
@@ -373,7 +381,7 @@ export function createNpcStateEngine(adapters = {}) {
             if (importedStable || fingerprintUpgraded || recoveryInterrupted) {
                 state = await persist(chatKey, state);
                 if (importedStable) {
-                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.30 beta sidecar. Stable data was not modified.');
+                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.31 beta sidecar. Stable data was not modified.');
                 } else if (fingerprintUpgraded) {
                     notify('info', 'Upgraded branch checkpoint fingerprints for transport-safe, swipe-index-independent rollback. Existing dossiers were preserved; old rollback hashes were reset once.');
                 } else if (recoveryInterrupted) {
@@ -426,6 +434,8 @@ export function createNpcStateEngine(adapters = {}) {
             const chat = ctx.chat || [];
             const exchange = currentExchange(chat, messageId);
             if (!exchange) return { ok: false, reason: 'not-assistant-message' };
+            const relationshipApplyRequested = applyRelationship === null ? !alreadyScannedMessage : applyRelationship === true;
+            const replayProtectedRelationship = relationshipReplayProtected(state, chat, messageId);
             const startEpoch = epoch(chatKey);
             const startFingerprint = fingerprintMessage(chat[messageId] || {});
             const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(settings.relationshipHistoryLimit);
@@ -464,7 +474,7 @@ export function createNpcStateEngine(adapters = {}) {
                     fallbackDays: settings.birthdayRandomDaysPerMonth,
                 },
                 applyReturnedNpcPatches: true,
-                applyRelationship: applyRelationship === null ? !alreadyScannedMessage : applyRelationship === true,
+                applyRelationship: relationshipApplyRequested && !replayProtectedRelationship,
             });
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
             const retentionExchange = { ...exchange, user: exchange.user ? { ...exchange.user, mes: retentionEvidenceText(exchange.user.mes) } : null, assistant: exchange.assistant ? { ...exchange.assistant, mes: retentionEvidenceText(exchange.assistant.mes) } : null };
@@ -550,6 +560,7 @@ export function createNpcStateEngine(adapters = {}) {
                     fallbackDays: settings.birthdayRandomDaysPerMonth,
                 },
                 applyReturnedNpcPatches: true,
+                applyRelationship: !relationshipReplayProtected(state, chat, messageId),
             });
             const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(settings.relationshipHistoryLimit);
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
@@ -1594,9 +1605,13 @@ export function createNpcStateEngine(adapters = {}) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat') return { ok: false, reason: 'no-chat' };
         const state = await loadChat(chatKey);
+        if (getChatKey() !== chatKey) return { ok: false, discarded: true, reason: 'chat-changed', stage: 'preview-after-load' };
         if (!state) return { ok: false, reason: 'not-hydrated' };
+        const context = getContext();
+        if (getChatKey() !== chatKey) return { ok: false, discarded: true, reason: 'chat-changed', stage: 'preview-before-read' };
+        const chat = context.chat || [];
         const mode = normalizeRebaseRelationshipMode(relationshipMode);
-        return { ok: true, ...previewRelationshipRebase(state, getContext().chat || [], { relationshipMode: mode }) };
+        return { ok: true, ...previewRelationshipRebase(state, chat, { relationshipMode: mode }) };
     }
 
     async function reconcileBranch({ rescan = false, rebase = false, relationshipMode = 'preserve' } = {}) {
@@ -1605,16 +1620,40 @@ export function createNpcStateEngine(adapters = {}) {
         invalidate(chatKey);
         let result;
         const mode = rebase ? normalizeRebaseRelationshipMode(relationshipMode) : 'preserve';
+        const chatChanged = stage => ({ ok: false, changed: false, discarded: true, reason: 'chat-changed', stage });
         await exclusive(chatKey, async () => {
+            // A queued reconcile/rebase is owned by the chat that requested it. Never borrow
+            // whichever chat happens to be active when its queue slot finally opens.
+            if (getChatKey() !== chatKey) {
+                result = chatChanged('after-queue');
+                return;
+            }
             const state = await loadChat(chatKey);
+            if (getChatKey() !== chatKey) {
+                result = chatChanged('after-load');
+                return;
+            }
+            if (!state) {
+                result = { ok: false, reason: 'not-hydrated' };
+                return;
+            }
             if (recoveryBlocksLiveScan(state)) {
                 result = { ok: false, reason: 'recovery-active', recovery: decoratedRecoveryStatus(state.recovery, chatKey) };
                 return;
             }
-            const chat = getContext().chat || [];
+            const context = getContext();
+            if (getChatKey() !== chatKey) {
+                result = chatChanged('before-read');
+                return;
+            }
+            const chat = context.chat || [];
             if (rebase) {
                 const rebased = rebaseToCurrentChat(state, chat, { relationshipMode: mode });
                 if (!rebased.rebaseBackup?.snapshot) throw new Error('Timeline rebase refused to persist without a restorable pre-rebase snapshot.');
+                if (getChatKey() !== chatKey) {
+                    result = chatChanged('before-commit');
+                    return;
+                }
                 const persisted = await persist(chatKey, rebased);
                 result = {
                     ok: true,
@@ -1630,11 +1669,38 @@ export function createNpcStateEngine(adapters = {}) {
             }
             const reconciled = reconcileToCurrentBranch(state, chat);
             if (reconciled.unsafeDivergence) {
-                result = { ok: false, changed: false, unsafeDivergence: true, branchSafety: structuredClone(reconciled.state.branchSafety), state: structuredClone(reconciled.state) };
+                // Publish the blocked state before durable I/O. If persistence fails, every
+                // live consumer still observes rebase-required and scanning remains disabled.
+                const blocked = normalizeState(reconciled.state, chatKey);
+                cache.set(chatKey, blocked);
+                hydration.set(chatKey, { status: 'ready', error: null });
+                onStateChanged(chatKey, structuredClone(blocked));
+                let persisted = blocked;
+                let persistenceError = null;
+                try {
+                    persisted = await persist(chatKey, blocked);
+                } catch (error) {
+                    persistenceError = error;
+                    hydration.set(chatKey, { status: 'ready', error });
+                }
+                result = {
+                    ok: false,
+                    reason: 'rebase-required',
+                    changed: true,
+                    unsafeDivergence: true,
+                    persistenceFailed: Boolean(persistenceError),
+                    persistenceError: persistenceError ? String(persistenceError?.message || persistenceError).slice(0, 500) : '',
+                    branchSafety: structuredClone(persisted.branchSafety),
+                    state: structuredClone(persisted),
+                };
                 return;
             }
             if (!reconciled.changed) {
                 result = { ok: true, changed: false, unsafeDivergence: false, checkpoint: reconciled.checkpoint || null, state: structuredClone(reconciled.state) };
+                return;
+            }
+            if (getChatKey() !== chatKey) {
+                result = chatChanged('before-commit');
                 return;
             }
             const persisted = await persist(chatKey, reconciled.state);
@@ -1642,7 +1708,16 @@ export function createNpcStateEngine(adapters = {}) {
         });
         if (result?.unsafeDivergence || !result?.ok) return result;
         if (rescan && (rebase || getSettings().branchRescan !== false)) {
-            const id = latestAssistantMessageId(getContext().chat || []);
+            if (getChatKey() !== chatKey) {
+                result.rescan = chatChanged('before-refresh');
+                return result;
+            }
+            const context = getContext();
+            if (getChatKey() !== chatKey) {
+                result.rescan = chatChanged('before-refresh-read');
+                return result;
+            }
+            const id = latestAssistantMessageId(context.chat || []);
             if (id >= 0) result.rescan = await scan(id, {
                 manual: rebase === true,
                 force: true,

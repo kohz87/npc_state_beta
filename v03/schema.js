@@ -1,4 +1,4 @@
-export const NPC_STATE_VERSION = '0.4.30';
+export const NPC_STATE_VERSION = '0.4.31';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     const number = Number(value);
@@ -877,6 +877,7 @@ export function createEmptyState(chatKey = '') {
         branchFingerprintVersion: 3,
         migration: null,
         recovery: null,
+        relationshipReplayBoundary: null,
         rebaseBackup: null,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -910,6 +911,21 @@ export function normalizeState(input = {}, chatKey = '') {
             lineage: rawBranchBase.lineage.map(value => String(value || '')).filter(Boolean),
             createdAt: Number(rawBranchBase.createdAt) || Date.now(),
             snapshot: structuredClone(rawBranchBase.snapshot),
+        }
+        : null;
+    // PHASE64_REBASE_STATE_BOUNDARIES: preserve-mode rebase stores the accepted lineage boundary so retries/reloads cannot rescore it.
+    const rawRelationshipReplayBoundary = input.relationshipReplayBoundary && typeof input.relationshipReplayBoundary === 'object' && !Array.isArray(input.relationshipReplayBoundary) ? input.relationshipReplayBoundary : null;
+    const replayThroughMessageId = Number.isInteger(rawRelationshipReplayBoundary?.throughMessageId) && rawRelationshipReplayBoundary.throughMessageId >= 0
+        ? rawRelationshipReplayBoundary.throughMessageId
+        : null;
+    const replayLineage = Array.isArray(rawRelationshipReplayBoundary?.lineage)
+        ? rawRelationshipReplayBoundary.lineage.map(value => String(value || '')).filter(Boolean)
+        : [];
+    const relationshipReplayBoundary = replayThroughMessageId !== null && replayLineage.length > replayThroughMessageId
+        ? {
+            throughMessageId: replayThroughMessageId,
+            lineage: replayLineage.slice(0, replayThroughMessageId + 1),
+            acceptedAt: Number(rawRelationshipReplayBoundary.acceptedAt) || null,
         }
         : null;
     const rawRebaseBackup = input.rebaseBackup && typeof input.rebaseBackup === 'object' && !Array.isArray(input.rebaseBackup) ? input.rebaseBackup : null;
@@ -963,6 +979,7 @@ export function normalizeState(input = {}, chatKey = '') {
         branchFingerprintVersion: Math.max(0, Math.trunc(Number(input.branchFingerprintVersion) || 0)),
         migration: input.migration && typeof input.migration === 'object' ? structuredClone(input.migration) : null,
         recovery: normalizeRecoveryState(input.recovery),
+        relationshipReplayBoundary,
         rebaseBackup,
         createdAt: Number(input.createdAt) || Date.now(),
         updatedAt: Number(input.updatedAt) || Date.now(),

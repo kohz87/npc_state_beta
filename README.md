@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.30
+# NPC State Beta 0.4.31
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -64,6 +64,14 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - v0.4.18 requires an explicit relationship evaluation for every exchange-active NPC. A scanner may still correctly decide that an ordinary interaction causes no relationship movement, but it must say so instead of silently omitting the relationship channel.
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
+
+## Rebase state and operation-boundary hardening
+
+- Unsafe pre-baseline branch divergence is now published to the live cache before persistence, so scans, injection, and UI immediately observe **rebase-required**. A failed sidecar write cannot silently leave live scanning enabled.
+- Rebase and rollback preview are bound to the chat that started the operation. Chat identity is rechecked after queue wait/load and before commit or follow-up refresh so another chat's visible history can never become the origin chat's baseline.
+- Preserve-mode rebase stores a durable accepted-relationship replay boundary for the accepted lineage. Failed refreshes, manual retries, and reloads cannot award the same accepted exchanges again, while later exchanges remain fully eligible for normal relationship progression.
+- The pre-rebase recovery backup is durable metadata outside timeline checkpoints. Restoring an earlier branch checkpoint no longer deletes the most recent rebase backup.
+- These changes harden state ownership and persistence only. Relationship evidence semantics, keyword policy, inertia, impact caps, fractional progression, and milestone thresholds are unchanged.
 
 ## Safe timeline rebase relationship modes
 

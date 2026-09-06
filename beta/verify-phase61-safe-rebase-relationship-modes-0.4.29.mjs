@@ -146,7 +146,8 @@ for (const [label, chat] of [['early rewrite', earlyRewrite], ['removed opening'
 const engine = fs.readFileSync(new URL('../v03/engine.js', import.meta.url), 'utf8');
 assert(engine.includes("relationshipMode = 'preserve'"), 'Engine rebase does not default to preserve');
 assert(engine.includes("applyRelationship: rebase && mode === 'preserve' ? false : null"), 'Immediate preserve-mode refresh does not suppress relationship updates');
-assert(engine.includes("applyRelationship: applyRelationship === null ? !alreadyScannedMessage : applyRelationship === true"), 'Scan lacks explicit relationship-update override');
+assert(engine.includes("const relationshipApplyRequested = applyRelationship === null ? !alreadyScannedMessage : applyRelationship === true"), 'Scan lacks explicit relationship-update override');
+assert(engine.includes("applyRelationship: relationshipApplyRequested && !replayProtectedRelationship"), 'Accepted preserve-rebase history can bypass the persisted replay boundary');
 assert(engine.includes("throw new Error('Timeline rebase refused to persist without a restorable pre-rebase snapshot.')"), 'Engine can persist a rebase without a backup assertion');
 
 const index = fs.readFileSync(new URL('../v03/index.js', import.meta.url), 'utf8');

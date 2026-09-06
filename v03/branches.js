@@ -348,6 +348,10 @@ export function rebaseToCurrentChat(state, chat = [], { relationshipMode = 'pres
     next.socialGraph = (next.socialGraph || []).map(edge => ({ ...edge, sourceMessageId: null }));
     next.lastObservation = { messageId: null, exchangeActiveNpcIds: [], finalPresentNpcIds: [], worldActiveNpcIds: [], targetNpcIds: [] };
     next.lastScannedMessageId = preserveLatestScannedMessage ? source.lastScannedMessageId : null;
+    // PHASE64_REBASE_STATE_BOUNDARIES: preserved relationship state already represents the accepted timeline through this boundary.
+    next.relationshipReplayBoundary = mode === 'preserve' && latestAssistantId >= 0
+        ? { throughMessageId: latestAssistantId, lineage: chatLineage(chat, latestAssistantId), acceptedAt: rebasedAt }
+        : null;
     next.checkpoints = [];
     next.branchBase = null;
     next.branchHeadLineage = [];
@@ -462,7 +466,7 @@ function preserveCurrentPresentation(restored, current) {
         for (const field of locked) {
             if (stableFields.has(field)) next[field] = structuredClone(live[field]);
         }
-        // Importance became editor-owned in 0.4.30, so branch history must not undo it.
+        // Importance became editor-owned in 0.4.31, so branch history must not undo it.
         next.importance = Number(live.importance) || 0;
         return next;
     });
@@ -519,6 +523,8 @@ export function reconcileToCurrentBranch(state, chat) {
     const restored = preserveCurrentPresentation(preserveTombstones(normalizeState(checkpoint.snapshot, normalized.chatKey), normalized), normalized);
     restored.checkpoints = structuredClone(normalized.checkpoints || []);
     restored.branchBase = structuredClone(normalized.branchBase || null);
+    // PHASE64_REBASE_STATE_BOUNDARIES: rebase backup is durable recovery metadata, not rollback timeline state.
+    restored.rebaseBackup = structuredClone(normalized.rebaseBackup || null);
     restored.branchHeadLineage = currentLineage;
     restored.branchSafety = { status: 'safe', kind: '', reason: '' };
     restored.updatedAt = Date.now();

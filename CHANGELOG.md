@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.31
+
+- Publishes unsafe branch state to the live cache before persistence so `rebase-required` immediately blocks scans/injection/UI, including when the sidecar write fails.
+- Binds queued rebase and rollback preview to their originating chat and rechecks ownership after queue/load and before commit or follow-up refresh.
+- Persists an accepted relationship replay boundary for preserve-mode rebase, preventing the same accepted exchanges from scoring again after failed refresh, manual retry, or reload while allowing genuinely new exchanges to progress normally.
+- Preserves `rebaseBackup` across checkpoint rollback so branch restoration cannot erase the latest pre-rebase recovery snapshot.
+- Adds engine-level regressions for unsafe-state publication, persistence failure, queued chat switching, preview chat switching, replay protection across failure/reload, new post-boundary events, and backup retention.
+- Leaves relationship keyword policy, semantic judgment, inertia, caps, fractional progression, and milestone behavior unchanged.
+
 ## v0.4.30
 
 - Separates timeline acceptance from relationship rollback. Preserve mode is now the safe default; rollback is an explicit alternative.
