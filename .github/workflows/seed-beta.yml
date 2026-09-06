@@ -1,4 +1,4 @@
-name: Build NPC State 0.4.41 Beta
+name: Build NPC State 0.4.42 Beta
 
 on:
   workflow_dispatch:
@@ -25,15 +25,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Once CI has committed the regenerated v0.4.41 runtime, test that exact checkout
+      # Once CI has committed the regenerated v0.4.42 runtime, test that exact checkout
       # before replacing v03 from the pinned stable baseline. During the one-time transition
-      # from the checked-in v0.4.40 runtime, the cold build generates v0.4.41 first.
+      # from the checked-in v0.4.41 runtime, the cold build generates v0.4.42 first.
       - name: Source checkout behavior gate
         run: |
-          if grep -q '"version": "0.4.41"' manifest.json; then
+          if grep -q '"version": "0.4.42"' manifest.json; then
             npm test
           else
-            echo "Checked-in runtime predates v0.4.41; cold build will generate v0.4.41 first."
+            echo "Checked-in runtime predates v0.4.42; cold build will generate v0.4.42 first."
           fi
 
       - name: Fetch pinned stable NPC State baseline
@@ -50,7 +50,7 @@ jobs:
           cp /tmp/npc-state-stable/manifest.json ./manifest.json
           cp /tmp/npc-state-stable/package.json ./package.json
 
-      - name: Apply 0.4.41 transformation in ordered phases
+      - name: Apply 0.4.42 transformation in ordered phases
         run: |
           node beta/build-beta-v2.mjs
           node beta/post-build-patch.mjs
@@ -77,7 +77,7 @@ jobs:
           # Replay every release transform in numeric patch order. The historical marker
           # comments below stay source-visible because descendant verifiers intentionally
           # assert that each older release remains part of the cold-build chain.
-          for patch in $(seq 2 41); do
+          for patch in $(seq 2 42); do
             node "beta/bump-0.4.${patch}.mjs"
             for phase in $(find beta -maxdepth 1 -name "phase*-0.4.${patch}.mjs" -print | sort); do
               echo "Applying $phase"
@@ -126,6 +126,7 @@ jobs:
           # node beta/bump-0.4.39.mjs ; -name 'phase*-0.4.39.mjs'
           # node beta/bump-0.4.40.mjs ; -name 'phase*-0.4.40.mjs'
           # node beta/bump-0.4.41.mjs ; -name 'phase*-0.4.41.mjs'
+          # node beta/bump-0.4.42.mjs ; -name 'phase*-0.4.42.mjs'
 
       - name: Syntax gate
         run: |
@@ -369,7 +370,25 @@ jobs:
           grep -q "readRecoveryStatus" v03/branch-recovery-ui.js
           ! grep -q "NPCState?.getState?.()" v03/branch-recovery-ui.js
           ! grep -q "state()?.recovery" v03/branch-recovery-ui.js
-          grep -q '"version": "0.4.41"' manifest.json
+          grep -Eq '"version": "0\.4\.(41|42)"' manifest.json
+
+          # v0.4.42 alternate scan connection and same-exchange completeness invariants.
+          grep -q "PHASE86_ALTERNATE_SCAN_PROFILE_COMPLETENESS" v03/scanner.js
+          grep -q "ConnectionManagerRequestService" v03/scan-connection.js
+          grep -q "service.sendRequest" v03/scan-connection.js
+          grep -q "scanConnectionProfileId: ''" v03/index.js
+          grep -q "scanAfterEachResponse: false" v03/index.js
+          grep -q "processCompletedAssistantResponse(messageId)" v03/index.js
+          grep -q "npc_state_beta_completion_v1" v03/index.js
+          grep -q "buildCompletenessPrompt" v03/scanner.js
+          grep -q "async function completenessScan" v03/engine.js
+          grep -q "supplementalPass: true" v03/engine.js
+          grep -q "invalidateCompleteness" v03/engine.js
+          grep -q "resolveGenerationRoute" v03/engine.js
+          grep -q "npc_state_v3_scan_profile" v03/ui.js
+          grep -q "npc_state_v3_scan_after_response" v03/ui.js
+          ! grep -q "apiKey" v03/scan-connection.js
+          grep -q '"version": "0.4.42"' manifest.json
 
       - name: Commit generated beta runtime
         run: |
@@ -380,5 +399,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add v03 bootstrap.js manifest.json package.json CHANGELOG.md README.md beta/verify-*.mjs
-          git commit -m "NPC State v0.4.41: stop settings observer loop and recovery full-state reads"
+          git commit -m "NPC State v0.4.42: add scan profiles and safe completeness pass"
           git push
