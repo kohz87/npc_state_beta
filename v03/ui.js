@@ -95,6 +95,8 @@ export function createNpcStateUi(adapters = {}) {
     let selectedNpcId = '';
     let activeEditorNpcId = '';
     let mountTimer = null;
+    let castPortraitObserver = null;
+    let librarySearchFrame = null;
 
     function notify(kind, message) {
         const fn = globalThis.toastr?.[kind];
@@ -104,7 +106,7 @@ export function createNpcStateUi(adapters = {}) {
     async function safely(label, task) {
         try { return await task(); }
         catch (error) {
-            console.error(`[NPC State v0.4.37] ${label} failed safely`, error);
+            console.error(`[NPC State v0.4.38] ${label} failed safely`, error);
             notify('error', `NPC State: ${label} failed. No partial dossier write was committed. ${error?.message || error}`);
             return { ok: false, reason: 'error', error };
         }
@@ -114,9 +116,9 @@ export function createNpcStateUi(adapters = {}) {
 
     function settingsHtml() {
         return `<div id="${SETTINGS_ID}" class="extension_container npc-state-extension npc-state-v3-settings">
-          <div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>NPC State <span class="npc-state-version">0.4.37</span></b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
+          <div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>NPC State <span class="npc-state-version">0.4.38</span></b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
           <div class="inline-drawer-content npc-state-drawer">
-            <div class="npc-state-intro">v0.4.37 uses foreground embedded capture for normal turns. Exchange participation, in-chat relevance, and explicit off-screen activity are independent signals. Stable v0.3 dossiers can be cloned once into an independent beta sidecar.</div>
+            <div class="npc-state-intro">v0.4.38 uses foreground embedded capture for normal turns. Exchange participation, in-chat relevance, and explicit off-screen activity are independent signals. Stable v0.3 dossiers can be cloned once into an independent beta sidecar.</div>
             <div class="npc-state-settings-grid">
               <label class="npc-state-setting-row"><span><b>Enable NPC State</b><small>Disabling stops automatic scanning and injection. Manual dossier tools remain available.</small></span><input id="npc_state_v3_enabled" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Auto Scan</b><small>Uses the same foreground RP generation. If the embedded block is missing, NPC State automatically runs one full separate current-cast scan.</small></span><input id="npc_state_v3_auto" type="checkbox"></label>
@@ -232,7 +234,7 @@ export function createNpcStateUi(adapters = {}) {
         panel.querySelector('#npc_state_v3_show_diagnostics')?.addEventListener('change', event => {
             getSettings().showDossierDiagnostics = Boolean(event.target.checked);
             persistSettings();
-            renderLibrary();
+            renderLibrary({ detailOnly: true });
         });
         bindCheck('#npc_state_v3_branch_rescan', 'branchRescan');
         bindLimit('#npc_state_v3_limit_memories', 'memories');
@@ -304,7 +306,7 @@ export function createNpcStateUi(adapters = {}) {
         const active = current.npcs.filter(npc => !npc.archived);
         const archived = current.npcs.filter(npc => npc.archived);
         const rows = list => list.map(npc => `<button class="menu_button npc-state-v3-roster-open" data-npc-id="${escapeHtml(npc.id)}">${npc.present ? '● ' : (npc.worldActive ? '◌ ' : '')}${escapeHtml(npc.name)}</button>`).join('');
-        holder.innerHTML = `<small class="npc-state-muted">Persistent NPC State 0.4.37 database · ${active.length} active · ${archived.length} archived</small><div class="npc-state-roster-chips">${rows(active)}${rows(archived)}</div>`;
+        holder.innerHTML = `<small class="npc-state-muted">Persistent NPC State 0.4.38 database · ${active.length} active · ${archived.length} archived</small><div class="npc-state-roster-chips">${rows(active)}${rows(archived)}</div>`;
         holder.querySelectorAll('.npc-state-v3-roster-open').forEach(button => button.addEventListener('click', () => openLibrary(button.dataset.npcId)));
     }
 
@@ -313,6 +315,68 @@ export function createNpcStateUi(adapters = {}) {
     }
 
     function libraryOverlay() { return document.getElementById(LIBRARY_ID); }
+
+    function portraitSourceForUi(npc = {}) {
+        const portrait = npc?.portrait && typeof npc.portrait === 'object' ? npc.portrait : {};
+        return String(portrait.dataUrl || portrait.url || portrait.src || '').trim();
+    }
+
+    function disconnectCastPortraitObserver() {
+        castPortraitObserver?.disconnect?.();
+        castPortraitObserver = null;
+    }
+
+    function hydrateVisibleCastPortraits(overlay, rows = []) {
+        disconnectCastPortraitObserver();
+        const rail = overlay?.querySelector('.npc-state-v3-cast-rail');
+        if (!rail) return;
+        const byId = new Map((Array.isArray(rows) ? rows : []).map(npc => [String(npc?.id || ''), npc]).filter(([id]) => id));
+        const cards = [...rail.querySelectorAll('.npc-state-v3-cast-card')];
+        const load = card => {
+            const image = card?.querySelector('.npc-state-v3-deferred-portrait');
+            if (!image || image.getAttribute('src')) return;
+            const npc = byId.get(String(card.dataset.npcId || ''));
+            const src = portraitSourceForUi(npc);
+            if (!src) return;
+            image.src = src;
+        };
+        const selected = cards.find(card => card.dataset.npcId === selectedNpcId);
+        if (selected) load(selected);
+        if (typeof globalThis.IntersectionObserver !== 'function') {
+            cards.forEach(load);
+            return;
+        }
+        castPortraitObserver = new globalThis.IntersectionObserver(entries => {
+            for (const entry of entries) {
+                if (!entry.isIntersecting) continue;
+                load(entry.target);
+                castPortraitObserver?.unobserve?.(entry.target);
+            }
+        }, { root: rail, rootMargin: '0px 360px' });
+        for (const card of cards) {
+            if (card === selected || !portraitSourceForUi(byId.get(String(card.dataset.npcId || '')))) continue;
+            castPortraitObserver.observe(card);
+        }
+    }
+
+    function setSelectedCastCard(overlay, id) {
+        const selected = String(id || '');
+        const cards = overlay?.querySelectorAll('.npc-state-v3-cast-card') || [];
+        for (const card of cards) {
+            const active = String(card.dataset.npcId || '') === selected;
+            card.classList.toggle('active', active);
+            card.setAttribute('aria-pressed', active ? 'true' : 'false');
+        }
+    }
+
+    function scheduleLibraryRailRender() {
+        if (librarySearchFrame) return;
+        const schedule = globalThis.requestAnimationFrame || (callback => setTimeout(callback, 0));
+        librarySearchFrame = schedule(() => {
+            librarySearchFrame = null;
+            renderLibrary({ railOnly: true });
+        });
+    }
 
     function centerSelectedCastCard(overlay, behavior = 'smooth') {
         const rail = overlay?.querySelector('.npc-state-v3-cast-rail');
@@ -324,7 +388,7 @@ export function createNpcStateUi(adapters = {}) {
         return true;
     }
 
-    function renderLibrary({ centerSelected = false } = {}) {
+    function renderLibrary({ centerSelected = false, railOnly = false, detailOnly = false } = {}) {
         const overlay = libraryOverlay();
         if (!overlay) return;
         const allRows = filteredNpcs('');
@@ -337,23 +401,23 @@ export function createNpcStateUi(adapters = {}) {
         const npc = allRows.find(item => item.id === selectedNpcId) || null;
 
         const rail = overlay.querySelector('.npc-state-v3-cast-rail');
-        if (rail) rail.innerHTML = castRailHtml(railRows, selectedNpcId);
-        rail?.querySelectorAll('.npc-state-v3-cast-card').forEach(button => button.addEventListener('click', () => {
-            selectedNpcId = button.dataset.npcId;
-            renderLibrary({ centerSelected: true });
-        }));
+        if (!detailOnly) {
+            if (rail) rail.innerHTML = castRailHtml(railRows, selectedNpcId);
+            hydrateVisibleCastPortraits(overlay, railRows);
+        }
 
         const detail = overlay.querySelector('.npc-state-v3-library-detail');
-        const showDiagnostics = getSettings().showDossierDiagnostics === true;
-        if (detail) detail.innerHTML = dossierHtml(npc, { showDiagnostics });
-        wireDossierActions(detail);
-
-        const title = overlay.querySelector('.npc-state-v3-library-head-name');
-        if (title) title.textContent = npc?.name || 'No dossier selected';
+        if (!railOnly) {
+            const showDiagnostics = getSettings().showDossierDiagnostics === true;
+            if (detail) detail.innerHTML = dossierHtml(npc, { showDiagnostics });
+            wireDossierActions(detail);
+            const title = overlay.querySelector('.npc-state-v3-library-head-name');
+            if (title) title.textContent = npc?.name || 'No dossier selected';
+        }
         const count = overlay.querySelector('.npc-state-v3-cast-count');
         if (count) count.textContent = query.trim() ? `${railRows.length} of ${allRows.length} NPCs` : `${allRows.length} NPC${allRows.length === 1 ? '' : 's'}`;
 
-        const documentPane = detail?.querySelector('.npc-state-v3-dossier-document');
+        const documentPane = !railOnly ? detail?.querySelector('.npc-state-v3-dossier-document') : null;
         if (documentPane && npc?.id === oldNpcId && !centerSelected) documentPane.scrollTop = oldScroll;
 
         if (centerSelected) {
@@ -393,7 +457,14 @@ export function createNpcStateUi(adapters = {}) {
             document.body.appendChild(overlay);
             document.documentElement?.classList.add('npc-state-v3-library-open');
             document.body?.classList.add('npc-state-v3-library-open');
-            overlay.querySelector('#npc_state_v3_library_search')?.addEventListener('input', () => renderLibrary());
+            overlay.querySelector('#npc_state_v3_library_search')?.addEventListener('input', scheduleLibraryRailRender);
+            overlay.querySelector('.npc-state-v3-cast-rail')?.addEventListener('click', event => {
+                const button = event.target.closest?.('.npc-state-v3-cast-card');
+                if (!button) return;
+                selectedNpcId = String(button.dataset.npcId || '');
+                setSelectedCastCard(overlay, selectedNpcId);
+                renderLibrary({ centerSelected: true, detailOnly: true });
+            });
             overlay.querySelector('.npc-state-v3-cast-prev')?.addEventListener('click', () => scrollCastRail(-1));
             overlay.querySelector('.npc-state-v3-cast-next')?.addEventListener('click', () => scrollCastRail(1));
             const shell = overlay.querySelector('.npc-state-v3-library-shell');
@@ -405,6 +476,7 @@ export function createNpcStateUi(adapters = {}) {
     }
 
     function closeLibrary() {
+        disconnectCastPortraitObserver();
         libraryOverlay()?.remove();
         document.documentElement?.classList.remove('npc-state-v3-library-open');
         document.body?.classList.remove('npc-state-v3-library-open');
@@ -419,7 +491,7 @@ export function createNpcStateUi(adapters = {}) {
             settings.showDossierDiagnostics = settings.showDossierDiagnostics !== true;
             persistSettings();
             syncSettings();
-            renderLibrary();
+            renderLibrary({ detailOnly: true });
         });
         root.querySelector('.npc-state-v3-refresh')?.addEventListener('click', async event => {
             const id = event.currentTarget.dataset.npcId;

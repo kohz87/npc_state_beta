@@ -60,9 +60,10 @@ export function filterDossierNpcs(npcs = [], query = '') {
     ].some(value => String(value || '').toLocaleLowerCase().includes(needle)));
 }
 
-function portraitHtml(npc, className, { decorative = false } = {}) {
+function portraitHtml(npc, className, { decorative = false, deferSource = false } = {}) {
     const src = portraitSource(npc);
     if (src) {
+        if (deferSource) return '<img class="' + className + ' npc-state-v3-deferred-portrait" alt="' + (decorative ? '' : escapeHtml(npc?.name || 'NPC') + ' portrait') + '" loading="lazy" decoding="async">';
         return `<img class="${className}" src="${escapeHtml(src)}" alt="${decorative ? '' : `${escapeHtml(npc?.name || 'NPC')} portrait`}">`;
     }
     const initial = escapeHtml(String(npc?.name || '?').charAt(0).toUpperCase() || '?');
@@ -409,7 +410,7 @@ export function castRailHtml(npcs = [], selectedId = '') {
         const status = dossierStatusLabel(npc);
         const statusClass = dossierStatusClass(npc);
         return `<button type="button" class="npc-state-v3-cast-card${active ? ' active' : ''}" data-npc-id="${escapeHtml(npc.id)}" aria-pressed="${active ? 'true' : 'false'}" title="${escapeHtml(`${npc.name} · ${npc.role || npc.species || 'NPC'} · ${status}`)}">
-          <span class="npc-state-v3-cast-portrait">${portraitHtml(npc, 'npc-state-v3-cast-image', { decorative: true })}</span>
+          <span class="npc-state-v3-cast-portrait">${portraitHtml(npc, 'npc-state-v3-cast-image', { decorative: true, deferSource: true })}</span>
           <span class="npc-state-v3-cast-overlay"><b>${escapeHtml(npc.name)}</b><small>${escapeHtml(npc.role || npc.species || 'NPC')}</small><em class="is-${statusClass}"><i></i>${escapeHtml(status)}</em></span>
         </button>`;
     }).join('');

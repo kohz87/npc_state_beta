@@ -417,7 +417,7 @@ async function maybeForegroundFallback(messageId, reason) {
     return runSeparateRecoveryScan(messageId, 'foreground-' + reason);
 }
 
-// PHASE74D_LIVE_FOREGROUND_LIFE_STATE_CONTRACT: only newly generated embedded payloads require the v0.4.37 lifecycle channel.
+// PHASE74D_LIVE_FOREGROUND_LIFE_STATE_CONTRACT: only newly generated embedded payloads require the v0.4.38 lifecycle channel.
 async function processEmbeddedScan(messageId) {
     const ctx = getContext();
     const id = Number(messageId);
