@@ -16,7 +16,7 @@ function replaceRequired(source, from, to, label) {
     source = replaceRequired(
         source,
         `function ensureRelationships(drawer) {`,
-        `export function setTextIfChanged(node, value) {\n    if (node && node.textContent !== value) node.textContent = value;\n}\n\nfunction ensureRelationships(drawer) {`,
+        `// PHASE84_SETTINGS_OBSERVER_RECOVERY_HOTPATH: keep coordinator writes idempotent so its child-list observer cannot feed itself.\nexport function setTextIfChanged(node, value) {\n    if (node && node.textContent !== value) node.textContent = value;\n}\n\nfunction ensureRelationships(drawer) {`,
         'idempotent text helper',
     );
     source = replaceRequired(
