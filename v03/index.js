@@ -225,7 +225,7 @@ function updateInjection() {
     const ctx = getContext();
     const settings = getSettings();
     const key = getChatKey();
-    const state = key === 'no-chat' ? null : engine.getState(key);
+    const state = key === 'no-chat' ? null : engine.getInjectionState(key);
     const structuredEvidenceDetected = (ctx.chat || []).slice(-30).some(message => hasRecognizedStructuredBlocks(message?.mes));
     const foregroundNewNpcHistory = buildForegroundNewNpcHistory(ctx.chat || [], settings);
     const foregroundCurrentUserText = latestForegroundUserText(ctx.chat || []);
@@ -254,6 +254,7 @@ const engine = createNpcStateEngine({
     fetchFn: (...args) => globalThis.fetch(...args),
     generate: generateJson,
     notify,
+    stateChangeSnapshot: false,
     onStateChanged: () => {
         updateInjection();
         ui?.refresh();
@@ -401,7 +402,8 @@ async function runSeparateRecoveryScan(messageId, reason = 'recovery') {
     if (settings.enabled === false || settings.autoScan === false) return { ok: false, reason: 'auto-disabled' };
     try {
         const result = await engine.scan(id, { manual: false, force: true });
-        if (result?.ok || result?.discarded) refreshSurfaces();
+        // A successful commit already refreshed via engine.onStateChanged. Only a stale discarded run needs a local surface catch-up.
+        if (result?.discarded) refreshSurfaces();
         if (!result?.ok && !result?.discarded) console.warn('[NPC State Beta] Separate recovery scan did not commit:', reason, result?.reason);
         return result;
     } catch (error) {
@@ -417,7 +419,7 @@ async function maybeForegroundFallback(messageId, reason) {
     return runSeparateRecoveryScan(messageId, 'foreground-' + reason);
 }
 
-// PHASE74D_LIVE_FOREGROUND_LIFE_STATE_CONTRACT: only newly generated embedded payloads require the v0.4.39 lifecycle channel.
+// PHASE74D_LIVE_FOREGROUND_LIFE_STATE_CONTRACT: only newly generated embedded payloads require the v0.4.40 lifecycle channel.
 async function processEmbeddedScan(messageId) {
     const ctx = getContext();
     const id = Number(messageId);
@@ -448,7 +450,8 @@ async function processEmbeddedScan(messageId) {
 
     try {
         const result = await engine.applyEmbeddedScan(id, consumed.parsed, { expectedMessageText: consumed.cleanedText });
-        if (result?.ok) refreshSurfaces();
+        // Ordinary commits already refreshed via persistence. Skips have no persistence callback.
+        if (result?.ok && result?.skipped) refreshSurfaces();
         return result;
     } catch (error) {
         console.error('[NPC State Beta] embedded scan failed safely', error);
@@ -466,7 +469,8 @@ async function reapplyStoredEmbeddedPayload(messageId) {
     const consumed = consumeNpcStateControl(meta.payload);
     if (consumed.errors.length || !consumed.parsed) return { ok: false, reason: 'stored-payload-invalid' };
     const result = await engine.applyEmbeddedScan(id, consumed.parsed);
-    if (result?.ok) refreshSurfaces();
+    // Ordinary commits already refreshed via persistence. Skips have no persistence callback.
+    if (result?.ok && result?.skipped) refreshSurfaces();
     return result;
 }
 

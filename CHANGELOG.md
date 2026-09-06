@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.40
+
+- Adds an injection-specific immutable state projection so normal foreground prompt refreshes never clone portrait payloads, checkpoint/rebase snapshots, diagnostics, or relationship audit history.
+- Avoids the engine state-change snapshot clone in the installed runtime callback while retaining snapshot delivery as the engine default for compatibility.
+- Makes the in-chat NPC strip idempotent across repeated MESSAGE_UPDATED events and uses async/lazy image decoding when it must rebuild.
+- Removes redundant post-persist surface refreshes from successful embedded and separate recovery scan paths.
+- Changes no scanner, lifecycle, relationship, branch/recovery, stale-management, admission, or persistence semantics.
+
 ## v0.4.39
 
 - Replaces Dossier Library full-sidecar reads with lightweight roster projections and a clone of only the selected NPC.

@@ -24,6 +24,20 @@ export function presentNpcAgeLabel(npc = {}) {
     return age ? `Age ${age}` : 'Age unknown';
 }
 
+export function inlineRosterSignature(rows = [], messageId = -1) {
+    return JSON.stringify([Number(messageId), ...(Array.isArray(rows) ? rows : []).map(npc => [
+        String(npc?.id || ''),
+        String(npc?.name || ''),
+        String(npc?.age ?? ''),
+        String(npc?.apparentAge ?? ''),
+        npc?.present === true,
+        npc?.archived === true,
+        npc?.minor === true,
+        npc?.portraitAvailable === true,
+        Number(npc?.updatedAt) || 0,
+    ])]);
+}
+
 function escapeHtml(value) {
     return String(value ?? '')
         .replaceAll('&', '&amp;')
@@ -106,7 +120,7 @@ export function createNpcStateUi(adapters = {}) {
     async function safely(label, task) {
         try { return await task(); }
         catch (error) {
-            console.error(`[NPC State v0.4.39] ${label} failed safely`, error);
+            console.error(`[NPC State v0.4.40] ${label} failed safely`, error);
             notify('error', `NPC State: ${label} failed. No partial dossier write was committed. ${error?.message || error}`);
             return { ok: false, reason: 'error', error };
         }
@@ -117,9 +131,9 @@ export function createNpcStateUi(adapters = {}) {
 
     function settingsHtml() {
         return `<div id="${SETTINGS_ID}" class="extension_container npc-state-extension npc-state-v3-settings">
-          <div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>NPC State <span class="npc-state-version">0.4.39</span></b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
+          <div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>NPC State <span class="npc-state-version">0.4.40</span></b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
           <div class="inline-drawer-content npc-state-drawer">
-            <div class="npc-state-intro">v0.4.39 uses foreground embedded capture for normal turns. Exchange participation, in-chat relevance, and explicit off-screen activity are independent signals. Stable v0.3 dossiers can be cloned once into an independent beta sidecar.</div>
+            <div class="npc-state-intro">v0.4.40 uses foreground embedded capture for normal turns. Exchange participation, in-chat relevance, and explicit off-screen activity are independent signals. Stable v0.3 dossiers can be cloned once into an independent beta sidecar.</div>
             <div class="npc-state-settings-grid">
               <label class="npc-state-setting-row"><span><b>Enable NPC State</b><small>Disabling stops automatic scanning and injection. Manual dossier tools remain available.</small></span><input id="npc_state_v3_enabled" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Auto Scan</b><small>Uses the same foreground RP generation. If the embedded block is missing, NPC State automatically runs one full separate current-cast scan.</small></span><input id="npc_state_v3_auto" type="checkbox"></label>
@@ -307,7 +321,7 @@ export function createNpcStateUi(adapters = {}) {
         const active = current.filter(npc => !npc.archived);
         const archived = current.filter(npc => npc.archived);
         const rows = list => list.map(npc => `<button class="menu_button npc-state-v3-roster-open" data-npc-id="${escapeHtml(npc.id)}">${npc.present ? '● ' : (npc.worldActive ? '◌ ' : '')}${escapeHtml(npc.name)}</button>`).join('');
-        holder.innerHTML = `<small class="npc-state-muted">Persistent NPC State 0.4.39 database · ${active.length} active · ${archived.length} archived</small><div class="npc-state-roster-chips">${rows(active)}${rows(archived)}</div>`;
+        holder.innerHTML = `<small class="npc-state-muted">Persistent NPC State 0.4.40 database · ${active.length} active · ${archived.length} archived</small><div class="npc-state-roster-chips">${rows(active)}${rows(archived)}</div>`;
         holder.querySelectorAll('.npc-state-v3-roster-open').forEach(button => button.addEventListener('click', () => openLibrary(button.dataset.npcId)));
     }
 
@@ -596,20 +610,25 @@ export function createNpcStateUi(adapters = {}) {
     }
 
     function renderInline() {
-        document.getElementById(INLINE_ID)?.remove();
+        const existing = document.getElementById(INLINE_ID);
         const current = dossierIndex();
-        if (!current) return;
+        if (!current) { existing?.remove(); return; }
         const present = current.filter(npc => npc.present && !npc.archived && !npc.minor);
-        if (!present.length) return;
+        if (!present.length) { existing?.remove(); return; }
         const messageId = latestAssistantMessageId(getContext().chat || []);
         const message = messageElement(messageId);
-        if (!message) return;
+        if (!message) { existing?.remove(); return; }
+        const target = message.querySelector?.('.mes_text') || message;
+        const signature = inlineRosterSignature(present, messageId);
+        // MESSAGE_UPDATED fires frequently for unrelated rendering work. Reuse the strip and decoded images when its observable content did not change.
+        if (existing?.dataset.signature === signature && existing.parentElement === target) return;
+        existing?.remove();
         const holder = document.createElement('section');
         holder.id = INLINE_ID;
         holder.className = 'npc-state-present-roster npc-state-v3-inline';
-        holder.innerHTML = `<div class="npc-state-present-roster-head"><span class="npc-state-kicker">IN-CHAT NPCS</span><small>${present.length} shown</small></div><div class="npc-state-present-grid">${present.map(npc => { const portrait = engine.getNpcPortraitSource(npc.id, getChatKey()); return `<button type="button" class="npc-state-present-card npc-state-v3-inline-card" data-npc-id="${escapeHtml(npc.id)}"><span class="npc-state-present-card-portrait">${portrait ? `<img src="${escapeHtml(portrait)}" alt="">` : `<div class="npc-state-present-card-placeholder">${escapeHtml(String(npc.name || '?').charAt(0))}</div>`}</span><span class="npc-state-present-card-overlay"><b>${escapeHtml(npc.name)}</b><small>${escapeHtml(presentNpcAgeLabel(npc))}</small></span></button>`; }).join('')}</div>`;
+        holder.dataset.signature = signature;
+        holder.innerHTML = `<div class="npc-state-present-roster-head"><span class="npc-state-kicker">IN-CHAT NPCS</span><small>${present.length} shown</small></div><div class="npc-state-present-grid">${present.map(npc => { const portrait = engine.getNpcPortraitSource(npc.id, getChatKey()); return `<button type="button" class="npc-state-present-card npc-state-v3-inline-card" data-npc-id="${escapeHtml(npc.id)}"><span class="npc-state-present-card-portrait">${portrait ? `<img src="${escapeHtml(portrait)}" alt="" loading="lazy" decoding="async">` : `<div class="npc-state-present-card-placeholder">${escapeHtml(String(npc.name || '?').charAt(0))}</div>`}</span><span class="npc-state-present-card-overlay"><b>${escapeHtml(npc.name)}</b><small>${escapeHtml(presentNpcAgeLabel(npc))}</small></span></button>`; }).join('')}</div>`;
         holder.querySelectorAll('.npc-state-v3-inline-card').forEach(button => button.addEventListener('click', () => openLibrary(button.dataset.npcId)));
-        const target = message.querySelector?.('.mes_text') || message;
         target.appendChild(holder);
     }
 
