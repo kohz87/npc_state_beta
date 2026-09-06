@@ -17,12 +17,14 @@ assert(engineSource.includes('getNpcPortraitSource,'), 'Engine public surface mu
 assert(engineSource.includes('getState: chatKey => cache.has(chatKey || getChatKey()) ? structuredClone(cache.get(chatKey || getChatKey())) : null'), 'Compatibility getState must remain an immutable full snapshot');
 
 assert(!uiSource.includes('engine.getState('), 'Dossier UI must not clone the full sidecar during normal rendering');
+assert(!uiSource.includes('function state()'), 'Legacy full-state UI helper must not survive the projection migration');
 assert(!uiSource.includes('findNpcByReference(state()'), 'Dossier actions must not clone full state for one NPC lookup');
 assert(!uiSource.includes('filterDossierNpcs(state()?.npcs'), 'Dossier filtering must use lightweight projected rows');
 assert(uiSource.includes('function dossierIndex() { return engine.getDossierIndex(getChatKey()); }'), 'UI must use lightweight roster projection');
 assert(uiSource.includes('function dossierNpc(reference) { return engine.getDossierNpc(reference, getChatKey()); }'), 'UI must use selected-NPC clone path');
 assert(uiSource.includes("engine.getNpcPortraitSource(String(card.dataset.npcId || ''), getChatKey())"), 'Cast portraits must request only the individual visible source');
 assert(uiSource.includes('const indexRows = dossierIndex() || [];'), 'Library render must acquire one projected roster');
+assert.equal((uiSource.match(/const indexRows = dossierIndex\(\) \|\| \[\];/g) || []).length, 1, 'Library render must acquire the projected roster once per render path');
 assert(uiSource.includes("const railRows = query.trim() ? filteredNpcs(allRows, query) : allRows;"), 'Library search must reuse the projected roster');
 assert(uiSource.includes('const npc = railOnly ? null : dossierNpc(selectedNpcId);'), 'Rail-only search must not clone selected dossier detail');
 assert(dossierSource.includes('const available = Boolean(src || npc?.portraitAvailable);'), 'Deferred cast portrait markup must understand source-free roster projections');
@@ -76,7 +78,10 @@ assert(!Object.hasOwn(projected, 'relationshipHistory'), 'Projection must omit r
 assert(!Object.hasOwn(projected, 'relationshipDiagnostics'), 'Projection must omit relationship diagnostics');
 assert(!Object.hasOwn(projected, 'lifeStateDiagnostics'), 'Projection must omit life-state diagnostics');
 assert(!JSON.stringify(projected).includes('PERF_SENTINEL_'), 'Projection must not copy portrait data URLs');
-assert(JSON.stringify(projected).length < 2000, 'Single dossier projection grew unexpectedly large');
+const projectedBytes = JSON.stringify(projected).length;
+const fullBytes = JSON.stringify(fullNpc).length;
+assert(projectedBytes < 2000, 'Single dossier projection grew unexpectedly large');
+assert(projectedBytes * 20 < fullBytes, 'Projection must remain dramatically smaller than a portrait-bearing full dossier');
 
 const roster = Array.from({ length: 160 }, (_, index) => dossierIndexProjection({
     ...fullNpc,
