@@ -1,5 +1,5 @@
 import * as core from './scanner-core.js';
-import { normalizeNpcAdmissionMode } from './schema.js';
+import { NPC_STATE_VERSION, normalizeNpcAdmissionMode } from './schema.js';
 import { adaptLegacySemanticPayload } from './model/legacy-semantic-adapter.js';
 import {
     applyModelLedFamilyFacts,
@@ -18,7 +18,7 @@ function nonSystemIds(chat = [], through = null, limit = 30) {
 }
 
 function released(text) {
-    return String(text || '').replaceAll('v0.4.44', 'v0.5.0');
+    return String(text || '').replaceAll('v0.4.44', `v${NPC_STATE_VERSION}`);
 }
 
 function semanticAppend({ npcs = [], mode = 'scan', sourceIds = [] } = {}) {
