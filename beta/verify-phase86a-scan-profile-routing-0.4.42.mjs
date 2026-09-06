@@ -15,8 +15,12 @@ assert(uiSource.includes('NPC scan connection profile'), 'Scan profile setting U
 assert(uiSource.includes('Scan after each response'), 'Completeness toggle UI missing');
 assert(uiSource.includes('normal roleplay and embedded NPC output stay on your main connection'), 'UI must explain main-roleplay isolation');
 assert(uiSource.includes('plus a JSON retry if needed'), 'UI must explain completeness request cost');
-assert(settingsLayoutSource.includes("'#npc_state_v3_scan_profile'"), 'Profile setting must remain inside Scanning');
-assert(settingsLayoutSource.includes("'#npc_state_v3_scan_after_response'"), 'Completeness setting must remain inside Scanning');
+const scanningStart = settingsLayoutSource.indexOf('function ensureScanning(drawer)');
+const scanningEnd = settingsLayoutSource.indexOf('function ensureContinuityInjection(drawer)', scanningStart);
+assert(scanningStart >= 0 && scanningEnd > scanningStart, 'Scanning settings group must be structurally identifiable');
+const scanningBlock = settingsLayoutSource.slice(scanningStart, scanningEnd);
+assert(scanningBlock.includes("'#npc_state_v3_scan_profile'"), 'Profile setting must remain inside Scanning');
+assert(scanningBlock.includes("'#npc_state_v3_scan_after_response'"), 'Completeness setting must remain inside Scanning');
 assert(engineSource.includes('const route = await resolveGenerationRoute({ label });'), 'JSON operations must snapshot one generation route');
 assert(engineSource.includes('label: `${label}-json-retry`,\n                route,'), 'JSON retry must reuse the captured route');
 assert(engineSource.includes("invokeJson(prompt, manual ? 'manual-current-cast' : 'automatic-current-cast')"), 'Current-cast scans must use central routed JSON invocation');
