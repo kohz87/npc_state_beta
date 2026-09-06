@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.35
+# NPC State Beta 0.4.36
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -64,6 +64,12 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - v0.4.18 requires an explicit relationship evaluation for every exchange-active NPC. A scanner may still correctly decide that an ordinary interaction causes no relationship movement, but it must say so instead of silently omitting the relationship channel.
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
+
+## Lifecycle reconciliation and manual life-state recovery
+
+- Confirmed lifecycle transitions now have a dedicated top-level lifeStateUpdates channel, independent of ordinary activity/profile patches. This prevents an NPC with a terminal status such as deceased after irreversible dissolution from being missed merely because the model omitted that NPC from the normal patch list.
+- Stored Status reconciliation is explicitly mandatory through that channel even when the original death event is old or the NPC is not currently active. Current terminal dissolution still requires grounded target-specific evidence and explicit/strong certainty; reversible transformations remain non-death.
+- The dossier editor now exposes Life state and its note. Manual Dead immediately archives as deceased; manual Alive or Unknown can clear a deceased archive without reviving unrelated manual/stale archives. Manual edits remain authoritative and do not require narrative evidence.
 
 ## Responsive recovery controls
 

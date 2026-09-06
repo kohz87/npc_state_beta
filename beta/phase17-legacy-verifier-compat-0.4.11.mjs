@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 
-function replaceCompat(source, from, to, label) {
+function replaceCompat(source, from, to, label, descendants = []) {
     if (source.includes(from)) return source.replace(from, to);
     if (source.includes(to)) return source;
+    if (descendants.some(marker => source.includes(marker))) return source;
     throw new Error('Missing 0.4.11 legacy-verifier marker: ' + label);
 }
 
@@ -14,6 +15,9 @@ function replaceCompat(source, from, to, label) {
         `return calls.length === 1 ? 'malformed' : '{}';`,
         `return calls.length === 1 ? 'malformed' : JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [], socialEdges: [] });`,
         'scanner retry valid payload fixture',
+        [
+            `return calls.length === 1 ? 'malformed' : JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [], socialEdges: [], lifeStateUpdates: [] });`,
+        ],
     );
     fs.writeFileSync(path, source);
 }

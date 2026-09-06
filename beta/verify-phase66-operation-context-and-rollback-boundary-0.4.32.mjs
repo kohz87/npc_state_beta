@@ -19,6 +19,7 @@ const EMPTY_SCAN = Object.freeze({
     npcs: [],
     socialEdges: [],
     familyFacts: [],
+    lifeStateUpdates: [],
 });
 
 function settings() {
@@ -186,6 +187,7 @@ function relationshipScan() {
         }],
         socialEdges: [],
         familyFacts: [],
+        lifeStateUpdates: [],
     };
 }
 

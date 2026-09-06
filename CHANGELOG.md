@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.36
+
+- Adds a dedicated lifeStateUpdates scanner channel so terminal lifecycle repairs are not lost when an otherwise inactive NPC is omitted from the ordinary npcs patch list.
+- Makes stored terminal Status reconciliation mandatory in foreground, recovery, and targeted-refresh prompts, including explicitly deceased irreversible dissolution/destruction while preserving the model-owned semantic boundary.
+- Adds manual Life state editing to the dossier editor. Dead archives immediately as deceased; Alive/Unknown can recover a deceased dossier while leaving unrelated manual/stale archives untouched.
+- Adds lifecycle/manual-recovery regressions and cold-build release parity. Relationship, scoring, admission, and stale-management policy are unchanged.
+
 ## v0.4.35
 
 - Fixes Advanced Recovery / Force Timeline Rebase controls overflowing or clipping at ordinary settings-drawer widths.

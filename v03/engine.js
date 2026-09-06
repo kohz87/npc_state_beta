@@ -11,6 +11,7 @@ import {
     DEFAULT_RELATIONSHIP_CAPS,
     applyBirthdayFill,
     applyConfirmedDeathTransition,
+    applyManualLifeStateTransition,
     findNpcByReference,
     createEmptyState,
     makeNpcId,
@@ -47,7 +48,7 @@ import {
 } from './stale.js';
 import { clearV3PointerHint, createRecoveryV3Sidecar, deleteV3SidecarFile, readV3PointerHint, readV3Sidecar, retireV3Sidecar, writeV3Sidecar } from './storage.js';
 
-const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.35 recovery scanner. Obey the supplied schema and evidence rules exactly.';
+const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.36 recovery scanner. Obey the supplied schema and evidence rules exactly.';
 
 function profileContextForWindow(chat = [], messageId = null, depth = 8) {
     const end = Number.isInteger(messageId) ? Math.min(chat.length - 1, messageId) : chat.length - 1;
@@ -243,7 +244,7 @@ export function createNpcStateEngine(adapters = {}) {
     }
 
     if (typeof getContext !== 'function' || typeof getChatKey !== 'function' || typeof getSettings !== 'function' || typeof generate !== 'function') {
-        throw new Error('NPC State v0.4.35 engine requires getContext, getChatKey, getSettings, and generate adapters.');
+        throw new Error('NPC State v0.4.36 engine requires getContext, getChatKey, getSettings, and generate adapters.');
     }
 
     function epoch(chatKey) { return operationEpoch.get(chatKey) || 0; }
@@ -382,7 +383,7 @@ export function createNpcStateEngine(adapters = {}) {
             if (importedStable || fingerprintUpgraded || recoveryInterrupted) {
                 state = await persist(chatKey, state);
                 if (importedStable) {
-                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.35 beta sidecar. Stable data was not modified.');
+                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.36 beta sidecar. Stable data was not modified.');
                 } else if (fingerprintUpgraded) {
                     notify('info', 'Upgraded branch checkpoint fingerprints for transport-safe, swipe-index-independent rollback. Existing dossiers were preserved; old rollback hashes were reset once.');
                 } else if (recoveryInterrupted) {
@@ -402,7 +403,7 @@ export function createNpcStateEngine(adapters = {}) {
     async function invokeJson(prompt, label = 'scan') {
         const responseLength = normalizeScannerResponseTokens(getSettings().scannerResponseTokens);
         let raw = await generate({ systemPrompt: SYSTEM_PROMPT, prompt, responseLength, label });
-        try { return parseScanJson(raw); }
+        try { return parseScanJson(raw, { requireLifeStateUpdates: true }); }
         catch (firstError) {
             raw = await generate({
                 systemPrompt: SYSTEM_PROMPT,
@@ -410,7 +411,7 @@ export function createNpcStateEngine(adapters = {}) {
                 responseLength,
                 label: `${label}-json-retry`,
             });
-            try { return parseScanJson(raw); }
+            try { return parseScanJson(raw, { requireLifeStateUpdates: true }); }
             catch (secondError) {
                 secondError.cause = firstError;
                 throw secondError;
@@ -705,6 +706,10 @@ export function createNpcStateEngine(adapters = {}) {
                 }).slice(0, 1),
                 socialEdges: [],
                 familyFacts: [],
+                lifeStateUpdates: (parsedRaw.lifeStateUpdates || []).filter(update => {
+                    const ref = String(update?.id || update?.name || update?.target || '').trim();
+                    return ref === npc.id || normalizeName(ref) === normalizeName(npc.name) || (npc.aliases || []).some(alias => normalizeName(alias) === normalizeName(ref));
+                }).slice(0, 1),
             };
             const liveChat = getContext().chat || [];
             if (getChatKey() !== chatKey || epoch(chatKey) !== startEpoch || fingerprintMessage(liveChat[messageId] || {}) !== startFingerprint) {
@@ -824,12 +829,14 @@ export function createNpcStateEngine(adapters = {}) {
                     nextRaw.relationshipHistory = [...(current.relationshipHistory || []), event].slice(-relationshipHistoryLimit);
                 }
             }
-            const authoritativeManualDeath = Object.prototype.hasOwnProperty.call(patch || {}, 'lifeState')
-                && String(patch.lifeState || '').trim().toLocaleLowerCase() === 'dead';
-            const transitionedRaw = authoritativeManualDeath
-                ? applyConfirmedDeathTransition(nextRaw, {
-                    certainty: String(patch.lifeStateCertainty || '').trim() || 'explicit',
-                    reason: String(patch.lifeStateReason || '').trim() || 'Manual dossier adjustment by player.',
+            const hasManualLifeState = Object.prototype.hasOwnProperty.call(patch || {}, 'lifeState');
+            const requestedLifeState = String(patch?.lifeState || '').trim().toLocaleLowerCase();
+            if (hasManualLifeState && !['alive', 'dead', 'unknown'].includes(requestedLifeState)) return { rejected: 'invalid-life-state' };
+            const manualLifeStateChanged = hasManualLifeState && requestedLifeState !== String(current.lifeState || '').trim().toLocaleLowerCase();
+            const transitionedRaw = manualLifeStateChanged
+                ? applyManualLifeStateTransition(nextRaw, requestedLifeState, {
+                    certainty: String(patch.lifeStateCertainty || '').trim(),
+                    reason: String(patch.lifeStateReason || '').trim(),
                     at: Date.now(),
                 })
                 : nextRaw;

@@ -1,4 +1,4 @@
-export const NPC_STATE_VERSION = '0.4.35';
+export const NPC_STATE_VERSION = '0.4.36';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     const number = Number(value);
@@ -776,6 +776,32 @@ export function applyConfirmedDeathTransition(input = {}, options = {}) {
     next.archivedAt = alreadyDeceased && Number(next.archivedAt) ? Number(next.archivedAt) : at;
     next.present = false;
     next.worldActive = false;
+    return next;
+}
+
+export function applyManualLifeStateTransition(input = {}, requestedState = '', options = {}) {
+    const next = structuredClone(input && typeof input === 'object' ? input : {});
+    const requested = String(requestedState || '').trim().toLocaleLowerCase();
+    if (!['alive', 'dead', 'unknown'].includes(requested)) return next;
+    if (requested === 'dead') {
+        return applyConfirmedDeathTransition(next, {
+            certainty: text(options.certainty, 80) || 'explicit',
+            reason: text(options.reason, 500) || 'Manual dossier adjustment by player.',
+            at: Number(options.at) || Date.now(),
+        });
+    }
+    const wasConfirmedDead = String(next.lifeState || '').trim().toLocaleLowerCase() === 'dead'
+        || (next.archived === true && String(next.archiveReason || '').trim().toLocaleLowerCase() === 'deceased');
+    next.lifeState = requested;
+    next.lifeStateCertainty = text(options.certainty, 80) || (requested === 'alive' ? 'explicit' : 'uncertain');
+    next.lifeStateReason = text(options.reason, 500) || 'Manual dossier adjustment by player.';
+    if (wasConfirmedDead) {
+        next.archived = false;
+        next.archiveReason = '';
+        next.archivedAt = null;
+        next.present = false;
+        next.worldActive = false;
+    }
     return next;
 }
 

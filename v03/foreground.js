@@ -15,7 +15,8 @@ function removeTruncatedTail(source) {
     return tidy(source.slice(0, open.index) + (tail ? '\n\n' + tail : ''));
 }
 
-export function consumeNpcStateControl(messageText) {
+// PHASE74D_FOREGROUND_LIFE_STATE_BOUNDARY: new captures are strict; stored/legacy transport remains replayable.
+export function consumeNpcStateControl(messageText, { requireLifeStateUpdates = false } = {}) {
     const source = String(messageText ?? '');
     const blocks = [...source.matchAll(new RegExp(COMPLETE_BLOCK.source, 'gi'))];
     const firstOpen = OPEN.exec(source);
@@ -46,7 +47,7 @@ export function consumeNpcStateControl(messageText) {
 
     let parsed = null;
     if (!errors.length) {
-        try { parsed = parseScanJson(body); }
+        try { parsed = parseScanJson(body, { requireLifeStateUpdates }); }
         catch (error) { errors.push(error instanceof Error ? error.message : String(error)); }
     }
     return { found: true, cleanedText, parsed, raw, errors };
