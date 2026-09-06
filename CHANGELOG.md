@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.42
+
+- Adds an optional NPC scan Connection Profile selector for all separate scanner requests and JSON retries while leaving normal roleplay generation on the main SillyTavern connection.
+- Adds an opt-in post-response dossier completeness pass, off by default, that supplements successful embedded updates and suppresses itself when a full recovery scan already covered the response.
+- Adds same-exchange safety for completeness: no relationship replay, narrative-turn advancement, stale aging, duplicate seen counters, or same-message gradual-progression credit; supplemental collections merge instead of erasing valid dossier state.
+- Adds durable per-message/swipe completion deduplication and stale-result guards for chat/source changes, reset/rebuild, manual scans, refresh/import, and concurrent user/editor mutations.
+- Missing, unsupported, changed, or failing explicitly selected Connection Profiles fail safely with no silent fallback to the main model.
+
 ## v0.4.41
 
 - Breaks a self-triggering settings MutationObserver loop by guarding Relationship Rubric and Memory Rubric label writes with equality checks.

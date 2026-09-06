@@ -33,6 +33,7 @@ import {
 import {
     applyScanResult,
     buildScanPrompt,
+    buildCompletenessPrompt,
     buildStructuredDossierImportPrompt,
     buildTargetedRefreshPrompt,
     currentExchange,
@@ -48,7 +49,7 @@ import {
 } from './stale.js';
 import { clearV3PointerHint, createRecoveryV3Sidecar, deleteV3SidecarFile, readV3PointerHint, readV3Sidecar, retireV3Sidecar, writeV3Sidecar } from './storage.js';
 
-const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.41 recovery scanner. Obey the supplied schema and evidence rules exactly.';
+const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.42 recovery scanner. Obey the supplied schema and evidence rules exactly.';
 
 function profileContextForWindow(chat = [], messageId = null, depth = 8) {
     const end = Number.isInteger(messageId) ? Math.min(chat.length - 1, messageId) : chat.length - 1;
@@ -292,6 +293,7 @@ export function createNpcStateEngine(adapters = {}) {
     const cache = new Map();
     const hydration = new Map();
     const operationEpoch = new Map();
+    const completenessEpoch = new Map();
     const locks = new Map();
     const recoverySignals = new Map();
     const recoveryRuns = new Map();
@@ -307,6 +309,7 @@ export function createNpcStateEngine(adapters = {}) {
     const getHeaders = adapters.getHeaders || (() => ({}));
     const fetchFn = adapters.fetchFn || globalThis.fetch;
     const generate = adapters.generate;
+    const resolveGenerationRoute = adapters.resolveGenerationRoute || (() => ({ kind: 'current' }));
     const onStateChanged = adapters.onStateChanged || (() => {});
     // Compatibility default remains immutable snapshots. The installed runtime opts out because its callback ignores the payload.
     const stateChangeSnapshot = adapters.stateChangeSnapshot !== false;
@@ -353,14 +356,22 @@ export function createNpcStateEngine(adapters = {}) {
     }
 
     if (typeof getContext !== 'function' || typeof getChatKey !== 'function' || typeof getSettings !== 'function' || typeof generate !== 'function') {
-        throw new Error('NPC State v0.4.41 engine requires getContext, getChatKey, getSettings, and generate adapters.');
+        throw new Error('NPC State v0.4.42 engine requires getContext, getChatKey, getSettings, and generate adapters.');
     }
 
     function epoch(chatKey) { return operationEpoch.get(chatKey) || 0; }
+    function completenessGeneration(chatKey) { return completenessEpoch.get(chatKey) || 0; }
+    function invalidateCompleteness(chatKey = getChatKey()) {
+        if (!chatKey || chatKey === 'no-chat') return 0;
+        const next = completenessGeneration(chatKey) + 1;
+        completenessEpoch.set(chatKey, next);
+        return next;
+    }
     function invalidate(chatKey = getChatKey()) {
         if (!chatKey || chatKey === 'no-chat') return 0;
         const next = epoch(chatKey) + 1;
         operationEpoch.set(chatKey, next);
+        invalidateCompleteness(chatKey);
         return next;
     }
 
@@ -492,7 +503,7 @@ export function createNpcStateEngine(adapters = {}) {
             if (importedStable || fingerprintUpgraded || recoveryInterrupted) {
                 state = await persist(chatKey, state);
                 if (importedStable) {
-                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.41 beta sidecar. Stable data was not modified.');
+                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.42 beta sidecar. Stable data was not modified.');
                 } else if (fingerprintUpgraded) {
                     notify('info', 'Upgraded branch checkpoint fingerprints for transport-safe, swipe-index-independent rollback. Existing dossiers were preserved; old rollback hashes were reset once.');
                 } else if (recoveryInterrupted) {
@@ -511,7 +522,9 @@ export function createNpcStateEngine(adapters = {}) {
 
     async function invokeJson(prompt, label = 'scan') {
         const responseLength = normalizeScannerResponseTokens(getSettings().scannerResponseTokens);
-        let raw = await generate({ systemPrompt: SYSTEM_PROMPT, prompt, responseLength, label });
+        // Resolve once so the first request and its JSON retry cannot mix connection/profile configuration.
+        const route = await resolveGenerationRoute({ label });
+        let raw = await generate({ systemPrompt: SYSTEM_PROMPT, prompt, responseLength, label, route });
         try { return parseScanJson(raw, { requireLifeStateUpdates: true }); }
         catch (firstError) {
             raw = await generate({
@@ -519,6 +532,7 @@ export function createNpcStateEngine(adapters = {}) {
                 prompt: `${prompt}\n\nYour previous response was malformed. Return exactly one valid JSON object, no markdown and no commentary.`,
                 responseLength,
                 label: `${label}-json-retry`,
+                route,
             });
             try { return parseScanJson(raw, { requireLifeStateUpdates: true }); }
             catch (secondError) {
@@ -534,6 +548,7 @@ export function createNpcStateEngine(adapters = {}) {
         const settings = getSettings();
         if (!manual && settings.enabled === false) return { ok: false, reason: 'disabled' };
         if (!manual && settings.autoScan === false) return { ok: false, reason: 'auto-disabled' };
+        if (manual) invalidateCompleteness(chatKey);
         return exclusive(chatKey, async () => {
             const state = await loadChat(chatKey);
             if (!state) return { ok: false, reason: 'no-state' };
@@ -708,9 +723,97 @@ export function createNpcStateEngine(adapters = {}) {
         });
     }
 
+    async function completenessScan(messageId, { expectedFingerprint = '', expectedSwipeId = null } = {}) {
+        const chatKey = getChatKey();
+        if (!chatKey || chatKey === 'no-chat' || /-pending:/.test(chatKey)) return { ok: false, reason: 'no-chat', kind: 'completeness' };
+        const settings = getSettings();
+        if (settings.enabled === false || settings.autoScan === false || settings.scanAfterEachResponse !== true) {
+            return { ok: false, skipped: true, reason: 'completeness-disabled', kind: 'completeness', messageId };
+        }
+        return exclusive(chatKey, async () => {
+            const state = await loadChat(chatKey);
+            if (!state) return { ok: false, reason: 'no-state', kind: 'completeness', messageId };
+            if (recoveryBlocksLiveScan(state)) return { ok: false, skipped: true, reason: 'recovery-active', kind: 'completeness', messageId, recovery: structuredClone(state.recovery) };
+            if (state.branchSafety?.status !== 'safe') return { ok: false, skipped: true, reason: 'branch-unsafe', kind: 'completeness', messageId };
+            if (state.lastScannedMessageId !== messageId) return { ok: false, skipped: true, reason: 'source-not-committed', kind: 'completeness', messageId };
+            const context = getContext();
+            const chat = context.chat || [];
+            const exchange = currentExchange(chat, messageId);
+            if (!exchange) return { ok: false, reason: 'not-assistant-message', kind: 'completeness', messageId };
+            const sourceMessage = chat[messageId] || {};
+            const startFingerprint = fingerprintMessage(sourceMessage);
+            const startSwipeId = Number.isInteger(sourceMessage?.swipe_id) ? sourceMessage.swipe_id : 0;
+            if (expectedFingerprint && expectedFingerprint !== startFingerprint) return { ok: false, discarded: true, reason: 'source-changed-before-completeness', kind: 'completeness', messageId };
+            if (Number.isInteger(expectedSwipeId) && expectedSwipeId !== startSwipeId) return { ok: false, discarded: true, reason: 'swipe-changed-before-completeness', kind: 'completeness', messageId };
+            const startEpoch = epoch(chatKey);
+            const startCompletenessGeneration = completenessGeneration(chatKey);
+            const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(settings.relationshipHistoryLimit);
+            const prompt = buildCompletenessPrompt({
+                state,
+                chat,
+                assistantMessageId: messageId,
+                scanDepth: settings.scanDepth,
+                relationshipCriteria: settings.relationshipCriteria,
+                relationshipCaps: settings.relationshipCaps,
+                memoryCriteria: settings.memoryCriteria,
+                dossierLimits: settings.dossierLimits,
+                admissionMode: settings.newNpcAdmissionMode,
+            });
+            const parsed = await invokeJson(prompt, 'automatic-completeness');
+            const liveContext = getContext();
+            const liveChat = liveContext.chat || [];
+            const liveMessage = liveChat[messageId] || {};
+            const liveSwipeId = Number.isInteger(liveMessage?.swipe_id) ? liveMessage.swipe_id : 0;
+            if (getChatKey() !== chatKey
+                || epoch(chatKey) !== startEpoch
+                || completenessGeneration(chatKey) !== startCompletenessGeneration
+                || fingerprintMessage(liveMessage) !== startFingerprint
+                || liveSwipeId !== startSwipeId) {
+                return { ok: false, discarded: true, reason: 'stale-completeness', kind: 'completeness', messageId };
+            }
+            const working = normalizeState(state, chatKey);
+            const currentEvidence = [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n');
+            const applied = applyScanResult(working, parsed, {
+                sourceMessageId: messageId,
+                turn: working.turn,
+                relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
+                relationshipContext: '',
+                profileContext: currentEvidence,
+                evidencePolicy: buildExchangeEvidencePolicy(exchange),
+                currentAdmissionText: currentEvidence,
+                admissionMode: settings.newNpcAdmissionMode,
+                dossierLimits: settings.dossierLimits,
+                birthdayFill: {
+                    mode: settings.birthdayFillMode,
+                    calendar: settings.birthdayRandomCalendar,
+                    fallbackDays: settings.birthdayRandomDaysPerMonth,
+                },
+                applyReturnedNpcPatches: true,
+                applyRelationship: false,
+                preservePresence: true,
+                preserveObservation: true,
+                supplementalPass: true,
+            });
+            applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
+            let committed = recordCheckpoint(applied.state, liveChat, messageId, 'completeness-pass');
+            committed.lastScannedMessageId = messageId;
+            committed.updatedAt = Date.now();
+            const persisted = await persist(chatKey, committed);
+            return {
+                ok: true, kind: 'completeness', messageId,
+                exchangeActiveNpcIds: applied.exchangeActiveNpcIds,
+                finalPresentNpcIds: applied.finalPresentNpcIds,
+                worldActiveNpcIds: applied.worldActiveNpcIds,
+                targetNpcIds: applied.targetNpcIds,
+                state: structuredClone(persisted),
+            };
+        });
+    }
+
     async function importStructuredDossier(reference) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat') return { ok: false, reason: 'no-chat' };
+        invalidateCompleteness(chatKey);
         return exclusive(chatKey, async () => {
             const state = await loadChat(chatKey);
             if (recoveryBlocksLiveScan(state)) return { ok: false, reason: 'recovery-active', recovery: structuredClone(state?.recovery) };
@@ -776,6 +879,7 @@ export function createNpcStateEngine(adapters = {}) {
     async function refreshDossier(reference) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat') return { ok: false, reason: 'no-chat' };
+        invalidateCompleteness(chatKey);
         return exclusive(chatKey, async () => {
             const state = await loadChat(chatKey);
             if (recoveryBlocksLiveScan(state)) return { ok: false, reason: 'recovery-active', recovery: structuredClone(state?.recovery) };
@@ -852,6 +956,8 @@ export function createNpcStateEngine(adapters = {}) {
     async function mutate(label, mutator, { checkpointReason = 'manual' } = {}) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat' || /-pending:/.test(chatKey)) return { ok: false, reason: 'no-chat' };
+        // A user/editor mutation requested while a completeness model call is running wins.
+        invalidateCompleteness(chatKey);
         const chatChanged = stage => ({ ok: false, discarded: true, reason: 'chat-changed', stage });
         return exclusive(chatKey, async () => {
             if (getChatKey() !== chatKey) return chatChanged('mutation-after-queue');
@@ -1897,6 +2003,7 @@ export function createNpcStateEngine(adapters = {}) {
     return Object.freeze({
         loadChat,
         scan,
+        completenessScan,
         applyEmbeddedScan,
         refreshDossier,
         importStructuredDossier,
@@ -1921,6 +2028,7 @@ export function createNpcStateEngine(adapters = {}) {
         renameChatKey,
         deleteChatKey,
         invalidate,
+        invalidateCompleteness,
         branchSafetyStatus,
         getInjectionState,
         getDossierIndex,

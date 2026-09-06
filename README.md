@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.41
+# NPC State Beta 0.4.42
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -64,6 +64,15 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - v0.4.18 requires an explicit relationship evaluation for every exchange-active NPC. A scanner may still correctly decide that an ordinary interaction causes no relationship movement, but it must say so instead of silently omitting the relationship channel.
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
+
+## Separate scan connection and completeness pass
+
+- **NPC scan connection profile** defaults to **Current connection**, preserving prior behavior. When a supported saved SillyTavern Connection Profile is selected, every separate NPC model request uses that profile: current-cast/full scans, dossier Refresh, structured dossier generation, historical recovery/rebuild, automatic recovery scans, completeness scans, and JSON retries. Normal roleplay generation and its embedded NPC output continue using the main connection.
+- NPC State stores only the stable Connection Profile ID. Credentials remain owned by SillyTavern. If an explicitly selected profile is missing, disabled, unsupported, changes during an operation, or fails, that separate scan fails safely and does not silently fall back to the main connection.
+- **Scan after each response** is off by default. When enabled, a successful embedded update may be followed by one separate dossier-completeness request, plus the existing JSON retry if the first answer is malformed. A full recovery scan that already covered that response suppresses the redundant completeness request.
+- The completeness pass is supplemental and same-exchange-safe: it cannot apply relationship deltas, advance the narrative turn, increment seen/activity counters, run stale aging, or count the same message as a second gradual-progression observation. Omitted collections do not erase valid dossier data. Grounded lifecycle corrections and ordinary admission/canon protections still apply.
+- Completion work is bound to chat, message content, and active swipe identity. Chat/source changes, resets/rebuilds, manual scans, dossier refresh/import, and user/editor mutations invalidate a stale in-flight completeness result before it can commit. Completed outcomes are stored on the active message/swipe to deduplicate repeated completion events.
+- Choosing another model does not guarantee better completeness or lower total cost. The optional pass normally adds one model request per completed response when enabled.
 
 ## Settings observer and recovery UI performance
 
