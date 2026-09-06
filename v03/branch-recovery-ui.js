@@ -25,6 +25,7 @@ function messageForKind(kind = '') {
     return 'The current chat is outside NPC State\'s oldest recoverable checkpoint.';
 }
 
+// PHASE72_RESPONSIVE_RECOVERY_CONTROLS: keep Advanced Recovery actions bounded inside the settings drawer.
 function ensureStyles() {
     if (globalThis.document?.getElementById?.('npc_state_v3_branch_recovery_style')) return;
     const style = globalThis.document?.createElement?.('style');
@@ -34,7 +35,12 @@ function ensureStyles() {
 #${BANNER_ID}{margin:0 0 10px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--SmartThemeQuoteColor,#d59a32) 58%,transparent);border-radius:10px;background:color-mix(in srgb,var(--SmartThemeQuoteColor,#d59a32) 9%,transparent);display:grid;gap:7px}
 #${BANNER_ID} b{font-size:.95em}#${BANNER_ID} small{line-height:1.35;opacity:.82}#${BANNER_ID} .npc-state-v3-branch-recovery-actions{display:flex;gap:8px;flex-wrap:wrap}
 #${BANNER_ID} button{margin:0}#${BANNER_ID}[data-running="1"] button{opacity:.65;pointer-events:none}
-#${FORCE_ID} button{margin:0}#${FORCE_ID}[data-running="1"] button{opacity:.65;pointer-events:none}`;
+#${FORCE_ID}{display:grid!important;grid-template-columns:minmax(0,1fr);gap:8px;align-items:start;width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+#${FORCE_ID}>span{min-width:0;max-width:100%;overflow-wrap:anywhere}
+#${FORCE_ID} .npc-state-v3-branch-recovery-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+#${FORCE_ID} button{margin:0;width:100%;min-width:0;max-width:100%;height:auto;min-height:32px;box-sizing:border-box;white-space:normal!important;overflow-wrap:anywhere;line-height:1.25}
+#${FORCE_ID}[data-running="1"] button{opacity:.65;pointer-events:none}
+@media(max-width:720px){#${FORCE_ID} .npc-state-v3-branch-recovery-actions{grid-template-columns:1fr}}`;
     globalThis.document.head?.appendChild?.(style);
 }
 
@@ -115,10 +121,10 @@ async function rebaseCurrentChat(relationshipMode = 'preserve', force = false) {
     } catch (error) {
         const rebasedState = state();
         if (rebasedState?.branchSafety?.status === 'safe') {
-            console.warn('[NPC State v0.4.34] timeline rebase committed, but the follow-up scan failed', error);
+            console.warn('[NPC State v0.4.35] timeline rebase committed, but the follow-up scan failed', error);
             globalThis.toastr?.warning?.('NPC State: timeline rebased successfully, but the latest exchange refresh failed. Use Scan current cast to retry. ' + (error?.message || error));
         } else {
-            console.error('[NPC State v0.4.34] timeline rebase failed safely', error);
+            console.error('[NPC State v0.4.35] timeline rebase failed safely', error);
             globalThis.toastr?.error?.('NPC State: timeline rebase failed without replacing your durable dossiers. ' + (error?.message || error));
         }
     } finally {
@@ -234,7 +240,7 @@ async function initializeFreshFromUi() {
         if (!result?.ok) throw new Error(result?.reason || 'fresh initialization failed');
         globalThis.toastr?.success?.('NPC State: fresh recovery sidecar initialized.');
     } catch (error) {
-        console.error('[NPC State v0.4.34] fresh recovery initialization failed safely', error);
+        console.error('[NPC State v0.4.35] fresh recovery initialization failed safely', error);
         globalThis.toastr?.error?.('NPC State: fresh initialization failed without guessing a replacement pointer. ' + (error?.message || error));
     } finally {
         running = false;
@@ -283,7 +289,7 @@ async function startRecoveryFromUi(control) {
         if (!result?.ok) throw new Error(result?.reason || result?.recovery?.error || 'historical recovery failed');
         if (result.complete) globalThis.toastr?.success?.('NPC State: historical reconstruction complete.');
     } catch (error) {
-        console.error('[NPC State v0.4.34] historical rebuild failed safely', error);
+        console.error('[NPC State v0.4.35] historical rebuild failed safely', error);
         globalThis.toastr?.error?.('NPC State: historical reconstruction stopped safely. Resume retries from the last committed exchange. ' + (error?.message || error));
     } finally {
         running = false;
@@ -300,7 +306,7 @@ async function resumeRecoveryFromUi() {
         if (!result?.ok) throw new Error(result?.reason || result?.recovery?.error || 'resume failed');
         if (result.complete) globalThis.toastr?.success?.('NPC State: historical reconstruction complete.');
     } catch (error) {
-        console.error('[NPC State v0.4.34] recovery resume failed safely', error);
+        console.error('[NPC State v0.4.35] recovery resume failed safely', error);
         globalThis.toastr?.error?.('NPC State: recovery resume stopped safely. ' + (error?.message || error));
     } finally {
         running = false;

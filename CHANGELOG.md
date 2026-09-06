@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.35
+
+- Fixes Advanced Recovery / Force Timeline Rebase controls overflowing or clipping at ordinary settings-drawer widths.
+- Gives the force-rebase row a dedicated single-column content layout instead of inheriting the generic horizontal settings-row flex contract.
+- Recovery actions now use a bounded responsive grid; buttons are full-width within their grid cells and long labels wrap safely.
+- Narrow viewports stack the preserve and rollback actions vertically. No recovery, rebase, relationship, or lifecycle semantics changed.
+
 ## v0.4.34
 
 - Fixes legacy/current dossiers whose stored activity/condition already describes terminal death or irreversible dissolution while lifeState/worldActive still says alive/off-screen.
