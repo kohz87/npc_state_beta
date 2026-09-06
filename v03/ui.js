@@ -104,7 +104,7 @@ export function createNpcStateUi(adapters = {}) {
     async function safely(label, task) {
         try { return await task(); }
         catch (error) {
-            console.error(`[NPC State v0.4.36] ${label} failed safely`, error);
+            console.error(`[NPC State v0.4.37] ${label} failed safely`, error);
             notify('error', `NPC State: ${label} failed. No partial dossier write was committed. ${error?.message || error}`);
             return { ok: false, reason: 'error', error };
         }
@@ -114,9 +114,9 @@ export function createNpcStateUi(adapters = {}) {
 
     function settingsHtml() {
         return `<div id="${SETTINGS_ID}" class="extension_container npc-state-extension npc-state-v3-settings">
-          <div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>NPC State <span class="npc-state-version">0.4.36</span></b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
+          <div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>NPC State <span class="npc-state-version">0.4.37</span></b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
           <div class="inline-drawer-content npc-state-drawer">
-            <div class="npc-state-intro">v0.4.36 uses foreground embedded capture for normal turns. Exchange participation, in-chat relevance, and explicit off-screen activity are independent signals. Stable v0.3 dossiers can be cloned once into an independent beta sidecar.</div>
+            <div class="npc-state-intro">v0.4.37 uses foreground embedded capture for normal turns. Exchange participation, in-chat relevance, and explicit off-screen activity are independent signals. Stable v0.3 dossiers can be cloned once into an independent beta sidecar.</div>
             <div class="npc-state-settings-grid">
               <label class="npc-state-setting-row"><span><b>Enable NPC State</b><small>Disabling stops automatic scanning and injection. Manual dossier tools remain available.</small></span><input id="npc_state_v3_enabled" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Auto Scan</b><small>Uses the same foreground RP generation. If the embedded block is missing, NPC State automatically runs one full separate current-cast scan.</small></span><input id="npc_state_v3_auto" type="checkbox"></label>
@@ -131,6 +131,7 @@ export function createNpcStateUi(adapters = {}) {
               <div class="npc-state-setting-row"><span><b>Fill existing blanks</b><small>Populate currently blank dossiers locally with the selected policy. No model call.</small></span><button id="npc_state_v04_birthday_fill_now" class="menu_button" type="button">Fill missing birthdays</button></div>
               <label class="npc-state-setting-row"><span><b>Inject in-chat NPCs</b><small>Injects individually relevant in-chat NPCs, not incidental background bodies.</small></span><input id="npc_state_v3_inject" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Injection budget</b><small>Approximate token budget.</small></span><input id="npc_state_v3_inject_budget" class="text_pole npc-state-number" type="number" min="256" max="8000" step="100"></label>
+              <label class="npc-state-setting-row"><span><b>Show dossier diagnostics</b><small>Shows life-state rejection and relationship-scoring diagnostics in the Dossier Library. Off by default; hidden diagnostics stay recorded but are not rendered.</small></span><input id="npc_state_v3_show_diagnostics" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Rescan changed branches</b><small>Restores tracked swipes locally from checkpoints/payloads. Edited or untracked branches use the separate recovery scanner when needed.</small></span><input id="npc_state_v3_branch_rescan" type="checkbox"></label>
             </div>
             <details class="npc-state-v3-dossier-evolution"><summary><b>Dossier evolution</b></summary>
@@ -166,6 +167,7 @@ export function createNpcStateUi(adapters = {}) {
         panel.querySelector('#npc_state_v04_birthday_days').value = settings.birthdayRandomDaysPerMonth || 30;
         panel.querySelector('#npc_state_v3_inject').checked = settings.inject !== false;
         panel.querySelector('#npc_state_v3_inject_budget').value = settings.injectBudgetTokens;
+        panel.querySelector('#npc_state_v3_show_diagnostics').checked = settings.showDossierDiagnostics === true;
         panel.querySelector('#npc_state_v3_branch_rescan').checked = settings.branchRescan !== false;
         panel.querySelector('#npc_state_v3_limit_memories').value = limits.memories;
         panel.querySelector('#npc_state_v3_limit_key_relationships').value = limits.keyRelationships;
@@ -227,6 +229,11 @@ export function createNpcStateUi(adapters = {}) {
             refresh();
         });
         bindCheck('#npc_state_v3_inject', 'inject');
+        panel.querySelector('#npc_state_v3_show_diagnostics')?.addEventListener('change', event => {
+            getSettings().showDossierDiagnostics = Boolean(event.target.checked);
+            persistSettings();
+            renderLibrary();
+        });
         bindCheck('#npc_state_v3_branch_rescan', 'branchRescan');
         bindLimit('#npc_state_v3_limit_memories', 'memories');
         bindLimit('#npc_state_v3_limit_key_relationships', 'keyRelationships');
@@ -297,7 +304,7 @@ export function createNpcStateUi(adapters = {}) {
         const active = current.npcs.filter(npc => !npc.archived);
         const archived = current.npcs.filter(npc => npc.archived);
         const rows = list => list.map(npc => `<button class="menu_button npc-state-v3-roster-open" data-npc-id="${escapeHtml(npc.id)}">${npc.present ? '● ' : (npc.worldActive ? '◌ ' : '')}${escapeHtml(npc.name)}</button>`).join('');
-        holder.innerHTML = `<small class="npc-state-muted">Persistent NPC State 0.4.36 database · ${active.length} active · ${archived.length} archived</small><div class="npc-state-roster-chips">${rows(active)}${rows(archived)}</div>`;
+        holder.innerHTML = `<small class="npc-state-muted">Persistent NPC State 0.4.37 database · ${active.length} active · ${archived.length} archived</small><div class="npc-state-roster-chips">${rows(active)}${rows(archived)}</div>`;
         holder.querySelectorAll('.npc-state-v3-roster-open').forEach(button => button.addEventListener('click', () => openLibrary(button.dataset.npcId)));
     }
 
@@ -337,7 +344,8 @@ export function createNpcStateUi(adapters = {}) {
         }));
 
         const detail = overlay.querySelector('.npc-state-v3-library-detail');
-        if (detail) detail.innerHTML = dossierHtml(npc);
+        const showDiagnostics = getSettings().showDossierDiagnostics === true;
+        if (detail) detail.innerHTML = dossierHtml(npc, { showDiagnostics });
         wireDossierActions(detail);
 
         const title = overlay.querySelector('.npc-state-v3-library-head-name');
@@ -406,6 +414,13 @@ export function createNpcStateUi(adapters = {}) {
     function wireDossierActions(root) {
         if (!root) return;
         root.querySelector('.npc-state-v3-edit')?.addEventListener('click', event => openEditor(event.currentTarget.dataset.npcId));
+        root.querySelector('.npc-state-v3-toggle-diagnostics')?.addEventListener('click', () => {
+            const settings = getSettings();
+            settings.showDossierDiagnostics = settings.showDossierDiagnostics !== true;
+            persistSettings();
+            syncSettings();
+            renderLibrary();
+        });
         root.querySelector('.npc-state-v3-refresh')?.addEventListener('click', async event => {
             const id = event.currentTarget.dataset.npcId;
             event.currentTarget.disabled = true;
