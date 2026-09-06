@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.36
+# NPC State Beta 0.4.37
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -64,6 +64,12 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - v0.4.18 requires an explicit relationship evaluation for every exchange-active NPC. A scanner may still correctly decide that an ordinary interaction causes no relationship movement, but it must say so instead of silently omitting the relationship channel.
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
+
+## Dossier diagnostics visibility
+
+- Raw dossier diagnostics are hidden by default to keep the library document lighter. The setting **Show dossier diagnostics** persists globally for NPC State Beta.
+- The dossier More menu also provides a quick Show diagnostics / Hide diagnostics control. Hidden diagnostics are not rendered into the dossier DOM; relationship change history remains visible.
+- This is a presentation/performance control only. Diagnostic data continues to be recorded in state so it can be shown again without rescanning.
 
 ## Lifecycle reconciliation and manual life-state recovery
 

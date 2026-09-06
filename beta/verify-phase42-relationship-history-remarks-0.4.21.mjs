@@ -120,7 +120,7 @@ function applyElspeth(state, relationshipChange, text, sourceMessageId = 40) {
     }), text, 44);
     assert.equal(npc.relationship.trust, 2);
     assert.equal(npc.relationship.affection, 0);
-    const html = dossierHtml(npc);
+    const html = dossierHtml(npc, { showDiagnostics: true });
     const historyHtml = html.slice(html.indexOf('Recent relationship changes'), html.indexOf('Relationship evaluation &amp; scoring'));
     assert(historyHtml.includes('<b>Trust:</b> The kept promise increased Elspeth’s trust in Lucien.'), 'Valid applied-axis explanation disappeared');
     assert(!historyHtml.includes('This rejected affection proposal must not appear as an applied remark.'), 'Rejected axis explanation was displayed as an applied history remark');
@@ -182,7 +182,7 @@ function applyElspeth(state, relationshipChange, text, sourceMessageId = 40) {
             },
         ],
     }, { now: 9999 });
-    const html = dossierHtml(ambiguous);
+    const html = dossierHtml(ambiguous, { showDiagnostics: true });
     const historyHtml = html.slice(html.indexOf('Recent relationship changes'), html.indexOf('Relationship evaluation &amp; scoring'));
     assert(historyHtml.includes('No explanation recorded.'), 'Ambiguous historical explanation was guessed instead of left unresolved');
     assert(!historyHtml.includes('First competing explanation.') && !historyHtml.includes('Second competing explanation.'), 'Ambiguous explanation leaked into display history');

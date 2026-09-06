@@ -61,6 +61,7 @@ const V3_DEFAULTS = Object.freeze({
     injectDepth: 1,
     injectLimit: 6,
     injectBudgetTokens: 1800,
+    showDossierDiagnostics: false,
     branchRescan: true,
     fallbackScan: false,
     newNpcHistoryEnrichment: true,
@@ -124,6 +125,7 @@ function getSettings() {
     delete settings.portraitPositivePreset;
     delete settings.portraitNegativePreset;
     settings.relationshipCaps = normalizeRelationshipCaps(settings.relationshipCaps);
+    settings.showDossierDiagnostics = settings.showDossierDiagnostics === true;
     if (!settings.dataFiles || typeof settings.dataFiles !== 'object' || Array.isArray(settings.dataFiles)) settings.dataFiles = {};
     return settings;
 }
@@ -415,7 +417,7 @@ async function maybeForegroundFallback(messageId, reason) {
     return runSeparateRecoveryScan(messageId, 'foreground-' + reason);
 }
 
-// PHASE74D_LIVE_FOREGROUND_LIFE_STATE_CONTRACT: only newly generated embedded payloads require the v0.4.36 lifecycle channel.
+// PHASE74D_LIVE_FOREGROUND_LIFE_STATE_CONTRACT: only newly generated embedded payloads require the v0.4.37 lifecycle channel.
 async function processEmbeddedScan(messageId) {
     const ctx = getContext();
     const id = Number(messageId);

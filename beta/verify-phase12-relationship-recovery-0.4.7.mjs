@@ -154,7 +154,7 @@ test('diagnostics explain locked gates, per-axis unlocks, and fractional absorpt
     state = apply(state, 'Mira watches Lucien safely guide the wagon.', { trust: 1 }, 'ordinary', 3);
     assert.equal(npc(state).relationship.trust, 25);
     assert(last(state).reasons.includes('trust:gate-tier'));
-    const html = dossierHtml(npc(state));
+    const html = dossierHtml(npc(state), { showDiagnostics: true });
     assert(html.includes('+25 unlocked'));
     assert(html.includes('requested +1, capped +1, applied 0'));
     assert(html.includes('Axis result: gate-tier'));
@@ -173,7 +173,7 @@ test('diagnostics are bounded, survive normalization, and escape markup', () => 
     for (let i = 0; i < 20; i++) state = apply(state, '<img src=x onerror=alert(1)>', { trust: 1 }, 'meaningful', i + 1, 'Mira walks home.');
     state = normalizeState(state);
     assert.equal(npc(state).relationshipDiagnostics.length, 12);
-    assert(!dossierHtml(npc(state)).includes('<img src=x onerror'));
+    assert(!dossierHtml(npc(state), { showDiagnostics: true }).includes('<img src=x onerror'));
 });
 
 test('cross-chat import clears timeline-local evidence while preserve rebase quarantines it as audit history', () => {

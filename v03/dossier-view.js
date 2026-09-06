@@ -312,7 +312,7 @@ function block(title, body, className = '') {
     return `<div class="npc-state-v3-dossier-block ${className}"><h3>${escapeHtml(title)}</h3>${body}</div>`;
 }
 
-export function dossierHtml(npc) {
+export function dossierHtml(npc, { showDiagnostics = false } = {}) {
     if (!npc) return '<div class="npc-state-v3-empty">Select a dossier.</div>';
     const rel = npc.relationship || {};
     const identity = identityText(npc) || 'Identity not fully established';
@@ -341,6 +341,7 @@ export function dossierHtml(npc) {
           <button class="menu_button npc-state-v3-edit" data-npc-id="${escapeHtml(npc.id)}"><i class="fa-solid fa-pen"></i><span>Edit</span></button>
           <button class="menu_button npc-state-v3-refresh" data-npc-id="${escapeHtml(npc.id)}"><i class="fa-solid fa-arrows-rotate"></i><span>Refresh</span></button>
           <details class="npc-state-v3-dossier-more"><summary><i class="fa-solid fa-ellipsis"></i><span>More</span></summary><div>
+            <button type="button" class="menu_button npc-state-v3-toggle-diagnostics"><i class="fa-solid fa-stethoscope"></i> ${showDiagnostics ? 'Hide diagnostics' : 'Show diagnostics'}</button>
             <button class="menu_button npc-state-v3-import-structured" data-npc-id="${escapeHtml(npc.id)}"><i class="fa-solid fa-file-import"></i> Import New_NPC / NPC_Update</button>
             <button class="menu_button npc-state-v3-generate-image-prompt" data-npc-id="${escapeHtml(npc.id)}"><i class="fa-solid fa-image"></i> Generate image prompt</button>
             <input id="${escapeHtml(portraitFileId)}" class="npc-state-v3-portrait-file" data-npc-id="${escapeHtml(npc.id)}" type="file" accept="image/*" hidden>
@@ -390,9 +391,9 @@ export function dossierHtml(npc) {
             ${block('Key relationships', listHtml(npc.keyRelationships))}
             ${block('Important memories', listHtml(npc.memories, 'No persistent memories recorded yet.'), 'npc-state-v3-block-wide')}
             ${block('Background', paragraphHtml(npc.background), 'npc-state-v3-block-wide')}
-            ${block('Life-state diagnostics', lifeStateDiagnosticsHtml(npc), 'npc-state-v3-block-wide')}
+            ${showDiagnostics ? block('Life-state diagnostics', lifeStateDiagnosticsHtml(npc), 'npc-state-v3-block-wide') : ''}
             ${block('Recent relationship changes', relationshipHistoryHtml(npc), 'npc-state-v3-block-wide')}
-            ${block('Relationship evaluation & scoring', relationshipDiagnosticsHtml(npc), 'npc-state-v3-block-wide')}
+            ${showDiagnostics ? block('Relationship evaluation & scoring', relationshipDiagnosticsHtml(npc), 'npc-state-v3-block-wide') : ''}
           </div>
         </section>
       </main>

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.37
+
+- Adds a persistent Show dossier diagnostics toggle, off by default.
+- Adds a matching quick toggle in the dossier More menu.
+- When hidden, life-state and relationship-scoring diagnostic blocks are not rendered into the dossier DOM; diagnostic state is still retained and Recent relationship changes remains visible.
+- No scanner, lifecycle, relationship scoring, admission, or stale-management semantics changed.
+
 ## v0.4.36
 
 - Adds a dedicated lifeStateUpdates scanner channel so terminal lifecycle repairs are not lost when an otherwise inactive NPC is omitted from the ordinary npcs patch list.
