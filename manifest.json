@@ -5,7 +5,7 @@
     "optional": [],
     "dependencies": [],
     "js": "bootstrap.js",
-    "css": "v03/style.css",
+    "css": "src/style.css",
     "author": "kohz87",
     "version": "0.4.44",
     "minimum_client_version": "1.18.0"

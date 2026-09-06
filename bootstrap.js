@@ -1,4 +1,4 @@
-/* NPC State 0.4.1 - clean runtime bootstrap */
+/* NPC State 0.4.44 - authoritative checked-in runtime bootstrap */
 if (!document.getElementById('npc_state_v3_editor_flex_fix')) {
     const style = document.createElement('style');
     style.id = 'npc_state_v3_editor_flex_fix';
@@ -32,7 +32,7 @@ if (!document.getElementById('npc_state_v3_editor_flex_fix')) {
 }`;
     document.head.appendChild(style);
 }
-const settingsResponsiveHref = new URL('./v03/settings-responsive.css', import.meta.url).href;
+const settingsResponsiveHref = new URL('./src/settings-responsive.css', import.meta.url).href;
 if (!document.querySelector('link[data-npc-state-settings-responsive]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
@@ -40,16 +40,16 @@ if (!document.querySelector('link[data-npc-state-settings-responsive]')) {
     link.dataset.npcStateSettingsResponsive = '1';
     document.head.appendChild(link);
 }
-await import('./v03/index.js');
-const { startSettingsLayoutCoordinator } = await import('./v03/settings-layout.js');
+await import('./src/index.js');
+const { startSettingsLayoutCoordinator } = await import('./src/settings-layout.js');
 startSettingsLayoutCoordinator();
-const { startRelationshipHistoryUi } = await import('./v03/relationship-history-ui.js');
+const { startRelationshipHistoryUi } = await import('./src/relationship-history-ui.js');
 startRelationshipHistoryUi();
-const { startBranchRecoveryUi } = await import('./v03/branch-recovery-ui.js');
+const { startBranchRecoveryUi } = await import('./src/branch-recovery-ui.js');
 startBranchRecoveryUi();
-const { startManualOperationFeedback } = await import('./v03/manual-operation-feedback.js');
+const { startManualOperationFeedback } = await import('./src/manual-operation-feedback.js');
 startManualOperationFeedback();
-const { startEditorTopLayerBridge } = await import('./v03/editor-top-layer.js');
+const { startEditorTopLayerBridge } = await import('./src/editor-top-layer.js');
 startEditorTopLayerBridge();
-const { startPortraitAttachmentBridge } = await import('./v03/portrait-attachment.js');
+const { startPortraitAttachmentBridge } = await import('./src/portrait-attachment.js');
 startPortraitAttachmentBridge();
