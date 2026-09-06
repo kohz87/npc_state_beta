@@ -9,6 +9,16 @@ export function createCompletenessCoordinator(adapters = {}) {
     const invalidateCompleteness = adapters.invalidateCompleteness || (() => {});
     const logError = adapters.logError || (() => {});
     const runs = new Map();
+    // PHASE88_COMPLETENESS_TOGGLE_GATE: disabled completeness must not create a second post-response mutation.
+    const embeddedOnlyDone = new Map();
+
+    function rememberEmbeddedOnly(identity, result) {
+        const key = String(identity || '');
+        if (!key) return;
+        embeddedOnlyDone.delete(key);
+        embeddedOnlyDone.set(key, { ...result });
+        while (embeddedOnlyDone.size > 256) embeddedOnlyDone.delete(embeddedOnlyDone.keys().next().value);
+    }
 
     if (typeof getSource !== 'function' || typeof getSettings !== 'function' || typeof runEmbedded !== 'function' || typeof runCompleteness !== 'function') {
         throw new Error('NPC State completeness coordinator requires source, settings, embedded, and completeness adapters.');
@@ -21,10 +31,16 @@ export function createCompletenessCoordinator(adapters = {}) {
         if (recorded?.identity === source.identity && ['complete', 'failed'].includes(String(recorded.status || ''))) {
             return { ok: recorded.status === 'complete', skipped: true, reason: 'completion-already-recorded', coverage: recorded.coverage || 'recorded' };
         }
+        const embeddedOnly = embeddedOnlyDone.get(source.identity);
+        if (embeddedOnly) return { ...embeddedOnly, skipped: true, reason: 'completion-already-recorded' };
         if (runs.has(source.identity)) return runs.get(source.identity);
         invalidateCompleteness(source.chatKey);
 
         const work = (async () => {
+            const settingsAtStart = getSettings();
+            const completenessRequested = settingsAtStart.enabled !== false
+                && settingsAtStart.autoScan !== false
+                && settingsAtStart.scanAfterEachResponse === true;
             const embedded = await runEmbedded(source.messageId);
             if (!embedded?.ok) {
                 const skipped = embedded?.coverage === 'skipped';
@@ -41,11 +57,16 @@ export function createCompletenessCoordinator(adapters = {}) {
                 setStatus(source.chatKey, 'idle');
                 return embedded;
             }
-            const settings = getSettings();
-            if (settings.enabled === false || settings.autoScan === false || settings.scanAfterEachResponse !== true) {
-                writeRecord(source, { identity: source.identity, status: 'complete', coverage: 'embedded', completeness: 'disabled', reason: 'completeness-disabled' });
+            const settingsNow = getSettings();
+            const completenessEnabled = completenessRequested
+                && settingsNow.enabled !== false
+                && settingsNow.autoScan !== false
+                && settingsNow.scanAfterEachResponse === true;
+            if (!completenessEnabled) {
+                const disabled = { ...embedded, completeness: 'disabled' };
+                rememberEmbeddedOnly(source.identity, disabled);
                 setStatus(source.chatKey, 'idle');
-                return { ...embedded, completeness: 'disabled' };
+                return disabled;
             }
 
             setStatus(source.chatKey, 'pending', source.messageId, 'Completeness scan queued.');
