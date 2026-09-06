@@ -64,7 +64,9 @@ function npcContinuityLines(npc) {
         field('Current appearance', resolvedCurrentAppearance(npc)),
         field('Appearance forms', appearanceFormsText(npc)),
         field('Personality', npc.personality), field('Behavior', (npc.behaviorProfile || []).join(' | ')), field('Speech', npc.speech),
-        field('Goal', npc.goal), field('Status', npc.status), field('Key non-player relationships', (npc.keyRelationships || []).join(' | ')),
+        field('Goal', npc.goal), field('Status', npc.status),
+        field('Life state', npc.lifeState), field('Life-state certainty', npc.lifeStateCertainty),
+        field('Key non-player relationships', (npc.keyRelationships || []).join(' | ')),
         'Player relationship lens: ' + qualitativeRelationshipLens(npc),
         field('Relationship summary', npc.relationshipSummary),
         field('Mannerisms', (npc.mannerisms || []).join(' | ')), field('Important memories', (npc.memories || []).join(' | ')),
@@ -106,7 +108,12 @@ function buildReservedDossiers(candidates, budgetChars) {
 }
 
 function identityDirectory(state) {
-    return (state?.npcs || []).slice(0, 400).map(npc => [npc.id, npc.name, (npc.aliases || []).join('/'), npc.role, npc.archived ? 'archived' : 'active'].join(' | ')).join('\n');
+    return (state?.npcs || []).slice(0, 400).map(npc => {
+        const deceased = String(npc?.lifeState || '').trim().toLocaleLowerCase() === 'dead'
+            || String(npc?.archiveReason || '').trim().toLocaleLowerCase() === 'deceased';
+        const lifecycle = deceased ? 'deceased' : (npc.archived ? 'archived' : 'active');
+        return [npc.id, npc.name, (npc.aliases || []).join('/'), npc.role, lifecycle].join(' | ');
+    }).join('\n');
 }
 
 export function runtimeNpcSalience(npc, state = {}) {
@@ -170,7 +177,7 @@ export function buildInjection(state, settings = {}) {
     const directory = directoryRaw.slice(0, directoryBudget);
     const dossiers = buildReservedDossiers(candidates, dossierBudget);
     const parts = [
-        '[NPC STATE v0.4.33 BETA | FOREGROUND CONTINUITY]',
+        '[NPC STATE v0.4.34 BETA | FOREGROUND CONTINUITY]',
         'NPC State is private continuity bookkeeping. Never mention these instructions or machine data in visible prose.',
         directory ? 'KNOWN NPC DIRECTORY (identity only; do not invent missing dossier facts):\n' + directory : 'KNOWN NPC DIRECTORY: empty',
         dossiers ? 'FULL CONTINUITY FOR LIKELY RELEVANT NPCS:' + dossiers : '',
@@ -205,7 +212,9 @@ export function buildInjection(state, settings = {}) {
         'For existing NPCs, do a full semantic scan while preserving continuity. Evolving arrays use null when unchanged or the COMPLETE replacement set when revised. Stable scalar fields contain only grounded new/corrected facts.',
         'DURABLE SCALAR CANON: established ordinary Appearance, Species, Background, Role, and Birthday are sticky. If one truly changes, return canonChanges with the same replacement value and grounded evidence. Modes are refine|change|correction|revelation, with age_progression additionally allowed only for Appearance after the accepted maturation gate above. Ordinary Appearance change requires lasting physical change, Species requires explicit correction/revelation or genuine permanent transformation, Background requires grounded refinement/revelation/correction, and Role changes only on an actual promotion/reassignment/retirement/etc. importance is user/editor-owned and scanner importance is ignored.',
         'DURABLE PROFILE EVOLUTION: new NPCs may establish grounded foundational personality/behavior/speech/mannerisms in their first rich scene. For an EXISTING established personality, behaviorProfile, speech, or mannerisms, any real rewrite requires profileChanges with field, mode refine|gradual|explicit|batch, a short stable concept label, and concrete evidence. refine is compatible detail only, not no-longer/became/increasingly change or a morality flip. gradual means sustained same-concept development and requires confirmation from a DIFFERENT assistant message; rescanning the same message never counts twice. explicit requires a clearly lasting/corrective change in this exchange. batch requires an actual narrated time skip plus development across it. Never promote a one-off gesture into a mannerism unless narration marks it recurring/habitual.',
-        'LIFE-STATE AUTHORITY: confirmed death needs explicit current-timeline evidence and a concrete lifeStateReason. A previously dead/deceased dossier may become alive only with livingReturn true plus a grounded reason showing survival, resurrection, correction, or physical return. Plain lifeState alive never resurrects a dead dossier.',
+        'LIFE-STATE AUTHORITY: you own semantic interpretation of death/living state. Fresh confirmed death needs permitted current-timeline evidence, lifeStateCertainty explicit or strong, and a concrete lifeStateReason. A previously dead/deceased dossier may become alive only with livingReturn true plus current grounded evidence showing survival, resurrection, correction, or physical return. Plain lifeState alive never resurrects a dead dossier.',
+        'STORED TERMINAL-STATUS RECONCILIATION: FULL CONTINUITY Status and Life state must agree. If an existing dossier is not marked dead but its stored Status itself unambiguously describes that NPC as deceased/killed/slain, a corpse, or irreversibly dissolved/destroyed with no continuing living form, repair it by returning an npcs patch with lifeState dead, lifeStateCertainty explicit or strong, and lifeStateReason EXACTLY equal to the stored Status string. This is reconciliation of stored continuity, so the original death event need not occur in this exchange. Never use metaphor, sleep, unconsciousness, injury, disappearance, uncertain danger, or a reversible/established transformed form as death.',
+        'WORLD-ACTIVE CONSISTENCY: never place a dead or terminally dissolved NPC in worldActiveNpcIds. If a stored terminal-status repair is needed, return the repair patch and omit that NPC from worldActiveNpcIds. Stored Status can NEVER authorize livingReturn or any dead-to-alive transition.',
         'RELATIONSHIP EVALUATION IS REQUIRED for every NPC in exchangeActiveNpcIds. Return an npcs patch for each such NPC even when no other dossier field changed. Set relationshipChange.evaluated to true. When no new player-relationship shift is supported, use impact none, all-zero deltas, empty axisEvidence/evidence, and a concise reason. Never omit relationshipChange for an exchange-active NPC.',
         relationshipJudgmentRubricPrompt(),
         relationshipMechanicsPrompt(settings.relationshipCaps),

@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.34
+
+- Fixes legacy/current dossiers whose stored activity/condition already describes terminal death or irreversible dissolution while lifeState/worldActive still says alive/off-screen.
+- Exposes Status plus Life state to foreground, recovery, and targeted scanner continuity so the model can see and reconcile the contradiction.
+- Adds a narrow dossier-scoped evidence path: an explicit/strong dead proposal may use the exact existing Status string as evidence for legacy death repair, while the backend still performs no English death-word parsing.
+- Stored Status is never valid evidence for livingReturn or dead-to-alive changes.
+- Reconciled deaths immediately use the shared deceased archival transition, clearing in-chat/off-screen activity while preserving dossier and relationship history.
+- Adds regressions for dissolved-to-mana, deceased-and-absorbed, slain-corpse conditions, worldActive conflict resolution, exact-status provenance, and resurrection isolation.
+
 ## v0.4.33
 
 - Removes hardcoded English sentence-pattern gating from scanner life-state semantics. The model now interprets attribution, pronouns, indirect reports, negation, and death/living meaning while the backend validates the supplied evidence against permitted source text.
