@@ -1,4 +1,4 @@
-/* NPC State 0.5.0 - authoritative checked-in runtime bootstrap */
+/* NPC State 0.5.1 - authoritative checked-in runtime bootstrap */
 if (!document.getElementById('npc_state_v3_editor_flex_fix')) {
     const style = document.createElement('style');
     style.id = 'npc_state_v3_editor_flex_fix';
@@ -40,16 +40,4 @@ if (!document.querySelector('link[data-npc-state-settings-responsive]')) {
     link.dataset.npcStateSettingsResponsive = '1';
     document.head.appendChild(link);
 }
-await import('./src/index.js');
-const { startSettingsLayoutCoordinator } = await import('./src/settings-layout.js');
-startSettingsLayoutCoordinator();
-const { startRelationshipHistoryUi } = await import('./src/relationship-history-ui.js');
-startRelationshipHistoryUi();
-const { startBranchRecoveryUi } = await import('./src/branch-recovery-ui.js');
-startBranchRecoveryUi();
-const { startManualOperationFeedback } = await import('./src/manual-operation-feedback.js');
-startManualOperationFeedback();
-const { startEditorTopLayerBridge } = await import('./src/editor-top-layer.js');
-startEditorTopLayerBridge();
-const { startPortraitAttachmentBridge } = await import('./src/portrait-attachment.js');
-startPortraitAttachmentBridge();
+import('./src/index.js');
