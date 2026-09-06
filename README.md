@@ -1,4 +1,4 @@
-# NPC State Beta 0.4.28
+# NPC State Beta 0.4.29
 
 Experimental one-pass foreground NPC continuity for SillyTavern, continuing directly from stable NPC State v0.3.2.
 
@@ -64,6 +64,14 @@ Dossiers include expandable **Relationship scoring** details: per-axis gate stat
 - v0.4.18 requires an explicit relationship evaluation for every exchange-active NPC. A scanner may still correctly decide that an ordinary interaction causes no relationship movement, but it must say so instead of silently omitting the relationship channel.
 - A deliberate zero is recorded only in the bounded relationship diagnostics as `evaluated-no-change`; it does not create relationship history, evidence history, fractional progress, or score movement. If an exchange-active NPC is returned without the required evaluation, diagnostics record `evaluation-missing` instead. Malformed attempted evaluations are recorded as `evaluation-invalid`.
 - This keeps routine scenes from inflating relationship history while making "evaluated and unchanged" distinguishable from "scanner forgot to evaluate". Rescans with relationship application disabled do not add duplicate evaluation telemetry.
+
+## Recovery interruption and concurrency hardening
+
+- Historical recovery is now bound to the chat that started it before planning, generation, suffix validation, and completion. Switching chats pauses the original reconstruction without replanning it against another conversation, and an in-flight result from the old chat is discarded rather than reused.
+- A persisted recovery owner session and expiring lease prevent a second tab from treating an active reconstruction as an abandoned reload. Another tab observes the active owner; only an expired lease becomes resumable.
+- Cancellation has precedence over generation failures. If cancel is requested while a model call is pending, rejection of that call still ends recovery as cancelled and preserves only already committed progress.
+- Custom recovery message ranges are validated instead of clamped. Out-of-range selections are rejected before a replacement sidecar is created, and the UI previews the actual number of assistant exchanges selected.
+- Relationship duplicate protection is event-scoped. Reapplying the same source event is still blocked, but identical quotation text in a different exchange no longer suppresses a genuinely separate LLM-judged relationship event.
 
 ## Recovery and chronological rebuild
 

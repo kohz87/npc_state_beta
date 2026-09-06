@@ -112,17 +112,18 @@ test('opposite event survives similarity dedupe, including old rows with no dire
 
 test('repeated event remains deduplicated and cannot rewrite summary', () => {
     let state = apply(stateWith(), 'Lucien returns the family heirloom to Mira.');
-    state = apply(state, 'Lucien returns the family heirloom to Mira.', { trust: 1 }, 'meaningful', 3);
+    state = apply(state, 'Lucien returns the family heirloom to Mira.', { trust: 1 }, 'meaningful', 2);
     assert.equal(npc(state).relationship.trust, 1);
     assert(last(state).reasons.includes('trust:duplicate'));
     assert.equal(npc(state).relationshipEvidenceHistory.length, 1);
 });
 
-test('legacy evidence without timeline references still blocks exact replay without becoming turn zero', () => {
+test('legacy unanchored evidence does not become a permanent quotation-text veto', () => {
     const state = stateWith({ relationshipEvidenceHistory: [{ evidence: 'Lucien returns the family heirloom to Mira.', reason: 'Trust', sourceMessageId: null, turn: null }] });
     const after = apply(state, 'Lucien returns the family heirloom to Mira.');
-    assert.equal(npc(after).relationship.trust, 0);
-    assert(last(after).reasons.includes('trust:duplicate'));
+    assert.equal(npc(after).relationship.trust, 1);
+    assert.equal(last(after).reasons.includes('trust:duplicate'), false);
+    assert.equal(npc(after).relationshipEvidenceHistory.length, 2);
 });
 
 test('grounding rejects negation, changed outcome, and scattered unrelated words', () => {
@@ -218,9 +219,9 @@ test('token setting is wired to persistence, editor, and recovery category', () 
     assert(!read('engine.js').includes('responseLength: 7000'));
 });
 
-test('changing only a delta sign cannot replay identical evidence', () => {
+test('changing only a delta sign cannot replay the same source event', () => {
     let state = apply(stateWith(), 'Lucien returns the family heirloom to Mira.');
-    state = apply(state, 'Lucien returns the family heirloom to Mira.', { trust: -1 }, 'meaningful', 3);
+    state = apply(state, 'Lucien returns the family heirloom to Mira.', { trust: -1 }, 'meaningful', 2);
     assert.equal(npc(state).relationship.trust, 1);
     assert(last(state).reasons.includes('trust:duplicate'));
 });

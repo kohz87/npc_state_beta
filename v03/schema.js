@@ -1,4 +1,4 @@
-export const NPC_STATE_VERSION = '0.4.28';
+export const NPC_STATE_VERSION = '0.4.29';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     const number = Number(value);
@@ -26,8 +26,10 @@ export function normalizeRecoveryState(value) {
     const total = Math.max(0, Math.trunc(Number(value.total) || messageIds.length));
     const completed = Math.max(0, Math.min(total, Math.trunc(Number(value.completed) || 0)));
     return {
-        version: 1,
+        version: 2,
         status,
+        ownerSessionId: recoveryText(value.ownerSessionId, 160),
+        leaseUntil: Number(value.leaseUntil) || null,
         relationshipMode: normalizeRecoveryRelationshipMode(value.relationshipMode),
         startMessageId: Number.isInteger(value.startMessageId) ? Math.max(0, value.startMessageId) : null,
         endMessageId: Number.isInteger(value.endMessageId) ? value.endMessageId : null,
@@ -558,6 +560,7 @@ export function normalizeRelationshipEvidenceHistory(value = []) {
         axisEvidence: normalizeRelationshipAxisEvidence(raw?.axisEvidence),
         priority: normalizeRelationshipPriority(raw?.priority),
         verifiedSources: normalizeRelationshipVerifiedSources(raw?.verifiedSources),
+        sourceEventKey: text(raw?.sourceEventKey, 240),
         sourceMessageId: Number.isInteger(raw?.sourceMessageId) ? raw.sourceMessageId : null,
         turn: Number.isInteger(raw?.turn) ? raw.turn : null,
         at: Number(raw?.at) || null,
@@ -579,6 +582,7 @@ export function normalizeRelationshipDiagnostics(value = []) {
         axisEvidence: normalizeRelationshipAxisEvidence(raw?.axisEvidence),
         priority: normalizeRelationshipPriority(raw?.priority),
         verifiedSources: normalizeRelationshipVerifiedSources(raw?.verifiedSources),
+        sourceEventKey: text(raw?.sourceEventKey, 240),
         axisReasons: normalizeRelationshipAxisReasons(raw?.axisReasons),
         reasons: list(raw?.reasons, 20, 100),
         unlocks: normalizeRelationshipMilestones(raw?.unlocks, DEFAULT_RELATIONSHIP, { inferFromRelationship: false }),

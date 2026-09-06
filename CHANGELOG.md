@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.29
+
+- Binds historical reconstruction to its originating chat before planning, generation, suffix validation, and completion; switching chats pauses the original run without consuming or replanning against the other chat.
+- Adds persisted recovery session ownership with an expiring lease so a second tab observes an active run instead of immediately pausing it as an interrupted reload.
+- Makes cancellation outrank pending-generation failures and releases recovery ownership on pause, failure, cancellation, stale history, and completion.
+- Rejects invalid custom message ranges before sidecar replacement and previews the exact selected assistant-exchange count in the recovery UI.
+- Replaces quotation-text-wide relationship duplicate suppression with source-event identity, preserving same-event replay protection while allowing identical wording in distinct exchanges.
+- Adds multi-chat, multi-instance, cancellation-failure, range-validation, and relationship-event regression coverage while preserving milestones, inertia, caps, and LLM semantic judgment.
+
 ## v0.4.28
 
 - Adds explicit missing-sidecar fresh initialization and a resumable chronological reconstruction coordinator that never exposes future chat messages to earlier historical scans.

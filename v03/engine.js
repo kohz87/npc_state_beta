@@ -45,7 +45,7 @@ import {
 } from './stale.js';
 import { clearV3PointerHint, createRecoveryV3Sidecar, deleteV3SidecarFile, readV3PointerHint, readV3Sidecar, retireV3Sidecar, writeV3Sidecar } from './storage.js';
 
-const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.28 recovery scanner. Obey the supplied schema and evidence rules exactly.';
+const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State v0.4.29 recovery scanner. Obey the supplied schema and evidence rules exactly.';
 
 function profileContextForWindow(chat = [], messageId = null, depth = 8) {
     const end = Number.isInteger(messageId) ? Math.min(chat.length - 1, messageId) : chat.length - 1;
@@ -97,18 +97,33 @@ function assistantMessageIdsInRange(chat = [], startMessageId = 0, endMessageId 
     return out;
 }
 function recoveryRangeForChat(chat = [], startMessageId = null, endMessageId = null) {
-    const firstAssistant = assistantMessageIdsInRange(chat, 0, chat.length - 1)[0] ?? null;
-    const latestAssistant = latestAssistantMessageId(chat);
-    if (latestAssistant < 0 || firstAssistant === null) {
-        return { firstAssistantMessageId: null, latestAssistantMessageId: null, startMessageId: 0, endMessageId: -1, messageIds: [], plannedLineage: [] };
-    }
-    const start = Number.isInteger(startMessageId) ? Math.max(0, Math.min(startMessageId, latestAssistant)) : firstAssistant;
-    const end = Number.isInteger(endMessageId) ? Math.max(0, Math.min(endMessageId, latestAssistant)) : latestAssistant;
-    if (end < start) {
-        const error = new Error('Recovery end message must not be before the start message.');
+    const maxMessageId = chat.length - 1;
+    const explicitStart = startMessageId !== null && startMessageId !== undefined;
+    const explicitEnd = endMessageId !== null && endMessageId !== undefined;
+    const rangeError = message => {
+        const error = new Error(message);
         error.code = 'NPC_STATE_V04_BETA_RECOVERY_RANGE';
-        throw error;
+        return error;
+    };
+    if (explicitStart && (!Number.isInteger(startMessageId) || startMessageId < 0 || startMessageId > maxMessageId)) {
+        throw rangeError('Recovery start message is outside the current chat.');
     }
+    if (explicitEnd && (!Number.isInteger(endMessageId) || endMessageId < 0 || endMessageId > maxMessageId)) {
+        throw rangeError('Recovery end message is outside the current chat.');
+    }
+    const allAssistantIds = assistantMessageIdsInRange(chat, 0, maxMessageId);
+    const firstAssistant = allAssistantIds[0] ?? null;
+    const latestAssistant = allAssistantIds.at(-1) ?? null;
+    if (latestAssistant === null || firstAssistant === null) {
+        if ((explicitStart || explicitEnd) && maxMessageId < 0) throw rangeError('Recovery range cannot target an empty chat.');
+        const start = explicitStart ? startMessageId : 0;
+        const end = explicitEnd ? endMessageId : -1;
+        if (explicitStart && explicitEnd && end < start) throw rangeError('Recovery end message must not be before the start message.');
+        return { firstAssistantMessageId: null, latestAssistantMessageId: null, startMessageId: start, endMessageId: end, messageIds: [], plannedLineage: end >= 0 ? chatLineage(chat, end) : [] };
+    }
+    const start = explicitStart ? startMessageId : firstAssistant;
+    const end = explicitEnd ? endMessageId : latestAssistant;
+    if (end < start) throw rangeError('Recovery end message must not be before the start message.');
     return {
         firstAssistantMessageId: firstAssistant,
         latestAssistantMessageId: latestAssistant,
@@ -118,6 +133,7 @@ function recoveryRangeForChat(chat = [], startMessageId = null, endMessageId = n
         plannedLineage: chatLineage(chat, end),
     };
 }
+
 function recoveryCompletedPrefixMatches(recovery, chat = []) {
     const completedThrough = Number.isInteger(recovery?.lastCompletedMessageId) ? recovery.lastCompletedMessageId : null;
     if (completedThrough === null) return true;
@@ -150,6 +166,14 @@ function replanRecoverySuffix(recoveryInput, chat = []) {
     return { ok: true, changed, recovery };
 }
 
+function defaultRecoverySessionId() {
+    try {
+        const generated = globalThis.crypto?.randomUUID?.();
+        if (generated) return String(generated);
+    } catch {}
+    return 'recovery-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+}
+
 export function createNpcStateEngine(adapters = {}) {
     const cache = new Map();
     const hydration = new Map();
@@ -171,9 +195,45 @@ export function createNpcStateEngine(adapters = {}) {
     const generate = adapters.generate;
     const onStateChanged = adapters.onStateChanged || (() => {});
     const notify = adapters.notify || (() => {});
+    const recoverySessionId = String(adapters.recoverySessionId || defaultRecoverySessionId()).slice(0, 160);
+    const recoveryLeaseMs = Math.max(30000, Math.min(3600000, Number(adapters.recoveryLeaseMs) || 900000));
+    const recoveryNow = typeof adapters.recoveryNow === 'function' ? adapters.recoveryNow : () => Date.now();
+
+    function recoveryOwnedByThisSession(recovery) {
+        return Boolean(recovery?.ownerSessionId && recovery.ownerSessionId === recoverySessionId);
+    }
+    function recoveryLeaseActive(recovery) {
+        return String(recovery?.status || '') === 'running'
+            && Boolean(recovery?.ownerSessionId)
+            && Number(recovery?.leaseUntil || 0) > recoveryNow();
+    }
+    function recoveryOwnedElsewhere(recovery) {
+        return recoveryLeaseActive(recovery) && !recoveryOwnedByThisSession(recovery);
+    }
+    function claimRecoveryOwnership(recoveryInput) {
+        return { ...structuredClone(recoveryInput || {}), ownerSessionId: recoverySessionId, leaseUntil: recoveryNow() + recoveryLeaseMs };
+    }
+    function releaseRecoveryOwnership(recoveryInput) {
+        return { ...structuredClone(recoveryInput || {}), ownerSessionId: '', leaseUntil: null };
+    }
+    function decoratedRecoveryStatus(recoveryInput, chatKey) {
+        if (!recoveryInput) return null;
+        const recovery = structuredClone(recoveryInput);
+        const localRunning = recoveryRuns.has(chatKey);
+        const activeElsewhere = recoveryOwnedElsewhere(recovery);
+        const expiredAbandoned = recovery.status === 'running' && !localRunning && !activeElsewhere && Number(recovery.leaseUntil || 0) <= recoveryNow();
+        if (expiredAbandoned) {
+            recovery.status = 'paused';
+            recovery.reason = 'Recovery ownership lease expired and can be resumed from the last committed exchange.';
+            recovery.abandoned = true;
+        }
+        recovery.ownedByThisSession = recoveryOwnedByThisSession(recovery);
+        recovery.activeElsewhere = activeElsewhere;
+        return recovery;
+    }
 
     if (typeof getContext !== 'function' || typeof getChatKey !== 'function' || typeof getSettings !== 'function' || typeof generate !== 'function') {
-        throw new Error('NPC State v0.4.28 engine requires getContext, getChatKey, getSettings, and generate adapters.');
+        throw new Error('NPC State v0.4.29 engine requires getContext, getChatKey, getSettings, and generate adapters.');
     }
 
     function epoch(chatKey) { return operationEpoch.get(chatKey) || 0; }
@@ -286,10 +346,13 @@ export function createNpcStateEngine(adapters = {}) {
                 }
             }
             const normalized = normalizeState(state, chatKey);
-            const recoveryInterrupted = normalized.recovery?.status === 'running';
+            const recoveryWasRunning = normalized.recovery?.status === 'running';
+            const recoveryObservedElsewhere = recoveryWasRunning && recoveryOwnedElsewhere(normalized.recovery);
+            const recoveryInterrupted = recoveryWasRunning && !recoveryObservedElsewhere;
             if (recoveryInterrupted) {
+                normalized.recovery = releaseRecoveryOwnership(normalized.recovery);
                 normalized.recovery.status = 'paused';
-                normalized.recovery.reason = 'Recovery was interrupted by reload and can be resumed from the last committed exchange.';
+                normalized.recovery.reason = 'Recovery ownership was abandoned or its lease expired. Resume from the last committed exchange.';
                 normalized.recovery.error = '';
                 normalized.recovery.updatedAt = Date.now();
             }
@@ -309,7 +372,7 @@ export function createNpcStateEngine(adapters = {}) {
             if (importedStable || fingerprintUpgraded || recoveryInterrupted) {
                 state = await persist(chatKey, state);
                 if (importedStable) {
-                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.28 beta sidecar. Stable data was not modified.');
+                    notify('success', 'Cloned stable NPC State v0.3 dossiers into an independent v0.4.29 beta sidecar. Stable data was not modified.');
                 } else if (fingerprintUpgraded) {
                     notify('info', 'Upgraded branch checkpoint fingerprints for transport-safe, swipe-index-independent rollback. Existing dossiers were preserved; old rollback hashes were reset once.');
                 } else if (recoveryInterrupted) {
@@ -1063,6 +1126,10 @@ export function createNpcStateEngine(adapters = {}) {
         return exclusive(chatKey, async () => {
             const state = normalizeState(await loadChat(chatKey), chatKey);
             if (!state.recovery) return { ok: false, reason: 'no-recovery' };
+            if (recoveryOwnedElsewhere(state.recovery)) {
+                return { ok: false, reason: 'recovery-owned-elsewhere', activeElsewhere: true, recovery: decoratedRecoveryStatus(state.recovery, chatKey) };
+            }
+            state.recovery = status === 'running' ? claimRecoveryOwnership(state.recovery) : releaseRecoveryOwnership(state.recovery);
             state.recovery.status = status;
             state.recovery.reason = String(reason || '').slice(0, 500);
             state.recovery.error = String(errorText || '').slice(0, 1200);
@@ -1070,11 +1137,25 @@ export function createNpcStateEngine(adapters = {}) {
             if (status === 'complete') state.recovery.completedAt = Date.now();
             state.updatedAt = Date.now();
             const persisted = await persist(chatKey, state);
-            return { ok: true, recovery: structuredClone(persisted.recovery), state: structuredClone(persisted) };
+            return { ok: true, recovery: decoratedRecoveryStatus(persisted.recovery, chatKey), state: structuredClone(persisted) };
         });
     }
 
+    async function pauseRecoveryForChatSwitchUnlocked(chatKey, stateInput) {
+        const state = normalizeState(stateInput, chatKey);
+        if (!state.recovery) return { ok: false, reason: 'no-recovery' };
+        state.recovery = releaseRecoveryOwnership(state.recovery);
+        state.recovery.status = 'paused';
+        state.recovery.reason = 'Historical reconstruction paused because another chat became active. Its original plan and committed progress were preserved.';
+        state.recovery.error = '';
+        state.recovery.updatedAt = Date.now();
+        state.updatedAt = Date.now();
+        const persisted = await persist(chatKey, state);
+        return { ok: false, paused: true, discarded: true, reason: 'chat-switched', recovery: decoratedRecoveryStatus(persisted.recovery, chatKey) };
+    }
+
     async function finalizeHistoricalRecoveryUnlocked(chatKey, state, chat, settings) {
+        if (getChatKey() !== chatKey) return pauseRecoveryForChatSwitchUnlocked(chatKey, state);
         let next = normalizeState(state, chatKey);
         const recovery = structuredClone(next.recovery || {});
         const endMessageId = Number.isInteger(recovery.endMessageId) ? recovery.endMessageId : latestAssistantMessageId(chat);
@@ -1103,7 +1184,7 @@ export function createNpcStateEngine(adapters = {}) {
         } else {
             next.branchHeadLineage = prefixEnd >= 0 ? chatLineage(prefix) : [];
         }
-        next.recovery = {
+        next.recovery = releaseRecoveryOwnership({
             ...recovery,
             status: 'complete',
             completed: recovery.total || 0,
@@ -1112,45 +1193,71 @@ export function createNpcStateEngine(adapters = {}) {
             error: '',
             updatedAt: Date.now(),
             completedAt: Date.now(),
-        };
+        });
         next.branchSafety = { status: 'safe', kind: '', reason: '' };
         next.updatedAt = Date.now();
+        if (getChatKey() !== chatKey) return pauseRecoveryForChatSwitchUnlocked(chatKey, next);
         const persisted = await persist(chatKey, next);
         notify('success', 'Historical reconstruction completed. Normal scanning and continuity injection are active again.');
-        return { ok: true, complete: true, recovery: structuredClone(persisted.recovery), state: structuredClone(persisted) };
+        return { ok: true, complete: true, recovery: decoratedRecoveryStatus(persisted.recovery, chatKey), state: structuredClone(persisted) };
     }
 
     async function historicalRecoveryStep(chatKey) {
         return exclusive(chatKey, async () => {
             let state = normalizeState(await loadChat(chatKey), chatKey);
             if (!state.recovery) return { ok: false, reason: 'no-recovery' };
-            if (state.recovery.status !== 'running') return { ok: false, reason: 'recovery-not-running', recovery: structuredClone(state.recovery) };
+            if (state.recovery.status !== 'running') return { ok: false, reason: 'recovery-not-running', recovery: decoratedRecoveryStatus(state.recovery, chatKey) };
+            if (recoveryOwnedElsewhere(state.recovery)) return { ok: false, reason: 'recovery-owned-elsewhere', activeElsewhere: true, recovery: decoratedRecoveryStatus(state.recovery, chatKey) };
+            if (state.recovery.ownerSessionId && !recoveryOwnedByThisSession(state.recovery)) {
+                state.recovery = releaseRecoveryOwnership(state.recovery);
+                state.recovery.status = 'paused';
+                state.recovery.reason = 'Recovery ownership changed before this step. Resume explicitly to claim the abandoned run.';
+                state.recovery.error = 'recovery-lease-lost';
+                state.recovery.updatedAt = Date.now();
+                const persisted = await persist(chatKey, state);
+                return { ok: false, paused: true, reason: 'recovery-lease-lost', recovery: decoratedRecoveryStatus(persisted.recovery, chatKey) };
+            }
+            if (getChatKey() !== chatKey) return pauseRecoveryForChatSwitchUnlocked(chatKey, state);
+
+            state.recovery = claimRecoveryOwnership(state.recovery);
+            state.recovery.updatedAt = Date.now();
+            state.updatedAt = Date.now();
+            state = normalizeState(await persist(chatKey, state), chatKey);
+            if (getChatKey() !== chatKey) return pauseRecoveryForChatSwitchUnlocked(chatKey, state);
+            const context = getContext();
+            if (getChatKey() !== chatKey) return pauseRecoveryForChatSwitchUnlocked(chatKey, state);
             const settings = getSettings();
-            const liveChat = getContext().chat || [];
+            const liveChat = context.chat || [];
             const replanned = replanRecoverySuffix(state.recovery, liveChat);
             if (!replanned.ok) {
+                state.recovery = releaseRecoveryOwnership(state.recovery);
                 state.recovery.status = 'stale';
                 state.recovery.reason = 'A message at or before the last completed recovery exchange changed. Restart recovery to avoid replaying already-committed history against a different past.';
                 state.recovery.error = replanned.reason;
                 state.recovery.updatedAt = Date.now();
                 const persisted = await persist(chatKey, state);
-                return { ok: false, restartRequired: true, reason: 'completed-history-changed', recovery: structuredClone(persisted.recovery) };
+                return { ok: false, restartRequired: true, reason: 'completed-history-changed', recovery: decoratedRecoveryStatus(persisted.recovery, chatKey) };
             }
-            state.recovery = replanned.recovery;
+            state.recovery = claimRecoveryOwnership(replanned.recovery);
             const nextMessageId = state.recovery.messageIds[state.recovery.completed] ?? null;
             state.recovery.nextMessageId = nextMessageId;
-            if (!Number.isInteger(nextMessageId)) return finalizeHistoricalRecoveryUnlocked(chatKey, state, liveChat, settings);
+            if (!Number.isInteger(nextMessageId)) {
+                if (getChatKey() !== chatKey) return pauseRecoveryForChatSwitchUnlocked(chatKey, state);
+                return finalizeHistoricalRecoveryUnlocked(chatKey, state, liveChat, settings);
+            }
 
             const historicalChat = liveChat.slice(0, nextMessageId + 1);
             const exchange = currentExchange(historicalChat, nextMessageId);
             if (!exchange) {
+                state.recovery = releaseRecoveryOwnership(state.recovery);
                 state.recovery.status = 'failed';
                 state.recovery.reason = 'The next planned recovery item is no longer an assistant exchange.';
                 state.recovery.error = 'not-assistant-message';
                 state.recovery.updatedAt = Date.now();
                 const persisted = await persist(chatKey, state);
-                return { ok: false, failed: true, reason: 'not-assistant-message', recovery: structuredClone(persisted.recovery) };
+                return { ok: false, failed: true, reason: 'not-assistant-message', recovery: decoratedRecoveryStatus(persisted.recovery, chatKey) };
             }
+            if (getChatKey() !== chatKey) return pauseRecoveryForChatSwitchUnlocked(chatKey, state);
 
             const startEpoch = epoch(chatKey);
             const startLineage = chatLineage(historicalChat, nextMessageId);
@@ -1169,16 +1276,50 @@ export function createNpcStateEngine(adapters = {}) {
             try {
                 parsed = await invokeJson(prompt, 'historical-recovery-' + nextMessageId);
             } catch (error) {
+                const signal = recoverySignals.get(chatKey) || {};
+                if (signal.cancel) {
+                    state.recovery = releaseRecoveryOwnership(state.recovery);
+                    state.recovery.status = 'cancelled';
+                    state.recovery.reason = 'Historical reconstruction was cancelled. The sidecar keeps only exchanges committed before cancellation.';
+                    state.recovery.error = '';
+                    state.recovery.updatedAt = Date.now();
+                    const persisted = await persist(chatKey, state);
+                    return { ok: true, cancelled: true, reason: 'cancelled', recovery: decoratedRecoveryStatus(persisted.recovery, chatKey), state: structuredClone(persisted) };
+                }
+                if (signal.pause) {
+                    state.recovery = releaseRecoveryOwnership(state.recovery);
+                    state.recovery.status = 'paused';
+                    state.recovery.reason = signal.reason || 'Historical reconstruction was paused after the last committed exchange.';
+                    state.recovery.error = '';
+                    state.recovery.updatedAt = Date.now();
+                    const persisted = await persist(chatKey, state);
+                    return { ok: true, paused: true, reason: 'paused', recovery: decoratedRecoveryStatus(persisted.recovery, chatKey), state: structuredClone(persisted) };
+                }
+                if (getChatKey() !== chatKey) return pauseRecoveryForChatSwitchUnlocked(chatKey, state);
+                state.recovery = releaseRecoveryOwnership(state.recovery);
                 state.recovery.status = 'failed';
                 state.recovery.reason = 'Historical scanner request failed. Resume retries this same exchange without replaying completed work.';
                 state.recovery.error = String(error?.message || error).slice(0, 1200);
                 state.recovery.updatedAt = Date.now();
                 const persisted = await persist(chatKey, state);
-                return { ok: false, failed: true, reason: 'generation-failed', error, recovery: structuredClone(persisted.recovery) };
+                return { ok: false, failed: true, reason: 'generation-failed', error, recovery: decoratedRecoveryStatus(persisted.recovery, chatKey) };
             }
 
-            const currentChat = getContext().chat || [];
-            if (getChatKey() !== chatKey || epoch(chatKey) !== startEpoch || !recoveryLineageEqual(chatLineage(currentChat, nextMessageId), startLineage)) {
+            const signal = recoverySignals.get(chatKey) || {};
+            if (signal.cancel) {
+                state.recovery = releaseRecoveryOwnership(state.recovery);
+                state.recovery.status = 'cancelled';
+                state.recovery.reason = 'Historical reconstruction was cancelled. The sidecar keeps only exchanges committed before cancellation.';
+                state.recovery.error = '';
+                state.recovery.updatedAt = Date.now();
+                const persisted = await persist(chatKey, state);
+                return { ok: true, cancelled: true, reason: 'cancelled', recovery: decoratedRecoveryStatus(persisted.recovery, chatKey), state: structuredClone(persisted) };
+            }
+            if (getChatKey() !== chatKey) return pauseRecoveryForChatSwitchUnlocked(chatKey, state);
+            const currentContext = getContext();
+            if (getChatKey() !== chatKey) return pauseRecoveryForChatSwitchUnlocked(chatKey, state);
+            const currentChat = currentContext.chat || [];
+            if (epoch(chatKey) !== startEpoch || !recoveryLineageEqual(chatLineage(currentChat, nextMessageId), startLineage)) {
                 return { ok: false, discarded: true, reason: 'stale-operation', messageId: nextMessageId };
             }
 
@@ -1222,7 +1363,7 @@ export function createNpcStateEngine(adapters = {}) {
             });
             let committed = recordCheckpoint(stale.state, historicalChat, nextMessageId, 'history-recovery');
             committed.lastScannedMessageId = nextMessageId;
-            committed.recovery = {
+            committed.recovery = claimRecoveryOwnership({
                 ...state.recovery,
                 status: 'running',
                 completed: Math.min(state.recovery.total, state.recovery.completed + 1),
@@ -1231,13 +1372,13 @@ export function createNpcStateEngine(adapters = {}) {
                 reason: replanned.changed ? 'Unprocessed suffix changed and was safely replanned; completed history was not replayed.' : '',
                 error: '',
                 updatedAt: Date.now(),
-            };
+            });
             committed.updatedAt = Date.now();
             const persisted = await persist(chatKey, committed);
             return {
                 ok: true,
                 messageId: nextMessageId,
-                recovery: structuredClone(persisted.recovery),
+                recovery: decoratedRecoveryStatus(persisted.recovery, chatKey),
                 state: structuredClone(persisted),
             };
         });
@@ -1259,16 +1400,27 @@ export function createNpcStateEngine(adapters = {}) {
                 let step;
                 try { step = await historicalRecoveryStep(chatKey); }
                 catch (error) {
+                    const afterError = recoverySignals.get(chatKey) || {};
+                    if (afterError.cancel) {
+                        try {
+                            const result = await markRecoveryStatus(chatKey, 'cancelled', 'Historical reconstruction was cancelled. The sidecar keeps only exchanges committed before cancellation.', '');
+                            return { ...result, cancelled: true };
+                        } catch { return { ok: false, cancelled: true, reason: 'cancelled', error }; }
+                    }
+                    if (afterError.pause) {
+                        try {
+                            const result = await markRecoveryStatus(chatKey, 'paused', afterError.reason || 'Historical reconstruction was paused after the last committed exchange.', '');
+                            return { ...result, paused: true };
+                        } catch { return { ok: false, paused: true, reason: 'paused', error }; }
+                    }
                     try { await markRecoveryStatus(chatKey, 'failed', 'Historical recovery persistence/orchestration failed. Resume retries from the last committed exchange.', error?.message || error); }
                     catch { /* preserve the original failure */ }
                     return { ok: false, failed: true, reason: 'recovery-step-failed', error };
                 }
-                if (step?.complete || step?.failed || step?.restartRequired) return step;
+                if (step?.complete || step?.failed || step?.restartRequired || step?.cancelled || step?.paused || step?.activeElsewhere) return step;
                 if (step?.discarded) {
                     const afterDiscard = recoverySignals.get(chatKey) || {};
-                    if (afterDiscard.cancel) continue;
-                    if (afterDiscard.pause) continue;
-                    // A chat edit in the unprocessed suffix is replanned on the next iteration.
+                    if (afterDiscard.cancel || afterDiscard.pause) continue;
                     continue;
                 }
                 if (!step?.ok) return step;
@@ -1292,20 +1444,36 @@ export function createNpcStateEngine(adapters = {}) {
     } = {}) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat' || /-pending:/.test(chatKey)) return { ok: false, reason: 'no-chat' };
+        const cachedRecovery = cache.get(chatKey)?.recovery;
+        if (recoveryOwnedElsewhere(cachedRecovery)) return { ok: false, reason: 'recovery-owned-elsewhere', activeElsewhere: true, recovery: decoratedRecoveryStatus(cachedRecovery, chatKey) };
         await stopExistingRecoveryRun(chatKey);
         invalidate(chatKey);
-        recoverySignals.set(chatKey, { pause: false, cancel: false, reason: '' });
-        const chat = getContext().chat || [];
+        recoverySignals.delete(chatKey);
+        if (getChatKey() !== chatKey) return { ok: false, reason: 'chat-switched-before-plan' };
+        const context = getContext();
+        if (getChatKey() !== chatKey) return { ok: false, reason: 'chat-switched-before-plan' };
+        const chat = context.chat || [];
         const plan = recoveryRangeForChat(chat, startMessageId, endMessageId);
         const mode = normalizeRecoveryRelationshipMode(relationshipMode);
-        await exclusive(chatKey, async () => {
+        if (getChatKey() !== chatKey) return { ok: false, reason: 'chat-switched-before-install' };
+        recoverySignals.set(chatKey, { pause: false, cancel: false, reason: '' });
+        const prepared = await exclusive(chatKey, async () => {
+            if (getChatKey() !== chatKey) return { ok: false, reason: 'chat-switched-before-install' };
+            const currentPointer = getPointer(chatKey);
+            if (currentPointer?.path) {
+                const current = await readV3Sidecar({ chatKey, pointer: currentPointer, fetchFn });
+                const currentRecovery = current?.state ? normalizeState(current.state, chatKey).recovery : null;
+                if (recoveryOwnedElsewhere(currentRecovery)) return { ok: false, reason: 'recovery-owned-elsewhere', activeElsewhere: true, recovery: decoratedRecoveryStatus(currentRecovery, chatKey) };
+            }
             const fresh = createEmptyState(chatKey);
             const baseline = createEmptyState(chatKey);
             fresh.branchBase = { messageId: null, lineage: [], createdAt: Date.now(), snapshot: baseline };
             fresh.branchHeadLineage = [];
             fresh.recovery = {
-                version: 1,
+                version: 2,
                 status: plan.messageIds.length ? 'running' : 'complete',
+                ownerSessionId: plan.messageIds.length ? recoverySessionId : '',
+                leaseUntil: plan.messageIds.length ? recoveryNow() + recoveryLeaseMs : null,
                 relationshipMode: mode,
                 startMessageId: plan.startMessageId,
                 endMessageId: plan.endMessageId,
@@ -1323,10 +1491,12 @@ export function createNpcStateEngine(adapters = {}) {
             };
             fresh.updatedAt = Date.now();
             await installFreshSidecar(chatKey, fresh, { allowExisting });
+            return { ok: true };
         });
+        if (!prepared?.ok) return prepared;
         if (!plan.messageIds.length) {
             const state = cache.get(chatKey);
-            return { ok: true, complete: true, recovery: structuredClone(state?.recovery || null), state: state ? structuredClone(state) : null };
+            return { ok: true, complete: true, recovery: decoratedRecoveryStatus(state?.recovery || null, chatKey), state: state ? structuredClone(state) : null };
         }
         return runHistoricalRecoveryLoop(chatKey);
     }
@@ -1335,26 +1505,32 @@ export function createNpcStateEngine(adapters = {}) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat' || /-pending:/.test(chatKey)) return { ok: false, reason: 'no-chat' };
         if (recoveryRuns.has(chatKey)) return recoveryRuns.get(chatKey);
+        if (getChatKey() !== chatKey) return { ok: false, reason: 'chat-switched-before-resume' };
         recoverySignals.set(chatKey, { pause: false, cancel: false, reason: '' });
         const prepared = await exclusive(chatKey, async () => {
             const state = normalizeState(await loadChat(chatKey), chatKey);
             const recovery = state.recovery;
             if (!recovery) return { ok: false, reason: 'no-recovery' };
-            if (recovery.status === 'complete') return { ok: true, complete: true, recovery: structuredClone(recovery) };
-            if (recovery.status === 'cancelled') return { ok: false, reason: 'recovery-cancelled', recovery: structuredClone(recovery) };
-            if (recovery.status === 'stale') return { ok: false, reason: 'restart-required', recovery: structuredClone(recovery) };
-            const replanned = replanRecoverySuffix(recovery, getContext().chat || []);
+            if (recoveryOwnedElsewhere(recovery)) return { ok: false, reason: 'recovery-owned-elsewhere', activeElsewhere: true, recovery: decoratedRecoveryStatus(recovery, chatKey) };
+            if (recovery.status === 'complete') return { ok: true, complete: true, recovery: decoratedRecoveryStatus(recovery, chatKey) };
+            if (recovery.status === 'cancelled') return { ok: false, reason: 'recovery-cancelled', recovery: decoratedRecoveryStatus(recovery, chatKey) };
+            if (recovery.status === 'stale') return { ok: false, reason: 'restart-required', recovery: decoratedRecoveryStatus(recovery, chatKey) };
+            if (getChatKey() !== chatKey) return { ok: false, reason: 'chat-switched-before-resume' };
+            const context = getContext();
+            if (getChatKey() !== chatKey) return { ok: false, reason: 'chat-switched-before-resume' };
+            const replanned = replanRecoverySuffix(recovery, context.chat || []);
             if (!replanned.ok) {
+                state.recovery = releaseRecoveryOwnership(state.recovery);
                 state.recovery.status = 'stale';
                 state.recovery.reason = 'Completed recovery history changed. Restart is required; completed exchanges will not be replayed automatically.';
                 state.recovery.error = replanned.reason;
                 state.recovery.updatedAt = Date.now();
                 const persisted = await persist(chatKey, state);
-                return { ok: false, reason: 'restart-required', recovery: structuredClone(persisted.recovery) };
+                return { ok: false, reason: 'restart-required', recovery: decoratedRecoveryStatus(persisted.recovery, chatKey) };
             }
-            state.recovery = { ...replanned.recovery, status: 'running', error: '', updatedAt: Date.now() };
+            state.recovery = claimRecoveryOwnership({ ...replanned.recovery, status: 'running', error: '', updatedAt: Date.now() });
             const persisted = await persist(chatKey, state);
-            return { ok: true, recovery: structuredClone(persisted.recovery) };
+            return { ok: true, recovery: decoratedRecoveryStatus(persisted.recovery, chatKey) };
         });
         if (!prepared?.ok || prepared.complete) return prepared;
         return runHistoricalRecoveryLoop(chatKey);
@@ -1363,29 +1539,54 @@ export function createNpcStateEngine(adapters = {}) {
     async function pauseHistoricalRecovery(reason = '') {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat') return { ok: false, reason: 'no-chat' };
-        const signal = recoverySignals.get(chatKey) || {};
-        signal.pause = true;
-        signal.cancel = false;
-        signal.reason = String(reason || 'Historical reconstruction was paused after the last committed exchange.').slice(0, 500);
-        recoverySignals.set(chatKey, signal);
-        if (recoveryRuns.has(chatKey)) return { ok: true, requested: true, reason: 'pause-requested' };
+        if (recoveryRuns.has(chatKey)) {
+            const signal = recoverySignals.get(chatKey) || {};
+            signal.pause = true;
+            signal.cancel = false;
+            signal.reason = String(reason || 'Historical reconstruction was paused after the last committed exchange.').slice(0, 500);
+            recoverySignals.set(chatKey, signal);
+            return { ok: true, requested: true, reason: 'pause-requested' };
+        }
         const state = cache.get(chatKey) || await loadChat(chatKey);
         if (!state?.recovery || state.recovery.status === 'complete' || state.recovery.status === 'cancelled') return { ok: false, reason: 'no-active-recovery' };
-        return markRecoveryStatus(chatKey, 'paused', signal.reason, '');
+        if (recoveryOwnedElsewhere(state.recovery)) return { ok: false, reason: 'recovery-owned-elsewhere', activeElsewhere: true, recovery: decoratedRecoveryStatus(state.recovery, chatKey) };
+        return markRecoveryStatus(chatKey, 'paused', String(reason || 'Historical reconstruction was paused after the last committed exchange.').slice(0, 500), '');
     }
 
     async function cancelHistoricalRecovery() {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat') return { ok: false, reason: 'no-chat' };
-        const signal = recoverySignals.get(chatKey) || {};
-        signal.cancel = true;
-        signal.pause = false;
-        recoverySignals.set(chatKey, signal);
-        invalidate(chatKey);
-        if (recoveryRuns.has(chatKey)) return { ok: true, requested: true, reason: 'cancel-requested' };
+        if (recoveryRuns.has(chatKey)) {
+            const signal = recoverySignals.get(chatKey) || {};
+            signal.cancel = true;
+            signal.pause = false;
+            recoverySignals.set(chatKey, signal);
+            invalidate(chatKey);
+            return { ok: true, requested: true, reason: 'cancel-requested' };
+        }
         const state = cache.get(chatKey) || await loadChat(chatKey);
         if (!state?.recovery || state.recovery.status === 'complete') return { ok: false, reason: 'no-active-recovery' };
+        if (recoveryOwnedElsewhere(state.recovery)) return { ok: false, reason: 'recovery-owned-elsewhere', activeElsewhere: true, recovery: decoratedRecoveryStatus(state.recovery, chatKey) };
         return markRecoveryStatus(chatKey, 'cancelled', 'Historical reconstruction was cancelled. The partial reconstructed state remains available.', '');
+    }
+
+    function recoveryRange({ startMessageId = null, endMessageId = null } = {}) {
+        const chatKey = getChatKey();
+        const context = getContext();
+        if (getChatKey() !== chatKey) {
+            const error = new Error('Active chat changed while calculating the recovery range.');
+            error.code = 'NPC_STATE_V04_BETA_RECOVERY_CHAT_CHANGED';
+            throw error;
+        }
+        const chat = context.chat || [];
+        const range = recoveryRangeForChat(chat, startMessageId, endMessageId);
+        return {
+            firstAssistantMessageId: range.firstAssistantMessageId,
+            latestAssistantMessageId: range.latestAssistantMessageId,
+            assistantExchangeCount: range.messageIds.length,
+            startMessageId: range.startMessageId,
+            endMessageId: range.endMessageId,
+        };
     }
 
     function recoveryRange() {
@@ -1467,7 +1668,10 @@ export function createNpcStateEngine(adapters = {}) {
         invalidate,
         getState: chatKey => cache.has(chatKey || getChatKey()) ? structuredClone(cache.get(chatKey || getChatKey())) : null,
         hydrationStatus: chatKey => hydration.get(chatKey || getChatKey()) || { status: cache.has(chatKey || getChatKey()) ? 'ready' : 'unloaded', error: null },
-        recoveryStatus: chatKey => structuredClone(cache.get(chatKey || getChatKey())?.recovery || null),
+        recoveryStatus: chatKey => {
+            const key = chatKey || getChatKey();
+            return decoratedRecoveryStatus(cache.get(key)?.recovery || null, key);
+        },
         isRecoveryRunning: chatKey => recoveryRuns.has(chatKey || getChatKey()),
         isBusy: chatKey => locks.has(chatKey || getChatKey()),
     });

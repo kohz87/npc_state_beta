@@ -139,8 +139,8 @@ const mira = state => state.npcs.find(npc => npc.id === 'npc-mira-phase1');
     assert(mira(state).relationship.desire === 2, 'Explicit current romantic attraction was incorrectly blocked');
 }
 
-// Semantic repeat protection stores accepted evidence in a hidden six-event ledger and
-// prevents the same beat/aftermath from scoring again.
+// Identical wording in a later source exchange is not itself proof of a replay.
+// Same-event replay protection is covered by source-identity regressions.
 {
     let state = stateWithRelationship({ trust: 0, affection: 0, desire: 0, tension: 0 });
     state = apply(state, {
@@ -155,8 +155,8 @@ const mira = state => state.npcs.find(npc => npc.id === 'npc-mira-phase1');
         reason: 'Returning the lost purse demonstrates honesty.',
         sourceMessageId: 3,
     });
-    assert(mira(state).relationship.trust === 1, 'Duplicate relationship event scored twice');
-    assert(mira(state).relationshipEvidenceHistory.length === 1, 'Duplicate event polluted the hidden evidence ledger');
+    assert(mira(state).relationship.trust === 2, 'Distinct later exchange was suppressed by identical quotation text');
+    assert(mira(state).relationshipEvidenceHistory.length === 2, 'Distinct later event was not retained in the hidden evidence ledger');
 }
 
 // Locked checkpoint attempts are remembered for dedupe but cannot change fractional state,

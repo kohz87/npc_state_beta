@@ -2,7 +2,7 @@ const PANEL_ID = 'npc_state_settings';
 const BANNER_ID = 'npc_state_v3_branch_recovery';
 const FORCE_ID = 'npc_state_v3_force_rebase';
 const ADVANCED_RECOVERY_ID = 'npc_state_v0414_advanced_recovery';
-const RECOVERY_REBUILD_UI_VERSION = 1;
+const RECOVERY_REBUILD_UI_VERSION = 2;
 const REBUILD_ID = 'npc_state_v0428_recovery_rebuild';
 const REBUILD_STYLE_ID = 'npc_state_v0428_recovery_rebuild_style';
 let started = false;
@@ -85,10 +85,10 @@ async function rebaseCurrentChat(force = false) {
     } catch (error) {
         const rebasedState = state();
         if (rebasedState?.branchSafety?.status === 'safe') {
-            console.warn('[NPC State v0.4.28] timeline rebase committed, but the follow-up scan failed', error);
+            console.warn('[NPC State v0.4.29] timeline rebase committed, but the follow-up scan failed', error);
             globalThis.toastr?.warning?.(`NPC State: timeline rebased successfully, but the latest exchange scan failed. Use Scan current cast to retry. ${error?.message || error}`);
         } else {
-            console.error('[NPC State v0.4.28] timeline rebase failed safely', error);
+            console.error('[NPC State v0.4.29] timeline rebase failed safely', error);
             globalThis.toastr?.error?.(`NPC State: timeline rebase failed without replacing your durable dossiers. ${error?.message || error}`);
         }
     } finally {
@@ -161,10 +161,11 @@ function ensureRecoveryStyles() {
     globalThis.document.head?.appendChild?.(style);
 }
 
-function recoveryRangeDefaults() {
+function recoveryRangeDefaults(options = undefined) {
     try {
-        return globalThis.NPCState?.recoveryRange?.() || { firstAssistantMessageId: null, latestAssistantMessageId: null, assistantExchangeCount: 0 };
-    } catch {
+        return globalThis.NPCState?.recoveryRange?.(options) || { firstAssistantMessageId: null, latestAssistantMessageId: null, assistantExchangeCount: 0 };
+    } catch (error) {
+        if (options) throw error;
         return { firstAssistantMessageId: null, latestAssistantMessageId: null, assistantExchangeCount: 0 };
     }
 }
@@ -175,10 +176,11 @@ function recoveryStatusText(info) {
     const total = Math.max(0, Number(info.total) || 0);
     const next = Number.isInteger(info.nextMessageId) ? ' · next #' + info.nextMessageId : '';
     const mode = info.relationshipMode === 're-evaluate' ? 're-evaluate relationships' : 'fresh relationship meters';
-    return String(info.status || 'paused') + ' · ' + done + '/' + total + ' exchanges · ' + mode + next;
+    const ownership = info.activeElsewhere ? ' · active in another tab' : (info.abandoned ? ' · lease expired; resumable' : '');
+    return String(info.status || 'paused') + ' · ' + done + '/' + total + ' exchanges · ' + mode + next + ownership;
 }
 
-function recoveryConfirmText({ freshOnly = false, healthy = false, relationshipMode = 'fresh' } = {}) {
+function recoveryConfirmText({ freshOnly = false, healthy = false, relationshipMode = 'fresh', exchangeCount = null } = {}) {
     const replacement = healthy
         ? 'This chat currently has a readable NPC State sidecar. Recovery will create a NEW replacement file and switch this chat pointer only after the replacement upload succeeds. The old file is left untouched as a safety copy.'
         : 'The configured NPC State sidecar is missing. Recovery will create a NEW file and switch this chat pointer only after the new upload succeeds.';
@@ -186,7 +188,8 @@ function recoveryConfirmText({ freshOnly = false, healthy = false, relationshipM
     const relationship = relationshipMode === 're-evaluate'
         ? 'Relationship history will be re-evaluated chronologically through the normal evidence, cap, inertia, duplicate and milestone rules.'
         : 'Relationship meters will start fresh at zero while the rest of NPC history is reconstructed.';
-    return replacement + '\n\nHistorical scans run oldest to newest and each scan sees only chat content up to that exchange. ' + relationship;
+    const selected = Number.isInteger(exchangeCount) ? '\n\nSelected assistant exchanges: ' + exchangeCount + '.' : '';
+    return replacement + selected + '\n\nHistorical scans run oldest to newest and each scan sees only chat content up to that exchange. ' + relationship;
 }
 
 async function initializeFreshFromUi() {
@@ -200,7 +203,7 @@ async function initializeFreshFromUi() {
         if (!result?.ok) throw new Error(result?.reason || 'fresh initialization failed');
         globalThis.toastr?.success?.('NPC State: fresh recovery sidecar initialized.');
     } catch (error) {
-        console.error('[NPC State v0.4.28] fresh recovery initialization failed safely', error);
+        console.error('[NPC State v0.4.29] fresh recovery initialization failed safely', error);
         globalThis.toastr?.error?.('NPC State: fresh initialization failed without guessing a replacement pointer. ' + (error?.message || error));
     } finally {
         running = false;
@@ -226,7 +229,8 @@ function selectedRecoveryOptions(control) {
         startMessageId = rawStart;
         endMessageId = rawEnd;
     }
-    return { range, relationshipMode, startMessageId, endMessageId, defaults };
+    const selection = recoveryRangeDefaults({ startMessageId, endMessageId });
+    return { range, relationshipMode, startMessageId, endMessageId, defaults, selection };
 }
 
 async function startRecoveryFromUi(control) {
@@ -235,7 +239,7 @@ async function startRecoveryFromUi(control) {
     try { options = selectedRecoveryOptions(control); }
     catch (error) { globalThis.toastr?.warning?.('NPC State: ' + (error?.message || error)); return; }
     const healthy = !missingSidecarHydration() && hydration()?.status === 'ready';
-    if (!globalThis.confirm?.(recoveryConfirmText({ healthy, relationshipMode: options.relationshipMode }))) return;
+    if (!globalThis.confirm?.(recoveryConfirmText({ healthy, relationshipMode: options.relationshipMode, exchangeCount: Number(options.selection?.assistantExchangeCount || 0) }))) return;
     running = true;
     render();
     try {
@@ -248,7 +252,7 @@ async function startRecoveryFromUi(control) {
         if (!result?.ok) throw new Error(result?.reason || result?.recovery?.error || 'historical recovery failed');
         if (result.complete) globalThis.toastr?.success?.('NPC State: historical reconstruction complete.');
     } catch (error) {
-        console.error('[NPC State v0.4.28] historical rebuild failed safely', error);
+        console.error('[NPC State v0.4.29] historical rebuild failed safely', error);
         globalThis.toastr?.error?.('NPC State: historical reconstruction stopped safely. Resume retries from the last committed exchange. ' + (error?.message || error));
     } finally {
         running = false;
@@ -265,7 +269,7 @@ async function resumeRecoveryFromUi() {
         if (!result?.ok) throw new Error(result?.reason || result?.recovery?.error || 'resume failed');
         if (result.complete) globalThis.toastr?.success?.('NPC State: historical reconstruction complete.');
     } catch (error) {
-        console.error('[NPC State v0.4.28] recovery resume failed safely', error);
+        console.error('[NPC State v0.4.29] recovery resume failed safely', error);
         globalThis.toastr?.error?.('NPC State: recovery resume stopped safely. ' + (error?.message || error));
     } finally {
         running = false;
@@ -303,12 +307,24 @@ function bindRecoveryControl(control) {
     control.querySelector('.npc-state-v0428-pause')?.addEventListener('click', pauseRecoveryFromUi);
     control.querySelector('.npc-state-v0428-cancel')?.addEventListener('click', cancelRecoveryFromUi);
     const range = control.querySelector('.npc-state-v0428-range');
-    const updateCustom = () => {
+    const start = control.querySelector('.npc-state-v0428-start');
+    const end = control.querySelector('.npc-state-v0428-end');
+    const preview = control.querySelector('.npc-state-v0429-selected-count');
+    const updateSelection = () => {
         const custom = range?.value === 'custom';
         for (const node of control.querySelectorAll('.npc-state-v0428-custom-range')) node.style.display = custom ? 'grid' : 'none';
+        if (!preview) return;
+        try {
+            const selected = selectedRecoveryOptions(control);
+            preview.textContent = 'Selected assistant exchanges: ' + Number(selected.selection?.assistantExchangeCount || 0) + '.';
+        } catch (error) {
+            preview.textContent = 'Selected range invalid: ' + String(error?.message || error);
+        }
     };
-    range?.addEventListener('change', updateCustom);
-    updateCustom();
+    range?.addEventListener('change', updateSelection);
+    start?.addEventListener('input', updateSelection);
+    end?.addEventListener('input', updateSelection);
+    updateSelection();
 }
 
 function ensureRecoveryControl(host) {
@@ -325,9 +341,10 @@ function ensureRecoveryControl(host) {
     const info = recovery();
     const hydrationInfo = hydration();
     const missing = missingSidecarHydration();
+    const activeElsewhere = info?.activeElsewhere === true;
     const activelyRunning = recoveryRunning() || info?.status === 'running' || running;
     const defaults = recoveryRangeDefaults();
-    const key = [hydrationInfo?.status || '', missing ? 'missing' : '', info?.status || '', info?.completed || 0, info?.total || 0, info?.nextMessageId ?? '', activelyRunning ? 1 : 0].join('|');
+    const key = [hydrationInfo?.status || '', missing ? 'missing' : '', info?.status || '', info?.completed || 0, info?.total || 0, info?.nextMessageId ?? '', activelyRunning ? 1 : 0, activeElsewhere ? 1 : 0].join('|');
     if (control.dataset.renderKey === key) return control;
     control.dataset.renderKey = key;
     control.dataset.running = activelyRunning ? '1' : '0';
@@ -338,8 +355,8 @@ function ensureRecoveryControl(host) {
         : 'Rebuild creates a new sidecar, then reconstructs selected assistant exchanges oldest to newest. Completed progress is persisted after every exchange.';
     const progressMax = Math.max(1, Number(info?.total) || 1);
     const progressValue = Math.max(0, Math.min(progressMax, Number(info?.completed) || 0));
-    const showResume = ['paused', 'failed'].includes(String(info?.status || ''));
-    const showStop = ['running', 'paused', 'failed'].includes(String(info?.status || '')) || recoveryRunning();
+    const showResume = !activeElsewhere && ['paused', 'failed'].includes(String(info?.status || ''));
+    const showStop = !activeElsewhere && (['running', 'paused', 'failed'].includes(String(info?.status || '')) || recoveryRunning());
     const restartRequired = info?.status === 'stale';
     const first = defaults.firstAssistantMessageId ?? '';
     const latest = defaults.latestAssistantMessageId ?? '';
@@ -351,13 +368,14 @@ function ensureRecoveryControl(host) {
         + (info?.reason ? '<small><b>Status:</b> ' + String(info.reason).replace(/[<>]/g, '') + '</small>' : '')
         + (info?.error ? '<small><b>Last error:</b> ' + String(info.error).replace(/[<>]/g, '') + '</small>' : '')
         + (restartRequired ? '<small><b>Restart required:</b> completed chat history changed. NPC State will not replay completed recovery work against a different past automatically.</small>' : '')
+        + (activeElsewhere ? '<small><b>Another tab owns this recovery.</b> This tab is read-only until that session finishes, pauses, cancels, or its lease expires.</small>' : '')
         + '<div class="npc-state-v0428-start-controls">'
         + '<div class="npc-state-v0428-recovery-grid">'
         + '<label>Range<select class="text_pole npc-state-v0428-range"'+disabledStart+'><option value="all">All surviving exchanges</option><option value="latest">Latest exchange only</option><option value="custom">Custom message IDs</option></select></label>'
         + '<label>Relationship recovery<select class="text_pole npc-state-v0428-relationship"'+disabledStart+'><option value="fresh">Start meters fresh</option><option value="re-evaluate">Re-evaluate history</option></select></label>'
         + '<label class="npc-state-v0428-custom-range" style="display:none">Start message ID<input class="text_pole npc-state-v0428-start" type="number" min="0" value="'+first+'"'+disabledStart+'></label>'
         + '<label class="npc-state-v0428-custom-range" style="display:none">End message ID<input class="text_pole npc-state-v0428-end" type="number" min="0" value="'+latest+'"'+disabledStart+'></label>'
-        + '</div></div>'
+        + '</div><small class="npc-state-v0429-selected-count"></small></div>'
         + '<div class="npc-state-v0428-recovery-actions">'
         + '<button type="button" class="menu_button npc-state-v0428-fresh"'+disabledStart+'><i class="fa-solid fa-file-circle-plus"></i> Fresh database</button>'
         + '<button type="button" class="menu_button npc-state-v0428-start-rebuild"'+disabledStart+'><i class="fa-solid fa-clock-rotate-left"></i> Rebuild from chat</button>'

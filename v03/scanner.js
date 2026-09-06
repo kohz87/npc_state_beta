@@ -209,7 +209,7 @@ function dossierCollectionRules(limits) {
 
 export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', relationshipCaps = DEFAULT_RELATIONSHIP_CAPS, memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State v0.4.28 recovery scanner requires an assistant message and its preceding user exchange.');
+    if (!exchange) throw new Error('NPC State v0.4.29 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
@@ -234,7 +234,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         familyFacts: [{ owner: 'existing NPC id/name', relation: 'family/kinship role, e.g. daughter|parent|sister|brother|aunt|uncle|niece|nephew|cousin|grandparent|grandchild|spouse|guardian|ward|in-law', count: 2, members: ['explicitly named members from visible evidence; [] when unnamed'], descriptor: 'optional family detail e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit family/kinship fact' }],
     };
     return [
-        'You are NPC State v0.4.28, a private structured continuity scanner for a roleplay chat.',
+        'You are NPC State v0.4.29, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
         '',
         `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
@@ -317,7 +317,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         body: compactText(block?.body, 12000),
     }));
     return [
-        'You are NPC State v0.4.28 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
+        'You are NPC State v0.4.29 performing a DELIBERATE STRUCTURED DOSSIER IMPORT for one existing NPC.',
         'Return JSON only. This is reference-data reconciliation, NOT a current scene/event scan.',
         'Only the supplied Megumin New_NPC / NPC_Update blocks are authoritative sources for this operation.',
         'TARGET DOSSIER: ' + JSON.stringify(rosterForPrompt({ npcs: [npc] })[0]),
@@ -356,7 +356,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State v0.4.28 performing a targeted dossier reconciliation.',
+        'You are NPC State v0.4.29 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
@@ -407,7 +407,7 @@ function scannerNpcArrayValid(value) {
     });
 }
 function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupplemental = false } = {}) {
-    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.28 recovery scanner JSON must be an object.');
+    if (!isPlainScannerObject(parsed)) throw new Error('NPC State v0.4.29 recovery scanner JSON must be an object.');
     const has = key => Object.prototype.hasOwnProperty.call(parsed, key);
     const presentKey = has('inChatNpcIds') ? 'inChatNpcIds' : (has('finalPresentNpcIds') ? 'finalPresentNpcIds' : '');
     if (requireContract) {
@@ -418,7 +418,7 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
         if (!scannerNpcArrayValid(parsed.npcs)) invalid.push('npcs[object-with-string-identity]');
         if ((!allowOmittedSupplemental || has('socialEdges')) && !scannerObjectArrayValid(parsed.socialEdges)) invalid.push('socialEdges[object]');
         if (has('familyFacts') && !scannerObjectArrayValid(parsed.familyFacts)) invalid.push('familyFacts[object]');
-        if (invalid.length) throw new Error('NPC State v0.4.28 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
+        if (invalid.length) throw new Error('NPC State v0.4.29 recovery scanner JSON has invalid payload structure or members: ' + invalid.join(', ') + '.');
     }
     return {
         exchangeActiveNpcIds: uniqueStrings(parsed.exchangeActiveNpcIds),
@@ -432,14 +432,14 @@ function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupp
 
 export function parseScanJson(raw) {
     const text = String(raw ?? '').trim();
-    if (!text) throw new Error('NPC State v0.4.28 recovery scanner returned an empty response.');
+    if (!text) throw new Error('NPC State v0.4.29 recovery scanner returned an empty response.');
     const unfenced = text.replace(/^\x60\x60\x60(?:json)?\s*/i, '').replace(/\s*\x60\x60\x60$/i, '').trim();
     const first = unfenced.indexOf('{');
     const last = unfenced.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('NPC State v0.4.28 recovery scanner returned no JSON object.');
+    if (first < 0 || last <= first) throw new Error('NPC State v0.4.29 recovery scanner returned no JSON object.');
     let parsed;
     try { parsed = JSON.parse(unfenced.slice(first, last + 1)); }
-    catch (error) { throw new Error('NPC State v0.4.28 recovery scanner returned malformed JSON: ' + error.message); }
+    catch (error) { throw new Error('NPC State v0.4.29 recovery scanner returned malformed JSON: ' + error.message); }
     return normalizeScanPayload(parsed, { requireContract: true });
 }
 
@@ -528,7 +528,7 @@ function preflightAutomaticIdentityPatches(state, patches = [], referenceCandida
                 // handled by automaticIdentityPatchConflicts() as a local patch rejection.
                 // A newly claimed key is a same-observation conflict and invalidates the payload.
                 if (!initialIdentityKeys.has(key)) {
-                    throw new Error('NPC State v0.4.28 scanner identity collision inside one observation: ' + value + '.');
+                    throw new Error('NPC State v0.4.29 scanner identity collision inside one observation: ' + value + '.');
                 }
             }
         }
@@ -1446,18 +1446,44 @@ function relationshipDuplicateEvidenceKey(value) {
         .slice(0, 2400);
 }
 
-function relationshipAxisLooksDuplicate(npc, change, axis, { sourceMessageId = null, turn = null } = {}) {
-    const currentEvidence = relationshipDuplicateEvidenceKey(relationshipAxisEvidenceText(change, axis));
+function relationshipEventFingerprint(value) {
+    const source = String(value || '');
+    let hash = 2166136261;
+    for (let i = 0; i < source.length; i += 1) {
+        hash ^= source.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(36);
+}
+
+function relationshipSourceEventKey(options = {}) {
+    const sourceMessageId = Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null;
+    const sources = relationshipEvidenceSourcesForOptions(options);
+    const canonicalSources = JSON.stringify(sources.map(source => [
+        String(source?.id || ''),
+        String(source?.kind || ''),
+        relationshipDuplicateEvidenceKey(source?.text || ''),
+    ]));
+    if (canonicalSources) return 'msg:' + String(sourceMessageId ?? 'na') + ':' + relationshipEventFingerprint(canonicalSources);
+    if (sourceMessageId !== null) return 'msg:' + String(sourceMessageId);
+    if (Number.isInteger(options.turn)) return 'turn:' + String(options.turn);
+    return '';
+}
+
+function relationshipAxisLooksDuplicate(npc, change, axis, options = {}) {
+    const currentEventKey = relationshipSourceEventKey(options);
+    const sourceMessageId = Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null;
+    const turn = Number.isInteger(options.turn) ? options.turn : null;
     const history = normalizeRelationshipEvidenceHistory(npc?.relationshipEvidenceHistory);
     return history.some(previous => {
-        if (Number.isInteger(sourceMessageId) && Number.isInteger(previous.sourceMessageId)
-            && previous.sourceMessageId === sourceMessageId) return true;
-        if (Number.isInteger(turn) && Number.isInteger(previous.turn) && previous.turn === turn) return true;
-        if (!currentEvidence) return false;
-        const previousEvidence = relationshipDuplicateEvidenceKey(
-            (previous.axisEvidence?.[axis]?.excerpts || []).join(' ') || previous.evidence,
-        );
-        return Boolean(previousEvidence && previousEvidence === currentEvidence);
+        if (currentEventKey && previous.sourceEventKey) return previous.sourceEventKey === currentEventKey;
+        // Legacy evidence events predate sourceEventKey. Keep conservative same-event replay
+        // protection for those rows, but never use identical quotation text as event identity.
+        if (!previous.sourceEventKey) {
+            if (sourceMessageId !== null && Number.isInteger(previous.sourceMessageId) && previous.sourceMessageId === sourceMessageId) return true;
+            if (turn !== null && Number.isInteger(previous.turn) && previous.turn === turn) return true;
+        }
+        return false;
     });
 }
 
@@ -1616,6 +1642,7 @@ function relationshipDiagnostic(npc, next, change, options, reasons = [], unlock
         applied: Object.fromEntries(RELATIONSHIP_AXES.map(axis => [axis, (next.relationship?.[axis] || 0) - (npc.relationship?.[axis] || 0)])),
         progressBefore: npc.relationshipProgress, progressAfter: next.relationshipProgress,
         axisEvidence: change.axisEvidence || {}, priority: change.priority || [], verifiedSources: change.verifiedSources || {},
+        sourceEventKey: relationshipSourceEventKey(options),
         axisReasons: relationshipAxisReasons(reasons),
         reasons, unlocks, sourceMessageId: options.sourceMessageId, turn: options.turn, at: Date.now(),
     };
@@ -1812,6 +1839,7 @@ function applyRelationshipChange(npc, patch, options = {}) {
         axisEvidence: acceptedAxisEvidence,
         priority: change.priority,
         verifiedSources: acceptedVerifiedSources,
+        sourceEventKey: relationshipSourceEventKey(options),
         sourceMessageId: Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null,
         turn: Number.isInteger(options.turn) ? options.turn : null,
         at: Date.now(),
