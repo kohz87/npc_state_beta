@@ -18,6 +18,7 @@ for (const path of [
     'beta/bump-0.4.41.mjs',
     'beta/phase84-settings-observer-recovery-hotpath-0.4.41.mjs',
     'beta/phase84b-legacy-v0440-release-verifier-compat-0.4.41.mjs',
+    'beta/phase84c-legacy-settings-layout-verifier-compat-0.4.41.mjs',
     'beta/verify-phase84-settings-observer-recovery-hotpath-0.4.41.mjs',
     'beta/verify-phase85-release-source-parity-0.4.41.mjs',
 ]) assert(fs.existsSync(path), 'Missing v0.4.41 source-owned file: ' + path);
@@ -36,5 +37,8 @@ const legacy40 = fs.readFileSync('beta/verify-phase83-release-source-parity-0.4.
 assert(legacy40.includes('Manifest must be v0.4.40+'), 'v0.4.40 release verifier must remain descendant-compatible after patch 41');
 assert(legacy40.includes('Workflow title must be v0.4.40+'), 'v0.4.40 workflow verifier must remain descendant-compatible after patch 41');
 assert(legacy40.includes('Cold replay must include patch 40 or later'), 'v0.4.40 cold-replay verifier must remain descendant-compatible after patch 41');
+const legacy14 = fs.readFileSync('beta/verify-phase22-settings-ui-cleanup-0.4.14.mjs', 'utf8');
+assert(legacy14.includes("setTextIfChanged(label, 'Relationship Rubric')"), 'v0.4.14 settings verifier must accept the idempotent relationship label write');
+assert(legacy14.includes("setTextIfChanged(label, 'Memory Rubric')"), 'v0.4.14 settings verifier must accept the idempotent memory label write');
 
 console.log('PASS v0.4.41 release source parity');
