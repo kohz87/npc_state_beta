@@ -36,8 +36,8 @@ function replaceRequired(source, from, to, label) {
     const path = 'v03/settings-layout.js';
     let source = fs.readFileSync(path, 'utf8');
     source = replaceRequired(source,
-        `        'npc_state_v047_response_tokens',`,
-        `        'npc_state_v047_response_tokens',\n        'npc_state_v3_scan_profile',\n        'npc_state_v3_scan_after_response',`,
+        `        '#npc_state_v047_response_tokens',`,
+        `        '#npc_state_v047_response_tokens',\n        '#npc_state_v3_scan_profile',\n        '#npc_state_v3_scan_after_response',`,
         'Scanning category');
     fs.writeFileSync(path, source);
 }
