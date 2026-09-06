@@ -29,6 +29,16 @@ function replaceRequired(source, from, to, label) {
 }
 
 {
+    const path = 'beta/verify-phase86c-completeness-engine-safety-0.4.42.mjs';
+    let source = fs.readFileSync(path, 'utf8');
+    source = replaceRequired(source,
+        `assert(scannerSource.includes('supplementalPass === true\\n            ? normalizeMemoryEntries'), 'Completeness memories must merge instead of replacing');`,
+        `assert(scannerSource.includes('PHASE90_DURABLE_IMPORTANT_MEMORY_MERGE') && scannerSource.includes('normalizeMemoryEntries([...(next.memories || []), ...patch.memories]'), 'Completeness and ordinary scans must share durable memory merge semantics');`,
+        'v0.4.42 completeness memory source assertion');
+    fs.writeFileSync(path, source);
+}
+
+{
     const path = 'beta/verify-phase89-release-source-parity-0.4.43.mjs';
     let source = fs.readFileSync(path, 'utf8');
     const replacements = [
@@ -40,4 +50,4 @@ function replaceRequired(source, from, to, label) {
     fs.writeFileSync(path, source);
 }
 
-console.log('Made historical memory and v0.4.43 release verifiers compatible with v0.4.44+');
+console.log('Made historical memory, completeness, and v0.4.43 release verifiers compatible with v0.4.44+');
