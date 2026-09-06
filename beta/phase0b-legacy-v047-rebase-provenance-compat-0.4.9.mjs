@@ -3,6 +3,14 @@ import fs from 'node:fs';
 const path = 'beta/verify-phase12-relationship-recovery-0.4.7.mjs';
 let source = fs.readFileSync(path, 'utf8');
 
+// Phase61 intentionally replaces this historical rebase assertion with the new
+// preserve-mode audit-quarantine contract. On subsequent cold replays, do not
+// force the verifier back through the pre-phase61 wording.
+if (source.includes("preserve rebase quarantines it as audit history")) {
+    console.log('v0.4.7 rebase verifier already carries the phase61 preserve-mode contract');
+    process.exit(0);
+}
+
 const before = `    for (const next of [imported.state, rebased]) {
         assert.deepEqual(npc(next).relationshipEvidenceHistory, []);
         assert.deepEqual(npc(next).relationshipDiagnostics, []);
