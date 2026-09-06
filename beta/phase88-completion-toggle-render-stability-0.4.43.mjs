@@ -38,4 +38,5 @@ function replaceRequired(source, from, to, label) {
     fs.writeFileSync(path, source);
 }
 
+// Source-owned transform stays deterministic when replayed onto the pinned v0.3.2 baseline.
 console.log('Applied v0.4.43 completeness toggle gate and render-stable metadata persistence');
