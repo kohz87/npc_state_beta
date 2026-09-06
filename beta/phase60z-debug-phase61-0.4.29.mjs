@@ -26,12 +26,64 @@ const verifierPatches = [
     ]],
     ['beta/verify-phase24-release-source-parity-0.4.14.mjs', [
         ["assert(recovery.includes('rebaseCurrentChat(true)'), 'Committed Force Rebase behavior is missing');", "assert(recovery.includes(\"rebaseCurrentChat('preserve', true)\"), 'Committed Force Preserve Rebase behavior is missing');"],
-        ["assert(recovery.includes('Force Timeline Rebase...'), 'Committed Force Rebase label is stale');", "assert(recovery.includes('Keep NPC state and accept timeline'), 'Committed Force Rebase preserve label is missing');"]
+        ["assert(recovery.includes('Force Timeline Rebase...'), 'Committed Force Rebase label is stale');", "assert(recovery.includes('Keep NPC state and accept timeline'), 'Committed Force Rebase preserve label is missing');"],
+        ["assert(phase15.includes('Force Timeline Rebase...') && phase15.includes('ensureForceControl(forceHost || host)'), 'v0.4.10 force-rebase verifier compatibility is not persisted');", "assert(phase15.includes('Keep NPC state and accept timeline') && phase15.includes('ensureForceControl(forceHost || host)'), 'v0.4.10 preserve-mode force-rebase verifier compatibility is not persisted');"]
     ]]
 ];
 for (const [path, patches] of verifierPatches) {
     let text = fs.readFileSync(path, 'utf8');
     for (const [before, after] of patches) text = text.replace(before, after);
+    fs.writeFileSync(path, text);
+}
+
+{
+    const path = 'beta/verify-phase12-relationship-recovery-0.4.7.mjs';
+    let text = fs.readFileSync(path, 'utf8');
+    text = text.replace(
+`test('cross-chat import and rebase clear timeline-local evidence, preserve durable relationship state', () => {
+    const state = apply(stateWith({ relationship: { trust: 25 } }), 'Mira trusts Lucien with her private correspondence.');
+    const bundle = createNpcStateBundle(state);
+    const imported = applyNpcStateBundleImport(createEmptyState('different-chat'), bundle);
+    assert.equal(imported.ok, true);
+    const rebased = rebaseToCurrentChat(state, [{ is_user: false, mes: 'Mira arrives.' }]);
+    for (const next of [imported.state, rebased]) {
+        assert.deepEqual(npc(next).relationshipEvidenceHistory, []);
+        assert.deepEqual(npc(next).relationshipDiagnostics, []);
+        assert.deepEqual(npc(next).relationship, npc(state).relationship);
+        assert.equal(npc(next).relationshipHistory[0].sourceMessageId, null);
+    }
+    assert.deepEqual(npc(imported.state).relationshipMilestones, npc(state).relationshipMilestones);
+    assert.deepEqual(
+        npc(rebased).relationshipMilestones,
+        npc(state).relationshipMilestones.map(entry => ({ ...entry, sourceMessageId: null, turn: null })),
+    );
+});`,
+`test('cross-chat import clears timeline-local evidence while preserve rebase quarantines it as audit history', () => {
+    const state = apply(stateWith({ relationship: { trust: 25 } }), 'Mira trusts Lucien with her private correspondence.');
+    const bundle = createNpcStateBundle(state);
+    const imported = applyNpcStateBundleImport(createEmptyState('different-chat'), bundle);
+    assert.equal(imported.ok, true);
+    const rebased = rebaseToCurrentChat(state, [{ is_user: false, mes: 'Mira arrives.' }], { relationshipMode: 'preserve' });
+    assert.deepEqual(npc(imported.state).relationshipEvidenceHistory, []);
+    assert.deepEqual(npc(imported.state).relationshipDiagnostics, []);
+    for (const next of [imported.state, rebased]) {
+        assert.deepEqual(npc(next).relationship, npc(state).relationship);
+        assert.equal(npc(next).relationshipHistory[0].sourceMessageId, null);
+    }
+    assert(npc(rebased).relationshipEvidenceHistory.length > 0);
+    assert(npc(rebased).relationshipDiagnostics.length > 0);
+    for (const row of [...npc(rebased).relationshipEvidenceHistory, ...npc(rebased).relationshipDiagnostics]) {
+        assert.equal(row.sourceMessageId, null);
+        assert.equal(row.timelineStatus, 'accepted-pre-rebase');
+        assert(Number.isInteger(row.originalSourceMessageId));
+    }
+    assert.deepEqual(npc(imported.state).relationshipMilestones, npc(state).relationshipMilestones);
+    for (const milestone of npc(rebased).relationshipMilestones) {
+        assert.equal(milestone.sourceMessageId, null);
+        assert.equal(milestone.turn, null);
+        assert.equal(milestone.timelineStatus, 'accepted-pre-rebase');
+    }
+});`);
     fs.writeFileSync(path, text);
 }
 
@@ -45,4 +97,4 @@ if (!verify.includes('PHASE61_CI_TEST_DIAGNOSTIC')) {
     fs.writeFileSync(verifyPath, verify);
 }
 
-console.log('Installed temporary phase61 CI diagnostics, corrected transform boundaries, and updated legacy verifier contracts');
+console.log('Installed temporary phase61 CI diagnostics, corrected transform boundaries, and aligned legacy verifier contracts');
