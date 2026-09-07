@@ -1,0 +1,45 @@
+name: v0.7.6 candidate verification
+
+on:
+  push:
+    branches:
+      - automation/v076-first-pass-completeness
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out candidate branch
+        uses: actions/checkout@v4
+        with:
+          ref: automation/v076-first-pass-completeness
+          fetch-depth: 0
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply focused candidate
+        run: python3 scripts/apply-v076.py
+      - name: Validate source
+        run: npm run validate
+      - name: Run behavioral tests
+        run: npm test
+      - name: Package extension
+        run: npm run package
+      - name: Inspect package and diff
+        run: |
+          unzip -t dist/npc_state_beta-0.7.6.zip
+          git diff --check
+          git status --short
+      - name: Commit verified candidate without scaffolding
+        run: |
+          git rm scripts/apply-v076.py .github/workflows/v076-verify.yml
+          git add CHANGELOG.md DEVELOPMENT.md README.md docs/core-contract.md manifest.json src tests
+          git diff --cached --check
+          git config user.name "OpenAI automation"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "test: verify v0.7.6 first-pass completeness candidate"
+          git push origin HEAD:automation/v076-first-pass-completeness
