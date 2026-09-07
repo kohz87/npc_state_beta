@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.2
+
+- Replaced trimmed relationship-history events as manual rollback authority with a compact durable per-axis correction record. Editor relationship inputs are absolute corrections only for axes actually changed; later story movement remains free to evolve from those values, and checkpoints that already contain a correction revision retain their surviving story gains.
+- Explicit override clearing now clears durable relationship correction ownership and advances its revision so stale manual display-history events cannot silently reassert ownership. Repeated rollback is idempotent and visible relationship history remains bounded by the existing setting.
+- Added conservative v0.7.1 compatibility: a legacy relationship override is restored absolutely only when its surviving manual event and override metadata identify the edited axes. Missing/partial legacy axis provenance is retained as recoverable data and reported as `manual-relationship-correction-uncertain` instead of fabricated into an exact restoration.
+- A recovery commit rejected after an in-flight history change now marks recovery `stale` together with `branchSafety: rebase-required`. Resume revalidates completed recovery ownership before reporting success, preventing a superseded `complete` flag from clearing the block.
+- Persisted state/settings schema remain 1; semantic contract remains 3; foreground contract remains 4. No NPC database rebuild is required.
+
 ## 0.7.1
 
 - Separated manual correction provenance from automatic-update locking. Unchanged editor submissions no longer create blanket overrides, explicit override clearing works, stable-field unlocks are effective, and older corrections do not overwrite newer story state already present in a restored checkpoint.

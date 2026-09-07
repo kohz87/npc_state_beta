@@ -12,6 +12,7 @@ import {
 import {
     DEFAULT_RELATIONSHIP_CAPS,
     MANUAL_OVERRIDE_FIELDS,
+    RELATIONSHIP_AXES,
     applyBirthdayFill,
     applyConfirmedDeathTransition,
     applyManualLifeStateTransition,
@@ -444,6 +445,14 @@ export function createNpcStateEngine(adapters = {}) {
         const blocked = normalizeState(stateInput, stateInput?.chatKey || '');
         blocked.npcs = blocked.npcs.map(npc => ({ ...npc, present: false, worldActive: false }));
         blocked.lastObservation = { messageId: null, exchangeActiveNpcIds: [], finalPresentNpcIds: [], worldActiveNpcIds: [], targetNpcIds: [] };
+        if (blocked.recovery && ['running', 'complete'].includes(String(blocked.recovery.status || ''))) {
+            blocked.recovery = releaseRecoveryOwnership(blocked.recovery);
+            blocked.recovery.status = 'stale';
+            blocked.recovery.reason = 'Recovery source history changed while a recovery commit was saving. The saved recovery boundary is not accepted as complete; restart/reconcile from a verified history boundary.';
+            blocked.recovery.error = 'history-changed-during-persist';
+            blocked.recovery.completedAt = null;
+            blocked.recovery.updatedAt = recoveryNow();
+        }
         blocked.branchSafety = {
             status: 'rebase-required',
             kind: 'commit-history-changed',
@@ -1182,7 +1191,13 @@ export function createNpcStateEngine(adapters = {}) {
             }
             const manualBirthdayChanged = Object.prototype.hasOwnProperty.call(patch || {}, 'birthday')
                 && normalizeBirthday(patch.birthday) !== normalizeBirthday(current.birthday);
-            const nextRaw = { ...current, ...structuredClone(patch), id: current.id, updatedAt: Math.max(Date.now(), Number(current.updatedAt || 0) + 1), manual: true };
+            const manualAt = Date.now();
+            const nextRaw = { ...current, ...structuredClone(patch), id: current.id, updatedAt: Math.max(manualAt, Number(current.updatedAt || 0) + 1), manual: true };
+            let correctionRevision = Math.max(0, Math.trunc(Number(current.manualRelationshipCorrectionRevision) || 0));
+            const correctionByAxis = new Map((current.manualRelationshipCorrections || []).map(item => [item.axis, structuredClone(item)]));
+            const clearRelationshipCorrections = explicitOverridePatch
+                && !Object.prototype.hasOwnProperty.call(patch.manualOverrides, 'relationship');
+            if (clearRelationshipCorrections) correctionByAxis.clear();
             // The editor historically submits birthdayProvenance:'manual' with every save.
             // Do not turn an unchanged birthday into hidden manual ownership.
             if (!manualBirthdayChanged && patch?.birthdayProvenance === 'manual') nextRaw.birthdayProvenance = current.birthdayProvenance;
@@ -1197,7 +1212,7 @@ export function createNpcStateEngine(adapters = {}) {
                 const before = normalizeRelationship(current.relationship);
                 const after = normalizeRelationship({ ...before, ...patch.relationship });
                 nextRaw.relationship = after;
-                const changedAxes = Object.keys(before).filter(axis => before[axis] !== after[axis]);
+                const changedAxes = RELATIONSHIP_AXES.filter(axis => before[axis] !== after[axis]);
                 const inferred = normalizeRelationshipMilestones([], after, { inferFromRelationship: true, includeBoundary: true })
                     .filter(entry => changedAxes.includes(entry.axis));
                 nextRaw.relationshipMilestones = normalizeRelationshipMilestones(
@@ -1205,16 +1220,34 @@ export function createNpcStateEngine(adapters = {}) {
                 const delta = Object.fromEntries(Object.keys(before).map(axis => [axis, after[axis] - before[axis]]));
                 nextRaw.relationshipProgress = { ...(current.relationshipProgress || {}) };
                 for (const axis of Object.keys(delta)) if (delta[axis] !== 0) nextRaw.relationshipProgress[axis] = 0;
-                if (Object.values(delta).some(value => value !== 0)) {
+                if (changedAxes.length) {
+                    correctionRevision += 1;
+                    const sourceMessageId = latestAssistantMessageId(chat);
+                    for (const axis of changedAxes) {
+                        correctionByAxis.set(axis, {
+                            id: axis + ':' + correctionRevision,
+                            axis,
+                            value: after[axis],
+                            revision: correctionRevision,
+                            sourceMessageId: sourceMessageId >= 0 ? sourceMessageId : null,
+                            at: manualAt,
+                        });
+                    }
                     const event = {
                         impact: 'manual', delta, evidence: '', reason: 'Manual dossier adjustment by player.',
-                        sourceMessageId: latestAssistantMessageId(chat), turn: Number.isInteger(state.turn) ? state.turn : null, at: Date.now(),
+                        sourceMessageId, turn: Number.isInteger(state.turn) ? state.turn : null, at: manualAt,
                     };
                     const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(getSettings().relationshipHistoryLimit);
                     nextRaw.lastRelationshipChange = event;
                     nextRaw.relationshipHistory = [...(current.relationshipHistory || []), event].slice(-relationshipHistoryLimit);
+                } else if (clearRelationshipCorrections) {
+                    correctionRevision += 1;
                 }
+            } else if (clearRelationshipCorrections) {
+                correctionRevision += 1;
             }
+            nextRaw.manualRelationshipCorrectionRevision = correctionRevision;
+            nextRaw.manualRelationshipCorrections = [...correctionByAxis.values()];
             const hasManualLifeState = Object.prototype.hasOwnProperty.call(patch || {}, 'lifeState');
             const requestedLifeState = String(patch?.lifeState || '').trim().toLocaleLowerCase();
             if (hasManualLifeState && !['alive', 'dead', 'unknown'].includes(requestedLifeState)) return { rejected: 'invalid-life-state' };
@@ -1235,7 +1268,6 @@ export function createNpcStateEngine(adapters = {}) {
             const manualOverrideMeta = explicitOverridePatch
                 ? {}
                 : structuredClone(current.manualOverrideMeta || {});
-            const manualAt = Date.now();
             const manualSourceMessageId = latestAssistantMessageId(chat);
             for (const field of MANUAL_OVERRIDE_FIELDS) {
                 if (!Object.prototype.hasOwnProperty.call(patch || {}, field)) continue;
@@ -1993,21 +2025,35 @@ export function createNpcStateEngine(adapters = {}) {
             const recovery = state.recovery;
             if (!recovery) return { ok: false, reason: 'no-recovery' };
             if (recoveryOwnedElsewhere(recovery)) return { ok: false, reason: 'recovery-owned-elsewhere', activeElsewhere: true, recovery: decoratedRecoveryStatus(recovery, chatKey) };
-            if (recovery.status === 'complete') return { ok: true, complete: true, recovery: decoratedRecoveryStatus(recovery, chatKey) };
             if (recovery.status === 'cancelled') return { ok: false, reason: 'recovery-cancelled', recovery: decoratedRecoveryStatus(recovery, chatKey) };
             if (recovery.status === 'stale') return { ok: false, reason: 'restart-required', recovery: decoratedRecoveryStatus(recovery, chatKey) };
             if (getChatKey() !== chatKey) return { ok: false, reason: 'chat-switched-before-resume' };
             const context = getContext();
             if (getChatKey() !== chatKey) return { ok: false, reason: 'chat-switched-before-resume' };
             const replanned = replanRecoverySuffix(recovery, context.chat || []);
-            if (!replanned.ok) {
+            if (!replanned.ok || (recovery.status === 'complete' && state.branchSafety?.status !== 'safe')) {
                 state.recovery = releaseRecoveryOwnership(state.recovery);
                 state.recovery.status = 'stale';
                 state.recovery.reason = 'Completed recovery history changed. Restart is required; completed exchanges will not be replayed automatically.';
-                state.recovery.error = replanned.reason;
+                state.recovery.error = replanned.ok ? 'completed-recovery-branch-unsafe' : replanned.reason;
                 state.recovery.updatedAt = Date.now();
                 const persisted = await persist(chatKey, state);
-                return { ok: false, reason: 'restart-required', recovery: decoratedRecoveryStatus(persisted.recovery, chatKey) };
+                return { ok: false, reason: 'restart-required', restartRequired: true, recovery: decoratedRecoveryStatus(persisted.recovery, chatKey), state: structuredClone(persisted) };
+            }
+            if (recovery.status === 'complete') {
+                // A completed recovery is only successful if its completed prefix still owns
+                // the current history and the branch itself remains safe.
+                if (replanned.recovery.completed !== replanned.recovery.total) {
+                    state.recovery = claimRecoveryOwnership({ ...replanned.recovery, status: 'running', completedAt: null, error: '', updatedAt: Date.now() });
+                    const persisted = await persist(chatKey, state);
+                    return { ok: true, recovery: decoratedRecoveryStatus(persisted.recovery, chatKey) };
+                }
+                if (replanned.changed) {
+                    state.recovery = releaseRecoveryOwnership({ ...replanned.recovery, status: 'complete', error: '', updatedAt: Date.now() });
+                    const persisted = await persist(chatKey, state);
+                    return { ok: true, complete: true, recovery: decoratedRecoveryStatus(persisted.recovery, chatKey), state: structuredClone(persisted) };
+                }
+                return { ok: true, complete: true, recovery: decoratedRecoveryStatus(recovery, chatKey), state: structuredClone(state) };
             }
             state.recovery = claimRecoveryOwnership({ ...replanned.recovery, status: 'running', error: '', updatedAt: Date.now() });
             const persisted = await persist(chatKey, state);
@@ -2148,7 +2194,8 @@ export function createNpcStateEngine(adapters = {}) {
             }
             if (getChatKey() !== chatKey) { result = chatChanged('before-commit'); return; }
 
-            const autoRecover = reconciled.needsRecovery && getSettings().branchRescan !== false;
+            const manualRelationshipLimitations = reconciled.manualRelationshipLimitations || [];
+            const autoRecover = reconciled.needsRecovery && !manualRelationshipLimitations.length && getSettings().branchRescan !== false;
             let candidate = normalizeState(reconciled.state, chatKey);
             if (reconciled.needsRecovery) {
                 candidate = prepareBranchRecoveryState(candidate, chat, reconciled.recoveryMessageIds, reconciled.checkpoint?.lineage || [], autoRecover);
@@ -2183,9 +2230,12 @@ export function createNpcStateEngine(adapters = {}) {
                 return;
             }
             result = {
-                ok: true, changed: true, unsafeDivergence: false,
+                ok: manualRelationshipLimitations.length === 0,
+                reason: manualRelationshipLimitations.length ? 'manual-relationship-correction-uncertain' : '',
+                changed: true, unsafeDivergence: false,
                 needsRecovery: reconciled.needsRecovery, fullyRestored: reconciled.fullyRestored,
                 recoveryStarted: autoRecover, checkpoint: reconciled.checkpoint || null,
+                manualRelationshipLimitations: structuredClone(manualRelationshipLimitations),
                 state: structuredClone(persisted),
             };
         });

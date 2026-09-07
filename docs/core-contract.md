@@ -24,9 +24,9 @@ A complete story snapshot restores these together. A newer story value is not pr
 
 ### User-owned state
 
-User-owned state includes settings, portraits, explicit manual corrections, explicit automatic-update locks, importance, and manual NPC deletion/suppression tombstones. Manual relationship events are the authoritative rollback-preservation form for relationship corrections.
+User-owned state includes settings, portraits, explicit manual corrections, explicit automatic-update locks, importance, and manual NPC deletion/suppression tombstones. Manual relationship corrections use a compact per-axis ownership record containing an absolute target and monotonic correction revision; visible relationship history remains bounded display/audit context and is never the durable correction authority.
 
-Manual correction metadata and automatic-update locking are separate concerns. Corrections are preserved across rollback only when they are newer than the selected story snapshot; an older correction already represented by that snapshot must not replace later surviving story state. Automatic semantic evolution is blocked only by explicit field locks, and clearing a lock immediately restores automatic ownership.
+Manual correction metadata and automatic-update locking are separate concerns. A relationship correction applies only to axes the user actually changed. When rollback selects a snapshot that already contains the same correction revision for an axis, that snapshot's later surviving story movement is preserved. When rollback selects a snapshot before the correction, the absolute target for that axis is restored before any surviving suffix is reconstructed. Clearing correction ownership is explicit, durable, and prevents stale manual history events from reappearing as ownership. Automatic semantic evolution remains allowed after a correction and is blocked only by the existing explicit locks where applicable.
 
 ### Operational state
 
@@ -151,11 +151,11 @@ Runs only when enabled, after first-pass application. It supplements the same co
 
 ### Historical reconstruction
 
-Starts from a valid baseline and processes surviving assistant exchanges sequentially. Each step has recovery ownership, source-lineage validation, a durable checkpoint, and resumable progress. Completed history may not be silently replayed against a changed past.
+Starts from a valid baseline and processes surviving assistant exchanges sequentially. Each step has recovery ownership, source-lineage validation, a durable checkpoint, and resumable progress. Completed history may not be silently replayed against a changed past. Recovery completion is not trusted from a stored status flag alone: Resume revalidates the completed prefix and branch safety before reporting success. If finalization loses history ownership while saving, recovery is durably marked stale/restart-required together with the branch block rather than remaining falsely complete.
 
 ### Manual edit/import
 
-Manual editor changes express user intent and record correction provenance without implicitly freezing future semantic evolution. Stable fields are protected from automatic updates only while their explicit lock is enabled; clearing that lock is a real unlock. Rollback preserves a correction made after the selected checkpoint but does not let an older correction overwrite newer story state already contained by that checkpoint. Structured/manual imports use bounded validation and established persistence. Manual writes are owned by the target chat and user intent rather than by a narrative source event. If history shifts during their asynchronous save, keep the durable user edit/import but block the old narrative boundary for reconciliation instead of discarding the user action or advertising the old checkpoint as current.
+Manual editor changes express user intent and record correction provenance without implicitly freezing future semantic evolution. Relationship numeric edits are absolute per-axis corrections: editing Trust does not claim Affection, Desire, or Tension. Stable fields are protected from automatic updates only while their explicit lock is enabled; clearing that lock is a real unlock. Rollback preserves a correction made after the selected checkpoint but does not let an older correction overwrite newer story state already contained by that checkpoint. Supported legacy manual relationship events are interpreted only when surviving override metadata establishes the edited axes; missing per-axis provenance is surfaced as a blocked limitation instead of guessed. Structured/manual imports use bounded validation and established persistence. Manual writes are owned by the target chat and user intent rather than by a narrative source event. If history shifts during their asynchronous save, keep the durable user edit/import but block the old narrative boundary for reconciliation instead of discarding the user action or advertising the old checkpoint as current.
 
 ### Deletion/edit/swipe reconciliation
 

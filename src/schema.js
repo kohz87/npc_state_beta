@@ -1,7 +1,7 @@
 import { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 export { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 import { normalizeNumericSetting } from './settings-contract.js';
-export const NPC_STATE_VERSION = '0.7.1';
+export const NPC_STATE_VERSION = '0.7.2';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     return normalizeNumericSetting('scannerResponseTokens', value);
@@ -164,6 +164,36 @@ function normalizeManualOverrideMeta(value) {
         out[field] = { at, sourceMessageId };
     }
     return out;
+}
+
+export const MANUAL_RELATIONSHIP_CORRECTION_VERSION = 1;
+export function normalizeManualRelationshipCorrections(value = [], revisionValue = 0) {
+    const source = Array.isArray(value) ? value : [];
+    let revision = Math.max(0, Math.trunc(Number(revisionValue) || 0));
+    const byAxis = new Map();
+    for (const raw of source) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+        const axis = String(raw.axis || '').trim().toLocaleLowerCase();
+        const itemRevision = Math.max(0, Math.trunc(Number(raw.revision) || 0));
+        if (!RELATIONSHIP_AXES.includes(axis) || itemRevision <= 0) continue;
+        const normalized = normalizeRelationship({ [axis]: raw.value });
+        const item = {
+            id: axis + ':' + itemRevision,
+            axis,
+            value: normalized[axis],
+            revision: itemRevision,
+            sourceMessageId: Number.isInteger(raw.sourceMessageId) ? raw.sourceMessageId : null,
+            at: Number(raw.at) || null,
+        };
+        const prior = byAxis.get(axis);
+        if (!prior || item.revision >= prior.revision) byAxis.set(axis, item);
+        revision = Math.max(revision, itemRevision);
+    }
+    return {
+        version: MANUAL_RELATIONSHIP_CORRECTION_VERSION,
+        revision,
+        corrections: RELATIONSHIP_AXES.map(axis => byAxis.get(axis)).filter(Boolean),
+    };
 }
 export const DEFAULT_RELATIONSHIP = Object.freeze({ trust: 0, affection: 0, desire: 0, tension: 0 });
 export const DEFAULT_RELATIONSHIP_PROGRESS = Object.freeze({ trust: 0, affection: 0, desire: 0, tension: 0 });
@@ -878,6 +908,10 @@ export function normalizeNpc(input = {}, options = {}) {
     const hasMilestoneState = Object.prototype.hasOwnProperty.call(input, 'relationshipMilestones');
     const relationshipMilestones = normalizeRelationshipMilestones(input.relationshipMilestones, relationship, { inferFromRelationship: !hasMilestoneState });
     const profileEvolutionEvidence = normalizeProfileEvolutionEvidence(input.profileEvolutionEvidence);
+    const manualRelationshipCorrectionState = normalizeManualRelationshipCorrections(
+        input.manualRelationshipCorrections,
+        input.manualRelationshipCorrectionRevision,
+    );
     const appearanceForms = normalizeAppearanceForms(input.appearanceForms);
     const requestedCurrentForm = text(input.currentForm, 80);
     const matchedCurrentForm = appearanceFormByName(appearanceForms, requestedCurrentForm);
@@ -942,6 +976,9 @@ export function normalizeNpc(input = {}, options = {}) {
         manualProfileFields: STABLE_PROFILE_FIELDS.filter(field => locked.has(field)),
         manualOverrides: normalizeManualOverrides(input.manualOverrides),
         manualOverrideMeta: normalizeManualOverrideMeta(input.manualOverrideMeta),
+        manualRelationshipCorrectionVersion: manualRelationshipCorrectionState.version,
+        manualRelationshipCorrectionRevision: manualRelationshipCorrectionState.revision,
+        manualRelationshipCorrections: manualRelationshipCorrectionState.corrections,
         retentionProtected: input.retentionProtected === true,
         minor: input.minor === true,
         portrait: input.portrait && typeof input.portrait === 'object' ? structuredClone(input.portrait) : null,
@@ -1063,7 +1100,7 @@ export function normalizeState(input = {}, chatKey = '') {
         ? 'rebase-required'
         : (['safe', 'rebase-required'].includes(rawSafetyStatus) ? rawSafetyStatus : 'safe');
     const rawSafetyKind = String(rawSafety.kind || '');
-    const branchSafetyKind = ['prebaseline-truncation', 'prebaseline-rewrite', 'legacy-prebaseline-divergence', 'suffix-recovery-required', 'missing-trusted-baseline', 'rollback-save-failed', 'commit-history-changed'].includes(rawSafetyKind)
+    const branchSafetyKind = ['prebaseline-truncation', 'prebaseline-rewrite', 'legacy-prebaseline-divergence', 'suffix-recovery-required', 'missing-trusted-baseline', 'rollback-save-failed', 'commit-history-changed', 'manual-relationship-correction-uncertain'].includes(rawSafetyKind)
         ? rawSafetyKind
         : (rawSafetyStatus === 'prebaseline-diverged' ? 'legacy-prebaseline-divergence' : '');
     return {

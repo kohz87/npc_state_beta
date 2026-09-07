@@ -1,15 +1,15 @@
 # NPC State Beta
 
-NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.7.1 hardens the v0.7 ownership, rollback, rename, recovery-finalization, publication, and diagnostic integration boundaries without changing the persisted schema.
+NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.7.2 makes manual relationship correction ownership independent of trimmed display history and keeps recovery completion honest after rejected finalization, without changing the persisted schema.
 
 
-## Release 0.7.1
+## Release 0.7.2
 
 The authoritative maintenance specification is [`docs/core-contract.md`](docs/core-contract.md). It defines seven responsibilities: state/ownership, chat/history identity, model context, update application, commit/persistence, rollback/reconstruction, and diagnostics. `DEVELOPMENT.md` now references that contract instead of carrying a second set of runtime rules.
 
-The ordinary dossier registry records field kind, durability, normalization contract, permitted operations/evidence, first-pass requirements, and manual ownership. Manual corrections now carry rollback-preservation metadata without acting as automatic scanner locks; only the explicit stable-field lock suppresses later semantic evolution, and clearing it is a real unlock. Relationship/lifecycle/graph mechanics remain focused deterministic domains rather than being forced through the ordinary field validator.
+The ordinary dossier registry records field kind, durability, normalization contract, permitted operations/evidence, first-pass requirements, and manual ownership. Manual relationship edits now keep a compact four-axis correction record with absolute targets and monotonic revisions, separate from bounded visible relationship history and separate from automatic-update locks. A snapshot that already contains a correction keeps its later surviving story movement; a snapshot before it restores only the axes the user explicitly corrected.
 
-Foreground capture, Scan, Refresh, completeness, structured import, historical recovery, recovery finalization, and branch restoration share the guarded durable commit responsibility. Candidate state is published to consumers only after the post-save ownership check. Chat renames retarget checkpoint/baseline ownership, and rollback preserves only manual corrections newer than the restored snapshot. If history changes while saving, the write is not accepted as current and the timeline is persisted/held blocked for reconciliation. No pre-generation model request was added.
+Foreground capture, Scan, Refresh, completeness, structured import, historical recovery, recovery finalization, and branch restoration share the guarded durable commit responsibility. Candidate state is published to consumers only after the post-save ownership check. If recovery finalization loses history ownership, both recovery and branch safety remain blocked, and Resume revalidates completed history before it can report success. Chat renames continue to retarget checkpoint/baseline ownership. No pre-generation model request was added.
 
 A bounded in-memory operation ledger observes the real workflow without storing prompts or chat content. `NPCState.debugStatus()` exposes only a concise operation summary; `NPCState.operationDiagnostics()` opts into detailed local records with source fingerprints/history hashes, selected NPC ids, local prompt estimates, proposal outcomes/reasons, persistence revision, checkpoint/recovery state, and failures. Invalid proposals are reported as rejected with their reason instead of being hidden inside unchanged counts.
 
@@ -36,7 +36,7 @@ Full Scan, completeness, and historical recovery now validate semantic source ex
 
 Version boundaries:
 
-- Extension release: `0.7.1`
+- Extension release: `0.7.2`
 - Persisted state schema: `1` (unchanged)
 - Model semantic update contract: `3`
 - Settings schema: `1` (unchanged)
