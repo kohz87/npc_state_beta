@@ -1,0 +1,52 @@
+name: v077 reviewed candidate verification
+on:
+  push:
+    branches: [automation/v077-contract-review]
+    paths: [.github/workflows/v077-verify.yml]
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Restore exact local review commits
+        run: |
+          test -z "$(git status --porcelain)"
+          cp -r .review /tmp/npc-review-transfer
+          git checkout --detach ae85c0a680792e68a1b8631deb94fabc0f2b5080
+          python3 /tmp/npc-review-transfer/reconstruct.py
+          test "$(git rev-parse HEAD)" = d132973cce0046e81701ec0a8946b5a740a69a9b
+          test -z "$(git status --porcelain)"
+      - name: Validate source and run full suite
+        run: |
+          set -o pipefail
+          npm run validate | tee /tmp/v077-validation.log
+          npm test | tee /tmp/v077-tests.log
+      - name: Package and inspect runtime
+        run: |
+          npm run package
+          unzip -t dist/npc_state_beta-0.7.7.zip
+          test "$(unzip -Z1 dist/npc_state_beta-0.7.7.zip | wc -l)" -eq 56
+          ! unzip -Z1 dist/npc_state_beta-0.7.7.zip | grep -E '/(tests|scripts|\.review|\.github)/'
+          git diff --check ae85c0a680792e68a1b8631deb94fabc0f2b5080..HEAD
+          git diff --stat ae85c0a680792e68a1b8631deb94fabc0f2b5080..HEAD
+          git log -2 --format=fuller
+          sha256sum dist/npc_state_beta-0.7.7.zip
+      - name: Publish verified candidate branch without changing main
+        run: |
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = ae85c0a680792e68a1b8631deb94fabc0f2b5080
+          git push origin HEAD:refs/heads/automation/v077-validated
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v077-reviewed-package-and-results
+          path: |
+            dist/*.zip
+            /tmp/v077-validation.log
+            /tmp/v077-tests.log
+          if-no-files-found: error
