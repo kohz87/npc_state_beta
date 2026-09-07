@@ -1,6 +1,6 @@
 import { chatLineage, bestCheckpoint, ensureBranchBase, fingerprintMessage, normalizeRebaseRelationshipMode, previewRelationshipRebase, rebaseToCurrentChat, reconcileToCurrentBranch, recordCheckpoint } from './branches.js';
 // PHASE61_SAFE_REBASE_RELATIONSHIP_MODES: preserve-mode rebase cannot mutate relationship state during its immediate refresh.
-import { buildExchangeEvidencePolicy, profileEvidenceText, relationshipEvidenceText, retentionEvidenceText, structuredDossierBlocksForNpc } from './evidence-adapter.js';
+import { analyzeStructuredEvidence, buildExchangeEvidencePolicy, profileEvidenceText, relationshipEvidenceText, retentionEvidenceText, structuredDossierBlocksForNpc } from './evidence-adapter.js';
 import {
     applyNpcStateBundleImport,
     bundleSuggestedFilename,
@@ -60,6 +60,25 @@ function profileContextForWindow(chat = [], messageId = null, depth = 8) {
         rows.push(profileEvidenceText(message.mes || '').slice(0, 8000));
     }
     return rows.join('\n');
+}
+
+function structuredSemanticContextsForWindow(chat = [], messageId = null, depth = 12) {
+    const end = Number.isInteger(messageId) ? Math.min(chat.length - 1, messageId) : chat.length - 1;
+    const rows = [];
+    for (let i = 0; i <= end; i += 1) {
+        const message = chat[i];
+        if (!message || message.is_system) continue;
+        rows.push(message);
+    }
+    const selected = rows.slice(-Math.max(2, Math.min(30, Math.round(Number(depth) || 12))));
+    const world = [];
+    const inner = [];
+    for (const message of selected) {
+        const view = analyzeStructuredEvidence(message.mes || '');
+        if (view.worldStateText) world.push(view.worldStateText);
+        if (view.innerChatterText) inner.push(view.innerChatterText);
+    }
+    return { world: world.join('\n'), private: inner.join('\n') };
 }
 
 function relationshipContextForExchange(exchange) {
@@ -598,7 +617,7 @@ export function createNpcStateEngine(adapters = {}) {
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 relationshipContext: relationshipContextForExchange(exchange),
-                profileContext: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
+                profileContext: profileContextForWindow(chat, messageId, settings.scanDepth),
                 evidencePolicy: buildExchangeEvidencePolicy(exchange),
                 currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
                 admissionMode: settings.newNpcAdmissionMode,
@@ -609,6 +628,7 @@ export function createNpcStateEngine(adapters = {}) {
                     fallbackDays: settings.birthdayRandomDaysPerMonth,
                 },
                 applyReturnedNpcPatches: true,
+                requireDossierCoverage: true,
                 applyRelationship: relationshipApplyRequested && !replayProtectedRelationship,
                 repairRelationshipSummary: manual,
             });
@@ -638,6 +658,8 @@ export function createNpcStateEngine(adapters = {}) {
                 worldActiveNpcIds: applied.worldActiveNpcIds,
                 referencedNpcIds,
                 targetNpcIds: applied.targetNpcIds,
+                semanticDiagnostics: applied.semanticDiagnostics || [],
+                coverageDiagnostics: applied.coverageDiagnostics || [],
                 stale: {
                     archivedIds: stale.archivedIds,
                     restoredIds: stale.restoredIds,
@@ -728,6 +750,8 @@ export function createNpcStateEngine(adapters = {}) {
                 finalPresentNpcIds: applied.finalPresentNpcIds,
                 worldActiveNpcIds: applied.worldActiveNpcIds,
                 referencedNpcIds, targetNpcIds: applied.targetNpcIds,
+                semanticDiagnostics: applied.semanticDiagnostics || [],
+                coverageDiagnostics: applied.coverageDiagnostics || [],
                 state: structuredClone(persisted),
             };
         });
@@ -788,7 +812,7 @@ export function createNpcStateEngine(adapters = {}) {
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 relationshipContext: '',
-                profileContext: currentEvidence,
+                profileContext: profileContextForWindow(liveChat, messageId, settings.scanDepth),
                 evidencePolicy: buildExchangeEvidencePolicy(exchange),
                 currentAdmissionText: currentEvidence,
                 admissionMode: settings.newNpcAdmissionMode,
@@ -815,6 +839,8 @@ export function createNpcStateEngine(adapters = {}) {
                 finalPresentNpcIds: applied.finalPresentNpcIds,
                 worldActiveNpcIds: applied.worldActiveNpcIds,
                 targetNpcIds: applied.targetNpcIds,
+                semanticDiagnostics: applied.semanticDiagnostics || [],
+                coverageDiagnostics: applied.coverageDiagnostics || [],
                 state: structuredClone(persisted),
             };
         });
@@ -938,6 +964,7 @@ export function createNpcStateEngine(adapters = {}) {
             if (getChatKey() !== chatKey || epoch(chatKey) !== startEpoch || fingerprintMessage(liveChat[messageId] || {}) !== startFingerprint) {
                 return { ok: false, discarded: true, reason: 'stale-operation' };
             }
+            const refreshStructured = structuredSemanticContextsForWindow(liveChat, messageId, settings.scanDepth);
             const applied = applyScanResult(state, parsed, {
                 sourceMessageId: messageId,
                 turn: state.turn,
@@ -946,6 +973,8 @@ export function createNpcStateEngine(adapters = {}) {
                 applyRelationship: false,
                 allowHistoricalProfilePatches: true,
                 profileContext: profileContextForWindow(liveChat, messageId, settings.scanDepth),
+                semanticWorldContext: refreshStructured.world,
+                semanticPrivateContext: refreshStructured.private,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 dossierLimits: settings.dossierLimits,
                 birthdayFill: {
@@ -954,13 +983,14 @@ export function createNpcStateEngine(adapters = {}) {
                     fallbackDays: settings.birthdayRandomDaysPerMonth,
                 },
                 applyReturnedNpcPatches: true,
+                coverageNpcIds: [npc.id],
                 reconcileRelationshipSummary: true,
                 reconcileFamilyGraph: false,
             });
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
             const committed = recordCheckpoint(applied.state, liveChat, messageId, 'targeted-refresh');
             const persisted = await persist(chatKey, committed);
-            return { ok: true, npcId: npc.id, state: structuredClone(persisted) };
+            return { ok: true, npcId: npc.id, semanticDiagnostics: applied.semanticDiagnostics || [], coverageDiagnostics: applied.coverageDiagnostics || [], state: structuredClone(persisted) };
         });
     }
 
@@ -1590,7 +1620,7 @@ export function createNpcStateEngine(adapters = {}) {
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 relationshipContext: relationshipContextForExchange(exchange),
-                profileContext: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
+                profileContext: profileContextForWindow(historicalChat, nextMessageId, settings.scanDepth),
                 evidencePolicy: buildExchangeEvidencePolicy(exchange),
                 currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
                 admissionMode: settings.newNpcAdmissionMode,
@@ -1601,6 +1631,7 @@ export function createNpcStateEngine(adapters = {}) {
                     fallbackDays: settings.birthdayRandomDaysPerMonth,
                 },
                 applyReturnedNpcPatches: true,
+                requireDossierCoverage: true,
                 applyRelationship: working.recovery?.relationshipMode === 're-evaluate',
             });
             const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(settings.relationshipHistoryLimit);
@@ -1639,6 +1670,8 @@ export function createNpcStateEngine(adapters = {}) {
                 ok: true,
                 messageId: nextMessageId,
                 recovery: decoratedRecoveryStatus(persisted.recovery, chatKey),
+                semanticDiagnostics: applied.semanticDiagnostics || [],
+                coverageDiagnostics: applied.coverageDiagnostics || [],
                 state: structuredClone(persisted),
             };
         });

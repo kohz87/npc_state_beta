@@ -10,22 +10,27 @@ import {
     normalizeName,
     normalizeNpc,
 } from '../schema.js';
+import {
+    DOSSIER_COLLECTION_FIELDS,
+    DOSSIER_DURABLE_FIELDS,
+    DOSSIER_EVALUATION_GROUPS,
+    DOSSIER_FIELD_DEFINITIONS,
+    DOSSIER_FORM_FIELDS,
+    DOSSIER_SCALAR_FIELDS,
+    DOSSIER_SEMANTIC_FIELDS,
+    dossierFieldDefinition,
+    dossierFieldGroup,
+    dossierSemanticFieldList,
+} from './dossier-fields.js';
 
-export const NPC_STATE_MODEL_CONTRACT_VERSION = 2;
+export const NPC_STATE_MODEL_CONTRACT_VERSION = 3;
 export const SEMANTIC_UPDATE_OPERATIONS = Object.freeze(['establish', 'refine', 'replace', 'remove']);
 
-const SCALAR_FIELDS = new Set([
-    'personality', 'speech', 'role', 'species', 'background', 'appearance',
-    'age', 'apparentAge', 'birthday', 'mood', 'location', 'goal', 'status',
-]);
-const COLLECTION_FIELDS = new Set(['behaviorProfile', 'mannerisms', 'keyRelationships', 'memories']);
-const FORM_FIELD = 'appearanceForms';
-const DURABLE_FIELDS = new Set([
-    'personality', 'speech', 'role', 'species', 'background', 'appearance', 'age',
-    'apparentAge', 'birthday', 'behaviorProfile', 'mannerisms', 'keyRelationships',
-    'memories', 'appearanceForms',
-]);
-const PROFILE_FIELDS = new Set(['personality', 'speech', 'behaviorProfile', 'mannerisms']);
+const FIELD_SET = new Set(DOSSIER_SEMANTIC_FIELDS);
+const SCALAR_FIELDS = new Set(DOSSIER_SCALAR_FIELDS);
+const COLLECTION_FIELDS = new Set(DOSSIER_COLLECTION_FIELDS);
+const FORM_FIELDS = new Set(DOSSIER_FORM_FIELDS);
+const DURABLE_FIELDS = new Set(DOSSIER_DURABLE_FIELDS);
 const AGE_KINDS = new Set(['birthday', 'elapsed', 'correction']);
 
 function compact(value, max = 2000) {
@@ -59,6 +64,14 @@ function collectionContext(field, values = []) {
     return (Array.isArray(values) ? values : []).map(value => ({ ref: semanticEntryRef(field, value), value }));
 }
 
+function formContext(values = []) {
+    return normalizeAppearanceForms(values).map(form => ({
+        ref: semanticEntryRef('appearanceForms', form.name),
+        name: form.name,
+        appearance: form.appearance,
+    }));
+}
+
 export function semanticDossierContext(npc = {}) {
     return {
         id: npc.id,
@@ -69,22 +82,18 @@ export function semanticDossierContext(npc = {}) {
         apparentAge: npc.apparentAge,
         birthday: npc.birthday,
         appearance: npc.appearance,
-        appearanceForms: normalizeAppearanceForms(npc.appearanceForms).map(form => ({
-            ref: semanticEntryRef('appearanceForms', form.name),
-            name: form.name,
-            appearance: form.appearance,
-        })),
+        appearanceForms: formContext(npc.appearanceForms),
         currentForm: npc.currentForm,
         personality: npc.personality,
         behaviorProfile: collectionContext('behaviorProfile', npc.behaviorProfile),
         speech: npc.speech,
         mannerisms: collectionContext('mannerisms', npc.mannerisms),
-        keyRelationships: collectionContext('keyRelationships', npc.keyRelationships),
-        memories: collectionContext('memories', npc.memories),
         mood: npc.mood,
         location: npc.location,
         goal: npc.goal,
         status: npc.status,
+        memories: collectionContext('memories', npc.memories),
+        keyRelationships: collectionContext('keyRelationships', npc.keyRelationships),
         background: npc.background,
         manualProfileFields: Array.isArray(npc.manualProfileFields) ? npc.manualProfileFields : [],
         profileEvolutionEvidence: Array.isArray(npc.profileEvolutionEvidence)
@@ -99,46 +108,71 @@ export function semanticDossierContext(npc = {}) {
     };
 }
 
-export function semanticUpdatePrompt({ npcs = [], mode = 'scan', allowedSourceIds = [] } = {}) {
-    const contexts = (Array.isArray(npcs) ? npcs : []).slice(0, 100).map(semanticDossierContext);
+export function semanticEditIndex(npc = {}) {
+    const refs = {};
+    for (const field of DOSSIER_COLLECTION_FIELDS) refs[field] = collectionContext(field, npc?.[field]);
+    refs.appearanceForms = formContext(npc.appearanceForms).map(form => ({ ref: form.ref, name: form.name }));
+    return {
+        id: npc.id,
+        name: npc.name,
+        refs,
+        manualProfileFields: Array.isArray(npc.manualProfileFields) ? npc.manualProfileFields : [],
+        recentProfileEvidence: Array.isArray(npc.profileEvolutionEvidence)
+            ? npc.profileEvolutionEvidence.slice(-4).map(row => ({
+                field: row.field,
+                sourceMessageId: row.sourceMessageId,
+                evidence: compact(row.evidence, 260),
+            }))
+            : [],
+    };
+}
+
+function updateContext(npcs, compactContext) {
+    const rows = (Array.isArray(npcs) ? npcs : []).slice(0, 100);
+    return rows.map(npc => compactContext ? semanticEditIndex(npc) : semanticDossierContext(npc));
+}
+
+export function semanticUpdatePrompt({ npcs = [], mode = 'scan', allowedSourceIds = [], compactContext = false } = {}) {
+    const contexts = updateContext(npcs, compactContext);
     const sources = [...new Set((Array.isArray(allowedSourceIds) ? allowedSourceIds : []).filter(Number.isInteger))].sort((a, b) => a - b);
+    const groups = DOSSIER_EVALUATION_GROUPS.join('|');
     return [
-        `NPC STATE MODEL-LED UPDATE CONTRACT v${NPC_STATE_MODEL_CONTRACT_VERSION}:`,
-        `Operation mode: ${mode}.`,
-        'For an EXISTING dossier, semantic interpretation belongs to you. Code validates targeting, source provenance, manual locks, deterministic numeric normalization, ordering, limits, and persistence. Do not depend on magic English cue words, fixed observation counts, or concept-label repetition.',
-        'When supplied evidence establishes, refines, changes, corrects, or retires durable or current-state information, put an explicit semanticUpdates array on that NPC patch. Omission means no change. Legacy profileChanges/canonChanges are compatibility-only and should be omitted for existing-dossier revisions.',
-        'Each semantic update has: field, operation establish|refine|replace|remove, value when applicable, sources [{messageId, excerpt}], and a brief explanation. For collection edits, prefer changes [{action:add|replace|remove, ref, expected, value}] so one entry can change without rewriting unrelated entries. ref values are supplied below. Use clear:true only when the evidence explicitly supports clearing the entire collection.',
-        'Evidence references prove only that the cited source is inside the permitted supplied context. They do not prove your interpretation. Every automatic semantic update needs at least one concrete excerpt from the supplied source window. Never cite a saved model summary as independent proof of itself.',
-        'establish is for a genuinely unestablished field. refine keeps the existing characterization true while making it more precise. replace is for an outdated, corrected, or genuinely developed value. remove retires unsupported, corrected, or explicitly abandoned information. Empty arrays alone never mean clear.',
-        'PERSONALITY / BEHAVIOR / SPEECH / MANNERISMS: distinguish temporary state from durable characterization. Sleeping, unconsciousness, silence while asleep, one-off reactions, poses, and momentary moods are not permanent personality or speech traits. Later rich evidence may establish the first meaningful baseline without proving a transformation. Compatible detail may refine it. Genuine development or correction may replace it. A mannerism should be a durable recurring tendency, but no particular English habit phrase or repeated scan count is required when the supplied narrative already establishes that meaning.',
-        'A sleeping NPC is not therefore mute. If an old post-emergence placeholder such as Quiet/dormant, Unvoiced/currently sleeping, or sleeps with wings folded is merely a temporary initial observation and later supplied evidence establishes actual characterization, replace or remove the obsolete profile entry. Do not copy obsolete sleep information into Status after the NPC is awake.',
-        'Form-specific habits remain valid canon for that form unless later evidence explicitly changes or removes them. A current switch to Human/Base form is not evidence that an alternate-form habit ceased to exist. When useful, set scope:{form:"exact stored/current form name"}; the backend preserves unrelated form knowledge.',
-        'DURABLE CANON: role, species, background, ordinary/shared appearance and birthday use the same semanticUpdates contract. Decide whether evidence is a refinement, revelation, correction, or lasting change. Temporary form changes never rewrite permanent species or ordinary appearance. Set durability:"durable" for durable canon; do not propose a durable rewrite for temporary evidence.',
-        'AGE: chronological age and apparentAge are separate fields. For an established chronological age that changes, use field age, operation replace, ageKind birthday|elapsed|correction, and the resulting grounded numeric age. You decide which semantic kind the story establishes; no mandatory English cue phrase exists. Do not infer chronological age from appearance. Do not invent a calendar. Calendar arithmetic is only valid when the relevant calendar facts and elapsed-time facts are supplied.',
-        'MATURATION / APPEARANCE: use semantic judgment grounded in established species biology and narrative evidence. Ordinary growth, unusual fantasy maturation, explicit rejuvenation and other grounded transformations are allowed without arbitrary minimum intervals or hardcoded growth ceilings. Update only the affected shared appearance or named form; preserve unrelated scars, colors, species markers and other forms.',
-        'COLLECTIONS: replacement/removal must target an entry by supplied ref or exact expected value when possible. A meaningful replacement is allowed at capacity because it replaces a slot before additions are considered. Preserve unrelated entries. memories remain durable event continuity and should not be churned by wording drift.',
-        'CURRENT STATE: mood, location, goal, and status are live-state scalars, not durable canon. Reconsider them whenever the supplied exchange establishes a newer current truth. Use establish when previously unknown, replace when the current value changes, refine only when the stored value remains true but becomes more precise, and remove when the stored value is conclusively obsolete and no replacement is supported. A completed/abandoned goal or departed location must not linger merely because there is no replacement. Status is current activity/condition only and is never lifecycle presence.',
+        `NPC STATE DOSSIER UPDATE CONTRACT v${NPC_STATE_MODEL_CONTRACT_VERSION}:`,
+        `Mode: ${mode}. EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates. Do not also emit profileChanges, canonChanges, ageChange, appearanceFormChanges, keyRelationshipChanges, or direct ordinary dossier replacements for an existing NPC. Those are compatibility/new-NPC bootstrap only.`,
+        `Semantic fields: ${dossierSemanticFieldList()}. Operations: ${SEMANTIC_UPDATE_OPERATIONS.join('|')}.`,
+        `For every exchange-active EXISTING NPC, inspect all evaluation groups and return evaluatedGroups:[${groups}]. A listed group means you actually checked its stored values against supplied evidence, even when it produced no update. For targeted Refresh, inspect all groups for the target.`,
+        'Each semantic update is {field,operation,value?,changes?,clear?,durability?,scope?,ageKind?,sources:[{messageId,excerpt}],explanation}. Omission means unchanged, not deletion. remove is explicit. Empty arrays never clear unless clear:true is explicitly supported.',
+        'Evidence excerpts must be concrete text from the supplied permitted source window. Saved dossier summaries are context, not independent proof. Code validates source provenance, targeting, manual locks, normalization, collection limits and persistence; you decide semantic meaning.',
+        'STRUCTURED EVIDENCE AUTHORITY: World_State may support only live location/status; NPC_Inner_Chatter may support only private mood/goal. Neither source may rewrite durable canon/profile/memory/keyRelationships/currentForm. Visible narrative remains valid for every semantic field.',
+        'Durable canon/profile fields may establish, refine, replace, or remove only when the narrative supports durable truth. Temporary sleep, unconsciousness, silence while asleep, one-off reactions, poses, moods and forms do not rewrite durable personality/speech/canon. A real later characterization may replace an obsolete temporary placeholder.',
+        'Profile fields are personality, behaviorProfile, speech and mannerisms. Mannerisms represent durable recurring tendencies, not isolated gestures. Form-specific traits stay scoped when relevant.',
+        'Canon fields are role, species, background, appearance, appearanceForms, age, apparentAge and birthday. Temporary form changes do not rewrite species or ordinary/shared appearance. Established chronological age replacement needs ageKind birthday|elapsed|correction and evidence containing the resulting number. Do not infer chronological age from appearance or invent calendar arithmetic.',
+        'Live fields are mood, location, goal, status and currentForm. Reconsider them whenever supplied evidence establishes a newer current truth. Remove an obsolete completed goal/location/status when it conclusively ended and no replacement is supported. Status is current activity/condition, never presence/lifecycle.',
+        'Collections are behaviorProfile, mannerisms, keyRelationships and memories. Prefer targeted changes using supplied ref or exact expected value. Replacements/removals happen before additions, so a full collection can still evolve without evicting unrelated entries. Important memories are durable distinct events/facts, not paraphrase logs.',
+        'appearanceForms edits target an existing form by scope.form, targetForm, ref or exact form name. Add a new form with establish; replace/remove only the targeted form. currentForm is live state and uses its own scalar semantic update.',
+        'keyRelationships contains NON-PLAYER NPC ties only. Player relationship state is handled by relationshipSummary/relationshipChange outside this semantic channel.',
         mode === 'completeness'
-            ? 'SUPPLEMENTAL SAFETY: this exact response was already committed once. Do not replay relationship changes, lifecycle events, narrative-turn advancement, aging, memories, or development evidence merely because they are visible again. Propose only genuinely missing/corrective semantic updates; identical outcomes are no-change.'
+            ? 'SUPPLEMENTAL SAFETY: this exchange was already committed. Do not replay relationship changes, lifecycle events, age progression, memories, or development merely because they are visible again. Propose only genuinely missing/corrective dossier semantic updates.'
             : '',
         mode === 'historical'
-            ? 'HISTORICAL SAFETY: only evidence supplied for the current reconstruction point may be used. Never cite or infer from future messages.'
+            ? 'HISTORICAL SAFETY: use only evidence at or before this reconstruction point. Never cite future messages.'
             : '',
         sources.length ? `PERMITTED SOURCE MESSAGE IDS: ${JSON.stringify(sources)}` : 'PERMITTED SOURCE MESSAGE IDS: use only IDs actually present in the supplied prompt/window.',
-        'CURRENT DURABLE DOSSIER CONTEXT INCLUDING PERSONALITY AND SPEECH:',
+        compactContext ? 'SEMANTIC EDIT INDEX (stored values are already in the main dossier roster; this index supplies edit refs/locks only):' : 'CURRENT DOSSIER CONTEXT:',
         JSON.stringify(contexts),
         'SEMANTIC UPDATE SHAPE:',
         JSON.stringify({
+            evaluatedGroups: DOSSIER_EVALUATION_GROUPS,
             semanticUpdates: [{
-                field: 'personality|behaviorProfile|speech|mannerisms|role|species|background|appearance|appearanceForms|age|apparentAge|birthday|mood|location|goal|status|keyRelationships|memories',
-                operation: 'establish|refine|replace|remove',
+                field: dossierSemanticFieldList(),
+                operation: SEMANTIC_UPDATE_OPERATIONS.join('|'),
                 value: 'scalar, collection, or form value as appropriate',
-                changes: [{ action: 'add|replace|remove', ref: 'supplied stable entry ref when available', expected: 'exact current value when ref is unavailable', value: 'new value for add/replace' }],
+                changes: [{ action: 'add|replace|remove', ref: 'supplied stable entry ref', expected: 'exact current value fallback', value: 'new value for add/replace' }],
                 clear: false,
                 durability: 'durable|temporary',
                 scope: { form: 'optional exact form name' },
-                ageKind: 'birthday|elapsed|correction when changing established chronological age',
-                sources: [{ messageId: 0, excerpt: 'short concrete excerpt from supplied permitted context' }],
+                ageKind: 'birthday|elapsed|correction when replacing established chronological age',
+                sources: [{ messageId: 0, excerpt: 'short concrete excerpt from supplied context' }],
                 explanation: 'brief semantic reason',
             }],
         }),
@@ -152,10 +186,17 @@ function sourceRows(update) {
     })).filter(row => row.excerpt);
 }
 
+function semanticSourceContext(field, options = {}) {
+    const parts = [options.semanticEvidenceContext ?? options.profileContext];
+    if (['location', 'status'].includes(field)) parts.push(options.semanticWorldContext);
+    if (['mood', 'goal'].includes(field)) parts.push(options.semanticPrivateContext);
+    return evidenceKey(parts.filter(Boolean).join('\n'), 50000);
+}
+
 function sourceValidation(update, options = {}) {
     const rows = sourceRows(update);
     if (!rows.length) return { ok: false, reason: 'missing-source' };
-    const context = evidenceKey(options.profileContext, 50000);
+    const context = semanticSourceContext(update.field, options);
     if (!context) return { ok: false, reason: 'no-permitted-context' };
     const currentMessageId = Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null;
     for (const row of rows) {
@@ -179,11 +220,8 @@ function normalizedScalar(field, value) {
     if (field === 'age') return normalizeActualAge(value);
     if (field === 'apparentAge') return normalizeApparentAge(value);
     if (field === 'birthday') return normalizeBirthday(value);
-    return compact(value, field === 'appearance' ? 1800 : 1200);
-}
-
-function scalarCurrent(npc, field) {
-    return normalizedScalar(field, npc?.[field]);
+    const max = field === 'appearance' ? 1800 : (field === 'currentForm' ? 80 : 1200);
+    return compact(value, max);
 }
 
 function ageGroundedInSources(value, rows = []) {
@@ -193,8 +231,19 @@ function ageGroundedInSources(value, rows = []) {
     return rows.some(row => new RegExp(`(^|\\D)${number}(?!\\d)`).test(row.excerpt));
 }
 
-function collectionValues(npc, field, limits) {
-    if (field === 'keyRelationships') return normalizeKeyRelationshipEntries(npc?.[field], limits.keyRelationships, 500);
+function playerReference(value, playerName = '') {
+    const key = normalizeName(value);
+    if (!key) return false;
+    if (['player', 'user', 'pc', 'the player', 'the user', 'player character'].includes(key)) return true;
+    const player = normalizeName(playerName);
+    return Boolean(player && (` ${key} `).includes(` ${player} `));
+}
+
+function collectionValues(npc, field, limits, playerName = '') {
+    if (field === 'keyRelationships') {
+        return normalizeKeyRelationshipEntries(npc?.[field], limits.keyRelationships, 500)
+            .filter(value => !playerReference(value, playerName));
+    }
     if (field === 'memories') return normalizeMemoryEntries(npc?.[field], limits.memories, 700);
     const cap = field === 'behaviorProfile' ? limits.behaviorProfile : limits.mannerisms;
     const out = [];
@@ -210,8 +259,11 @@ function collectionValues(npc, field, limits) {
     return out;
 }
 
-function normalizeCollection(field, values, limits) {
-    if (field === 'keyRelationships') return normalizeKeyRelationshipEntries(values, limits.keyRelationships, 500);
+function normalizeCollection(field, values, limits, playerName = '') {
+    if (field === 'keyRelationships') {
+        return normalizeKeyRelationshipEntries(values, limits.keyRelationships, 500)
+            .filter(value => !playerReference(value, playerName));
+    }
     if (field === 'memories') return normalizeMemoryEntries(values, limits.memories, 700);
     const cap = field === 'behaviorProfile' ? limits.behaviorProfile : limits.mannerisms;
     const out = [];
@@ -234,16 +286,14 @@ function targetIndex(field, current, change) {
         const index = current.findIndex(value => semanticEntryRef(field, value) === ref);
         if (index >= 0) return index;
     }
-    if (expected) return current.findIndex(value => sameValue(value, expected));
-    return -1;
+    return expected ? current.findIndex(value => sameValue(value, expected)) : -1;
 }
 
-function applyCollectionOperation(npc, update, limits) {
+function applyCollectionOperation(npc, update, limits, playerName = '') {
     const field = update.field;
-    const operation = update.operation;
-    const current = collectionValues(npc, field, limits);
-    if (operation === 'establish' && current.length) return { changed: false, reason: 'already-established' };
-    if (operation === 'remove' && update.clear === true) {
+    const current = collectionValues(npc, field, limits, playerName);
+    if (update.operation === 'establish' && current.length) return { changed: false, reason: 'already-established' };
+    if (update.operation === 'remove' && update.clear === true) {
         if (!current.length) return { changed: false, reason: 'already-empty' };
         npc[field] = [];
         return { changed: true };
@@ -252,12 +302,10 @@ function applyCollectionOperation(npc, update, limits) {
     let next = [...current];
     const changes = Array.isArray(update.changes) ? update.changes.slice(0, 32) : [];
     if (changes.length) {
-        // Replacements/removals happen before additions, so a full collection can still evolve.
         for (const change of changes.filter(row => ['replace', 'remove'].includes(String(row?.action)))) {
-            const action = String(change.action);
             const index = targetIndex(field, next, change);
             if (index < 0) continue;
-            if (action === 'remove') next.splice(index, 1);
+            if (String(change.action) === 'remove') next.splice(index, 1);
             else {
                 const value = compact(change.value, 700);
                 if (value) next[index] = value;
@@ -269,22 +317,20 @@ function applyCollectionOperation(npc, update, limits) {
             next.push(value);
         }
     } else if (Array.isArray(update.value)) {
-        const incoming = normalizeCollection(field, update.value, limits);
-        if (operation === 'replace') {
-            if (!incoming.length && current.length && update.clear !== true) {
-                return { changed: false, reason: 'explicit-clear-required' };
-            }
+        const incoming = normalizeCollection(field, update.value, limits, playerName);
+        if (update.operation === 'replace') {
+            if (!incoming.length && current.length && update.clear !== true) return { changed: false, reason: 'explicit-clear-required' };
             next = incoming;
-        } else if (operation === 'refine' || operation === 'establish') {
+        } else if (['refine', 'establish'].includes(update.operation)) {
             for (const value of incoming) if (!next.some(item => sameValue(item, value))) next.push(value);
-        } else if (operation === 'remove') {
+        } else if (update.operation === 'remove') {
             for (const value of incoming) next = next.filter(item => !sameValue(item, value));
         }
-    } else if (operation === 'remove') {
+    } else if (update.operation === 'remove') {
         return { changed: false, reason: 'ambiguous-removal' };
     }
 
-    next = normalizeCollection(field, next, limits);
+    next = normalizeCollection(field, next, limits, playerName);
     if (JSON.stringify(next) === JSON.stringify(current)) return { changed: false, reason: 'no-change' };
     npc[field] = next;
     return { changed: true };
@@ -294,23 +340,23 @@ function applyFormOperation(npc, update) {
     const current = normalizeAppearanceForms(npc.appearanceForms);
     const targetName = compact(update?.scope?.form || update?.targetForm || update?.expected, 80);
     const targetRef = compact(update?.ref, 260);
-    let index = -1;
-    if (targetRef) index = current.findIndex(form => semanticEntryRef('appearanceForms', form.name) === targetRef);
+    let index = targetRef ? current.findIndex(form => semanticEntryRef('appearanceForms', form.name) === targetRef) : -1;
     if (index < 0 && targetName) index = current.findIndex(form => normalizeName(form.name) === normalizeName(targetName));
-    const operation = update.operation;
-    if (operation === 'remove') {
+
+    if (update.operation === 'remove') {
         if (index < 0) return { changed: false, reason: 'target-not-found' };
-        const next = current.filter((_, row) => row !== index);
-        npc.appearanceForms = next;
-        if (normalizeName(npc.currentForm) === normalizeName(current[index].name)) npc.currentForm = '';
+        const removed = current[index];
+        npc.appearanceForms = current.filter((_, row) => row !== index);
+        if (normalizeName(npc.currentForm) === normalizeName(removed.name)) npc.currentForm = '';
         return { changed: true };
     }
+
     const rawValue = update.value && typeof update.value === 'object' && !Array.isArray(update.value)
         ? update.value
         : { name: targetName, appearance: update.value };
     const normalized = normalizeAppearanceForms([rawValue])[0];
     if (!normalized) return { changed: false, reason: 'invalid-form-value' };
-    if (operation === 'establish') {
+    if (update.operation === 'establish') {
         if (current.some(form => normalizeName(form.name) === normalizeName(normalized.name))) return { changed: false, reason: 'already-established' };
         npc.appearanceForms = normalizeAppearanceForms([...current, normalized]);
         return { changed: true };
@@ -324,11 +370,10 @@ function applyFormOperation(npc, update) {
     return { changed: true };
 }
 
-function applyScalarOperation(npc, update, sourceRowsValue) {
+function applyScalarOperation(npc, update, rows) {
     const field = update.field;
-    const operation = update.operation;
-    const current = scalarCurrent(npc, field);
-    if (operation === 'remove') {
+    const current = normalizedScalar(field, npc?.[field]);
+    if (update.operation === 'remove') {
         if (!current) return { changed: false, reason: 'already-empty' };
         npc[field] = '';
         if (field === 'birthday') npc.birthdayProvenance = '';
@@ -336,13 +381,13 @@ function applyScalarOperation(npc, update, sourceRowsValue) {
     }
     const value = normalizedScalar(field, update.value);
     if (!value) return { changed: false, reason: 'invalid-value' };
-    if (operation === 'establish' && current) return { changed: false, reason: 'already-established' };
-    if (operation !== 'establish' && !current && operation !== 'replace') return { changed: false, reason: 'not-established' };
+    if (update.operation === 'establish' && current) return { changed: false, reason: 'already-established' };
+    if (update.operation !== 'establish' && !current && update.operation !== 'replace') return { changed: false, reason: 'not-established' };
     if (sameValue(current, value)) return { changed: false, reason: 'no-change' };
     if (field === 'age' && current) {
         const ageKind = String(update.ageKind || '').trim().toLocaleLowerCase();
         if (!AGE_KINDS.has(ageKind)) return { changed: false, reason: 'missing-age-kind' };
-        if (!ageGroundedInSources(value, sourceRowsValue)) return { changed: false, reason: 'ungrounded-age-value' };
+        if (!ageGroundedInSources(value, rows)) return { changed: false, reason: 'ungrounded-age-value' };
     }
     npc[field] = value;
     if (field === 'birthday') npc.birthdayProvenance = 'explicit';
@@ -353,7 +398,7 @@ function normalizedUpdate(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
     const field = String(raw.field || '').trim();
     const operation = String(raw.operation || '').trim().toLocaleLowerCase();
-    if (![...SCALAR_FIELDS, ...COLLECTION_FIELDS, FORM_FIELD].includes(field) || !SEMANTIC_UPDATE_OPERATIONS.includes(operation)) return null;
+    if (!FIELD_SET.has(field) || !SEMANTIC_UPDATE_OPERATIONS.includes(operation)) return null;
     return {
         ...structuredClone(raw),
         field,
@@ -368,31 +413,25 @@ export function prepareModelLedPayload(stateInput, resultInput, admissionMode = 
     const result = structuredClone(resultInput);
     const state = stateInput || {};
     for (const patch of Array.isArray(result.npcs) ? result.npcs : []) {
-        const updates = (Array.isArray(patch.semanticUpdates) ? patch.semanticUpdates : []).map(normalizedUpdate).filter(Boolean);
-        if (!updates.length) continue;
         const byId = String(patch.id || '').trim() ? (state.npcs || []).find(npc => npc.id === String(patch.id).trim()) : null;
         const existing = byId || findNpcByReference(state, patch.name || '');
         if (!existing) {
-            // Named-preferred admission is model-led for identity kind. Avoid an English
-            // role-modifier heuristic overruling a structured "named" judgment.
             if (String(admissionMode) === 'named_preferred' && String(patch.identityKind || '').trim().toLocaleLowerCase() === 'named') {
                 patch._modelLedRole = patch.role;
                 patch.role = '';
             }
             continue;
         }
-        const fields = new Set(updates.map(update => update.field));
-        for (const field of fields) {
-            // For an existing dossier, semanticUpdates is authoritative whenever the
-            // same scalar/collection is also present in the compatibility patch. This
-            // includes live-state scalars so a stale top-level goal/mood/location/status
-            // cannot race the explicit establish/refine/replace/remove operation.
-            if (SCALAR_FIELDS.has(field) || COLLECTION_FIELDS.has(field)) delete patch[field];
-            if (field === 'age') { delete patch.ageChange; delete patch.ageProgression; }
-            if (field === 'appearanceForms') { delete patch.appearanceForms; delete patch.appearanceFormChanges; }
-        }
-        if (fields.has('personality') || fields.has('speech') || fields.has('behaviorProfile') || fields.has('mannerisms')) delete patch.profileChanges;
-        if ([...fields].some(field => ['role', 'species', 'background', 'appearance', 'birthday'].includes(field))) delete patch.canonChanges;
+
+        // One ordinary mutation path for existing dossiers. Compatibility channels are
+        // normalized into semanticUpdates at the boundary before this function runs.
+        for (const field of DOSSIER_SEMANTIC_FIELDS) delete patch[field];
+        delete patch.profileChanges;
+        delete patch.canonChanges;
+        delete patch.ageChange;
+        delete patch.ageProgression;
+        delete patch.appearanceFormChanges;
+        delete patch.keyRelationshipChanges;
     }
     return result;
 }
@@ -411,17 +450,11 @@ function restoreNewNpcModelLedRole(state, originalResult) {
 function identityValue(value) {
     if (Array.isArray(value)) return value.map(identityValue);
     if (!value || typeof value !== 'object') return value ?? null;
-    const out = {};
-    for (const key of Object.keys(value).sort()) out[key] = identityValue(value[key]);
-    return out;
+    return Object.fromEntries(Object.keys(value).sort().map(key => [key, identityValue(value[key])]));
 }
 
 function updateIdentity(raw) {
-    const sources = sourceRows(raw).map(row => ({
-        messageId: row.messageId ?? null,
-        excerpt: evidenceKey(row.excerpt, 900),
-    }));
-    const operation = {
+    return JSON.stringify({
         field: raw.field,
         operation: raw.operation,
         value: identityValue(raw.value),
@@ -433,9 +466,8 @@ function updateIdentity(raw) {
         expected: compact(raw.expected, 2000),
         ageKind: String(raw.ageKind || '').trim().toLocaleLowerCase(),
         durability: String(raw.durability || '').trim().toLocaleLowerCase(),
-        sources,
-    };
-    return JSON.stringify(operation);
+        sources: sourceRows(raw).map(row => ({ messageId: row.messageId ?? null, excerpt: evidenceKey(row.excerpt, 900) })),
+    });
 }
 
 export function applyModelLedSemanticUpdates(stateInput, resultInput, options = {}) {
@@ -458,31 +490,33 @@ export function applyModelLedSemanticUpdates(stateInput, resultInput, options = 
             }
             const dedupeKey = `${npc.id}|${updateIdentity(update)}`;
             if (seen.has(dedupeKey)) {
-                diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, status: 'duplicate-operation' });
+                diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, group: dossierFieldGroup(update.field), status: 'duplicate-operation' });
                 continue;
             }
             seen.add(dedupeKey);
             if (manualProtected(npc, update.field)) {
-                diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, status: 'manually-protected' });
+                diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, group: dossierFieldGroup(update.field), status: 'manually-protected' });
                 continue;
             }
             if (DURABLE_FIELDS.has(update.field) && update.durability === 'temporary') {
-                diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, status: 'invalid-structure', reason: 'temporary-evidence-cannot-rewrite-durable-canon' });
+                diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, group: dossierFieldGroup(update.field), status: 'invalid-structure', reason: 'temporary-evidence-cannot-rewrite-durable-canon' });
                 continue;
             }
             const provenance = sourceValidation(update, options);
             if (!provenance.ok) {
-                diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, status: 'invalid-source-reference', reason: provenance.reason });
+                diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, group: dossierFieldGroup(update.field), status: 'invalid-source-reference', reason: provenance.reason });
                 continue;
             }
             let result;
             if (SCALAR_FIELDS.has(update.field)) result = applyScalarOperation(npc, update, provenance.rows);
-            else if (COLLECTION_FIELDS.has(update.field)) result = applyCollectionOperation(npc, update, limits);
-            else result = applyFormOperation(npc, update);
+            else if (COLLECTION_FIELDS.has(update.field)) result = applyCollectionOperation(npc, update, limits, options.playerName);
+            else if (FORM_FIELDS.has(update.field)) result = applyFormOperation(npc, update);
+            else result = { changed: false, reason: 'unsupported-field' };
             diagnostics.push({
                 npcId: npc.id,
                 field: update.field,
                 operation: update.operation,
+                group: dossierFieldGroup(update.field),
                 status: result.changed ? 'applied' : 'no-change-proposed',
                 reason: result.reason || '',
             });
@@ -491,6 +525,34 @@ export function applyModelLedSemanticUpdates(stateInput, resultInput, options = 
     }
     state.npcs = (state.npcs || []).map(npc => normalizeNpc(npc));
     return { state, diagnostics };
+}
+
+function patchForNpc(resultInput, npc) {
+    return (Array.isArray(resultInput?.npcs) ? resultInput.npcs : []).find(patch => {
+        const id = String(patch?.id || '').trim();
+        if (id) return id === npc.id;
+        const name = normalizeName(patch?.name);
+        return name && [npc.name, ...(npc.aliases || [])].some(label => normalizeName(label) === name);
+    }) || null;
+}
+
+export function auditDossierEvaluationCoverage(stateInput, resultInput, { npcIds = [] } = {}) {
+    const state = stateInput || {};
+    const diagnostics = [];
+    const ids = [...new Set((Array.isArray(npcIds) ? npcIds : []).filter(Boolean))];
+    for (const id of ids) {
+        const npc = (state.npcs || []).find(item => item.id === id) || findNpcByReference(state, id);
+        if (!npc) continue;
+        const patch = patchForNpc(resultInput, npc);
+        if (!patch) {
+            diagnostics.push({ npcId: npc.id, status: 'missing-npc-patch', missingGroups: [...DOSSIER_EVALUATION_GROUPS] });
+            continue;
+        }
+        const groups = new Set((Array.isArray(patch.evaluatedGroups) ? patch.evaluatedGroups : []).map(value => String(value || '').trim()).filter(value => DOSSIER_EVALUATION_GROUPS.includes(value)));
+        const missingGroups = DOSSIER_EVALUATION_GROUPS.filter(group => !groups.has(group));
+        if (missingGroups.length) diagnostics.push({ npcId: npc.id, status: 'incomplete-evaluation', missingGroups });
+    }
+    return diagnostics;
 }
 
 function upsertCounterpart(npc, counterpartName, relation, limit) {
@@ -514,12 +576,13 @@ export function applyModelLedFamilyFacts(stateInput, resultInput, options = {}) 
     const state = stateInput;
     const diagnostics = [];
     const limit = normalizeDossierLimits(options.dossierLimits).keyRelationships;
+    const context = evidenceKey(options.semanticEvidenceContext ?? options.profileContext, 50000);
     for (const raw of Array.isArray(resultInput?.familyFacts) ? resultInput.familyFacts : []) {
         const owner = findNpcByReference(state, raw?.owner || '');
         const relation = compact(raw?.relation, 180);
         const reciprocal = compact(raw?.reciprocalRelation, 180);
         const evidence = compact(raw?.evidence, 1000);
-        if (!owner || !relation || !evidence || !evidenceKey(options.profileContext, 50000).includes(evidenceKey(evidence, 1600))) continue;
+        if (!owner || !relation || !evidence || !context.includes(evidenceKey(evidence, 1600))) continue;
         const members = (Array.isArray(raw?.members) ? raw.members : []).map(value => compact(value, 160)).filter(Boolean).slice(0, 20);
         for (const memberName of members) {
             if (normalizeName(memberName) === normalizeName(owner.name)) continue;
@@ -531,3 +594,5 @@ export function applyModelLedFamilyFacts(stateInput, resultInput, options = {}) 
     state.npcs = (state.npcs || []).map(npc => normalizeNpc(npc));
     return { state, diagnostics };
 }
+
+export { DOSSIER_EVALUATION_GROUPS, DOSSIER_FIELD_DEFINITIONS, DOSSIER_SEMANTIC_FIELDS, dossierFieldDefinition };

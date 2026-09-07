@@ -56,13 +56,13 @@ test('live-state semantic fields are present in foreground/model contracts', () 
     assert.equal(context.location, 'Inside the mountain shelter.');
     assert.equal(context.goal, 'Reach the southern gate before dark.');
     assert.equal(context.status, 'Preparing to leave the shelter.');
-    assert.equal(NPC_STATE_MODEL_CONTRACT_VERSION, 2);
-    assert.equal(FOREGROUND_CONTRACT_VERSION, 3);
+    assert.equal(NPC_STATE_MODEL_CONTRACT_VERSION, 3);
+    assert.equal(FOREGROUND_CONTRACT_VERSION, 4);
     const semanticPrompt = semanticUpdatePrompt({ npcs: baseState().npcs, allowedSourceIds: [12] });
-    for (const field of ['mood', 'location', 'goal', 'status']) assert.match(semanticPrompt, new RegExp(`\\b${field}\\b`));
+    for (const field of ['mood', 'location', 'goal', 'status', 'currentForm']) assert.match(semanticPrompt, new RegExp(`\\b${field}\\b`));
     const foreground = foregroundContract({}, { capture: true });
-    assert.match(foreground, /semanticUpdates[^\n]*mood\|location\|goal\|status/);
-    assert.match(foreground, /semanticUpdates is authoritative for mood\/location\/goal\/status/);
+    assert.match(foreground, /mood\|location\|goal\|status\|currentForm/);
+    assert.match(foreground, /LIVE STATE: mood\/location\/goal\/status\/currentForm/);
 });
 
 test('one-pass semantic updates replace all live-state scalars and override compatibility fields', () => {

@@ -1,4 +1,4 @@
-/* NPC State 0.5.8 - authoritative checked-in runtime bootstrap */
+/* NPC State 0.5.10 - authoritative checked-in runtime bootstrap */
 if (!document.getElementById('npc_state_v3_editor_flex_fix')) {
     const style = document.createElement('style');
     style.id = 'npc_state_v3_editor_flex_fix';

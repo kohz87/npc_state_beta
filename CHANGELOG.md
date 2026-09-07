@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.10
+
+### Single dossier semantic pipeline
+
+- Added one canonical ordinary-dossier field registry in `src/model/dossier-fields.js`; semantic and foreground contracts now derive from the same field list/group metadata.
+- Existing-dossier ordinary fields now mutate through `semanticUpdates` exactly once. Legacy profile/canon/age/form/key-relationship response shapes are boundary-only compatibility inputs and are stripped before deterministic core application.
+- Added `currentForm` to the live semantic field set so one-pass/Scan/Refresh no longer depend on a separate direct-field path for physical-form state.
+- Bumped model semantic contract to `3` and foreground embedded-capture contract to `4`; persisted state schema/settings schema remain `1`.
+
+### Scan completeness and evidence alignment
+
+- Full Scan now appends a compact semantic edit index with collection/form refs and manual locks instead of duplicating the full dossier roster in a second semantic serialization.
+- Full Scan, completeness and historical recovery validate semantic evidence against the same bounded history window supplied to the model, fixing valid older-window updates being rejected as out-of-scope.
+- Added `evaluatedGroups` coverage reporting for deliberate Scan/Refresh/recovery so a missing NPC patch or omitted canon/profile/live/memory/NPC-relationship evaluation group is observable instead of looking like a successful no-op.
+- Scan/Refresh callers now receive semantic and coverage diagnostics; foreground embedded capture remains budget-bounded and does not require full-dossier coverage.
+- Removed the superseded scanner-core profile/canon/age/form decision engine for existing dossiers; core now owns only identity plus one-time new-NPC bootstrap before canonical semantic application.
+- Structured evidence is field-scoped inside that same semantic validator: World_State may support Location/Status and NPC_Inner_Chatter may support Mood/Goal, without granting either source durable profile/canon authority.
+
+### Compatibility
+
+- Storage keys, persisted state schema `1`, settings schema `1`, relationship scoring/replay/milestones, Current Dynamic safeguards, lifecycle transitions, branch/recovery behavior, alternate scan routing, and new-NPC bootstrap remain compatible. No dossier rebuild is required.
+
 ## 0.5.8
 
 ### Scan prompt scaling

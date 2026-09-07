@@ -1,7 +1,5 @@
 import { relationshipEvidenceExcerptMatch } from './relationship-evidence.js';
 import { evidenceReferenceScope, hasRecognizedStructuredBlocks, identityPresencePromptRules, scannerEvidenceText, structuredEvidencePromptRules } from './evidence-adapter.js';
-import { appearanceFormDescription, appearanceScalarIsLegacyBase } from './appearance.js';
-import { AGE_PROGRESSION_MODE, ageProgressionAppearanceSafe, apparentAgeProgressionAllowed, authorizeAgeProgression, progressionEvidence, sharedAgeProgressionAllowed } from './age-progression.js';
 import { relationshipCustomCriteriaPrompt, relationshipJudgmentRubricPrompt, relationshipMechanicsPrompt } from './relationship-policy.js';
 import {
     DEFAULT_RELATIONSHIP_CAPS,
@@ -19,7 +17,6 @@ import {
     normalizeAppearanceForms,
     normalizeApparentAge,
     normalizeBirthday,
-    normalizeBirthdayProvenance,
     normalizeCurrentStatus,
     normalizeDossierLimits,
     normalizeFamilySlots,
@@ -29,7 +26,6 @@ import {
     normalizeName,
     normalizeNpc,
     normalizeNpcAdmissionMode,
-    normalizeProfileEvolutionEvidence,
     normalizeRelationship,
     normalizeRelationshipCaps,
     normalizeRelationshipEvidenceHistory,
@@ -221,6 +217,7 @@ function rosterForPrompt(state, { relationshipSummaryIds = null, relationshipSum
             aliases: npc.aliases,
             role: npc.role,
             species: npc.species,
+            background: npc.background,
             age: npc.age,
             apparentAge: npc.apparentAge,
             birthday: npc.birthday,
@@ -228,6 +225,8 @@ function rosterForPrompt(state, { relationshipSummaryIds = null, relationshipSum
             appearance: npc.appearance,
             appearanceForms: npc.appearanceForms,
             currentForm: npc.currentForm,
+            personality: npc.personality,
+            speech: npc.speech,
             archived: npc.archived,
             archiveReason: npc.archiveReason,
             present: npc.present,
@@ -356,9 +355,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- STORED TERMINAL-STATUS RECONCILIATION: EXISTING DOSSIERS Status is dossier-scoped continuity. Before finishing the scan, inspect every existing dossier whose Life state is not dead. If its stored Status itself unambiguously says that same NPC is deceased/killed/slain, has a corpse, or has irreversibly lost/dissolved/destroyed its body or mortal essence with no continuing living form, you MUST emit a lifeStateUpdates row for that NPC with lifeState dead, lifeStateCertainty explicit or strong, and lifeStateReason EXACTLY equal to that stored Status string, even when the NPC is not otherwise active or returned in npcs. The ordinary npcs patch may repeat matching lifecycle fields, but lifeStateUpdates is authoritative for this reconciliation. This repairs contradictory stored state rather than inventing a new event. Do not use this for metaphor, exhaustion, sleep, unconsciousness, disappearance, injury, merely missing bodies, uncertain danger, or a reversible/established transformed form.',
         '- A dead or terminally dissolved NPC is never worldActive. If you perform stored terminal-status reconciliation, omit that NPC from worldActiveNpcIds even if the incoming dossier incorrectly says worldActive true.',
         '- livingReturn is true only when a previously archived/dead dossier is explicitly established alive again with lifeStateCertainty explicit or strong. Its grounded lifeStateReason must likewise contain enough source span to bind the target NPC; merely outputting lifeState alive never resurrects a confirmed dead dossier. Stored Status is NEVER sufficient evidence for livingReturn or any dead-to-alive change.',
-        '- Stable scalar profile fields should contain only newly established or clearly supported facts. Omit/empty scalar fields rather than guessing.',
-        '- DURABLE SCALAR CANON: established ordinary Appearance, Species, Background, Role, and Birthday are sticky. Do not restate them with a different value merely because wording drifts. Any real revision must include canonChanges with the same field/value plus grounded evidence. appearance refine adds compatible lasting detail; appearance change needs a lasting physical change; appearance age_progression is allowed only by the accepted birthday/elapsed maturation gate above; species accepts explicit correction/revelation or a genuine permanent species change; background accepts grounded refinement/revelation/correction; role change needs an actual promotion/reassignment/retirement/etc. Scanner importance is non-authoritative and must not be used to raise dossier priority.',
-        '- DURABLE PROFILE EVOLUTION: a new NPC may establish grounded foundational personality/behavior/speech/mannerisms from its first rich scene. For an EXISTING established field, never rewrite personality, behaviorProfile, speech, or mannerisms merely because one scene looks different. Any genuine change requires a matching profileChanges entry with field, mode, stable concept label, and concrete evidence. refine adds compatible detail only and must not smuggle no-longer/became/increasingly transitions or morality flips. gradual development requires the same concept to be independently supported on a later scan. explicit requires narration that clearly establishes a lasting/corrective change. batch requires an actual narrated time skip plus development across that skipped period. A one-off gesture is not a permanent mannerism; mannerism seeding needs recurring/habit language or repeated confirmation.',
+        '- EXISTING DOSSIER MUTATION: ordinary existing-dossier canon, profile, live-state, memory, NPC-tie, age, and form changes use the single semanticUpdates contract appended by scanner.js. Direct ordinary fields and legacy profileChanges/canonChanges/ageChange/appearanceFormChanges/keyRelationshipChanges are compatibility or new-NPC bootstrap only.',
         ...(structuredDetected ? structuredEvidencePromptRules() : []),
         '',
         relationshipCustomCriteriaPrompt(relationshipCriteria),
@@ -420,11 +417,8 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         '- Import durable identity/profile facts only: aliases, role, species, actual/apparent age, birthday, appearance/forms, personality, behavior, speech, mannerisms, background, non-player Key Relationships, and durable Important Memories.',
         '- NEVER infer current In-chat presence, exchange activity, off-screen activity, Mood, Location, Goal, Status, currentForm, life/death/archive state, Importance, or any other live state from these reference blocks.',
         '- NEVER create or change Trust/Affection/Desire/Tension, relationshipChange, relationshipSummary, or relationship history from structured dossier import.',
-        '- Preserve established canon when the blocks merely phrase it differently. Birthday is passive freeform calendar text and must never be inferred from age; an explicit source birthday may seed a blank/generated birthday, while an established explicit/manual birthday changes only through canonChanges field birthday mode correction. For a real correction/revelation/revision of established Appearance/Species/Background/Role/Birthday, return canonChanges with concrete evidence quoted/paraphrased from the source block.',
-        '- For established Personality/Behavior/Speech/Mannerisms revisions, use profileChanges and source-block evidence under the normal durable-evolution rules. A structured profile description may seed an empty field, but it does not waive contradiction safeguards.',
-        '- Existing appearanceForms remain sticky; add genuinely new forms normally. For a known form, appearanceFormChanges normally requires an explicit structured-source correction/change; mode age_progression is the narrow exception when that same structured source establishes an accepted meaningful birthday/elapsed maturation transition and names the affected existing form.',
-        '- Existing actual Age remains sticky; use ageChange only when the structured source explicitly establishes a correction/birthday/elapsed-time result with the resulting numeric age.',
-        '- If the structured source establishes an accepted birthday/elapsed transition, reconsider visual maturation with ageProgression under the same conservative rules. correction is bookkeeping only and never matures the body. Unknown maturation stays visually unchanged; do not infer human aging for an unknown fantasy species. Use age_progression only when the source transition and established maturation behavior make the interval visually meaningful.',
+        '- EXISTING TARGET MUTATION: use the single semanticUpdates contract appended below for durable canon/profile/age/form/collection revisions. Direct target fields are source context/compatibility only.',
+        '- Preserve established canon unless the structured source supports refine/replace/remove. Age uses semantic ageKind; form edits target only the affected named form; omission preserves state.',
         ...dossierCollectionRules(limits),
         'MEMORY SEMANTIC HYGIENE: collapse paraphrases of the same durable event/fact, while preserving genuinely different events.',
         memoryCriteria ? 'IMPORTANT MEMORY RUBRIC:\n' + compactText(memoryCriteria, 6000) : '',
@@ -470,8 +464,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
         ...dossierCollectionRules(limits),
         'Do NOT change relationship scores or propose relationship deltas in a targeted refresh. Do NOT change global in-chat state for other NPCs.',
         'If the chat does not establish a scalar field, leave it empty. Never invent facts.',
-        'DURABLE PROFILE EVOLUTION: for established personality/behaviorProfile/speech/mannerisms, include a profileChanges entry only when the supplied chat actually supports refine, gradual, explicit, or batch development. refine must remain compatible with existing identity; gradual requires repeated same-concept evidence; explicit requires a lasting/correction cue; batch requires a real narrated time skip. One-off gestures are not mannerisms. Sparse blank fields may be seeded when the evidence directly establishes them.',
-        'DURABLE SCALAR CANON: preserve established ordinary Appearance, Species, Background, Role, and Birthday unless this window supports an authorized canonChanges revision. Use field/value/evidence and mode refine|change|correction|revelation, plus age_progression only for Appearance after the accepted maturation gate above. Never use scanner importance to reprioritize the dossier.',
+        'EXISTING TARGET MUTATION: use the single semanticUpdates contract appended below for profile, canon, live state, age/forms, memories, and non-player ties. Do not emit legacy profileChanges/canonChanges or parallel direct replacements for the target.',
         ...(structuredDetected ? structuredEvidencePromptRules() : []),
         memoryCriteria ? `IMPORTANT MEMORY RUBRIC:\n${compactText(memoryCriteria, 6000)}` : '',
         `CHAT WINDOW:\n${JSON.stringify(history)}`,
@@ -680,61 +673,6 @@ function createFromPatch(patch, sourceMessageId, referenceCandidates = []) {
     });
 }
 
-function mergeAppearanceFormPatch(existingValue, newValue, revisionValue, evidenceContext = '', ageProgression = null, npc = null, patch = null) {
-    const out = normalizeAppearanceForms(existingValue);
-    const indexByName = () => new Map(out.map((form, index) => [normalizeName(form.name), index]));
-    let indices = indexByName();
-
-    // Ordinary scan output may only add genuinely new forms. Existing form descriptions
-    // are intentionally sticky so incidental prose cannot resize/recolor a known body.
-    for (const form of normalizeAppearanceForms(newValue)) {
-        const key = normalizeName(form.name);
-        if (!key || indices.has(key)) continue;
-        out.push(form);
-        indices.set(key, out.length - 1);
-        if (out.length >= 12) break;
-    }
-
-    // Existing forms can change only through the explicit revision channel with evidence.
-    for (const raw of Array.isArray(revisionValue) ? revisionValue : []) {
-        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
-        const evidence = String(raw.evidence || raw.reason || '').trim();
-        if (!evidence) continue;
-        if (String(evidenceContext || '').trim() && !profileEvidenceGrounded(evidence, evidenceContext)) continue;
-        const revised = normalizeAppearanceForms([raw])[0];
-        if (!revised) continue;
-        const key = normalizeName(revised.name);
-        indices = indexByName();
-        const index = indices.get(key);
-        const mode = String(raw.mode || '').trim().toLocaleLowerCase();
-        if (mode === AGE_PROGRESSION_MODE) {
-            if (!ageProgression?.allowed || !Number.isInteger(index) || !ageProgression.affectedForms?.has(key)) continue;
-            if (!ageProgressionAppearanceSafe(out[index]?.appearance, revised.appearance, npc || {}, patch || {})) continue;
-        }
-        if (Number.isInteger(index)) out[index] = revised;
-        else if (mode !== AGE_PROGRESSION_MODE && out.length < 12) out.push(revised);
-    }
-    return normalizeAppearanceForms(out);
-}
-
-const PROFILE_EVOLUTION_FIELDS = new Set(['personality', 'behaviorProfile', 'speech', 'mannerisms']);
-const PROFILE_TRANSITION_CUES = /\b(no longer|formerly|became|becomes|becoming|increasingly|from now on|now (?:speaks?|acts?|behaves?|tends?|prefers?|refuses?)|started|stopped|began|developed|grew (?:more|less)|learned to|hardened|softened|reformed|changed)\b/i;
-const PROFILE_LASTING_CUES = /\b(permanent(?:ly)?|lasting|enduring|from now on|no longer|became|becomes|developed|learned to|habit(?:ual|ually)?|now consistently|changed for good|settled into|adopted as a habit)\b/i;
-const PROFILE_TIME_SKIP_CUES = /\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:days?|weeks?|months?|years?)\s+(?:later|passed|had passed)|\bover the (?:next|following)\s+(?:days?|weeks?|months?|years?)|\bafter\s+(?:\d+|several|many|a few)\s+(?:days?|weeks?|months?|years?)|\bduring the (?:following|next|intervening)\s+(?:days?|weeks?|months?|years?)|\btime[- ]skip\b/i;
-const PROFILE_HABIT_CUES = /\b(always|often|usually|habitually|regularly|repeatedly|tends? to|keeps? doing|whenever|every time|habit|mannerism|recurring|characteristically)\b/i;
-const PROFILE_KIND_CUES = /\b(kind|gentle|compassionate|empathetic|merciful|caring|warm|benevolent)\b/i;
-const PROFILE_CRUEL_CUES = /\b(cruel|callous|sadistic|merciless|brutal|ruthless|heartless)\b/i;
-
-function profileValueKey(value) {
-    if (Array.isArray(value)) return value.map(item => evidenceTextKey(item, 1400)).filter(Boolean).join(' | ');
-    return evidenceTextKey(value, 5000);
-}
-
-function profileChangeForField(patch, field) {
-    const changes = Array.isArray(patch?.profileChanges) ? patch.profileChanges : [];
-    return changes.find(raw => raw && typeof raw === 'object' && String(raw.field || '').trim() === field) || null;
-}
-
 function evidenceTextKey(value, max = 20000) {
     return String(value ?? '')
         .normalize('NFKC')
@@ -759,97 +697,6 @@ function profileEvidenceGrounded(evidence, context) {
     return matched >= Math.min(2, proofTokens.length) && matched / proofTokens.length >= 0.34;
 }
 
-function profilePolarityConflict(currentValue, proposedValue) {
-    const current = String(currentValue || '');
-    const proposed = String(proposedValue || '');
-    const currentKind = PROFILE_KIND_CUES.test(current);
-    const currentCruel = PROFILE_CRUEL_CUES.test(current);
-    const proposedKind = PROFILE_KIND_CUES.test(proposed);
-    const proposedCruel = PROFILE_CRUEL_CUES.test(proposed);
-    return (currentKind && proposedCruel && !proposedKind) || (currentCruel && proposedKind && !proposedCruel);
-}
-
-function appendProfileEvolutionEvidence(npc, change, field, options = {}) {
-    const concept = String(change?.concept || '').trim().slice(0, 180);
-    const evidence = String(change?.evidence || '').trim().slice(0, 600);
-    if (!concept || !evidence) return;
-    const sourceMessageId = Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null;
-    const turn = Number.isInteger(options.turn) ? options.turn : null;
-    const existing = normalizeProfileEvolutionEvidence(npc.profileEvolutionEvidence);
-    const duplicateSource = existing.some(entry =>
-        entry.field === field
-        && normalizeName(entry.concept) === normalizeName(concept)
-        && (sourceMessageId !== null ? entry.sourceMessageId === sourceMessageId : (turn !== null && entry.sourceMessageId == null && entry.turn === turn)));
-    if (duplicateSource) return;
-    npc.profileEvolutionEvidence = normalizeProfileEvolutionEvidence([...existing, {
-        field,
-        mode: String(change?.mode || 'gradual').trim(),
-        concept,
-        evidence,
-        sourceMessageId,
-        turn,
-        at: Date.now(),
-    }]);
-}
-
-function profileEvolutionDecision(npc, patch, field, incomingValue, options = {}) {
-    if (!PROFILE_EVOLUTION_FIELDS.has(field)) return { apply: true };
-    const currentValue = npc?.[field];
-    const currentKey = profileValueKey(currentValue);
-    const incomingKey = profileValueKey(incomingValue);
-    if (!incomingKey || incomingKey === currentKey) return { apply: Boolean(incomingKey) };
-
-    // A genuinely new dossier may establish its foundational characterization from the
-    // first rich scene. This does not authorize later one-scene rewrites.
-    if (options.isBootstrap === true) return { apply: true };
-
-    // Sparse existing dossiers can be seeded only through explicit grounded profile
-    // evidence. Mannerisms additionally need narration that marks recurrence/habit.
-    const change = profileChangeForField(patch, field);
-    const context = String(options.profileContext || '');
-    const evidence = String(change?.evidence || '').trim();
-    const grounded = Boolean(change && evidence && profileEvidenceGrounded(evidence, context));
-    if (!currentKey) {
-        if (!grounded) return { apply: false };
-        if (field === 'mannerisms' && !PROFILE_HABIT_CUES.test(evidence + ' ' + context)) return { apply: false, queue: true, change };
-        return { apply: true, queue: true, change };
-    }
-
-    if (!grounded) return { apply: false };
-    const mode = ['refine', 'gradual', 'explicit', 'batch'].includes(String(change.mode)) ? String(change.mode) : 'gradual';
-    const concept = normalizeName(change.concept);
-    if (!concept) return { apply: false };
-
-    if (mode === 'refine') {
-        if (PROFILE_TRANSITION_CUES.test(evidence + ' ' + String(incomingValue))) return { apply: false, queue: true, change };
-        if (profilePolarityConflict(currentValue, incomingValue)) return { apply: false, queue: true, change };
-        return { apply: true, queue: true, change };
-    }
-
-    if (mode === 'explicit') {
-        if (!PROFILE_LASTING_CUES.test(evidence + ' ' + context)) return { apply: false, queue: true, change };
-        return { apply: true, queue: true, change };
-    }
-
-    if (mode === 'batch') {
-        if (!PROFILE_TIME_SKIP_CUES.test(context) || !PROFILE_TRANSITION_CUES.test(evidence + ' ' + context)) return { apply: false, queue: true, change };
-        return { apply: true, queue: true, change };
-    }
-
-    // Gradual development needs the same labeled concept on a different prior scan.
-    const prior = normalizeProfileEvolutionEvidence(npc.profileEvolutionEvidence).find(entry => {
-        if (entry.field !== field || normalizeName(entry.concept) !== concept) return false;
-        // A rescan of the same assistant message may advance the internal turn counter.
-        // Message identity is authoritative whenever both sides have one; turn is fallback.
-        if (Number.isInteger(entry.sourceMessageId) && Number.isInteger(options.sourceMessageId)) {
-            return entry.sourceMessageId !== options.sourceMessageId;
-        }
-        if (Number.isInteger(entry.turn) && Number.isInteger(options.turn)) return entry.turn !== options.turn;
-        return true;
-    });
-    return { apply: Boolean(prior), queue: true, change };
-}
-
 function keyRelationshipParts(entry) {
     const clean = String(entry || '').trim();
     const match = clean.match(/^(.+?)\s+(?:-|–|—)\s+(.+)$/);
@@ -859,27 +706,6 @@ function keyRelationshipParts(entry) {
 
 function keyRelationshipOtherKey(entry) {
     return normalizeName(keyRelationshipParts(entry).other);
-}
-
-function mergeKeyRelationshipPatch(existingValue, incomingValue, changesValue, limit, evidenceContext = '') {
-    const out = normalizeKeyRelationshipEntries(existingValue, Math.max(limit, 30), 500);
-    const indexFor = () => new Map(out.map((entry, index) => [keyRelationshipOtherKey(entry), index]).filter(([key]) => key));
-    let indices = indexFor();
-    for (const entry of normalizeKeyRelationshipEntries(incomingValue, limit, 500)) {
-        const key = keyRelationshipOtherKey(entry);
-        if (key && indices.has(key)) out[indices.get(key)] = entry;
-        else if (!out.some(item => normalizeName(item) === normalizeName(entry))) out.push(entry);
-        indices = indexFor();
-    }
-    for (const raw of Array.isArray(changesValue) ? changesValue : []) {
-        if (!raw || typeof raw !== 'object' || String(raw.action || '').trim() !== 'remove') continue;
-        const evidence = String(raw.evidence || raw.reason || '').trim();
-        const key = normalizeName(raw.other || raw.name || raw.target);
-        if (!evidence || !key) continue;
-        if (String(evidenceContext || '').trim() && !profileEvidenceGrounded(evidence, evidenceContext)) continue;
-        for (let i = out.length - 1; i >= 0; i -= 1) if (keyRelationshipOtherKey(out[i]) === key) out.splice(i, 1);
-    }
-    return normalizeKeyRelationshipEntries(out, limit, 500);
 }
 
 const FAMILY_KINSHIP_GROUPS = Object.freeze({
@@ -1164,293 +990,65 @@ export function reconcileFamilyGraphState(stateInput, { sourceMessageId = null, 
     return normalizeState(state, state.chatKey);
 }
 
-const AGE_CHANGE_KINDS = new Set(['birthday', 'elapsed', 'correction']);
-const AGE_BIRTHDAY_CUES = /\b(birthday|turned|turns|turning)\b/i;
-const AGE_ELAPSED_CUES = /\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|several)\s+(?:days?|weeks?|months?|years?)\s+(?:later|passed|have passed|had passed)|\bafter\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:days?|weeks?|months?|years?)\b/i;
-const AGE_CORRECTION_CUES = /\b(correct(?:s|ed|ion)?|actually|mistaken|mistake|wrong|misstated|rather than|not\s+\d{1,4}[^.!?]{0,30}\bbut\b)\b/i;
-
-function ageEvidenceMentionsTarget(evidence, targetAge) {
-    const target = normalizeActualAge(targetAge);
-    if (!target) return false;
-    const number = target.match(/\d{1,4}/)?.[0] || '';
-    if (!number) return false;
-    const unit = /\bdays?\b/i.test(target) ? 'day'
-        : (/\bweeks?\b/i.test(target) ? 'week'
-            : (/\bmonths?\b/i.test(target) ? 'month' : ''));
-    if (!unit) return new RegExp('(^|\\D)' + number + '(?!\\d)').test(String(evidence || ''));
-    return new RegExp('(^|\\D)' + number + '\\s+' + unit + 's?\\b', 'i').test(String(evidence || ''));
-}
-
-function explicitAgeChange(npc, patch, options = {}) {
-    const raw = patch?.ageChange;
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return '';
-    const current = normalizeActualAge(npc?.age);
-    const age = normalizeActualAge(raw.age ?? raw.value);
-    const kind = String(raw.kind || '').trim().toLocaleLowerCase();
-    const evidence = String(raw.evidence || raw.reason || '').trim().slice(0, 600);
-    const context = String(options.profileContext || '');
-    if (!current || !age || age === current || !AGE_CHANGE_KINDS.has(kind) || !evidence) return '';
-    if (!profileEvidenceGrounded(evidence, context) || !ageEvidenceMentionsTarget(evidence, age)) return '';
-    if (kind === 'birthday' && !AGE_BIRTHDAY_CUES.test(evidence)) return '';
-    if (kind === 'elapsed' && !AGE_ELAPSED_CUES.test(evidence)) return '';
-    if (kind === 'correction' && !AGE_CORRECTION_CUES.test(evidence)) return '';
-    return age;
-}
-
-const DURABLE_CANON_FIELDS = new Set(['appearance', 'species', 'background', 'role', 'birthday']);
 const BIRTHDAY_EVIDENCE_CUES = /\b(?:birthday|birth date|date of birth|born(?:\s+on)?|name day|nameday)\b/i;
-function birthdayEvidenceGrounded(value, context) {
+function bootstrapBirthdayGrounded(value, context) {
     const birthday = normalizeBirthday(value);
     const source = String(context || '');
     return Boolean(birthday && source.trim() && BIRTHDAY_EVIDENCE_CUES.test(source) && profileEvidenceGrounded(birthday, source));
 }
-const CANON_CORRECTION_CUES = /\b(actually|correction|corrected|mistaken|mistake|wrong|misidentified|misstated|in fact|rather than|true (?:species|identity|origin))\b/i;
-const CANON_REVELATION_CUES = /\b(reveal(?:s|ed)?|turns out|true (?:species|identity|origin)|secretly|had always been|was born|comes from|originally from|confesses?|admits?)\b/i;
-const CANON_ROLE_CHANGE_CUES = /\b(promot(?:ed|ion)|demot(?:ed|ion)|appointed|assigned|reassigned|retired|resigned|dismissed|became|becomes|now serves?|takes? the role|takes? over as|elected|installed as)\b/i;
-const CANON_APPEARANCE_CHANGE_CUES = /\b(permanent(?:ly)?|lasting|scar(?:red|ring)?|lost|gained|grew|growth|cut (?:her|his|their) hair|hair (?:was|is) cut|dyed|tattoo(?:ed)?|branded|aged|rejuvenat(?:ed|ion)|transformed permanently|body changed|now has|no longer has)\b/i;
-const CANON_SPECIES_CHANGE_CUES = /\b(became|becomes|transformed into|turned into|reborn as|ascended into|changed species|permanently transformed)\b/i;
 
-function canonChangeForField(patch, field) {
-    if (!DURABLE_CANON_FIELDS.has(field)) return null;
-    return (Array.isArray(patch?.canonChanges) ? patch.canonChanges : []).find(raw =>
-        raw && typeof raw === 'object' && !Array.isArray(raw) && String(raw.field || '').trim() === field) || null;
-}
-
-function durableCanonDecision(npc, patch, field, incomingValue, options = {}) {
-    const incoming = String(incomingValue ?? '').trim();
-    const current = String(npc?.[field] ?? '').trim();
-    if (!incoming) return false;
-    if (options.isBootstrap === true || !current) return true;
-    if (evidenceTextKey(incoming, 5000) === evidenceTextKey(current, 5000)) return false;
-    const change = canonChangeForField(patch, field);
-    if (!change) return false;
-    const value = String(change.value ?? change[field] ?? incoming).trim();
-    const evidence = String(change.evidence || change.reason || '').trim().slice(0, 700);
-    const mode = String(change.mode || '').trim().toLocaleLowerCase();
-    const context = String(options.profileContext || '');
-    if (!value || evidenceTextKey(value, 5000) !== evidenceTextKey(incoming, 5000) || !evidence || !profileEvidenceGrounded(evidence, context)) return false;
-    if (field === 'birthday') {
-        return mode === 'correction'
-            && birthdayEvidenceGrounded(incoming, context)
-            && CANON_CORRECTION_CUES.test(evidence + ' ' + context);
-    }
-    if (field === 'species') {
-        if (mode === 'correction') return CANON_CORRECTION_CUES.test(evidence + ' ' + context);
-        if (mode === 'revelation') return CANON_REVELATION_CUES.test(evidence + ' ' + context);
-        if (mode === 'change') return CANON_SPECIES_CHANGE_CUES.test(evidence + ' ' + context);
-        return false;
-    }
-    if (field === 'role') {
-        if (mode === 'correction') return CANON_CORRECTION_CUES.test(evidence + ' ' + context);
-        if (mode === 'change') return CANON_ROLE_CHANGE_CUES.test(evidence + ' ' + context);
-        if (mode === 'refine') return true;
-        return false;
-    }
-    if (field === 'appearance') {
-        if (mode === AGE_PROGRESSION_MODE) return sharedAgeProgressionAllowed(npc, incoming, patch, options.ageProgression);
-        if (mode === 'correction') return CANON_CORRECTION_CUES.test(evidence + ' ' + context);
-        if (mode === 'refine') return true;
-        if (mode === 'change') return CANON_APPEARANCE_CHANGE_CUES.test(evidence + ' ' + context);
-        return false;
-    }
-    if (field === 'background') {
-        if (mode === 'correction') return CANON_CORRECTION_CUES.test(evidence + ' ' + context);
-        if (mode === 'revelation') return CANON_REVELATION_CUES.test(evidence + ' ' + context);
-        if (mode === 'refine') return true;
-        return false;
-    }
-    return false;
-}
-
-function applyStablePatch(npc, patch, options = {}) {
+// Existing dossiers reach this function after prepareModelLedPayload() has stripped every
+// ordinary dossier field. Only identity may still change directly. A genuinely new NPC may
+// bootstrap grounded initial dossier values once; later evolution uses semanticUpdates only.
+function applyIdentityAndBootstrapPatch(npc, patch, options = {}) {
     const locked = new Set(npc.manualProfileFields || []);
     const next = structuredClone(npc);
     const limits = normalizeDossierLimits(options.dossierLimits);
     const canonicalName = canonicalPatchName(patch);
-    const stringFields = ['name', 'age'];
-    for (const field of stringFields) {
-        if (locked.has(field)) continue;
-        const value = field === 'name'
-            ? canonicalName
-            : (field === 'age'
-                ? normalizeActualAge(patch?.[field])
-                : (field === 'apparentAge' ? normalizeApparentAge(patch?.[field]) : String(patch?.[field] ?? '').trim()));
-        if (!value) continue;
-        if (field === 'age') {
-            const current = normalizeActualAge(next.age);
-            if (current && current !== value) {
-                // Scanner age is sticky once grounded. Only refine ~N to the same exact N.
-                // Genuine later corrections/aging remain available through manual dossier edit.
-                const exactRefinement = current.startsWith('~') && !value.startsWith('~') && current.slice(1) === value;
-                if (!exactRefinement) continue;
-            }
-        }
-        if (field === 'name' && value !== next.name && next.name && !isTechnicalNpcIdentity(next.name)) next.aliases = appendUnique(next.aliases, [next.name], 10);
-        next[field] = value;
-    }
-    let changedAge = '';
-    if (!locked.has('age')) {
-        changedAge = explicitAgeChange(npc, patch, options);
-        if (changedAge) next.age = changedAge;
-    }
-    const progressionProof = progressionEvidence(patch);
-    const ageProgression = authorizeAgeProgression(npc, patch, changedAge, {
-        evidenceGrounded: Boolean(progressionProof && profileEvidenceGrounded(progressionProof, String(options.profileContext || ''))),
-    });
-    if (!locked.has('apparentAge')) {
-        const apparent = normalizeApparentAge(patch?.apparentAge);
-        const currentApparent = normalizeApparentAge(next.apparentAge);
-        if (apparent && !currentApparent) next.apparentAge = apparent;
-        else if (apparent && apparent === currentApparent) next.apparentAge = apparent;
-        else if (apparent && apparentAgeProgressionAllowed(npc, apparent, ageProgression)) next.apparentAge = apparent;
-    }
-    if (!locked.has('birthday')) {
-        const incomingBirthday = normalizeBirthday(patch?.birthday);
-        const currentBirthday = normalizeBirthday(npc?.birthday);
-        const currentProvenance = normalizeBirthdayProvenance(npc?.birthdayProvenance, currentBirthday);
-        const groundedBirthday = incomingBirthday && birthdayEvidenceGrounded(incomingBirthday, String(options.profileContext || ''));
-        if (groundedBirthday && (options.isBootstrap === true || !currentBirthday || currentProvenance === 'generated')) {
-            next.birthday = incomingBirthday;
-            next.birthdayProvenance = 'explicit';
-        } else if (incomingBirthday && currentBirthday && normalizeName(incomingBirthday) !== normalizeName(currentBirthday)
-            && durableCanonDecision(npc, patch, 'birthday', incomingBirthday, options)) {
-            next.birthday = incomingBirthday;
-            next.birthdayProvenance = 'explicit';
-        } else if (groundedBirthday && normalizeName(incomingBirthday) === normalizeName(currentBirthday) && currentProvenance === 'generated') {
-            next.birthdayProvenance = 'explicit';
-        }
-    }
-    for (const field of ['role', 'species', 'background']) {
-        if (locked.has(field)) continue;
-        const value = String(patch?.[field] ?? '').trim();
-        if (durableCanonDecision(npc, patch, field, value, options)) next[field] = value;
-    }
-    for (const field of ['personality', 'speech']) {
-        if (locked.has(field)) continue;
-        const value = String(patch?.[field] ?? '').trim();
-        if (!value) continue;
-        const decision = profileEvolutionDecision(npc, patch, field, value, options);
-        if (decision.queue && decision.change) appendProfileEvolutionEvidence(next, decision.change, field, options);
-        if (decision.apply) next[field] = value;
-    }
-    if (!locked.has('appearance')) {
-        const appearance = String(patch?.appearance ?? '').trim();
-        // appearance remains durable canon for both ordinary and form-aware NPCs. A form
-        // switch alone never reaches this branch, but a grounded canonChanges.appearance
-        // revision may update genuinely shared/common appearance even when forms exist.
-        if (appearance && !next.appearance) next.appearance = appearance;
-        else if (appearance && durableCanonDecision(npc, patch, 'appearance', appearance, { ...options, ageProgression })) next.appearance = appearance;
-    }
-    if (!locked.has('appearanceForms')) {
-        const incomingForms = normalizeAppearanceForms(patch?.appearanceForms);
-        const existingForms = normalizeAppearanceForms(next.appearanceForms);
-        const hasBase = existingForms.some(form => normalizeName(form.name) === 'base');
-        const wantsBase = normalizeName(patch?.currentForm) === 'base';
-        const firstAlternate = !existingForms.length && incomingForms.length > 0;
-        const legacyBaseBefore = appearanceScalarIsLegacyBase(npc);
-        const previousBaseAppearance = appearanceFormDescription(npc, 'Base');
-        // Preserve the legacy ordinary body as Base when alternates first appear. Also
-        // repair an already-half-migrated dossier on rescan: if an older scan captured
-        // only Beast/another alternate but the new scan explicitly says the NPC ended
-        // back in Base, recover Base from the pre-existing canonical appearance.
-        if (!hasBase && (firstAlternate || wantsBase) && String(npc.appearance || '').trim()) {
-            next.appearanceForms = [...existingForms, { name: 'Base', appearance: String(npc.appearance).trim() }];
-        }
-        const effectiveFormChanges = legacyBaseBefore && locked.has('appearance')
-            ? (Array.isArray(patch?.appearanceFormChanges) ? patch.appearanceFormChanges : []).filter(raw => normalizeName(raw?.name) !== 'base')
-            : patch?.appearanceFormChanges;
-        next.appearanceForms = mergeAppearanceFormPatch(next.appearanceForms, incomingForms, effectiveFormChanges, String(options.profileContext || ''), ageProgression, npc, patch);
 
-        // v0.4.1 copied the old scalar ordinary appearance into Base for compatibility.
-        // If that duplicated Base is authoritatively revised later, keep the legacy scalar
-        // synchronized only while it is still the same old Base. Once the scalar diverges
-        // into genuine shared/common traits it becomes independent and is never overwritten.
-        const revisedBaseAppearance = appearanceFormDescription(next, 'Base');
-        if (!locked.has('appearance')
-            && legacyBaseBefore
-            && previousBaseAppearance
-            && revisedBaseAppearance
-            && evidenceTextKey(previousBaseAppearance, 5000) !== evidenceTextKey(revisedBaseAppearance, 5000)
-            && evidenceTextKey(next.appearance, 5000) === evidenceTextKey(previousBaseAppearance, 5000)) {
-            next.appearance = revisedBaseAppearance;
+    if (!locked.has('name') && canonicalName) {
+        if (canonicalName !== next.name && next.name && !isTechnicalNpcIdentity(next.name)) {
+            next.aliases = appendUnique(next.aliases, [next.name], 10);
         }
-    }
-    if (changedAge) {
-        const ageProgressionKind = String(patch?.ageChange?.kind || '').trim().toLocaleLowerCase();
-        if (ageProgressionKind === 'correction') {
-            // A correction changes the chronological reference point but never matures the body.
-            next.ageProgressionBaselineAge = changedAge;
-        } else if (['birthday', 'elapsed'].includes(ageProgressionKind)) {
-            const priorBaseline = normalizeActualAge(npc?.ageProgressionBaselineAge);
-            if (!priorBaseline) next.ageProgressionBaselineAge = normalizeActualAge(npc?.age) || changedAge;
-            const apparentProgressed = normalizeApparentAge(next.apparentAge) !== normalizeApparentAge(npc?.apparentAge);
-            const sharedProgressionRequested = String(canonChangeForField(patch, 'appearance')?.mode || '').trim().toLocaleLowerCase() === AGE_PROGRESSION_MODE;
-            const sharedProgressed = sharedProgressionRequested
-                && evidenceTextKey(next.appearance, 5000) !== evidenceTextKey(npc?.appearance, 5000);
-            const formProgressionRequested = (Array.isArray(patch?.appearanceFormChanges) ? patch.appearanceFormChanges : [])
-                .some(raw => String(raw?.mode || '').trim().toLocaleLowerCase() === AGE_PROGRESSION_MODE);
-            const formsProgressed = formProgressionRequested
-                && JSON.stringify(normalizeAppearanceForms(next.appearanceForms)) !== JSON.stringify(normalizeAppearanceForms(npc?.appearanceForms));
-            if (ageProgression.allowed && (apparentProgressed || sharedProgressed || formsProgressed)) {
-                next.ageProgressionBaselineAge = changedAge;
-            }
-        }
+        next.name = canonicalName;
     }
     if (!locked.has('aliases')) {
-        const safeAliases = (Array.isArray(patch?.aliases) ? patch.aliases : []).filter(alias => humanIdentityCandidate(alias, patch?.role));
-        next.aliases = appendUnique(next.aliases, safeAliases, 10);
+        const aliases = (Array.isArray(patch?.aliases) ? patch.aliases : [])
+            .filter(alias => humanIdentityCandidate(alias, patch?.role));
+        next.aliases = appendUnique(next.aliases, aliases, 10);
     }
-    if (!locked.has('behaviorProfile') && Array.isArray(patch?.behaviorProfile)) {
-        const incoming = appendUnique([], patch.behaviorProfile, limits.behaviorProfile);
-        const decision = profileEvolutionDecision(npc, patch, 'behaviorProfile', incoming, options);
-        if (decision.queue && decision.change) appendProfileEvolutionEvidence(next, decision.change, 'behaviorProfile', options);
-        if (decision.apply) next.behaviorProfile = options.supplementalPass === true
-            ? appendUnique(next.behaviorProfile, incoming, limits.behaviorProfile)
-            : incoming;
-    }
-    if (!locked.has('mannerisms') && Array.isArray(patch?.mannerisms)) {
-        const incoming = appendUnique([], patch.mannerisms, limits.mannerisms);
-        const decision = profileEvolutionDecision(npc, patch, 'mannerisms', incoming, options);
-        if (decision.queue && decision.change) appendProfileEvolutionEvidence(next, decision.change, 'mannerisms', options);
-        if (decision.apply) next.mannerisms = options.supplementalPass === true
-            ? appendUnique(next.mannerisms, incoming, limits.mannerisms)
-            : incoming;
-    }
-    if (!locked.has('keyRelationships') && (Array.isArray(patch?.keyRelationships) || Array.isArray(patch?.keyRelationshipChanges))) {
-        const incoming = normalizeKeyRelationshipEntries(patch.keyRelationships, limits.keyRelationships, 500)
-            .filter(item => !keyRelationshipReferencesPlayer(item, options.playerName));
-        next.keyRelationships = mergeKeyRelationshipPatch(next.keyRelationships, incoming, patch?.keyRelationshipChanges, limits.keyRelationships, String(options.profileContext || ''));
-    }
-    return next;
-}
+    if (options.isBootstrap !== true) return next;
 
-function applyLivePatch(npc, patch) {
-    const next = structuredClone(npc);
-    for (const field of ['mood', 'location', 'goal']) {
+    for (const field of ['role', 'species', 'background', 'appearance', 'personality', 'speech', 'mood', 'location', 'goal']) {
         const value = String(patch?.[field] ?? '').trim();
         if (value) next[field] = value;
     }
-    const status = normalizeCurrentStatus(patch?.status);
-    if (status) next.status = status;
+    const age = normalizeActualAge(patch?.age);
+    if (age) next.age = age;
+    const apparentAge = normalizeApparentAge(patch?.apparentAge);
+    if (apparentAge) next.apparentAge = apparentAge;
+    const birthday = normalizeBirthday(patch?.birthday);
+    if (birthday && bootstrapBirthdayGrounded(birthday, options.profileContext)) {
+        next.birthday = birthday;
+        next.birthdayProvenance = 'explicit';
+    }
+
+    const forms = normalizeAppearanceForms(patch?.appearanceForms);
+    if (forms.length) next.appearanceForms = forms;
     const requestedForm = String(patch?.currentForm || '').trim().slice(0, 80);
     if (requestedForm) {
-        const matchedForm = normalizeAppearanceForms(next.appearanceForms)
-            .find(form => normalizeName(form.name) === normalizeName(requestedForm));
-        next.currentForm = matchedForm?.name || requestedForm;
+        const matched = forms.find(form => normalizeName(form.name) === normalizeName(requestedForm));
+        next.currentForm = matched?.name || requestedForm;
     }
-    // importance is user/editor-owned durable prioritization. Scanner proposals are ignored;
-    // runtime relevance is computed separately and never ratchets this stored value upward.
-    return next;
-}
+    const status = normalizeCurrentStatus(patch?.status);
+    if (status) next.status = status;
 
-function applyDynamicPatch(npc, patch, options = {}) {
-    const next = applyLivePatch(npc, patch);
-    // relationshipSummary is player-relationship state. It is deliberately deferred to
-    // applyRelationshipChange so a blocked/duplicate/unsupported event cannot rewrite it.
-    if (Array.isArray(patch?.memories)) {
-        const limits = normalizeDossierLimits(options.dossierLimits);
-        // PHASE90_DURABLE_IMPORTANT_MEMORY_MERGE: scanner output is an observation patch, not authority to erase omitted durable memories.
-        next.memories = normalizeMemoryEntries([...(next.memories || []), ...patch.memories], limits.memories, 700);
+    if (Array.isArray(patch?.behaviorProfile)) next.behaviorProfile = appendUnique([], patch.behaviorProfile, limits.behaviorProfile);
+    if (Array.isArray(patch?.mannerisms)) next.mannerisms = appendUnique([], patch.mannerisms, limits.mannerisms);
+    if (Array.isArray(patch?.memories)) next.memories = normalizeMemoryEntries(patch.memories, limits.memories, 700);
+    if (Array.isArray(patch?.keyRelationships)) {
+        next.keyRelationships = normalizeKeyRelationshipEntries(patch.keyRelationships, limits.keyRelationships, 500)
+            .filter(item => !keyRelationshipReferencesPlayer(item, options.playerName));
     }
     return next;
 }
@@ -1534,10 +1132,6 @@ function selectRelationshipAxes(delta, axisLimit, priority = []) {
     // Legacy/fallback order is deterministic: raw magnitude, then canonical axis order.
     // Equal candidates always fill available slots instead of being rejected as a tied group.
     return new Set([...ordered, ...remainder].slice(0, axisLimit));
-}
-
-function relationshipAxisEvidenceText(change, axis) {
-    return (change?.axisEvidence?.[axis]?.excerpts || []).join(' ');
 }
 
 function relationshipDuplicateEvidenceKey(value) {
@@ -2432,15 +2026,6 @@ function admissionPromptRule(mode = 'balanced') {
     if (policy === 'named_preferred') return 'NEW NPC ADMISSION POLICY: Named preferred. A new dossier may be proposed only when a proper/personal canonical name is established. Set identityKind to named. Do not propose first-seen unnamed occupation/role labels as dossiers; they remain narrative-only until named or manually added.';
     return 'NEW NPC ADMISSION POLICY: Balanced. Preserve normal v0.4 admission: individually relevant named NPCs and genuinely unique role-label NPCs may be proposed; set identityKind to named or role-label accurately.';
 }
-function applyPrivateEvidencePatch(npc, patch) {
-    const next = structuredClone(npc);
-    for (const field of ['mood', 'goal']) {
-        const value = String(patch?.[field] ?? '').trim();
-        if (value) next[field] = value;
-    }
-    return next;
-}
-
 export function applyScanResult(stateInput, resultInput, options = {}) {
     const state = normalizeState(stateInput, stateInput?.chatKey || '');
     const result = typeof resultInput === 'string'
@@ -2572,8 +2157,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         const lifecyclePatch = lifeStateUpdateByNpcId.get(npc.id) || null;
         const canPatch = Boolean(patch && (targetSet.has(npc.id) || allowHistoricalProfilePatches || (options.applyReturnedNpcPatches === true && returnedPatchSet.has(npc.id))));
         if (canPatch) {
-            npc = applyStablePatch(npc, patch, { playerName, dossierLimits, isBootstrap: createdNpcIds.has(npc.id), profileContext: String(options.profileContext || ''), sourceMessageId, turn });
-            npc = applyDynamicPatch(npc, patch, { dossierLimits, supplementalPass: options.supplementalPass === true });
+            npc = applyIdentityAndBootstrapPatch(npc, patch, { playerName, dossierLimits, isBootstrap: createdNpcIds.has(npc.id), profileContext: String(options.profileContext || '') });
             if (!lifecyclePatch) npc = applyLifeState(npc, patch, { ...options, state, storedStatus: storedStatusBeforePatch });
             const relationshipOptions = {
                 relationshipCaps: options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
@@ -2598,14 +2182,10 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                 });
             }
             npc.updatedAt = Math.max(Date.now(), Number(npc.updatedAt || 0) + 1);
-        } else if (patch && privateEvidenceSet.has(npc.id)) {
-            npc = applyPrivateEvidencePatch(npc, patch);
-            npc.updatedAt = Math.max(Date.now(), Number(npc.updatedAt || 0) + 1);
-        } else if (patch && worldSet.has(npc.id)) {
-            // Off-screen activity may update current whereabouts/status and explicit life-state
-            // continuity, but never stable profile, memories, or relationship progression.
-            npc = applyLivePatch(npc, patch);
-            if (!lifecyclePatch) npc = applyLifeState(npc, patch, { ...options, state, storedStatus: storedStatusBeforePatch });
+        } else if (patch && worldSet.has(npc.id) && !lifecyclePatch) {
+            // Ordinary off-screen dossier fields are handled later by the same field-scoped
+            // semantic pipeline; core retains only lifecycle compatibility here.
+            npc = applyLifeState(npc, patch, { ...options, state, storedStatus: storedStatusBeforePatch });
             npc.updatedAt = Math.max(Date.now(), Number(npc.updatedAt || 0) + 1);
         }
         if (lifecyclePatch) {

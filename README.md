@@ -1,6 +1,24 @@
 # NPC State Beta
 
-NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.5.8 makes the player-relationship Current Dynamic an independently maintained descriptive projection, so grounded relationship developments can update it even when replay protection, caps, gates, or inertia suppress numeric movement.
+NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.5.10 consolidates existing-dossier mutation onto one semantic update pipeline, removes active legacy semantic layers from scan prompts, aligns evidence validation with supplied history, and adds explicit dossier-coverage diagnostics.
+
+## Release 0.5.10
+
+0.5.10 is a consolidation release rather than another parallel update path. For an existing NPC, ordinary dossier fields now have one canonical `semanticUpdates` application pipeline. Legacy `profileChanges`, `canonChanges`, `ageChange`, `appearanceFormChanges`, `keyRelationshipChanges`, and direct existing-dossier compatibility values are translated at the response boundary when enough structured evidence exists, then removed before deterministic application. Identity/admission, NPC-to-player relationship mechanics/Current Dynamic, lifecycle, activity/presence, and family-graph safety remain separate deterministic channels.
+
+The canonical field registry lives in `src/model/dossier-fields.js` and drives the semantic contract, foreground contract, field kinds/durability, and evaluation groups. `currentForm` is now a first-class live semantic field. Full Scan appends only a compact edit-index containing stable collection/form refs and locks instead of serializing the complete dossier roster a second time.
+
+Full Scan, completeness, and historical recovery now validate semantic source excerpts against the same bounded history window supplied to the model. Deliberate Scan/Refresh/recovery also report coverage diagnostics when an expected NPC patch or dossier evaluation group was omitted, while foreground embedded capture stays budget-bounded and best-effort.
+
+Version boundaries:
+
+- Extension release: `0.5.10`
+- Persisted state schema: `1` (unchanged)
+- Model semantic update contract: `3`
+- Settings schema: `1` (unchanged)
+- Foreground embedded-capture contract: `4`
+
+No dossier rebuild, storage-key migration, or settings migration is required.
 
 ## Release 0.5.8
 

@@ -1,10 +1,8 @@
-import { SEMANTIC_UPDATE_OPERATIONS, semanticDossierContext } from './model/semantic-updates.js';
+import { SEMANTIC_UPDATE_OPERATIONS } from './model/semantic-updates.js';
+import { DOSSIER_EVALUATION_GROUPS, dossierSemanticFieldList } from './model/dossier-fields.js';
 import { NPC_STATE_VERSION, normalizeNpcAdmissionMode } from './schema.js';
 
-export const FOREGROUND_CONTRACT_VERSION = 3;
-
-const SEMANTIC_UPDATE_METADATA_FIELDS = new Set(['id', 'name', 'currentForm', 'manualProfileFields', 'profileEvolutionEvidence']);
-const SEMANTIC_UPDATE_FIELDS = Object.freeze(Object.keys(semanticDossierContext({})).filter(field => !SEMANTIC_UPDATE_METADATA_FIELDS.has(field)));
+export const FOREGROUND_CONTRACT_VERSION = 4;
 
 function compact(value, max) {
     const source = String(value || '').replace(/\s+/g, ' ').trim();
@@ -13,34 +11,37 @@ function compact(value, max) {
 
 function admissionRule(mode) {
     const policy = normalizeNpcAdmissionMode(mode);
-    if (policy === 'manual') return 'Admission=manual: do not create new NPC dossiers; existing NPCs may still update.';
-    if (policy === 'named_preferred') return 'Admission=named_preferred: create a new dossier only for an individually relevant proper/personal name; use identityKind:"named".';
+    if (policy === 'manual') return 'Admission=manual: never create a new NPC dossier; existing NPCs may still update.';
+    if (policy === 'named_preferred') return 'Admission=named_preferred: create a new dossier only for an individually relevant proper/personal name; identityKind="named".';
     return 'Admission=balanced: individually relevant named NPCs and genuinely unique unnamed role identities may be admitted; set identityKind accurately.';
 }
 
 export function foregroundContract(settings = {}, { capture = true, continuity = true } = {}) {
     if (!capture) return [
         `[NPC STATE v${NPC_STATE_VERSION} | FOREGROUND CONTINUITY]`,
-        'Private continuity context. Never mention it. Keep selected NPC identity, appearance, durable profile, relationships, and current state consistent; omission is not deletion evidence.',
+        'Private continuity context. Never mention it. Keep selected NPC identity, appearance, durable profile, relationships and current state consistent; omission is not deletion evidence.',
     ].join('\n');
 
+    const fields = dossierSemanticFieldList();
+    const groups = DOSSIER_EVALUATION_GROUPS.join('|');
     const structured = settings.structuredEvidenceDetected === true
-        ? 'Reference/control blocks may inform continuity but do not alone prove visible activity, relationship events, or admission.'
+        ? 'Reference/control blocks may inform continuity but do not by themselves prove visible activity, admission, relationship events, or lifecycle transitions.'
         : '';
     return [
         `[NPC STATE v${NPC_STATE_VERSION} | FOREGROUND CONTRACT v${FOREGROUND_CONTRACT_VERSION}]`,
         'Private bookkeeping. Write visible roleplay first, then exactly one <npc_state_v1>{JSON}</npc_state_v1>; never mention it. Put it immediately before an Inventory machine block when one exists.',
         admissionRule(settings.newNpcAdmissionMode),
-        'ACTIVITY: inChatNpcIds = individually relevant NPCs still participating at the end; exchangeActiveNpcIds = NPCs that spoke/acted/were directly affected now; worldActiveNpcIds = explicitly active off-screen. Existing NPCs use stable ids. New identity/activity claims need short exact current-visible excerpts. Mentions/crowds/incidental bodies are not active.',
-        `EXISTING DOSSIERS: omissions persist. Durable edits use semanticUpdates for ${SEMANTIC_UPDATE_FIELDS.join('|')}: {field,operation:"${SEMANTIC_UPDATE_OPERATIONS.join('|')}",value?,changes?,clear?,durability?,scope?,ageKind?,sources:[{messageId:null,excerpt}],explanation}. Collection replace/remove targets supplied ref or exact expected value; empty arrays never clear.`,
-        'PROFILE: judge meaning, not English keywords or repeat counts. Distinguish temporary/one-off behavior, newly revealed enduring traits, genuine development, and correction. Sleeping, unconsciousness, or silence while asleep is not permanent personality/speech; later evidence may replace such placeholders. One-off gestures are not mannerisms unless established as recurring. Form-specific traits stay scoped. Absence is not deletion.',
-        'CANON/AGE: temporary forms do not rewrite durable species/ordinary appearance. Chronological age and apparentAge are separate; replacing established age needs ageKind birthday|elapsed|correction plus evidence with the resulting number. Grounded fantasy maturation/rejuvenation may alter only affected appearance/forms without arbitrary interval gates.',
-        'NEW NPCS: id:"", canonical human-facing name, identityKind:"named|role-label", grounded bootstrap only; behaviorProfile/mannerisms/keyRelationships/memories are arrays. Recent history may enrich only after this exchange independently admits the NPC and never supplies live activity or player-relationship deltas.',
-        'LIVE STATE: for EXISTING dossiers, semanticUpdates is authoritative for mood/location/goal/status when this exchange establishes a newer current truth. Use replace for changed current state and remove when an old current value conclusively ended with no replacement. Top-level mood/location/goal/status remain compatibility/new-NPC bootstrap fields only. Status is activity/condition, not presence.',
-        'LIFECYCLE/RELATIONSHIP: Death/return uses lifeStateUpdates; dead-to-alive requires livingReturn:true. Every exchange-active NPC has relationshipChange.evaluated=true; nonzero trust/affection/desire/tension needs exact current-exchange evidence. relationshipSummary is the current NPC-to-PLAYER dynamic: compare it with playerRelationship.summary and return a changed summary only when this exchange materially changes or newly clarifies that dynamic, never for stylistic rewording. A grounded summary update is descriptive and may persist even when runtime replay protection, caps, gates, or inertia suppress numeric movement. Use impact none|ordinary|meaningful|major|extreme; runtime score mechanics remain authoritative. Never infer desire from friendliness.',
-        'NPC-TO-NPC: durable ties use semanticUpdates keyRelationships. familyFacts may express directional/custom kinship {owner,relation,reciprocalRelation?,count,members,descriptor?,twinGroup?,evidence}; never invent members, gender, or reciprocity.',
+        'ACTIVITY/IDENTITY: inChatNpcIds = individually relevant NPCs participating at the end; exchangeActiveNpcIds = NPCs that spoke/acted/were directly affected now; worldActiveNpcIds = explicitly active off-screen. Existing NPCs use stable ids. New identity/activity claims need short exact current-visible excerpts. Mentions, crowds and incidental bodies are not active.',
+        `ONE DOSSIER UPDATE PIPELINE: for an EXISTING dossier, ordinary changes use semanticUpdates only for ${fields}. Operations are ${SEMANTIC_UPDATE_OPERATIONS.join('|')}. Do not also emit legacy profileChanges/canonChanges/ageChange/appearanceFormChanges/keyRelationshipChanges or direct replacements for those fields. New NPC bootstrap may still use direct grounded fields.`,
+        `COVERAGE: for an exchange-active existing NPC, inspect every dossier group visible in its supplied context and include evaluatedGroups from ${groups}. Do not claim a group was checked when budget compaction omitted the relevant stored context.`,
+        'SEMANTIC UPDATE: {field,operation,value?,changes?,clear?,durability?,scope?,ageKind?,sources:[{messageId:null,excerpt}],explanation}. Omission preserves stored data. remove is explicit; empty arrays never clear unless clear:true is supported. Collection replace/remove should target supplied ref or exact expected value.',
+        'PROFILE/CANON: sleeping, unconsciousness, silence while asleep, isolated reactions, poses, temporary moods/forms and one-off gestures are not durable personality/speech/canon. Later grounded characterization may replace obsolete temporary placeholders. Form-specific traits stay scoped. Chronological age is separate from apparentAge; replacing established age needs ageKind birthday|elapsed|correction and the resulting grounded number.',
+        'LIVE STATE: mood/location/goal/status/currentForm are semantic live scalars for existing dossiers. Replace them when current truth changes; remove values that conclusively ended without replacement. Status is current activity/condition, never presence/lifecycle.',
+        'COLLECTIONS: behaviorProfile, mannerisms, keyRelationships and memories preserve unrelated entries. Important Memories are durable distinct events/facts, not paraphrase logs. keyRelationships is NON-PLAYER ties only.',
+        'LIFECYCLE/PLAYER RELATIONSHIP: death/return uses lifeStateUpdates; dead-to-alive requires livingReturn:true. Every exchange-active NPC has relationshipChange.evaluated=true; nonzero trust/affection/desire/tension needs exact current-exchange evidence. relationshipSummary is the current NPC-to-PLAYER dynamic and may update descriptively when grounded even if replay/caps/gates/inertia suppress numeric movement. Never infer desire from friendliness.',
+        'NPC-TO-NPC GRAPH: familyFacts/socialEdges are separate graph channels. Never use the PLAYER as an NPC-to-NPC endpoint or family member.',
         structured,
-        'OUTPUT keys: exchangeActiveNpcIds,inChatNpcIds,worldActiveNpcIds,npcs,socialEdges,familyFacts,lifeStateUpdates. NPC patches may include id/name/identityKind + identity/activity evidence; grounded new-NPC bootstrap fields; compatibility current relationshipSummary/mood/location/goal/status; semanticUpdates (authoritative for existing-dossier live-state changes); relationshipChange {evaluated,impact,delta,priority,axisEvidence,evidence,reason}. Keep unknowns empty/omitted. Emit the block even with no changes; no markdown fences.',
+        'OUTPUT keys: exchangeActiveNpcIds,inChatNpcIds,worldActiveNpcIds,npcs,socialEdges,familyFacts,lifeStateUpdates. Existing NPC patches use id/name + evaluatedGroups + semanticUpdates + activity/relationship/lifecycle data as needed. New NPC patches may include grounded bootstrap fields. Emit the block even when there are no changes; no markdown fences.',
     ].filter(Boolean).join('\n');
 }
 

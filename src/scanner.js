@@ -4,6 +4,7 @@ import { adaptLegacySemanticPayload } from './model/legacy-semantic-adapter.js';
 import {
     applyModelLedFamilyFacts,
     applyModelLedSemanticUpdates,
+    auditDossierEvaluationCoverage,
     prepareModelLedPayload,
     semanticUpdatePrompt,
 } from './model/semantic-updates.js';
@@ -23,9 +24,9 @@ function released(text) {
 
 function semanticAppend({ npcs = [], mode = 'scan', sourceIds = [] } = {}) {
     return [
-        semanticUpdatePrompt({ npcs, mode, allowedSourceIds: sourceIds }),
-        'MODEL-LED FAMILY / KINSHIP: top-level familyFacts.relation is a directional relationship from owner toward each member. Interpret the supplied narrative semantically in any language. Do not depend on a fixed English kinship vocabulary. You may add reciprocalRelation only when the reciprocal relation is actually established or safely symmetric; otherwise leave it empty. Never invent a relative name, gender, biological status, or category. Unknown/custom relation labels are valid and should be preserved rather than forced into a different category.',
-        'For existing dossiers, semanticUpdates is the authoritative durable-change channel in this contract. Direct stable fields may still be used for new-dossier bootstrap and compatibility, but do not use legacy profileChanges/canonChanges as the reason to withhold a grounded semantic update.',
+        semanticUpdatePrompt({ npcs, mode, allowedSourceIds: sourceIds, compactContext: true }),
+        'SINGLE-PIPELINE INVARIANT: after response compatibility normalization, every ordinary EXISTING-dossier field change is applied through semanticUpdates exactly once. Identity/admission, NPC-to-player relationship scoring/Current Dynamic, lifecycle, activity/presence, and family graph safety remain separate deterministic channels.',
+        'MODEL-LED FAMILY / KINSHIP: familyFacts.relation is directional from owner toward each member. Preserve custom relation labels; add reciprocalRelation only when established or safely symmetric. Never invent members, gender, biological status, or reciprocity.',
     ].join('\n\n');
 }
 
@@ -56,6 +57,7 @@ export function buildStructuredDossierImportPrompt(args = {}) {
 export function sanitizeStructuredDossierPatch(patch = {}, npc = {}) {
     const out = core.sanitizeStructuredDossierPatch(patch, npc);
     if (Array.isArray(patch?.semanticUpdates)) out.semanticUpdates = structuredClone(patch.semanticUpdates);
+    if (Array.isArray(patch?.evaluatedGroups)) out.evaluatedGroups = structuredClone(patch.evaluatedGroups);
     return out;
 }
 
@@ -74,15 +76,27 @@ export function newNpcAdmissionAllows(patch, mode = 'balanced') {
 }
 
 export function applyScanResult(stateInput, resultInput, options = {}) {
+    const semanticOptions = {
+        ...options,
+        semanticWorldContext: options.semanticWorldContext ?? options.evidencePolicy?.worldStateText ?? '',
+        semanticPrivateContext: options.semanticPrivateContext ?? options.evidencePolicy?.innerChatterText ?? '',
+    };
     const parsed = typeof resultInput === 'string' ? parseScanJson(resultInput) : structuredClone(resultInput || {});
-    const adapted = adaptLegacySemanticPayload(stateInput, parsed, options);
+    const adapted = adaptLegacySemanticPayload(stateInput, parsed, semanticOptions);
     const prepared = prepareModelLedPayload(stateInput, adapted, options.admissionMode);
     const applied = core.applyScanResult(stateInput, prepared, options);
-    const semantic = applyModelLedSemanticUpdates(applied.state, adapted, options);
+    const semantic = applyModelLedSemanticUpdates(applied.state, adapted, semanticOptions);
     const family = applyModelLedFamilyFacts(semantic.state, adapted, options);
+    const coverageNpcIds = Array.isArray(options.coverageNpcIds)
+        ? options.coverageNpcIds
+        : (options.requireDossierCoverage === true ? applied.exchangeActiveNpcIds : []);
+    const coverageDiagnostics = coverageNpcIds.length
+        ? auditDossierEvaluationCoverage(family.state, adapted, { npcIds: coverageNpcIds })
+        : [];
     return {
         ...applied,
         state: family.state,
         semanticDiagnostics: [...semantic.diagnostics, ...family.diagnostics],
+        coverageDiagnostics,
     };
 }

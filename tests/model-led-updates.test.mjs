@@ -85,7 +85,8 @@ test('Refresh prompt receives personality and speech plus stable collection entr
         { is_user: false, mes: 'Sora answers at length and taps her boot.' },
     ];
     const prompt = buildTargetedRefreshPrompt({ npc: state.npcs[0], chat, assistantMessageId: 1, scanDepth: 12 });
-    assert.match(prompt, /CURRENT DURABLE DOSSIER CONTEXT INCLUDING PERSONALITY AND SPEECH/);
+    assert.match(prompt, /TARGET DOSSIER:/);
+    assert.match(prompt, /SEMANTIC EDIT INDEX/);
     assert.match(prompt, /Quiet and dormant baseline post-emergence/);
     assert.match(prompt, /Unvoiced; currently sleeping/);
     assert.match(prompt, /entry:mannerisms:/);
@@ -101,7 +102,7 @@ test('foreground/full scan prompt includes personality and speech in reconciliat
     const prompt = buildScanPrompt({ state, chat, assistantMessageId: 1, scanDepth: 8 });
     assert.match(prompt, /Quiet and dormant baseline post-emergence/);
     assert.match(prompt, /Unvoiced; currently sleeping/);
-    assert.match(prompt, /MODEL-LED UPDATE CONTRACT v2/);
+    assert.match(prompt, /NPC STATE DOSSIER UPDATE CONTRACT v3/);
 });
 
 test('semantic replacement does not require English cue phrases or repeated concept labels', () => {

@@ -1,16 +1,8 @@
 import { findNpcByReference, normalizeName } from '../schema.js';
+import { DOSSIER_LIVE_FIELDS } from './dossier-fields.js';
 
 function compact(value, max = 1200) {
     return String(value ?? '').replace(/\u0000/g, '').trim().slice(0, max);
-}
-
-function modelSource(evidence, options = {}) {
-    const excerpt = compact(evidence, 1000);
-    if (!excerpt) return [];
-    return [{
-        messageId: Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null,
-        excerpt,
-    }];
 }
 
 function existingNpc(state, patch) {
@@ -19,23 +11,41 @@ function existingNpc(state, patch) {
         || findNpcByReference(state, patch?.name || '');
 }
 
-function hasEquivalentUpdate(updates, field) {
+function hasUpdate(updates, field) {
     return updates.some(update => String(update?.field || '').trim() === field);
 }
 
-function profileOperation(mode) {
+function source(evidence, options = {}) {
+    const excerpt = compact(evidence, 1000);
+    return excerpt ? [{ messageId: Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null, excerpt }] : [];
+}
+
+function activitySource(patch, options = {}) {
+    for (const channel of ['exchangeActive', 'inChat', 'worldActive']) {
+        const excerpts = patch?.activityEvidence?.[channel]?.excerpts;
+        const excerpt = Array.isArray(excerpts) ? excerpts.find(value => compact(value, 1000)) : '';
+        if (excerpt) return source(excerpt, options);
+    }
+    return [];
+}
+
+function operation(mode) {
     return String(mode || '').trim().toLocaleLowerCase() === 'refine' ? 'refine' : 'replace';
 }
 
-function canonOperation(mode) {
-    return String(mode || '').trim().toLocaleLowerCase() === 'refine' ? 'refine' : 'replace';
+function counterpartEntry(npc, other) {
+    const key = normalizeName(other);
+    if (!key) return '';
+    return (Array.isArray(npc?.keyRelationships) ? npc.keyRelationships : []).find(entry => {
+        const name = String(entry || '').split(/\s+(?:-|–|—)\s+/)[0];
+        return normalizeName(name) === key;
+    }) || '';
 }
 
 /**
- * Transitional adapter for model responses produced by the pre-v2 prompt contract.
- * The model's structured semantic judgment is preserved, but old English phrase gates
- * no longer decide whether it may be applied. Exact source-span validation remains in
- * semantic-updates.js.
+ * Boundary-only compatibility adapter. Pre-v3 response shapes are translated once into
+ * semanticUpdates, after which existing-dossier ordinary fields use the canonical semantic
+ * pipeline exclusively. No legacy profile/canon gate runs after this boundary.
  */
 export function adaptLegacySemanticPayload(stateInput, resultInput, options = {}) {
     if (!resultInput || typeof resultInput !== 'object' || Array.isArray(resultInput)) return resultInput;
@@ -46,9 +56,6 @@ export function adaptLegacySemanticPayload(stateInput, resultInput, options = {}
     for (const patch of Array.isArray(result.npcs) ? result.npcs : []) {
         const existing = existingNpc(state, patch);
         const identityKind = String(patch?.identityKind || '').trim().toLocaleLowerCase().replace(/[_ ]+/g, '-');
-
-        // named_preferred is deterministic policy, but the semantic question of whether
-        // this is a proper name comes from identityKind rather than an English modifier list.
         if (!existing && admissionMode === 'named_preferred' && ['named', 'proper-name', 'proper'].includes(identityKind)) {
             patch._modelLedRole = compact(patch.role, 240);
             patch.role = '';
@@ -59,65 +66,69 @@ export function adaptLegacySemanticPayload(stateInput, resultInput, options = {}
 
         for (const change of Array.isArray(patch.profileChanges) ? patch.profileChanges : []) {
             const field = String(change?.field || '').trim();
-            if (!['personality', 'behaviorProfile', 'speech', 'mannerisms'].includes(field) || hasEquivalentUpdate(updates, field)) continue;
+            if (!['personality', 'behaviorProfile', 'speech', 'mannerisms'].includes(field) || hasUpdate(updates, field)) continue;
             const value = patch[field];
-            if (value == null || value === '' || (Array.isArray(value) && !value.length)) continue;
             const evidence = compact(change?.evidence || change?.reason, 1000);
-            if (!evidence) continue;
-            updates.push({
-                field,
-                operation: profileOperation(change?.mode),
-                value: structuredClone(value),
-                durability: 'durable',
-                sources: modelSource(evidence, options),
-                explanation: compact(change?.concept || change?.mode || 'Model-classified profile update.', 500),
-            });
+            if (value == null || value === '' || (Array.isArray(value) && !value.length) || !evidence) continue;
+            updates.push({ field, operation: operation(change?.mode), value: structuredClone(value), durability: 'durable', sources: source(evidence, options), explanation: compact(change?.concept || change?.mode || 'Legacy profile judgment.', 500) });
         }
 
         for (const change of Array.isArray(patch.canonChanges) ? patch.canonChanges : []) {
             const field = String(change?.field || '').trim();
-            if (!['appearance', 'species', 'background', 'role', 'birthday'].includes(field) || hasEquivalentUpdate(updates, field)) continue;
+            if (!['appearance', 'species', 'background', 'role', 'birthday'].includes(field) || hasUpdate(updates, field)) continue;
             const value = change?.value ?? patch[field];
             const evidence = compact(change?.evidence || change?.reason, 1000);
             if (value == null || value === '' || !evidence) continue;
-            updates.push({
-                field,
-                operation: canonOperation(change?.mode),
-                value: structuredClone(value),
-                durability: 'durable',
-                sources: modelSource(evidence, options),
-                explanation: compact(change?.mode || 'Model-classified canon update.', 500),
-            });
+            updates.push({ field, operation: operation(change?.mode), value: structuredClone(value), durability: 'durable', sources: source(evidence, options), explanation: compact(change?.mode || 'Legacy canon judgment.', 500) });
         }
 
-        if (!hasEquivalentUpdate(updates, 'age') && patch?.ageChange && typeof patch.ageChange === 'object' && !Array.isArray(patch.ageChange)) {
+        if (!hasUpdate(updates, 'age') && patch?.ageChange && typeof patch.ageChange === 'object' && !Array.isArray(patch.ageChange)) {
             const evidence = compact(patch.ageChange.evidence || patch.ageChange.reason, 1000);
             const value = patch.ageChange.age ?? patch.ageChange.value;
             if (evidence && value != null && value !== '') updates.push({
-                field: 'age',
-                operation: 'replace',
-                value,
+                field: 'age', operation: 'replace', value,
                 ageKind: String(patch.ageChange.kind || '').trim().toLocaleLowerCase(),
-                durability: 'durable',
-                sources: modelSource(evidence, options),
-                explanation: 'Model-classified chronological-age update.',
+                durability: 'durable', sources: source(evidence, options), explanation: 'Legacy chronological-age judgment.',
             });
         }
 
-        if (!hasEquivalentUpdate(updates, 'appearanceForms')) {
+        if (!hasUpdate(updates, 'appearanceForms')) {
             for (const change of Array.isArray(patch.appearanceFormChanges) ? patch.appearanceFormChanges : []) {
                 const name = compact(change?.name || change?.form, 80);
                 const appearance = compact(change?.appearance || change?.description, 1800);
                 const evidence = compact(change?.evidence || change?.reason, 1000);
                 if (!name || !appearance || !evidence) continue;
+                updates.push({ field: 'appearanceForms', operation: 'replace', value: { name, appearance }, scope: { form: name }, durability: 'durable', sources: source(evidence, options), explanation: compact(change?.mode || 'Legacy form judgment.', 500) });
+            }
+        }
+
+        if (!hasUpdate(updates, 'keyRelationships')) {
+            const changes = [];
+            let evidence = '';
+            for (const change of Array.isArray(patch.keyRelationshipChanges) ? patch.keyRelationshipChanges : []) {
+                if (String(change?.action || '').trim() !== 'remove') continue;
+                const expected = counterpartEntry(existing, change?.other || change?.name || change?.target);
+                const proof = compact(change?.evidence || change?.reason, 1000);
+                if (!expected || !proof) continue;
+                evidence ||= proof;
+                changes.push({ action: 'remove', expected });
+            }
+            if (changes.length) updates.push({ field: 'keyRelationships', operation: 'refine', changes, durability: 'durable', sources: source(evidence, options), explanation: 'Legacy key-relationship removal.' });
+        }
+
+        const liveEvidence = activitySource(patch, options);
+        if (liveEvidence.length) {
+            for (const field of DOSSIER_LIVE_FIELDS) {
+                if (hasUpdate(updates, field)) continue;
+                const value = compact(patch?.[field], field === 'currentForm' ? 80 : 1200);
+                if (!value || normalizeName(value) === normalizeName(existing?.[field])) continue;
                 updates.push({
-                    field: 'appearanceForms',
-                    operation: 'replace',
-                    value: { name, appearance },
-                    scope: { form: name },
-                    durability: 'durable',
-                    sources: modelSource(evidence, options),
-                    explanation: compact(change?.mode || 'Model-classified form update.', 500),
+                    field,
+                    operation: compact(existing?.[field]) ? 'replace' : 'establish',
+                    value,
+                    durability: 'temporary',
+                    sources: structuredClone(liveEvidence),
+                    explanation: 'Legacy live-state compatibility value.',
                 });
             }
         }

@@ -43,10 +43,11 @@ function context(prompt) {
 
 test('foreground emits one authoritative contract without layered legacy instructions', () => {
     const { prompt } = buildForegroundInjection(state(), settings());
-    assert.equal((prompt.match(/FOREGROUND CONTRACT v3/g) || []).length, 1);
+    assert.equal((prompt.match(/FOREGROUND CONTRACT v4/g) || []).length, 1);
     assert.equal((prompt.match(/<npc_state_v1>/g) || []).length, 1);
-    assert.doesNotMatch(prompt, /NPC STATE FOREGROUND FULL SCAN|MODEL-LED UPDATE CONTRACT v2|profileChanges|canonChanges/);
-    assert.match(prompt, /Durable edits use semanticUpdates/);
+    assert.doesNotMatch(prompt, /NPC STATE FOREGROUND FULL SCAN|MODEL-LED UPDATE CONTRACT v2/);
+    assert.equal((prompt.match(/ONE DOSSIER UPDATE PIPELINE/g) || []).length, 1);
+    assert.match(prompt, /ordinary changes use semanticUpdates only/);
 });
 
 test('one selection pipeline honors injection limit even with twelve available NPCs', () => {
