@@ -24,6 +24,19 @@ jobs:
         with:
           node-version: 22
 
+      - name: Repair follow-up staging harness
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/apply-v073-followup.py')
+          text = path.read_text()
+          needle = "    \"import { manualRelationshipRemediationPatch } from '../src/ui.js';\\nimport { branchSafetyNeedsCorrectionRemediation } from '../src/branch-recovery-ui.js';\"\n)\ninsert ="
+          replacement = "    \"import { manualRelationshipRemediationPatch } from '../src/ui.js';\\nimport { branchSafetyNeedsCorrectionRemediation } from '../src/branch-recovery-ui.js';\"\n)\nt = read(test_path)\ninsert ="
+          if needle not in text:
+              raise SystemExit('follow-up harness import anchor missing')
+          path.write_text(text.replace(needle, replacement, 1))
+          PY
+
       - name: Apply follow-up polish
         run: python3 scripts/apply-v073-followup.py
 
