@@ -353,13 +353,13 @@ function invalidateEmbeddedMeta(messageId) {
     return true;
 }
 
-async function runSeparateRecoveryScan(messageId, reason = 'recovery') {
+async function runSeparateRecoveryScan(messageId, reason = 'recovery', capture = null) {
     const settings = getSettings();
     const id = Number(messageId);
     if (!Number.isInteger(id) || id < 0) return { ok: false, reason: 'no-assistant-message' };
     if (settings.enabled === false || settings.autoScan === false) return { ok: false, reason: 'auto-disabled' };
     try {
-        const result = await engine.scan(id, { manual: false, force: true });
+        const result = await engine.scan(id, { manual: false, force: true, captureId: capture?.captureId || '', expectedSource: capture?.source || null });
         // A successful commit already refreshed via engine.onStateChanged. Only a stale discarded run needs a local surface catch-up.
         if (result?.discarded) refreshSurfaces();
         if (!result?.ok && !result?.discarded) console.warn('[NPC State Beta] Separate recovery scan did not commit:', reason, result?.reason);
@@ -371,10 +371,10 @@ async function runSeparateRecoveryScan(messageId, reason = 'recovery') {
     }
 }
 
-async function maybeForegroundFallback(messageId, reason) {
+async function maybeForegroundFallback(messageId, reason, capture = null) {
     if (getSettings().fallbackScan !== true) return { ok: false, reason, coverage: 'failure' };
     console.warn('[NPC State Beta] Embedded capture failed; invoking separate recovery scanner:', reason);
-    return runSeparateRecoveryScan(messageId, 'foreground-' + reason);
+    return runSeparateRecoveryScan(messageId, 'foreground-' + reason, capture);
 }
 
 // only newly generated embedded payloads require the lifecycle channel.
@@ -407,7 +407,7 @@ export async function processEmbeddedScan(messageId, { expectedFingerprint = '',
 
     if (consumed.errors.length || !consumed.parsed) {
         console.warn('[NPC State Beta] Foreground NPC payload rejected.', consumed.errors);
-        const fallback = await maybeForegroundFallback(id, consumed.found ? 'invalid-control' : 'missing-control');
+        const fallback = await maybeForegroundFallback(id, consumed.found ? 'invalid-control' : 'missing-control', capture);
         if (!fallback.ok && getSettings().fallbackScan !== true) notify('warning', 'embedded NPC scan discarded: ' + consumed.errors.slice(0, 2).join('; ').slice(0, 480) + ' State was left unchanged. Details: NPCState.captureDiagnostics().');
         return { ...fallback, errors: consumed.errors, errorCodes: consumed.errorCodes };
     }

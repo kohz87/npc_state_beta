@@ -53,6 +53,74 @@ export const DOSSIER_DURABLE_FIELDS = Object.freeze(DOSSIER_SEMANTIC_FIELDS.filt
 export const DOSSIER_LIVE_FIELDS = Object.freeze(DOSSIER_SEMANTIC_FIELDS.filter(field => DOSSIER_FIELD_DEFINITIONS[field].durability === 'live'));
 export const DOSSIER_FIRST_PASS_LIVE_FIELDS = Object.freeze(DOSSIER_SEMANTIC_FIELDS.filter(field => DOSSIER_FIELD_DEFINITIONS[field].firstPass === true));
 
+
+function plainObject(value) {
+    return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+const NUMERIC_SCALAR_COMPAT_FIELDS = new Set(['age', 'apparentAge']);
+const COLLECTION_TEXT_KEYS = Object.freeze({
+    behaviorProfile: ['text', 'value', 'summary', 'description', 'behavior', 'trait', 'label', 'name'],
+    mannerisms: ['text', 'value', 'summary', 'description', 'mannerism', 'behavior', 'trait', 'label', 'name'],
+    memories: ['text', 'value', 'summary', 'description', 'memory', 'label', 'name'],
+    keyRelationships: ['name', 'npc', 'person', 'target', 'otherNpc', 'other', 'with', 'character', 'relationship', 'relation', 'type', 'kind', 'role', 'tie', 'summary', 'description', 'details', 'note'],
+});
+
+function supportedCollectionObject(field, value) {
+    if (!plainObject(value)) return false;
+    const keys = COLLECTION_TEXT_KEYS[field] || [];
+    return keys.some(key => typeof value[key] === 'string' && value[key].trim());
+}
+
+export function dossierCollectionMemberText(field, value, max = 700) {
+    if (typeof value === 'string') return value.replace(/\u0000/g, '').trim().slice(0, max);
+    if (!plainObject(value) || field === 'keyRelationships') return '';
+    for (const key of COLLECTION_TEXT_KEYS[field] || []) {
+        const candidate = value[key];
+        if (typeof candidate !== 'string') continue;
+        const clean = candidate.replace(/\u0000/g, '').trim().slice(0, max);
+        if (clean) return clean;
+    }
+    return '';
+}
+
+function appearanceFormsIssue(value) {
+    const rows = Array.isArray(value)
+        ? value
+        : (plainObject(value) ? Object.entries(value).map(([name, appearance]) => ({ name, appearance })) : null);
+    if (!rows) return 'expected-form-array-or-map';
+    for (let index = 0; index < rows.length; index += 1) {
+        const row = rows[index];
+        if (!plainObject(row)) return `form-${index}-expected-object`;
+        const name = row.name ?? row.form ?? row.label;
+        const appearance = row.appearance ?? row.description ?? row.text;
+        if (typeof name !== 'string' || !name.trim()) return `form-${index}-expected-string-name`;
+        if (typeof appearance !== 'string' || !appearance.trim()) return `form-${index}-expected-string-appearance`;
+    }
+    return '';
+}
+
+export function dossierFieldValueIssue(field, value) {
+    const definition = dossierFieldDefinition(field);
+    if (!definition) return 'unsupported-field';
+    if (definition.kind === 'scalar') {
+        if (NUMERIC_SCALAR_COMPAT_FIELDS.has(field) && typeof value === 'number' && Number.isFinite(value) && value >= 0) return '';
+        return typeof value === 'string' ? '' : 'expected-string-value';
+    }
+    if (definition.kind === 'collection') {
+        if (!Array.isArray(value)) return 'expected-array-value';
+        for (let index = 0; index < value.length; index += 1) {
+            const item = value[index];
+            if (typeof item === 'string') continue;
+            if (supportedCollectionObject(field, item)) continue;
+            return `member-${index}-expected-string-or-supported-object`;
+        }
+        return '';
+    }
+    if (definition.kind === 'forms') return appearanceFormsIssue(value);
+    return 'unsupported-field-kind';
+}
+
 export function dossierFieldDefinition(field) {
     return DOSSIER_FIELD_DEFINITIONS[String(field || '').trim()] || null;
 }

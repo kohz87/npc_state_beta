@@ -2,15 +2,15 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model.
 
-## Release 0.7.7
+## Release 0.7.8
 
-Foreground capture, Scan, and Refresh now share compact, literal JSON examples checked by the production parser. New dossier fields are flat; existing dossiers use semantic updates. Malformed or incompatible captures are rejected with specific reasons rather than repaired by guessing field names, relationship axes, or missing content. The existing `<npc_state_v1>` transport tag is unchanged. Successful first-pass capture adds no model request; automatic fallback, including for a missing block, runs only when explicitly enabled.
+Optional foreground fallback scans are now capture-bound: a malformed/missing embedded attempt cannot finish later and consume the scan boundary of a newer valid payload with identical visible narration. Capture attempt/history ownership is checked before queued fallback work dispatches, after generation, and by the existing pre/post-persistence commit guard. Manual Scan remains deliberately independent of embedded capture attempts.
 
-`NPCState.captureDiagnostics(messageId?)` reports parsing, current source ownership, application, and persistence separately. Capture attempts are associated with their chat, complete history boundary, message fingerprint, and active swipe, rather than just a message position. Old, evicted, or pre-upgrade operation records cannot imply that a new capture committed. Failure details are bounded; failed raw output is not archived. `NPCState.copyCapturedPayload(messageId?)` copies an already-retained successfully parsed payload, not proof that it was applied.
+Ordinary dossier field inputs are type-checked before bootstrap or semantic normalization. Text scalars no longer coerce objects, arrays, or booleans into stored strings such as `[object Object]`; invalid proposals are rejected with concrete diagnostics while valid existing values remain. Numeric age/apparent-age compatibility and supported collection/form object compatibility are retained.
 
-Supported first-pass appearance/profile/live state/memories and neutral Current Dynamic updates remain available, with evidence and relationship mechanics unchanged. Random birthday filling is intentional and retained. See [`docs/core-contract.md`](docs/core-contract.md) for the authoritative behavior and compatibility specification.
+The v0.7.7 canonical JSON envelope and `<npc_state_v1>` transport are unchanged. Supported first-pass appearance/profile/live state/memories, neutral Current Dynamic at zero relationship deltas, random birthday filling, relationship scoring/replay protection, correction rollback/recovery, optional completeness, and alternate-model routing remain intact. See [`docs/core-contract.md`](docs/core-contract.md) for the authoritative behavior.
 
-Release 0.7.7 uses semantic contract 5 and foreground contract 6. Persisted state and settings schemas remain 1, and storage identity remains `npc_state_beta.v3`. No database rebuild or storage-key migration is required. Automated tests simulate the host and persistence. They do not measure live provider reliability.
+Release 0.7.8 uses semantic contract 5 and foreground contract 6. Persisted state and settings schemas remain 1, and storage identity remains `npc_state_beta.v3`. No database rebuild or storage-key migration is required. Automated tests do not measure live provider reliability.
 
 ## Release 0.6.3
 

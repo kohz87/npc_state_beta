@@ -690,13 +690,23 @@ export function createNpcStateEngine(adapters = {}) {
         }
     }
 
-    async function scan(messageId, { manual = false, force = false, applyRelationship = null } = {}) {
+    async function scan(messageId, { manual = false, force = false, applyRelationship = null, captureId = '', expectedSource = null } = {}) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat' || /-pending:/.test(chatKey)) return { ok: false, reason: 'no-chat' };
         const settings = getSettings();
         if (!manual && settings.enabled === false) return { ok: false, reason: 'disabled' };
         if (!manual && settings.autoScan === false) return { ok: false, reason: 'auto-disabled' };
         if (manual) invalidateCompleteness(chatKey);
+        const captureBound = !manual && Boolean(captureId || expectedSource);
+        let queuedOwnership = null;
+        if (captureBound) {
+            const queuedChat = getContext().chat || [];
+            if ((expectedSource && !captureSourceMatches(expectedSource, chatKey, queuedChat, messageId))
+                || (captureId && activeSwipeMetadata(queuedChat[messageId]).meta?.captureId !== captureId)) {
+                return { ok: false, discarded: true, reason: 'stale-capture-before-queue', messageId };
+            }
+            queuedOwnership = captureOperationOwnership('automatic-scan', chatKey, queuedChat, messageId, { captureId });
+        }
         return exclusive(chatKey, async () => {
             const state = await loadChat(chatKey);
             if (!state) return { ok: false, reason: 'no-state' };
@@ -710,7 +720,11 @@ export function createNpcStateEngine(adapters = {}) {
             if (!exchange) return { ok: false, reason: 'not-assistant-message' };
             const relationshipApplyRequested = applyRelationship === null ? !alreadyScannedMessage : applyRelationship === true;
             const replayProtectedRelationship = relationshipReplayProtected(state, chat, messageId);
-            const ownership = captureOperationOwnership(manual ? 'scan-current-cast' : 'automatic-scan', chatKey, chat, messageId);
+            const ownership = queuedOwnership || captureOperationOwnership(manual ? 'scan-current-cast' : 'automatic-scan', chatKey, chat, messageId);
+            if (captureBound && (!operationOwnershipMatches(ownership)
+                || (expectedSource && !captureSourceMatches(expectedSource, getChatKey(), getContext().chat || [], messageId)))) {
+                return { ok: false, discarded: true, reason: 'stale-capture-before-dispatch', messageId };
+            }
             const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(settings.relationshipHistoryLimit);
             const prompt = buildScanPrompt({
                 state,
