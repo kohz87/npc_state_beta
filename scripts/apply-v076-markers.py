@@ -13,7 +13,7 @@ p = 'src/scan-helpers.js'
 s = read(p)
 s = once(s,
     "'IDENTITY HANDOFF: EXISTING NPC patches use supplied stable ids; name-only dossiers enrich via semanticUpdates. NEW NPC patches leave id empty, use the canonical human-facing name/readable unique role label in activity refs, and let NPC State assign the stored id.'",
-    "'IDENTITY HANDOFF: EXISTING NPC patches use supplied stable ids; name-only dossiers enrich via semanticUpdates. NEW NPC patches leave id empty, use the canonical human-facing name/readable unique role label in activity refs. NPC State assigns the stored id locally.'",
+    "'IDENTITY HANDOFF: EXISTING NPC patches use supplied stable ids. NAME-ONLY ENRICHMENT: stored name-only dossiers keep that id and enrich via semanticUpdates. NEW NPC patches leave id empty, use the canonical human-facing name/readable unique role label in activity refs. NPC State assigns the stored id locally.'",
     'identity marker')
 s = once(s,
     "'EVALUATION: fieldEvaluations={unchanged:[],insufficient:[],unavailable:[]} uses field ids; evaluatedGroups is group-only. contextCoverage.unavailable/partial means compacted/truncated stored context, not empty.'",
@@ -23,6 +23,14 @@ write(p, s)
 
 p = 'src/foreground-contract.js'
 s = read(p)
+s = once(s,
+    "import { DOSSIER_EVALUATION_GROUPS, dossierFirstPassLiveFieldList, dossierSemanticFieldList } from './model/dossier-fields.js';",
+    "import { DOSSIER_EVALUATION_GROUPS, dossierFirstPassLiveFieldList } from './model/dossier-fields.js';",
+    'dead foreground field-list import')
+s = once(s,
+    "    const fields = dossierSemanticFieldList();\n",
+    "",
+    'dead foreground field-list variable')
 s = once(s,
     "`ONE DOSSIER PIPELINE: EXISTING extraction-map fields use semanticUpdates (${SEMANTIC_UPDATE_OPERATIONS.join('|')}) only; never also emit legacy/direct replacements. NEW bootstrap may use grounded direct fields.`,",
     "`ONE DOSSIER UPDATE PIPELINE: EXISTING ordinary changes use semanticUpdates only (${SEMANTIC_UPDATE_OPERATIONS.join('|')}); never also emit legacy/direct replacements. NEW bootstrap may use grounded direct fields.`,",
@@ -43,4 +51,4 @@ p = 'tests/foreground-injection.test.mjs'
 s = read(p).replace('/FOREGROUND CONTRACT v4/g', '/FOREGROUND CONTRACT v5/g')
 write(p, s)
 
-print('Applied v0.7.6 compatibility markers.')
+print('Applied v0.7.6 compatibility markers and lean foreground cleanup.')
