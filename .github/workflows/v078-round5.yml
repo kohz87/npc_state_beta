@@ -1,0 +1,39 @@
+name: v078 round 5 publisher
+on:
+  push:
+    branches: [automation/v078-review]
+    paths: [.github/workflows/v078-round5.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply round 5 fix
+        run: |
+          base64 -d scripts/v078-round5.patch.gz.b64 | gzip -d > /tmp/r5.patch
+          git fetch origin automation/v078-candidate
+          git checkout -B automation/v078-candidate origin/automation/v078-candidate
+          git apply --check /tmp/r5.patch
+          git apply /tmp/r5.patch
+          git diff --check
+      - name: Validate exact candidate
+        run: |
+          npm run validate
+          npm test
+          npm run package
+          unzip -t dist/npc_state_beta-0.7.8.zip
+      - name: Commit and push
+        run: |
+          git config user.name 'OpenAI automation'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add CHANGELOG.md README.md docs/core-contract.md src/engine.js tests/v078-manual-api-value-boundaries.test.mjs
+          git commit -m 'fix: validate public manual dossier values' -m 'Independent Round 5 bypass review found supported public manual APIs could still normalize object-valued dossier text into [object Object], including appearance, birthday, Current Dynamic and lifecycle reason, while addNpc could coerce an object identity. Reuse the canonical dossier value-shape validator at updateNpc, validate focused manual fields and relationship axes before schema normalization, and require addNpc string identity. Preserve numeric age/relationship compatibility, supported collection objects, portrait updates, user-owned mutation semantics and diagnostics. Validation, 280 tests, packaging and ZIP integrity pass; release remains 0.7.8.'
+          git push origin HEAD:automation/v078-candidate
+          git rev-parse HEAD
