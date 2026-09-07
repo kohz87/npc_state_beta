@@ -6,7 +6,7 @@ import { compactForegroundNpc } from '../src/foreground-context.js';
 import { foregroundContract } from '../src/foreground-contract.js';
 import { buildForegroundInjection } from '../src/injection.js';
 import { createNpcStateEngine } from '../src/engine.js';
-import { inspectCapturedPayload, summarizeProposalDiagnostics } from '../src/operation-diagnostics.js';
+import { inspectCapturedPayload, storeCapturedPayload, summarizeProposalDiagnostics } from '../src/operation-diagnostics.js';
 import { createEmptyState, normalizeNpc } from '../src/schema.js';
 import { normalizeSettings } from '../src/settings.js';
 import { decodeV3Payload, encodeV3Payload } from '../src/storage.js';
@@ -306,6 +306,9 @@ test('capture inspection selects active swipe metadata and separates parsed payl
         ],
     }];
     const operations = [{ id: 'op0', type: 'first-pass', status: 'committed', source: { messageId: 1, swipeId: 0 }, persistence: { status: 'committed', revision: 2 }, proposals: { accepted: 1 } }, { id: 'op1', type: 'first-pass', status: 'committed', source: { messageId: 1, swipeId: 1 }, persistence: { status: 'committed', revision: 3 }, proposals: { accepted: 4 } }];
+    const capture = storeCapturedPayload({ chat, chatKey: 'chat:inspect', messageId: 1, consumed: { parsed: {}, raw: '{"swipe":1}', errors: [] } });
+    operations[1].chatKey = 'chat:inspect';
+    operations[1].source = { ...capture.source, captureId: capture.captureId };
     const result = inspectCapturedPayload({ chat, chatKey: 'chat:inspect', messageId: 1, operations });
     assert.equal(result.payload, '{"swipe":1}');
     assert.equal(result.swipeId, 1);
@@ -321,8 +324,8 @@ test('capture inspection never falls back to another swipe and reports unavailab
     assert.equal(missing.available, false);
     assert.equal(missing.reason, 'capture-metadata-unavailable-for-active-swipe');
 
-    chat[0].swipe_info[1].extra.npc_state_beta_v1 = { accepted: true, payload: '{"one":true}', errors: [], at: 5 };
-    const stale = inspectCapturedPayload({ chat, chatKey: 'chat:inspect', messageId: 0, operations: [{ id: 'op', type: 'first-pass', status: 'discarded', source: { messageId: 0, swipeId: 1 }, persistence: { status: 'saved-unowned-blocked', revision: 4 }, failure: { reason: 'history-changed-during-persist' } }] });
+    const capture = storeCapturedPayload({ chat, chatKey: 'chat:inspect', messageId: 0, consumed: { parsed: {}, raw: '{"one":true}', errors: [] } });
+    const stale = inspectCapturedPayload({ chat, chatKey: 'chat:inspect', messageId: 0, operations: [{ id: 'op', type: 'first-pass', chatKey: 'chat:inspect', status: 'discarded', source: { ...capture.source, captureId: capture.captureId }, persistence: { status: 'saved-unowned-blocked', revision: 4 }, failure: { reason: 'history-changed-during-persist' } }] });
     assert.equal(stale.parsedSuccessfully, true);
     assert.equal(stale.application.status, 'discarded');
     assert.equal(stale.application.reason, 'history-changed-during-persist');

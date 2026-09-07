@@ -1,5 +1,5 @@
 import * as core from './scan-application.js';
-import { parseScanJson } from './scan-payload.js';
+import { normalizeScanPayload, parseScanJson } from './scan-payload.js';
 import { normalizeNpcAdmissionMode } from './schema.js';
 import { adaptLegacySemanticPayload } from './model/legacy-semantic-adapter.js';
 import {
@@ -37,7 +37,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         semanticWorldContext: options.semanticWorldContext ?? options.evidencePolicy?.worldStateText ?? '',
         semanticPrivateContext: options.semanticPrivateContext ?? options.evidencePolicy?.innerChatterText ?? '',
     };
-    const parsed = typeof resultInput === 'string' ? parseScanJson(resultInput) : structuredClone(resultInput || {});
+    const parsed = typeof resultInput === 'string' ? parseScanJson(resultInput) : normalizeScanPayload(structuredClone(resultInput || {}), { allowOmittedSupplemental: true });
     const compatibilityDiagnostics = [];
     const adapted = adaptLegacySemanticPayload(stateInput, parsed, { ...semanticOptions, compatibilityDiagnostics });
     const prepared = prepareModelLedPayload(stateInput, adapted, options.admissionMode);

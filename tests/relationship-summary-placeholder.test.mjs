@@ -133,7 +133,7 @@ test('scan and refresh output contracts do not expose an instructional relations
     const refresh = buildTargetedRefreshPrompt({ npc: state.npcs[0], chat, assistantMessageId: 1, scanDepth: 8, playerName: 'Lucien' });
     for (const prompt of [scan, refresh]) {
         assert.doesNotMatch(prompt, /NPC relationship with PLAYER only/i);
-        assert.match(prompt, /"relationshipSummary":""/);
+        assert.match(prompt, /Changed relationshipSummary needs relationshipSummaryEvidence even at zero delta/);
         assert.match(prompt, /Never copy (?:schema instructions|an output-schema instruction)/);
     }
 });

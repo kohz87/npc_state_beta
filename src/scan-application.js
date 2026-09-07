@@ -3,7 +3,6 @@ import { DOSSIER_SEMANTIC_FIELDS, dossierFieldGroup } from './model/dossier-fiel
 import { relationshipEvidenceExcerptMatch } from './relationship-evidence.js';
 import { GENERIC_REFERENCES, appendUnique, containsNormalizedPhrase, evidenceTextKey, identityTokenMention, resolvePlayerName, shortActivityIdentityCandidates, shortActivityIdentityUnique, uniqueStrings } from './scan-helpers.js';
 import { applyLifeState } from './scan-lifecycle.js';
-import { normalizeScanPayload, parseScanJson } from './scan-payload.js';
 import { applyRelationshipChange, applyRelationshipSummaryProjection, relationshipDeltaForPatch, relationshipEvaluationDiagnostic } from './scan-relationships.js';
 import { DEFAULT_RELATIONSHIP_CAPS, RELATIONSHIP_AXES, applyBirthdayFill, findNpcByReference, makeNpcId, normalizeActualAge, normalizeApparentAge, normalizeAppearanceForms, normalizeBirthday, normalizeCurrentStatus, normalizeDossierLimits, normalizeFamilySlots, normalizeKeyRelationshipEntries, normalizeMemoryEntries, normalizeName, normalizeNpc, normalizeNpcAdmissionMode, normalizeState } from './schema.js';
 
@@ -860,9 +859,8 @@ export function newNpcAdmissionAllows(patch, mode = 'balanced', referenceCandida
 
 export function applyScanResult(stateInput, resultInput, options = {}) {
     const state = normalizeState(stateInput, stateInput?.chatKey || '');
-    const result = typeof resultInput === 'string'
-        ? parseScanJson(resultInput)
-        : normalizeScanPayload(resultInput || {}, { requireContract: true, allowOmittedSupplemental: true });
+    // scanner.js owns parsing/compatibility once, before identity preparation.
+    const result = resultInput;
     const sourceMessageId = Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null;
     const turn = Number.isInteger(options.turn) ? options.turn : state.turn;
     const preservePresence = options.preservePresence === true;

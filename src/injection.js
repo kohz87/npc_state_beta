@@ -142,13 +142,8 @@ export function buildForegroundInjection(state = {}, settings = {}) {
     const actualBudgetTokens = Math.max(baseDiagnostics.effectiveBudgetTokens, contractFloor);
     const optional = optionalForegroundRubrics(settings);
     let instructionText = mandatory;
-    if (optional) {
-        const candidate = `${instructionText}\n${optional}`;
-        if (estimateForegroundTokens(candidate) + 48 <= actualBudgetTokens) instructionText = candidate;
-    }
-
-    const instructionTokenEstimate = estimateForegroundTokens(instructionText);
-    const dynamicBudgetTokens = Math.max(0, actualBudgetTokens - instructionTokenEstimate);
+    let instructionTokenEstimate = estimateForegroundTokens(instructionText);
+    let dynamicBudgetTokens = Math.max(0, actualBudgetTokens - instructionTokenEstimate);
     const available = foregroundNpcCandidates(state, settings);
     const eligible = available.slice(0, baseDiagnostics.injectionLimit);
     const selected = [];
@@ -174,6 +169,15 @@ export function buildForegroundInjection(state = {}, settings = {}) {
         dynamicText = nextText;
         totalEstimate = estimate;
         selected.push(npc.id);
+    }
+
+    if (optional) {
+        const candidate = `${instructionText}\n${optional}`;
+        if (estimateForegroundTokens(`${candidate}\n${FOREGROUND_CONTEXT_PREFIX}${dynamicText}`) <= actualBudgetTokens) {
+            instructionText = candidate;
+            instructionTokenEstimate = estimateForegroundTokens(candidate);
+            dynamicBudgetTokens = Math.max(0, actualBudgetTokens - instructionTokenEstimate);
+        }
     }
 
     // Enrich only after priority reservations are secure. Upgrade in rounds so the

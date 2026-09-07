@@ -44,6 +44,7 @@ export function createCompletenessCoordinator(adapters = {}) {
             const embedded = await runEmbedded(source.messageId, {
                 expectedFingerprint: source.expectedFingerprint,
                 expectedSwipeId: source.expectedSwipeId,
+                expectedSource: source.expectedSource,
             });
             if (!embedded?.ok) {
                 const skipped = embedded?.coverage === 'skipped';
@@ -78,6 +79,7 @@ export function createCompletenessCoordinator(adapters = {}) {
                 const result = await runCompleteness(source.messageId, {
                     expectedFingerprint: source.expectedFingerprint,
                     expectedSwipeId: source.expectedSwipeId,
+                expectedSource: source.expectedSource,
                 });
                 if (result?.ok) {
                     writeRecord(source, { identity: source.identity, status: 'complete', coverage: 'embedded+completeness', completeness: 'complete', reason: '' });

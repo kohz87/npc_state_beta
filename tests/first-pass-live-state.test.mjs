@@ -130,7 +130,7 @@ test('minimum selected foreground dossier always retains the four first-pass liv
     assert.ok(result.diagnostics.totalTokenEstimate <= result.diagnostics.effectiveBudgetTokens);
     const dossier = foregroundContext(result.prompt).dossiers[0];
     for (const field of LIVE_FIELDS) assert.ok(dossier.live[field], field);
-    assert.match(result.prompt, /live group specifically means every supplied first-pass live value/);
+    assert.match(result.prompt, /FIRST-PASS LIVE STATE: mood\|location\|goal\|status\|currentForm compare supplied values/);
 });
 
 test('one completed embedded first pass changes all four fields, persists them, and needs no completeness request', async () => {

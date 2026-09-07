@@ -25,7 +25,7 @@ import {
     dossierSemanticFieldList,
 } from './dossier-fields.js';
 
-export const NPC_STATE_MODEL_CONTRACT_VERSION = 4;
+export const NPC_STATE_MODEL_CONTRACT_VERSION = 5;
 
 const FIELD_SET = new Set(DOSSIER_SEMANTIC_FIELDS);
 const SCALAR_FIELDS = new Set(DOSSIER_SCALAR_FIELDS);
@@ -164,7 +164,7 @@ export function semanticUpdatePrompt({ npcs = [], mode = 'scan', allowedSourceId
         sources.length ? `PERMITTED SOURCE MESSAGE IDS: ${JSON.stringify(sources)}` : 'PERMITTED SOURCE MESSAGE IDS: use only IDs actually present in the supplied prompt/window.',
         compactContext ? 'SEMANTIC EDIT INDEX (stored values are already in the main dossier roster; this index supplies edit refs/locks only):' : 'CURRENT DOSSIER CONTEXT:',
         JSON.stringify(contexts),
-        'SEMANTIC UPDATE SHAPE:',
+        'SEMANTIC UPDATE REFERENCE (explanatory placeholders, NOT a literal valid payload):',
         JSON.stringify({
             evaluatedGroups: DOSSIER_EVALUATION_GROUPS,
             fieldEvaluations: { unchanged: ['canonical field id'], insufficient: ['canonical field id'], unavailable: ['canonical field id'] },

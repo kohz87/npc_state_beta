@@ -1,3 +1,5 @@
+import { chatLineage, fingerprintMessage } from './branches.js';
+
 const DEFAULT_LIMIT = 64;
 const MAX_REASONS = 12;
 
@@ -102,11 +104,53 @@ function mergeRecord(target, patch = {}) {
     return target;
 }
 
-function activeSwipeMetadata(message) {
+export function activeSwipeMetadata(message) {
     const swipeId = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
     const swipe = Array.isArray(message?.swipe_info) ? message.swipe_info[swipeId] : null;
-    if (swipe) return { swipeId, meta: swipe.extra?.npc_state_beta_v1 || null, source: 'swipe' };
+    if (Array.isArray(message?.swipe_info)) return { swipeId, meta: swipe?.extra?.npc_state_beta_v1 || null, source: 'swipe' };
     return { swipeId, meta: message?.extra?.npc_state_beta_v1 || null, source: 'message' };
+}
+
+export function captureTransportHash(raw) { return raw ? operationHistoryIdentity([String(raw)]).hash : ''; }
+
+let captureSequence = 0;
+
+export function captureSourceIdentity(chatKey, chat, messageId) {
+    const message = chat?.[messageId];
+    return {
+        chatKey: String(chatKey || ''), messageId,
+        fingerprint: fingerprintMessage(message),
+        swipeId: Number.isInteger(message?.swipe_id) ? message.swipe_id : 0,
+        history: operationHistoryIdentity(chatLineage(chat, messageId)),
+    };
+}
+
+export function captureSourceMatches(source, chatKey, chat, messageId = source?.messageId) {
+    if (!source || !Number.isInteger(messageId) || !chat?.[messageId]) return false;
+    const current = captureSourceIdentity(chatKey, chat, messageId);
+    return ['chatKey', 'messageId', 'fingerprint', 'swipeId'].every(key => current[key] === source[key])
+        && current.history.length === source.history?.length && current.history.hash === source.history?.hash;
+}
+
+export function storeCapturedPayload({ chatKey, chat, messageId, consumed }) {
+    const message = chat?.[messageId];
+    if (!message) return null;
+    const accepted = !consumed.errors?.length && Boolean(consumed.parsed);
+    captureSequence += 1;
+    const meta = {
+        version: 2, accepted, payload: accepted ? consumed.raw : null,
+        errors: accepted ? [] : (consumed.errors || []).slice(0, 12).map(value => clean(value, 300)),
+        errorCodes: (consumed.errorCodes || []).slice(0, 12).map(value => clean(value, 80)),
+        at: Date.now(),
+        captureId: globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${captureSequence.toString(36)}`,
+        source: captureSourceIdentity(chatKey, chat, messageId),
+        transportHash: captureTransportHash(consumed.raw),
+    };
+    message.extra ??= {};
+    message.extra.npc_state_beta_v1 = meta;
+    const swipe = message.swipe_info?.[meta.source.swipeId];
+    if (swipe) { swipe.extra ??= {}; swipe.extra.npc_state_beta_v1 = structuredClone(meta); }
+    return meta;
 }
 
 export function inspectCapturedPayload({ chat = [], chatKey = '', messageId = null, operations = [] } = {}) {
@@ -118,39 +162,43 @@ export function inspectCapturedPayload({ chat = [], chatKey = '', messageId = nu
         }
     }
     const message = source[id];
-    if (!Number.isInteger(id) || id < 0 || !message || message.is_user || message.is_system) {
-        return { available: false, reason: 'not-assistant-message', chatKey: clean(chatKey, 300), messageId: Number.isInteger(id) ? id : null, swipeId: null };
+    if (id < 0 || !message || message.is_user || message.is_system) {
+        return { available: false, reason: 'not-assistant-message', chatKey: clean(chatKey, 300), messageId: id, swipeId: null };
     }
     const selected = activeSwipeMetadata(message);
     const meta = selected.meta;
-    if (!meta) {
-        return { available: false, reason: selected.source === 'swipe' ? 'capture-metadata-unavailable-for-active-swipe' : 'capture-metadata-unavailable', chatKey: clean(chatKey, 300), messageId: id, swipeId: selected.swipeId };
-    }
-    const rows = (Array.isArray(operations) ? operations : []).filter(row =>
-        String(row?.type || '') === 'first-pass'
-        && Number(row?.source?.messageId) === id
-        && Number(row?.source?.swipeId ?? 0) === selected.swipeId);
-    const operation = rows.at(-1) || null;
+    if (!meta) return { available: false, reason: selected.source === 'swipe' ? 'capture-metadata-unavailable-for-active-swipe' : 'capture-metadata-unavailable', chatKey: clean(chatKey, 300), messageId: id, swipeId: selected.swipeId };
     const parsedSuccessfully = meta.accepted === true && typeof meta.payload === 'string' && Boolean(meta.payload.trim());
+    const owned = meta.source && meta.captureId
+        ? (captureSourceMatches(meta.source, chatKey, source, id) && !/<npc_state_v1\b/i.test(message.mes) ? 'current' : 'stale')
+        : 'unavailable';
+    // A capture ID identifies an attempt, not just an address. Full source ownership
+    // must also agree. Legacy/evicted outcomes never borrow an older operation.
+    const operation = owned === 'current' && parsedSuccessfully ? (Array.isArray(operations) ? operations : []).findLast(row =>
+        row?.type === 'first-pass' && row.chatKey === chatKey && row.source?.captureId === meta.captureId
+        && row.source?.messageId === id && row.source?.fingerprint === meta.source.fingerprint
+        && row.source?.swipeId === meta.source.swipeId
+        && row.source?.history?.length === meta.source.history.length && row.source?.history?.hash === meta.source.history.hash) : null;
+    const unavailable = reason => ({ available: false, status: 'unavailable', applicationStatus: 'unavailable', persistenceStatus: 'unavailable', revision: null, proposals: null, reason });
+    let application = unavailable(owned === 'unavailable' ? 'capture-ownership-unavailable' : 'matching-first-pass-operation-not-retained');
+    if (owned === 'stale') application = { ...unavailable('capture-history-changed'), status: 'stale' };
+    else if (!parsedSuccessfully) application = { available: true, status: 'rejected', applicationStatus: 'not-run', persistenceStatus: 'not-run', revision: null, proposals: null, reason: 'capture-parse-rejected' };
+    else if (operation) application = {
+        available: true, operationId: clean(operation.id, 160), status: clean(operation.status, 80),
+        applicationStatus: clean(operation.application?.status, 80) || 'not-run',
+        persistenceStatus: clean(operation.persistence?.status, 120) || 'not-run',
+        revision: Number.isInteger(operation.persistence?.revision) ? operation.persistence.revision : null,
+        proposals: operation.proposals && typeof operation.proposals === 'object' ? structuredClone(operation.proposals) : null,
+        reason: clean(operation.failure?.reason, 300),
+    };
     return {
-        available: true,
-        chatKey: clean(chatKey, 300),
-        messageId: id,
-        swipeId: selected.swipeId,
-        metadataSource: selected.source,
-        parsedSuccessfully,
-        payload: parsedSuccessfully ? String(meta.payload) : '',
-        parseErrors: Array.isArray(meta.errors) ? meta.errors.map(value => clean(value, 300)).filter(Boolean).slice(0, 12) : [],
-        capturedAt: Number(meta.at) || null,
-        application: operation ? {
-            available: true,
-            operationId: clean(operation.id, 160),
-            status: clean(operation.status, 80),
-            persistenceStatus: clean(operation.persistence?.status, 120) || 'not-run',
-            revision: Number.isInteger(operation.persistence?.revision) ? operation.persistence.revision : null,
-            proposals: operation.proposals && typeof operation.proposals === 'object' ? structuredClone(operation.proposals) : null,
-            reason: clean(operation.failure?.reason, 300),
-        } : { available: false, status: 'unavailable', persistenceStatus: 'unavailable', revision: null, proposals: null, reason: 'matching-first-pass-operation-not-retained' },
+        available: true, chatKey: clean(chatKey, 300), messageId: id, swipeId: selected.swipeId,
+        metadataSource: selected.source, ownershipStatus: owned, parsedSuccessfully,
+        parseStatus: parsedSuccessfully ? 'parsed' : 'rejected',
+        payload: parsedSuccessfully ? meta.payload : '',
+        parseErrors: Array.isArray(meta.errors) ? meta.errors.slice(0, 12).map(value => clean(value, 300)).filter(Boolean) : [],
+        errorCodes: Array.isArray(meta.errorCodes) ? meta.errorCodes.slice(0, 12).map(value => clean(value, 80)) : [],
+        capturedAt: Number(meta.at) || null, application,
     };
 }
 

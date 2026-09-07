@@ -361,7 +361,7 @@ test('unsupported evidence stays rejected and genuinely unsupported new fields r
 
 test('foreground and Scan share mandatory empty-id/bootstrap guidance, including under tight foreground budgets', () => {
     const foreground = foregroundContract({}, { capture: true });
-    for (const phrase of ['NEW NPC patches leave id empty', 'NPC State assigns the stored id locally', 'NAME-ONLY ENRICHMENT']) {
+    for (const phrase of ['NEW id=""', 'EXISTING/name-only: keep supplied id', '"name":"Nia","identityKind":"named"']) {
         assert.match(foreground, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     }
     const state = emptySafeState('chat:prompt');
@@ -369,7 +369,7 @@ test('foreground and Scan share mandatory empty-id/bootstrap guidance, including
         enabled: true, autoScan: true, inject: true, injectBudgetTokens: 1,
         injectLimit: 1, newNpcAdmissionMode: 'balanced', newNpcHistoryEnrichment: false,
     });
-    assert.match(built.prompt, /NEW NPC patches leave id empty/);
+    assert.match(built.prompt, /NEW id=""/);
     assert.ok(built.diagnostics.effectiveBudgetTokens >= built.diagnostics.minimumBudgetTokens);
 
     const scan = buildScanPrompt({
@@ -377,8 +377,8 @@ test('foreground and Scan share mandatory empty-id/bootstrap guidance, including
         chat: [{ is_user: true, mes: 'Lucien asks Mira for a room.' }, { is_user: false, mes: MIRA_VISIBLE }],
         assistantMessageId: 1,
     });
-    assert.match(scan, /NEW NPC patches leave id empty/);
-    assert.match(scan, /NAME-ONLY ENRICHMENT/);
+    assert.match(scan, /NEW id=""/);
+    assert.match(scan, /EXISTING\/name-only: keep supplied id/);
 });
 
 test('real foreground parser-engine-persistence path enriches an existing name-only dossier with no extra generate call', async () => {

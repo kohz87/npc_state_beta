@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.7
+
+- Replaced separate output templates with one compact response envelope and parser-tested new/existing NPC examples shared by foreground, Scan, Refresh, and recovery. Corrected the structured-import example and kept the v1 transport tag independent of contract versions.
+- Reject incompatible schema drift and conflicting presence aliases before application. Report missing arrays, invalid structure, syntax errors, duplicate blocks, and truncation precisely; do not salvage arbitrary brace substrings or map foreign relationship axes.
+- Bind capture diagnostics and completion deduplication to individual attempts, complete source history, chat, and swipe. Guard delayed transport cleanup against replacement content and chat switches, and capture first-pass ownership before asynchronous hydration.
+- Missing or rejected captures leave NPC sidecar state unchanged and generate no fallback request unless explicitly enabled. Failure metadata remains bounded without storing failed raw output.
+- Reserve selected dossier context before optional rubrics; fix zero-entry profile-evidence compaction. Preserve prior completeness, identity handoff, relationship mechanics, birthday filling, correction/rollback/recovery, storage identity, and schemas.
+
 ## 0.7.6
 
 - Consolidated first-pass and Scan extraction requirements around the shared dossier registry, including same-generation completeness review and compact foreground unavailable/partial context markers.
