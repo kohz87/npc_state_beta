@@ -1,0 +1,53 @@
+name: v0.7.4 correction ownership verification
+
+on:
+  push:
+    branches:
+      - automation/v074-correction-lineage-remediation
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-verify-commit:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out candidate branch
+        uses: actions/checkout@v4
+        with:
+          ref: automation/v074-correction-lineage-remediation
+          fetch-depth: 0
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply v0.7.4 patch
+        run: python3 scripts/apply-v074.py
+
+      - name: Validate authoritative source
+        run: npm run validate
+
+      - name: Run regression tests
+        run: npm test
+
+      - name: Package extension
+        run: npm run package
+
+      - name: Inspect package and diff
+        run: |
+          unzip -l dist/*.zip
+          git diff --stat
+          git diff --check
+
+      - name: Commit verified candidate
+        run: |
+          rm scripts/apply-v074.py
+          rm .github/workflows/v074-verify.yml
+          git config user.name "OpenAI automation"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: preserve correction ownership across legacy migration"
+          git push origin HEAD:automation/v074-correction-lineage-remediation
