@@ -4,7 +4,7 @@ export * from './schema-core.js';
 
 // Release version, persisted schema version, settings schema, and model-output contract are
 // intentionally independent.
-export const NPC_STATE_VERSION = '0.5.3';
+export const NPC_STATE_VERSION = '0.5.4';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 
 export function createEmptyState(chatKey = '') {

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.4
+
+### One-pass live-state semantics
+
+- Foreground embedded capture now treats `mood`, `location`, `goal`, and `status` as first-class model-led semantic scalars for existing dossiers.
+- Current-state values can be established, refined, replaced, or explicitly removed when the current exchange proves an old value ended without a replacement, preventing completed goals and obsolete locations/statuses from lingering until a Full Scan or Refresh.
+- When both a semantic live-state operation and legacy top-level current field are returned, the semantic operation is authoritative and the compatibility field is suppressed before deterministic patch application.
+- Full Scan/Refresh and legacy top-level current-field patches remain compatible fallbacks; persisted state schema, settings schema, routing, lifecycle, and relationship mechanics are unchanged.
+
+### Contract versions
+
+- Model semantic update contract: `2` (unchanged).
+- Foreground embedded-capture contract: `3` (unchanged).
+
 ## 0.5.3
 
 ### Semantic update safety

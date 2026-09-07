@@ -16,7 +16,7 @@ export const SEMANTIC_UPDATE_OPERATIONS = Object.freeze(['establish', 'refine', 
 
 const SCALAR_FIELDS = new Set([
     'personality', 'speech', 'role', 'species', 'background', 'appearance',
-    'age', 'apparentAge', 'birthday', 'status',
+    'age', 'apparentAge', 'birthday', 'mood', 'location', 'goal', 'status',
 ]);
 const COLLECTION_FIELDS = new Set(['behaviorProfile', 'mannerisms', 'keyRelationships', 'memories']);
 const FORM_FIELD = 'appearanceForms';
@@ -81,6 +81,9 @@ export function semanticDossierContext(npc = {}) {
         mannerisms: collectionContext('mannerisms', npc.mannerisms),
         keyRelationships: collectionContext('keyRelationships', npc.keyRelationships),
         memories: collectionContext('memories', npc.memories),
+        mood: npc.mood,
+        location: npc.location,
+        goal: npc.goal,
         status: npc.status,
         background: npc.background,
         manualProfileFields: Array.isArray(npc.manualProfileFields) ? npc.manualProfileFields : [],
@@ -103,7 +106,7 @@ export function semanticUpdatePrompt({ npcs = [], mode = 'scan', allowedSourceId
         `NPC STATE MODEL-LED UPDATE CONTRACT v${NPC_STATE_MODEL_CONTRACT_VERSION}:`,
         `Operation mode: ${mode}.`,
         'For an EXISTING dossier, semantic interpretation belongs to you. Code validates targeting, source provenance, manual locks, deterministic numeric normalization, ordering, limits, and persistence. Do not depend on magic English cue words, fixed observation counts, or concept-label repetition.',
-        'When supplied evidence establishes, refines, changes, corrects, or retires durable information, put an explicit semanticUpdates array on that NPC patch. Omission means no change. Legacy profileChanges/canonChanges are compatibility-only and should be omitted for existing-dossier revisions.',
+        'When supplied evidence establishes, refines, changes, corrects, or retires durable or current-state information, put an explicit semanticUpdates array on that NPC patch. Omission means no change. Legacy profileChanges/canonChanges are compatibility-only and should be omitted for existing-dossier revisions.',
         'Each semantic update has: field, operation establish|refine|replace|remove, value when applicable, sources [{messageId, excerpt}], and a brief explanation. For collection edits, prefer changes [{action:add|replace|remove, ref, expected, value}] so one entry can change without rewriting unrelated entries. ref values are supplied below. Use clear:true only when the evidence explicitly supports clearing the entire collection.',
         'Evidence references prove only that the cited source is inside the permitted supplied context. They do not prove your interpretation. Every automatic semantic update needs at least one concrete excerpt from the supplied source window. Never cite a saved model summary as independent proof of itself.',
         'establish is for a genuinely unestablished field. refine keeps the existing characterization true while making it more precise. replace is for an outdated, corrected, or genuinely developed value. remove retires unsupported, corrected, or explicitly abandoned information. Empty arrays alone never mean clear.',
@@ -114,7 +117,7 @@ export function semanticUpdatePrompt({ npcs = [], mode = 'scan', allowedSourceId
         'AGE: chronological age and apparentAge are separate fields. For an established chronological age that changes, use field age, operation replace, ageKind birthday|elapsed|correction, and the resulting grounded numeric age. You decide which semantic kind the story establishes; no mandatory English cue phrase exists. Do not infer chronological age from appearance. Do not invent a calendar. Calendar arithmetic is only valid when the relevant calendar facts and elapsed-time facts are supplied.',
         'MATURATION / APPEARANCE: use semantic judgment grounded in established species biology and narrative evidence. Ordinary growth, unusual fantasy maturation, explicit rejuvenation and other grounded transformations are allowed without arbitrary minimum intervals or hardcoded growth ceilings. Update only the affected shared appearance or named form; preserve unrelated scars, colors, species markers and other forms.',
         'COLLECTIONS: replacement/removal must target an entry by supplied ref or exact expected value when possible. A meaningful replacement is allowed at capacity because it replaces a slot before additions are considered. Preserve unrelated entries. memories remain durable event continuity and should not be churned by wording drift.',
-        'STATUS: Status is current activity/condition only. Use replace when the supplied window establishes the new current condition, or remove when a stored temporary condition is definitely obsolete and no replacement is supported. Do not use Status as lifecycle presence.',
+        'CURRENT STATE: mood, location, goal, and status are live-state scalars, not durable canon. Reconsider them whenever the supplied exchange establishes a newer current truth. Use establish when previously unknown, replace when the current value changes, refine only when the stored value remains true but becomes more precise, and remove when the stored value is conclusively obsolete and no replacement is supported. A completed/abandoned goal or departed location must not linger merely because there is no replacement. Status is current activity/condition only and is never lifecycle presence.',
         mode === 'completeness'
             ? 'SUPPLEMENTAL SAFETY: this exact response was already committed once. Do not replay relationship changes, lifecycle events, narrative-turn advancement, aging, memories, or development evidence merely because they are visible again. Propose only genuinely missing/corrective semantic updates; identical outcomes are no-change.'
             : '',
@@ -127,7 +130,7 @@ export function semanticUpdatePrompt({ npcs = [], mode = 'scan', allowedSourceId
         'SEMANTIC UPDATE SHAPE:',
         JSON.stringify({
             semanticUpdates: [{
-                field: 'personality|behaviorProfile|speech|mannerisms|role|species|background|appearance|appearanceForms|age|apparentAge|birthday|status|keyRelationships|memories',
+                field: 'personality|behaviorProfile|speech|mannerisms|role|species|background|appearance|appearanceForms|age|apparentAge|birthday|mood|location|goal|status|keyRelationships|memories',
                 operation: 'establish|refine|replace|remove',
                 value: 'scalar, collection, or form value as appropriate',
                 changes: [{ action: 'add|replace|remove', ref: 'supplied stable entry ref when available', expected: 'exact current value when ref is unavailable', value: 'new value for add/replace' }],
@@ -380,10 +383,13 @@ export function prepareModelLedPayload(stateInput, resultInput, admissionMode = 
         }
         const fields = new Set(updates.map(update => update.field));
         for (const field of fields) {
-            if (PROFILE_FIELDS.has(field) || ['role', 'species', 'background', 'appearance', 'birthday', 'age', 'apparentAge'].includes(field)) delete patch[field];
+            // For an existing dossier, semanticUpdates is authoritative whenever the
+            // same scalar/collection is also present in the compatibility patch. This
+            // includes live-state scalars so a stale top-level goal/mood/location/status
+            // cannot race the explicit establish/refine/replace/remove operation.
+            if (SCALAR_FIELDS.has(field) || COLLECTION_FIELDS.has(field)) delete patch[field];
             if (field === 'age') { delete patch.ageChange; delete patch.ageProgression; }
             if (field === 'appearanceForms') { delete patch.appearanceForms; delete patch.appearanceFormChanges; }
-            if (COLLECTION_FIELDS.has(field)) delete patch[field];
         }
         if (fields.has('personality') || fields.has('speech') || fields.has('behaviorProfile') || fields.has('mannerisms')) delete patch.profileChanges;
         if ([...fields].some(field => ['role', 'species', 'background', 'appearance', 'birthday'].includes(field))) delete patch.canonChanges;
