@@ -57,6 +57,7 @@ import { clearV3PointerHint, createRecoveryV3Sidecar, deleteV3SidecarFile, readV
 import { estimateForegroundTokens, FOREGROUND_TOKEN_ESTIMATE_METHOD } from './foreground-budget.js';
 import { activeSwipeMetadata, captureSourceMatches, createOperationDiagnostics, operationHistoryIdentity, summarizeProposalDiagnostics } from './operation-diagnostics.js';
 import { resolvePlayerName } from './scan-helpers.js';
+import { DOSSIER_SEMANTIC_FIELDS, dossierFieldValueIssue } from './model/dossier-fields.js';
 
 const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State recovery scanner. Obey the supplied schema and evidence rules exactly.';
 
@@ -1207,7 +1208,8 @@ export function createNpcStateEngine(adapters = {}) {
     }
 
     async function addNpc(name) {
-        const clean = String(name || '').trim().slice(0, 120);
+        if (typeof name !== 'string') return { ok: false, reason: 'invalid-name-type' };
+        const clean = name.trim().slice(0, 120);
         if (!clean) return { ok: false, reason: 'empty-name' };
         return mutate('add', (state, chat) => {
             const existing = findNpcByReference(state, clean);
@@ -1235,8 +1237,38 @@ export function createNpcStateEngine(adapters = {}) {
         catch { return false; }
     }
 
+    function manualNpcPatchValueIssue(patch) {
+        if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return 'expected-object-patch';
+        const has = field => Object.prototype.hasOwnProperty.call(patch, field);
+        for (const field of DOSSIER_SEMANTIC_FIELDS) {
+            if (!has(field)) continue;
+            const issue = dossierFieldValueIssue(field, patch[field]);
+            if (issue) return `${field}:${issue}`;
+        }
+        if (has('name') && typeof patch.name !== 'string') return 'name:expected-string-value';
+        if (has('aliases') && (!Array.isArray(patch.aliases) || patch.aliases.some(value => typeof value !== 'string'))) return 'aliases:expected-string-array';
+        for (const field of ['relationshipSummary', 'lifeState', 'lifeStateCertainty', 'lifeStateReason', 'archiveReason', 'birthdayProvenance']) {
+            if (has(field) && typeof patch[field] !== 'string') return `${field}:expected-string-value`;
+        }
+        for (const field of ['archived', 'retentionProtected', 'minor']) {
+            if (has(field) && typeof patch[field] !== 'boolean') return `${field}:expected-boolean-value`;
+        }
+        if (has('importance') && !Number.isFinite(Number(patch.importance))) return 'importance:expected-finite-number';
+        if (has('manualProfileFields') && (!Array.isArray(patch.manualProfileFields) || patch.manualProfileFields.some(value => typeof value !== 'string'))) return 'manualProfileFields:expected-string-array';
+        if (has('relationship')) {
+            if (!patch.relationship || typeof patch.relationship !== 'object' || Array.isArray(patch.relationship)) return 'relationship:expected-object-value';
+            for (const axis of RELATIONSHIP_AXES) {
+                if (!Object.prototype.hasOwnProperty.call(patch.relationship, axis)) continue;
+                if (!Number.isFinite(Number(patch.relationship[axis]))) return `relationship.${axis}:expected-finite-number`;
+            }
+        }
+        return '';
+    }
+
     async function updateNpc(reference, patch = {}, options = {}) {
         return mutate('update', (state, chat, mutationContext = {}) => {
+            const valueIssue = manualNpcPatchValueIssue(patch);
+            if (valueIssue) return { rejected: 'invalid-value-type:' + valueIssue };
             const matched = findNpcByReference(state, reference);
             const index = matched ? state.npcs.findIndex(npc => npc.id === matched.id) : -1;
             if (index < 0) return false;
