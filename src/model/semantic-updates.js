@@ -450,8 +450,8 @@ export function prepareModelLedPayload(stateInput, resultInput, admissionMode = 
 
 function patchResolutionAt(options = {}, patchIndex = -1) {
     if (!Array.isArray(options.patchResolutions)) return null;
-    const row = options.patchResolutions.find(item => Number(item?.patchIndex) === patchIndex);
-    return row || { patchIndex, status: 'unresolved', npcId: '', reason: 'identity-handoff-missing' };
+    return options.patchResolutions[patchIndex]
+        || { patchIndex, status: 'unresolved', npcId: '', reason: 'identity-handoff-missing' };
 }
 
 function legacyPatchTarget(state, patch) {

@@ -105,10 +105,6 @@ function automaticIdentityPatchConflict(state, npc, patch, referenceCandidates =
     return null;
 }
 
-function automaticIdentityPatchConflicts(state, npc, patch, referenceCandidates = []) {
-    return Boolean(automaticIdentityPatchConflict(state, npc, patch, referenceCandidates));
-}
-
 function preflightAutomaticIdentityPatches(state, patches = [], referenceCandidates = []) {
     const owners = new Map();
     const initialIdentityKeys = new Set();
@@ -132,7 +128,7 @@ function preflightAutomaticIdentityPatches(state, patches = [], referenceCandida
             const owner = owners.get(key);
             if (owner && owner !== prospectiveOwner) {
                 // A collision with canon that already existed before this observation is
-                // handled by automaticIdentityPatchConflicts() as a local patch rejection.
+                // handled by the authoritative identity conflict check as a local patch rejection.
                 // A newly claimed key is a same-observation conflict and invalidates the payload.
                 if (!initialIdentityKeys.has(key)) {
                     throw new Error('NPC State scanner identity collision inside one observation: ' + value + '.');

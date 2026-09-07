@@ -421,6 +421,47 @@ test('real foreground parser-engine-persistence path retains a complete new doss
     assert.equal(h.generations(), 0);
 });
 
+test('a follow-up Scan using the assigned stable id enriches the same NPC instead of duplicating it', () => {
+    const first = apply(emptySafeState('chat:follow-up-scan'), payload([miraPatch({ id: 'model-mira' })]));
+    const mira = first.state.npcs.find(npc => npc.name === 'Mira');
+    assertMiraPopulated(mira);
+    const visible = MIRA_VISIBLE + ' Mira laughs softly as she hands Lucien the room key.';
+    const secondPatch = {
+        id: mira.id,
+        name: 'Mira',
+        evaluatedGroups: ALL_GROUPS,
+        semanticUpdates: [semantic('mood', 'replace', 'Cheerfully welcoming.', 'Mira laughs softly as she hands Lucien the room key.', 'temporary')],
+        relationshipChange: noRelationshipChange(),
+    };
+    const second = apply(first.state, payload([secondPatch], [mira.id], [mira.id]), visible, { sourceMessageId: 2, turn: 2 });
+    assert.equal(second.state.npcs.filter(npc => npc.name === 'Mira').length, 1);
+    assert.equal(second.state.npcs.find(npc => npc.name === 'Mira').id, mira.id);
+    assert.equal(second.state.npcs.find(npc => npc.name === 'Mira').mood, 'Cheerfully welcoming.');
+    assert.equal(second.patchResolutions[0].npcId, mira.id);
+});
+
+test('deleting the source response removes the populated newly admitted dossier through normal branch reconciliation', async () => {
+    const key = 'chat:identity-delete';
+    const state = emptySafeState(key);
+    const consumed = consume(MIRA_VISIBLE, payload([miraPatch({ id: 'model-mira' })]));
+    const h = engineHarness({
+        state,
+        chat: [{ is_user: true, mes: 'Lucien asks Mira for a room.' }, { is_user: false, mes: consumed.cleanedText, swipe_id: 0 }],
+    });
+    await h.engine.loadChat();
+    const applied = await h.engine.applyEmbeddedScan(1, consumed.parsed, { expectedMessageText: consumed.cleanedText, expectedSwipeId: 0 });
+    assert.equal(applied.ok, true);
+    const mira = applied.state.npcs.find(npc => npc.name === 'Mira');
+    assertMiraPopulated(mira);
+
+    h.context.chat.splice(1, 1);
+    const reconciled = await h.engine.reconcileBranch({ rescan: false });
+    assert.equal(reconciled.ok, true);
+    assert.equal(reconciled.changed, true);
+    assert.equal(reconciled.state.npcs.some(npc => npc.name === 'Mira'), false);
+    assert.equal(h.persisted().npcs.some(npc => npc.name === 'Mira'), false);
+});
+
 test('history change during first-pass persistence cannot advertise the identity-bound dossier as current', async () => {
     const key = 'chat:identity-race';
     const state = emptySafeState(key);
