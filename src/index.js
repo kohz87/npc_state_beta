@@ -9,6 +9,7 @@ import { consumeNpcStateControl } from './foreground.js';
 import { hasRecognizedStructuredBlocks, profileEvidenceText } from './evidence-adapter.js';
 import { createMeguminBlockIntegration } from './megumin.js';
 import { createPortraitPromptUi } from './portrait-ui.js';
+import { inspectCapturedPayload } from './operation-diagnostics.js';
 import { NPC_STATE_VERSION, normalizeNpcAdmissionMode } from './schema.js';
 import { extensionSettings } from './settings.js';
 import { runSharedQuietGeneration } from './shared-generation-queue.js';
@@ -671,6 +672,26 @@ function npcStateDebugStatus() {
     };
 }
 
+function npcStateCaptureDiagnostics(messageId = null) {
+    const chatKey = getChatKey();
+    const chat = getContext().chat || [];
+    const operations = chatKey && chatKey !== 'no-chat' ? engine.operationDiagnostics(chatKey, { limit: 64 }) : [];
+    return inspectCapturedPayload({ chat, chatKey, messageId, operations });
+}
+
+async function copyNpcStateCapturedPayload(messageId = null) {
+    const result = npcStateCaptureDiagnostics(messageId);
+    if (!result.available || !result.parsedSuccessfully || !result.payload) return { ...result, copied: false };
+    const clipboard = globalThis.navigator?.clipboard;
+    if (!clipboard || typeof clipboard.writeText !== 'function') return { ...result, copied: false, copyReason: 'clipboard-unavailable' };
+    try {
+        await clipboard.writeText(result.payload);
+        return { ...result, copied: true };
+    } catch (error) {
+        return { ...result, copied: false, copyReason: String(error?.message || error).slice(0, 240) };
+    }
+}
+
 function npcStateScanMetrics() {
     const status = npcStateDebugStatus();
     return {
@@ -690,6 +711,8 @@ globalThis.NPCState = Object.freeze({
     debugStatus: npcStateDebugStatus,
     scanMetrics: npcStateScanMetrics,
     operationDiagnostics: options => engine.operationDiagnostics(getChatKey(), options),
+    captureDiagnostics: messageId => npcStateCaptureDiagnostics(messageId),
+    copyCapturedPayload: messageId => copyNpcStateCapturedPayload(messageId),
     scanConnectionProfiles: npcScanProfileOptions,
     completenessStatus: () => currentCompletenessStatus(getChatKey()),
     scan: () => {

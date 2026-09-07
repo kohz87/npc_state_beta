@@ -4,11 +4,11 @@ The authoritative behavior and ownership specification is [`docs/core-contract.m
 
 ## Current boundaries
 
-- Extension release: `0.7.5`
+- Extension release: `0.7.6`
 - Persisted state schema: `1`
 - Settings schema: `1`
-- Model semantic update contract: `3`
-- Foreground embedded-capture contract: `4`
+- Model semantic update contract: `4`
+- Foreground embedded-capture contract: `5`
 - Sidecar/settings storage identity remains `npc_state_beta.v3`
 
 A release bump does not require a persisted schema bump. Change a persisted schema only for an actual incompatible storage contract.

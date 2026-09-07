@@ -184,6 +184,17 @@ export function compactForegroundNpc(npc, level = 0, limits = {}) {
                 : level === 3
                     ? { forms: 1, formChars: 150, behavior: 2, mannerisms: 2, relationships: 1, memories: 0, entryChars: 110, scalar: 170, background: 0, evidence: 0 }
                     : { forms: 0, formChars: 0, behavior: 1, mannerisms: 1, relationships: 0, memories: 0, entryChars: 90, scalar: 120, background: 0, evidence: 0 };
+    const unavailable = [];
+    if (sizes.forms <= 0) unavailable.push('appearanceForms');
+    if (sizes.relationships <= 0) unavailable.push('keyRelationships');
+    if (sizes.memories <= 0) unavailable.push('memories');
+    if (sizes.background <= 0) unavailable.push('background');
+    const partial = [];
+    if ((npc.appearanceForms || []).length > sizes.forms && sizes.forms > 0) partial.push('appearanceForms');
+    if ((npc.behaviorProfile || []).length > Math.min(sizes.behavior, dossierLimits.behaviorProfile)) partial.push('behaviorProfile');
+    if ((npc.mannerisms || []).length > Math.min(sizes.mannerisms, dossierLimits.mannerisms)) partial.push('mannerisms');
+    if ((npc.keyRelationships || []).length > Math.min(sizes.relationships, dossierLimits.keyRelationships) && sizes.relationships > 0) partial.push('keyRelationships');
+    if ((npc.memories || []).length > Math.min(sizes.memories, dossierLimits.memories) && sizes.memories > 0) partial.push('memories');
     const profileEvidence = (Array.isArray(npc?.profileEvolutionEvidence) ? npc.profileEvolutionEvidence : [])
         .slice(-sizes.evidence)
         .map(row => ({
@@ -222,6 +233,10 @@ export function compactForegroundNpc(npc, level = 0, limits = {}) {
         },
         manualProfileFields: compactArray(npc.manualProfileFields, 16, 60),
         recentProfileEvidence: profileEvidence,
+        ...(unavailable.length || partial.length ? { contextCoverage: {
+            ...(unavailable.length ? { unavailable } : {}),
+            ...(partial.length ? { partial } : {}),
+        } } : {}),
     };
     if (level >= 2) {
         if (!out.background) delete out.background;

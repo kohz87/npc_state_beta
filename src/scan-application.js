@@ -1,4 +1,5 @@
 import { evidenceReferenceScope } from './evidence-adapter.js';
+import { DOSSIER_SEMANTIC_FIELDS, dossierFieldGroup } from './model/dossier-fields.js';
 import { relationshipEvidenceExcerptMatch } from './relationship-evidence.js';
 import { GENERIC_REFERENCES, appendUnique, containsNormalizedPhrase, evidenceTextKey, identityTokenMention, resolvePlayerName, shortActivityIdentityCandidates, shortActivityIdentityUnique, uniqueStrings } from './scan-helpers.js';
 import { applyLifeState } from './scan-lifecycle.js';
@@ -499,11 +500,37 @@ function bootstrapBirthdayGrounded(value, context) {
     return Boolean(birthday && source.trim() && BIRTHDAY_EVIDENCE_CUES.test(source) && profileEvidenceGrounded(birthday, source));
 }
 
+function meaningfulBootstrapProposal(patch, field) {
+    if (!Object.prototype.hasOwnProperty.call(patch || {}, field)) return false;
+    const value = patch?.[field];
+    if (Array.isArray(value)) return value.length > 0;
+    if (value && typeof value === 'object') return Object.keys(value).length > 0;
+    return String(value ?? '').trim().length > 0;
+}
+
+function bootstrapComparable(value) {
+    if (Array.isArray(value) || (value && typeof value === 'object')) return JSON.stringify(value ?? null);
+    return evidenceTextKey(value, 6000);
+}
+
+function recordBootstrapDiagnostics(before, after, patch, diagnostics = []) {
+    for (const field of DOSSIER_SEMANTIC_FIELDS) {
+        if (!meaningfulBootstrapProposal(patch, field)) continue;
+        const changed = bootstrapComparable(before?.[field]) !== bootstrapComparable(after?.[field]);
+        diagnostics.push({
+            npcId: after?.id || before?.id || '', field, group: dossierFieldGroup(field), channel: 'bootstrap',
+            status: changed ? 'applied' : 'rejected-proposal',
+            reason: changed ? '' : 'bootstrap-value-rejected-or-normalized-away',
+        });
+    }
+}
+
 // Existing dossiers reach this function after prepareModelLedPayload() has stripped every
 // ordinary dossier field. Only identity may still change directly. A genuinely new NPC may
 // bootstrap grounded initial dossier values once; later evolution uses semanticUpdates only.
 function applyIdentityAndBootstrapPatch(npc, patch, options = {}) {
     const locked = new Set(npc.manualProfileFields || []);
+    const before = structuredClone(npc);
     const next = structuredClone(npc);
     const limits = normalizeDossierLimits(options.dossierLimits);
     const canonicalName = canonicalPatchName(patch);
@@ -552,6 +579,7 @@ function applyIdentityAndBootstrapPatch(npc, patch, options = {}) {
         next.keyRelationships = normalizeKeyRelationshipEntries(patch.keyRelationships, limits.keyRelationships, 500)
             .filter(item => !keyRelationshipReferencesPlayer(item, options.playerName));
     }
+    recordBootstrapDiagnostics(before, next, patch, options.applicationDiagnostics);
     return next;
 }
 
@@ -872,6 +900,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     const deletedIds = new Set(state.deletedNpcIds || []);
     const createdNpcIds = new Set();
     const patchByNpcId = new Map();
+    const applicationDiagnostics = [];
     // Runtime-only handoff. One deterministic identity/admission decision is reused by
     // every downstream consumer; model transport ids never become stored identity authority.
     const patchResolutions = [];
@@ -998,7 +1027,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         const lifecyclePatch = lifeStateUpdateByNpcId.get(npc.id) || null;
         const canPatch = Boolean(patch && (targetSet.has(npc.id) || allowHistoricalProfilePatches || (options.applyReturnedNpcPatches === true && returnedPatchSet.has(npc.id))));
         if (canPatch) {
-            npc = applyIdentityAndBootstrapPatch(npc, patch, { playerName, dossierLimits, isBootstrap: createdNpcIds.has(npc.id), profileContext: String(options.profileContext || '') });
+            npc = applyIdentityAndBootstrapPatch(npc, patch, { playerName, dossierLimits, isBootstrap: createdNpcIds.has(npc.id), profileContext: String(options.profileContext || ''), applicationDiagnostics });
             if (!lifecyclePatch) npc = applyLifeState(npc, patch, { ...options, state, storedStatus: storedStatusBeforePatch });
             const relationshipOptions = {
                 relationshipCaps: options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
@@ -1013,6 +1042,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                 requireCurrentRelationshipEvidence: createdNpcIds.has(npc.id) || Boolean(String(options.relationshipContext || '').trim()),
                 sourceMessageId,
                 turn,
+                relationshipSummaryDiagnostics: applicationDiagnostics,
             };
             if (applyRelationship && exchangeSet.has(npc.id)) npc = applyRelationshipChange(npc, patch, relationshipOptions);
             if (exchangeSet.has(npc.id) || options.reconcileRelationshipSummary === true || (options.repairRelationshipSummary === true && targetSet.has(npc.id))) {
@@ -1106,5 +1136,6 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         worldActiveNpcIds: worldIds,
         targetNpcIds: targetIds,
         patchResolutions: patchResolutions.map(row => row ? structuredClone(row) : null),
+        applicationDiagnostics: applicationDiagnostics.map(row => structuredClone(row)),
     };
 }

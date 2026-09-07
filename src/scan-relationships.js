@@ -1,6 +1,6 @@
 import { relationshipImpactRank, relationshipMilestoneEventQualifies, relationshipInertiaFactor, relationshipAxisLimit } from './relationship-rules.js';
-import { relationshipEvidenceExcerptMatch } from './relationship-evidence.js';
-import { relationshipSummaryRepairContext } from './scan-helpers.js';
+import { relationshipEvidenceExcerptMatch, relationshipEvidenceGrounding } from './relationship-evidence.js';
+import { containsNormalizedPhrase, relationshipSummaryRepairContext } from './scan-helpers.js';
 import { DEFAULT_RELATIONSHIP_CAPS, RELATIONSHIP_AXES, RELATIONSHIP_MILESTONE_THRESHOLDS, applyRelationshipMilestoneCrossings, normalizeRelationship, normalizeRelationshipAxisEvidence, normalizeRelationshipCaps, normalizeRelationshipDiagnostics, normalizeRelationshipEvidenceHistory, normalizeRelationshipPriority, normalizeRelationshipProgress, normalizeRelationshipSummary, relationshipMilestoneUnlocked } from './schema.js';
 
 const IMPACTS = new Set(['none', 'ordinary', 'meaningful', 'major', 'extreme']);
@@ -124,31 +124,83 @@ function relationshipSummarySupported(value, relationship, milestones) {
     return true;
 }
 
-function relationshipSummaryProposalGrounded(patch, options = {}) {
+function relationshipSummaryEvidenceGrounded(npc, patch, options = {}) {
+    const raw = patch?.relationshipSummaryEvidence;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, reason: 'missing-summary-evidence' };
+    const excerpts = Array.isArray(raw.excerpts) ? raw.excerpts.map(value => String(value || '').trim()).filter(Boolean).slice(0, 4) : [];
+    const explanation = String(raw.explanation || '').trim().slice(0, 800);
+    if (excerpts.length < 1 || excerpts.length > 3 || !explanation) return { ok: false, reason: 'malformed-summary-evidence' };
+    const sources = relationshipEvidenceSourcesForOptions(options);
+    if (!sources.length) return { ok: false, reason: 'no-summary-evidence-source' };
+    if (!excerpts.every(excerpt => relationshipEvidenceExcerptMatch(excerpt, sources))) return { ok: false, reason: 'out-of-scope-summary-evidence' };
+
+    const subjectNames = [npc?.name, ...(Array.isArray(npc?.aliases) ? npc.aliases : [])].map(value => String(value || '').trim()).filter(Boolean);
+    const playerName = String(options.playerName || '').trim();
+    if (!subjectNames.length || !playerName) return { ok: false, reason: 'summary-target-identity-unavailable' };
+    const targetBound = excerpts.some(excerpt => subjectNames.some(name => containsNormalizedPhrase(excerpt, name)) && containsNormalizedPhrase(excerpt, playerName));
+    if (!targetBound) return { ok: false, reason: 'wrong-summary-target' };
+
+    const grounding = relationshipEvidenceGrounding(explanation, excerpts.join(' '), {
+        subjectNames,
+        objectNames: [playerName],
+        otherSubjectNames: options.otherNpcNames || [],
+        delta: {},
+    });
+    if (grounding) return { ok: false, reason: 'summary-evidence-' + grounding };
+    return { ok: true, reason: '' };
+}
+
+function relationshipSummaryProposalGrounded(npc, patch, options = {}) {
+    const evidence = relationshipSummaryEvidenceGrounded(npc, patch, options);
+    if (evidence.ok) return evidence;
+
+    // Compatibility: a validated nonzero numeric proposal already proves a current
+    // relationship event. Preserve that established path while allowing descriptive
+    // Current Dynamic evidence to stand on its own at zero delta.
     const caps = options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS;
     const change = relationshipDeltaForPatch(patch, caps);
-    if (!change.evaluated || !change.impactValid || change.impact === 'none' || !change.hasRawMovement) return false;
-    if (!RELATIONSHIP_AXES.some(axis => Number(change.delta?.[axis]) !== 0)) return false;
+    if (!change.evaluated || !change.impactValid || change.impact === 'none' || !change.hasRawMovement) return evidence;
+    if (!RELATIONSHIP_AXES.some(axis => Number(change.delta?.[axis]) !== 0)) return evidence;
     const reasons = [...change.reasons];
     const provenance = relationshipAxisProvenance(change, options, { ...change.delta }, reasons);
-    return RELATIONSHIP_AXES.some(axis => Number(provenance.delta?.[axis]) !== 0);
+    return RELATIONSHIP_AXES.some(axis => Number(provenance.delta?.[axis]) !== 0)
+        ? { ok: true, reason: 'validated-numeric-relationship-evidence' }
+        : evidence;
+}
+
+function relationshipSummaryDiagnostic(options, row) {
+    if (Array.isArray(options.relationshipSummaryDiagnostics)) options.relationshipSummaryDiagnostics.push(row);
 }
 
 export function applyRelationshipSummaryProjection(npc, patch, options = {}) {
     const current = normalizeRelationshipSummary(npc?.relationshipSummary);
     const summary = normalizeRelationshipSummary(patch?.relationshipSummary);
-    if (!summary || summary === current) return npc;
-    if (!relationshipSummarySupported(summary, npc.relationship, npc.relationshipMilestones)) return npc;
+    if (!summary) return npc;
+    if (summary === current) {
+        relationshipSummaryDiagnostic(options, { npcId: npc.id, field: 'relationshipSummary', group: 'playerRelationship', channel: 'relationship-summary', status: 'no-change-proposed' });
+        return npc;
+    }
+    if (!relationshipSummarySupported(summary, npc.relationship, npc.relationshipMilestones)) {
+        relationshipSummaryDiagnostic(options, { npcId: npc.id, field: 'relationshipSummary', group: 'playerRelationship', channel: 'relationship-summary', status: 'rejected-proposal', reason: 'unsupported-summary-intensity' });
+        return npc;
+    }
 
     const repairAllowed = options.repairRelationshipSummary === true
         && !current
         && Boolean(relationshipSummaryRepairContext(npc));
     const explicitReconcile = options.reconcileRelationshipSummary === true;
-    const groundedCurrentProposal = relationshipSummaryProposalGrounded(patch, options);
-    if (!repairAllowed && !explicitReconcile && !groundedCurrentProposal) return npc;
+    const groundedCurrentProposal = relationshipSummaryProposalGrounded(npc, patch, options);
+    if (!repairAllowed && !explicitReconcile && !groundedCurrentProposal.ok) {
+        relationshipSummaryDiagnostic(options, { npcId: npc.id, field: 'relationshipSummary', group: 'playerRelationship', channel: 'relationship-summary', status: 'rejected-proposal', reason: groundedCurrentProposal.reason || 'summary-evidence-rejected' });
+        return npc;
+    }
 
     const next = structuredClone(npc);
     next.relationshipSummary = summary;
+    relationshipSummaryDiagnostic(options, {
+        npcId: npc.id, field: 'relationshipSummary', group: 'playerRelationship', channel: 'relationship-summary', status: 'applied',
+        reason: repairAllowed ? 'repair-context' : (explicitReconcile ? 'explicit-reconcile' : groundedCurrentProposal.reason),
+    });
     return next;
 }
 
