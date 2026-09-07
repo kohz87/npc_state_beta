@@ -724,21 +724,7 @@ function legacyManualRelationshipEvents(npc = {}) {
         .filter(item => !modernManualRelationshipEvent(item, modern));
 }
 
-function legacyRelationshipCandidateAxes(npc = {}, ownedAxes = new Set()) {
-    const stored = relationshipCorrectionUnresolvedAxes(npc);
-    if (stored.length) return stored.filter(axis => !ownedAxes.has(axis));
-    const events = legacyManualRelationshipEvents(npc);
-    const axes = new Set();
-    for (const event of events) {
-        for (const axis of manualRelationshipEventAxes(event)) if (!ownedAxes.has(axis)) axes.add(axis);
-    }
-    // Missing provenance is conservative: a current-format confirmation event cannot prove
-    // that an unrepresented legacy axis was never part of the old whole-object override.
-    if (!axes.size) for (const axis of RELATIONSHIP_AXES) if (!ownedAxes.has(axis)) axes.add(axis);
-    return RELATIONSHIP_AXES.filter(axis => axes.has(axis));
-}
-
-function legacyRelationshipResidualAxes(npc = {}, matchedEvent = null, ownedAxes = new Set()) {
+function legacyRelationshipEvidenceAxes(npc = {}, ownedAxes = new Set(), { matchedEvent = null, fallbackAll = false } = {}) {
     const stored = relationshipCorrectionUnresolvedAxes(npc);
     if (stored.length) return stored.filter(axis => !ownedAxes.has(axis));
     const matchedKey = matchedEvent ? manualRelationshipEventKey(matchedEvent) : '';
@@ -747,7 +733,18 @@ function legacyRelationshipResidualAxes(npc = {}, matchedEvent = null, ownedAxes
         if (matchedKey && manualRelationshipEventKey(event) === matchedKey) continue;
         for (const axis of manualRelationshipEventAxes(event)) if (!ownedAxes.has(axis)) axes.add(axis);
     }
+    // Missing provenance is conservative: a current-format confirmation event cannot prove
+    // that an unrepresented legacy axis was never part of the old whole-object override.
+    if (fallbackAll && !axes.size) for (const axis of RELATIONSHIP_AXES) if (!ownedAxes.has(axis)) axes.add(axis);
     return RELATIONSHIP_AXES.filter(axis => axes.has(axis));
+}
+
+function legacyRelationshipCandidateAxes(npc = {}, ownedAxes = new Set()) {
+    return legacyRelationshipEvidenceAxes(npc, ownedAxes, { fallbackAll: true });
+}
+
+function legacyRelationshipResidualAxes(npc = {}, matchedEvent = null, ownedAxes = new Set()) {
+    return legacyRelationshipEvidenceAxes(npc, ownedAxes, { matchedEvent });
 }
 
 function legacyCorrectionLimitation(code, axes = []) {
@@ -759,12 +756,14 @@ export function migrateSupportedLegacyManualRelationshipCorrections(npcInput) {
     const modern = relationshipCorrectionState(npc);
     const ownedAxes = new Set(modern.corrections.map(item => item.axis));
     if (!hasLegacyRelationshipOverride(npc)) {
-        if (relationshipCorrectionUnresolvedAxes(npc).length) {
-            const next = structuredClone(npc);
-            next.manualRelationshipCorrectionUnresolvedAxes = [];
-            npc = normalizeNpc(next);
-        }
-        return { npc, migratedAxes: [], limitations: [] };
+        const unresolvedAxes = relationshipCorrectionUnresolvedAxes(npc);
+        return {
+            npc,
+            migratedAxes: [],
+            limitations: unresolvedAxes.length
+                ? [legacyCorrectionLimitation('legacy-relationship-correction-missing-axis-provenance', unresolvedAxes)]
+                : [],
+        };
     }
 
     const unresolvedResult = code => {
@@ -837,7 +836,15 @@ function preserveLegacyUncertainty(restoredNpc, liveNpc, code, modernAxes) {
 }
 
 function preserveLegacyManualRelationshipEvents(restoredNpc, liveNpc, restoredOwnershipNpc = restoredNpc) {
-    if (!hasLegacyRelationshipOverride(liveNpc)) return { npc: restoredNpc, limitations: [] };
+    const storedUnresolved = relationshipCorrectionUnresolvedAxes(liveNpc);
+    if (!hasLegacyRelationshipOverride(liveNpc)) {
+        return {
+            npc: restoredNpc,
+            limitations: storedUnresolved.length
+                ? [legacyCorrectionLimitation('legacy-relationship-correction-missing-axis-provenance', storedUnresolved)]
+                : [],
+        };
+    }
     const modernAxes = new Set(relationshipCorrectionState(liveNpc).corrections.map(item => item.axis));
     const identity = legacyRelationshipOverrideIdentity(liveNpc);
     if (!identity) return preserveLegacyUncertainty(restoredNpc, liveNpc, 'legacy-relationship-correction-missing-axis-provenance', modernAxes);

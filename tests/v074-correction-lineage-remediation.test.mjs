@@ -318,6 +318,21 @@ test('history change during confirmation keeps the user correction but blocks th
     assert.deepEqual(unresolved(persisted.npcs[0]), ['affection', 'desire', 'tension']);
 });
 
+
+test('persisted unresolved axes remain blocked if legacy compatibility metadata is absent', async () => {
+    const current = normalizeNpc({
+        id: 'sora', name: 'Sora', relationship: rel(),
+        manualRelationshipCorrectionUnresolvedAxes: ['affection', 'tension'],
+    });
+    const state = baselineState('v074-unresolved-without-override', shortChat, [current]);
+    const h = harness(state, []);
+    await h.engine.loadChat(h.key);
+    const blocked = await h.engine.reconcileBranch();
+    assert.equal(blocked.reason, 'manual-relationship-correction-uncertain');
+    assert.deepEqual(h.persisted().npcs[0].manualRelationshipCorrectionUnresolvedAxes, ['affection', 'tension']);
+    assert.deepEqual(blocked.manualRelationshipLimitations[0].axes, ['affection', 'tension']);
+});
+
 test('explicit clear-all correction ownership remains distinct and cannot resurrect legacy state later', async () => {
     const state = baselineState('v074-clear-all', shortChat, [legacyNpc({ values: rel(20, 5, 3, 2), includeEvent: false })]);
     const h = harness(state, shortChat);
