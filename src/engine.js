@@ -583,6 +583,7 @@ export function createNpcStateEngine(adapters = {}) {
                 memoryCriteria: settings.memoryCriteria,
                 dossierLimits: settings.dossierLimits,
                 admissionMode: settings.newNpcAdmissionMode,
+                relationshipSummaryRepair: manual,
             });
             const parsed = await invokeJson(prompt, manual ? 'manual-current-cast' : 'automatic-current-cast');
             const liveCtx = getContext();
@@ -609,6 +610,7 @@ export function createNpcStateEngine(adapters = {}) {
                 },
                 applyReturnedNpcPatches: true,
                 applyRelationship: relationshipApplyRequested && !replayProtectedRelationship,
+                repairRelationshipSummary: manual,
             });
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
             const retentionExchange = { ...exchange, user: exchange.user ? { ...exchange.user, mes: retentionEvidenceText(exchange.user.mes) } : null, assistant: exchange.assistant ? { ...exchange.assistant, mes: retentionEvidenceText(exchange.assistant.mes) } : null };

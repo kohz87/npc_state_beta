@@ -167,38 +167,92 @@ export function recentHistory(chat = [], assistantMessageId = null, depth = 8) {
         }));
 }
 
-function rosterForPrompt(state) {
-    return (state?.npcs || []).map(npc => ({
-        id: npc.id,
-        name: npc.name,
-        aliases: npc.aliases,
-        role: npc.role,
-        species: npc.species,
-        age: npc.age,
-        apparentAge: npc.apparentAge,
-        birthday: npc.birthday,
-        birthdayProvenance: npc.birthdayProvenance,
-        appearance: npc.appearance,
-        appearanceForms: npc.appearanceForms,
-        currentForm: npc.currentForm,
-        archived: npc.archived,
-        archiveReason: npc.archiveReason,
-        present: npc.present,
-        worldActive: npc.worldActive,
-        mood: npc.mood,
-        location: npc.location,
-        goal: npc.goal,
-        status: npc.status,
-        lifeState: npc.lifeState,
-        lifeStateCertainty: npc.lifeStateCertainty,
-        lifeStateReason: npc.lifeStateReason,
-        relationship: npc.relationship,
-        behaviorProfile: npc.behaviorProfile,
-        mannerisms: npc.mannerisms,
-        memories: npc.memories,
-        keyRelationships: npc.keyRelationships,
-        manualProfileFields: npc.manualProfileFields,
+function relationshipSummaryRepairCandidateIds(state, exchange) {
+    const visible = [exchange?.user?.mes, exchange?.assistant?.mes]
+        .map(value => scannerEvidenceText(value || ''))
+        .filter(Boolean)
+        .join('\n');
+    const ids = new Set();
+    for (const npc of state?.npcs || []) {
+        if (npc?.present === true) {
+            ids.add(npc.id);
+            continue;
+        }
+        const identities = [npc?.name, ...(Array.isArray(npc?.aliases) ? npc.aliases : [])].filter(Boolean);
+        if (identities.some(identity => containsNormalizedPhrase(visible, identity))) ids.add(npc.id);
+    }
+    return ids;
+}
+
+function relationshipSummaryRepairContext(npc = {}) {
+    const relationship = normalizeRelationship(npc.relationship || {});
+    const progress = normalizeRelationshipProgress(npc.relationshipProgress || {});
+    const recentEvidence = normalizeRelationshipEvidenceHistory(npc.relationshipEvidenceHistory).slice(-4).map(item => ({
+        impact: item.impact,
+        delta: item.delta,
+        evidence: compactText(item.evidence, 320),
+        reason: compactText(item.reason, 320),
     }));
+    const milestones = (Array.isArray(npc.relationshipMilestones) ? npc.relationshipMilestones : []).slice(-8).map(item => ({
+        axis: item?.axis,
+        polarity: item?.polarity,
+        threshold: item?.threshold,
+        reason: compactText(item?.reason, 180),
+    }));
+    const recentChanges = (Array.isArray(npc.relationshipHistory) ? npc.relationshipHistory : []).slice(-4).map(item => ({
+        impact: item?.impact,
+        delta: normalizeRelationship(item?.delta || {}),
+        evidence: compactText(item?.evidence, 320),
+        reason: compactText(item?.reason, 320),
+    }));
+    const hasEstablishedState = RELATIONSHIP_AXES.some(axis => Number(relationship[axis]) !== 0 || Number(progress[axis]) !== 0)
+        || recentEvidence.length > 0
+        || recentChanges.length > 0
+        || milestones.length > 0;
+    if (!hasEstablishedState) return null;
+    return { relationship, progress, milestones, recentEvidence, recentChanges };
+}
+
+function rosterForPrompt(state, { relationshipSummaryRepair = false, relationshipSummaryRepairIds = null } = {}) {
+    return (state?.npcs || []).map(npc => {
+        const row = {
+            id: npc.id,
+            name: npc.name,
+            aliases: npc.aliases,
+            role: npc.role,
+            species: npc.species,
+            age: npc.age,
+            apparentAge: npc.apparentAge,
+            birthday: npc.birthday,
+            birthdayProvenance: npc.birthdayProvenance,
+            appearance: npc.appearance,
+            appearanceForms: npc.appearanceForms,
+            currentForm: npc.currentForm,
+            archived: npc.archived,
+            archiveReason: npc.archiveReason,
+            present: npc.present,
+            worldActive: npc.worldActive,
+            mood: npc.mood,
+            location: npc.location,
+            goal: npc.goal,
+            status: npc.status,
+            lifeState: npc.lifeState,
+            lifeStateCertainty: npc.lifeStateCertainty,
+            lifeStateReason: npc.lifeStateReason,
+            relationship: npc.relationship,
+            behaviorProfile: npc.behaviorProfile,
+            mannerisms: npc.mannerisms,
+            memories: npc.memories,
+            keyRelationships: npc.keyRelationships,
+            manualProfileFields: npc.manualProfileFields,
+        };
+        if (relationshipSummaryRepair && relationshipSummaryRepairIds?.has(npc.id)) {
+            row.relationshipSummary = normalizeRelationshipSummary(npc.relationshipSummary);
+            const repairContext = relationshipSummaryRepairContext(npc);
+            if (!row.relationshipSummary && repairContext) row.relationshipSummaryRepairContext = repairContext;
+        }
+        return row;
+    });
 }
 
 function dossierCollectionRules(limits) {
@@ -218,12 +272,13 @@ function dossierCollectionRules(limits) {
     ];
 }
 
-export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', relationshipCaps = DEFAULT_RELATIONSHIP_CAPS, memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced' }) {
+export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', relationshipCaps = DEFAULT_RELATIONSHIP_CAPS, memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced', relationshipSummaryRepair = false }) {
     const exchange = currentExchange(chat, assistantMessageId);
     if (!exchange) throw new Error('NPC State v0.4.44 recovery scanner requires an assistant message and its preceding user exchange.');
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
+    const relationshipSummaryRepairIds = relationshipSummaryRepair ? relationshipSummaryRepairCandidateIds(state, exchange) : null;
     const structuredDetected = [exchange.user?.mes, exchange.assistant?.mes, ...nonSystemMessages(chat).slice(-Math.max(2, Math.min(30, Number(scanDepth) || 8))).map(message => message.mes)].some(hasRecognizedStructuredBlocks);
     const contract = {
         exchangeActiveNpcIds: ['existing dossier id OR exact canonical name'],
@@ -267,6 +322,11 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- The PLAYER/current USER persona is not an NPC for this scanner, even when named in narration. Never create the PLAYER as an npcs entry.',
         '- relationship, relationshipSummary, and relationshipChange describe THIS NPC toward the PLAYER. They are the dedicated player-relationship channel.',
         '- relationshipSummary, when returned, must be a concise natural-language description of the CURRENT NPC-to-PLAYER dynamic supported by the accepted relationship state. Never copy schema instructions, field descriptions, placeholders, or labels into it. Leave it empty/omit it when no supported summary update is needed.',
+        ...(relationshipSummaryRepair ? [
+            '- CURRENT-DYNAMIC REPAIR MODE: this is an explicit Scan current cast reconciliation. For an existing current-cast NPC whose relationshipSummary is blank and whose relationshipSummaryRepairContext is present, reconstruct one concise Current Dynamic from the STORED relationship values, fractional progress, unlocked milestones, and accepted recent relationship evidence supplied there.',
+            '- Summary repair is independent of relationship scoring. Do NOT invent or replay a relationshipChange merely to make relationshipSummary eligible. If the current exchange has no genuinely new relationship event, relationshipChange must remain impact none with zero deltas while relationshipSummary may still be repaired from the stored accepted state.',
+            '- Never overwrite an already non-empty relationshipSummary in repair mode merely to rephrase it. Repair only a missing/normalized-away Current Dynamic.',
+        ] : []),
         '- keyRelationships contains significant NON-PLAYER ties only, such as family, friends, rivals, patrons, dependents, or other NPCs. Never include the PLAYER/current USER persona there.',
         '- socialEdges are NPC-to-NPC only. Never use the PLAYER/current USER persona as an endpoint.',
         '- Current exchange decides relationship changes. Older context may establish prior attitudes, relationship baselines, already-counted developments, stable profile facts, and durable memories so you can judge what is genuinely new. It is continuity only: never treat an older development as occurring again or replay relationship deltas.',
@@ -301,7 +361,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         relationshipCustomCriteriaPrompt(relationshipCriteria),
         memoryCriteria ? `IMPORTANT MEMORY RUBRIC:\n${compactText(memoryCriteria, 6000)}` : '',
         '',
-        `EXISTING DOSSIERS:\n${JSON.stringify(rosterForPrompt(state))}`,
+        `EXISTING DOSSIERS:\n${JSON.stringify(rosterForPrompt(state, { relationshipSummaryRepair, relationshipSummaryRepairIds }))}`,
         `OLDER CONTEXT — CONTINUITY ONLY; NOT NEW EVENT EVIDENCE:\n${JSON.stringify(history)}`,
         `CURRENT USER MESSAGE:\n${compactText(scannerEvidenceText(exchange.user?.mes || ''), 10000)}`,
         `CURRENT ASSISTANT MESSAGE:\n${compactText(scannerEvidenceText(exchange.assistant?.mes || ''), 14000)}`,
@@ -1580,6 +1640,16 @@ function relationshipSummarySupported(value, relationship, milestones) {
     return true;
 }
 
+function repairMissingRelationshipSummary(npc, patch) {
+    if (normalizeRelationshipSummary(npc?.relationshipSummary)) return npc;
+    const summary = normalizeRelationshipSummary(patch?.relationshipSummary);
+    if (!summary || !relationshipSummaryRepairContext(npc)) return npc;
+    if (!relationshipSummarySupported(summary, npc.relationship, npc.relationshipMilestones)) return npc;
+    const next = structuredClone(npc);
+    next.relationshipSummary = summary;
+    return next;
+}
+
 function relationshipDeltaForPatch(patch, caps = DEFAULT_RELATIONSHIP_CAPS) {
     const raw = patch?.relationshipChange && typeof patch.relationshipChange === 'object' && !Array.isArray(patch.relationshipChange)
         ? patch.relationshipChange : null;
@@ -2502,6 +2572,9 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                 sourceMessageId,
                 turn,
             });
+            if (options.repairRelationshipSummary === true && targetSet.has(npc.id)) {
+                npc = repairMissingRelationshipSummary(npc, patch);
+            }
             npc.updatedAt = Math.max(Date.now(), Number(npc.updatedAt || 0) + 1);
         } else if (patch && privateEvidenceSet.has(npc.id)) {
             npc = applyPrivateEvidencePatch(npc, patch);

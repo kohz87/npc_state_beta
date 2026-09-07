@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.6
+
+### Current Dynamic repair
+
+- `Scan current cast` can now reconstruct a missing/normalized-away `relationshipSummary` (Current Dynamic) from the NPC's already accepted relationship meters, fractional progress, unlocked milestones, accepted relationship evidence, and recent relationship history.
+- Summary repair is independent from relationship scoring and replay protection: rescanning an already processed exchange can fill Current Dynamic while leaving Trust/Affection/Desire/Tension, fractional progress, milestones, evidence history, visible relationship history, and last-change data unchanged.
+- Repair is intentionally conservative: it only fills a blank Current Dynamic, never rephrases an existing real summary, requires established relationship state/history, and still passes the existing relationship-depth/milestone wording safety checks.
+- The extra relationship repair context is included only for explicit manual current-cast reconciliation; normal automatic/foreground paths do not inherit the added history context.
+
+### Compatibility
+
+- Persisted state schema remains `1`; settings schema remains `1`; model semantic contract remains `2`; foreground contract remains `3`. No migration or dossier rebuild is required.
+
 ## 0.5.5
 
 ### Player-relationship summary safety

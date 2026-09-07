@@ -1,14 +1,14 @@
 # NPC State Beta
 
-NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.5.5 prevents scanner schema placeholders from leaking into the player-relationship summary while retaining reliable one-pass live-state updates and the bounded single-contract architecture.
+NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.5.6 lets Scan current cast reconstruct a missing player-relationship Current Dynamic from already accepted relationship state/history without replaying relationship scores, while retaining the placeholder safety and reliable one-pass live-state updates from 0.5.5.
 
-## Release 0.5.5
+## Release 0.5.6
 
 The checked-in `src/` tree is authoritative. A clean checkout is sufficient to validate, test, and package the extension.
 
 Version boundaries remain independent:
 
-- Extension release: `0.5.5`
+- Extension release: `0.5.6`
 - Persisted state schema: `1` (unchanged)
 - Model semantic update contract: `2`
 - Settings schema: `1` (unchanged; no new settings keys)
@@ -33,6 +33,8 @@ For existing dossiers, durable semantic changes use `semanticUpdates` with `esta
 Temporary conditions stay distinct from durable characterization. Sleeping, unconsciousness, silence while asleep, one-off reactions, and poses do not become permanent personality or speech merely because they were observed first. Later grounded evidence can replace a frozen sleep/emergence placeholder. A form-specific habit stays scoped to that form unless evidence changes it, and omission from one response is never deletion evidence.
 
 The runtime remains authoritative for structure, permitted fields, NPC/entry targeting, source provenance, manual locks, deterministic numeric normalization, relationship caps/milestones/inertia/fractional progress, replay protection, lifecycle transitions, stale-result rejection, persistence, branch recovery, and collection limits. It does not reintroduce English keyword or arbitrary repetition gates as semantic approval.
+
+`Scan current cast` also has a narrow Current Dynamic repair mode. When an existing NPC's `relationshipSummary` is blank, the manual scan may reconstruct it from already accepted relationship meters, fractional progress, milestones, evidence history, and recent relationship changes. This repair does not replay relationship scoring and never overwrites an existing non-empty summary merely to rephrase it.
 
 ## Routing and response lifecycle
 
