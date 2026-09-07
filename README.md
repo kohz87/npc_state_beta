@@ -1,8 +1,8 @@
 # NPC State Beta
 
-NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.6.2 makes normal first-pass embedded capture reliably evaluate the selected NPCs' live Mood, Location, Goal, and Status without requiring a follow-up scan.
+NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.6.3 makes normal first-pass embedded capture reliably evaluate the selected NPCs' live Mood, Location, Goal, and Status without requiring a follow-up scan.
 
-## Release 0.6.2
+## Release 0.6.3
 
 For every existing NPC selected into foreground context, the minimum budget representation now retains Mood, Location, Goal, and Status. The model compares those stored values with the completed response and uses the same canonical `semanticUpdates` pipeline to establish, replace, or explicitly remove a live value. Unchanged or insufficiently supported values are preserved rather than rewritten for style.
 
@@ -28,7 +28,7 @@ Full Scan, completeness, and historical recovery now validate semantic source ex
 
 Version boundaries:
 
-- Extension release: `0.6.2`
+- Extension release: `0.6.3`
 - Persisted state schema: `1` (unchanged)
 - Model semantic update contract: `3`
 - Settings schema: `1` (unchanged)
@@ -126,3 +126,8 @@ npm run package
 See `DEVELOPMENT.md` for architecture and release guidance.
 
 Live model quality varies by provider/model. Deterministic fixtures verify parsing/application behavior; they are not live-provider latency or judgment measurements.
+
+
+### Message-linked rollback
+
+NPC State links story mutations to canonical chat lineage and full-state checkpoints. Tail deletion restores the matching snapshot directly; middle deletion restores a verified prefix and reconstructs the surviving suffix in order. User-owned presentation/locks/manual overrides are preserved, while story-derived memories, live state, canon, relationships, graph state, presence, and bookkeeping roll back with their source history. If retained history is insufficient, the extension blocks normal scanning and requires recovery rather than guessing.

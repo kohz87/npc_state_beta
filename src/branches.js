@@ -1,4 +1,4 @@
-import { CHECKPOINT_LIMIT, RELATIONSHIP_AXES, RELATIONSHIP_MILESTONE_THRESHOLDS, STABLE_PROFILE_FIELDS, emptyRelationshipChange, normalizeRelationship, normalizeRelationshipProgress, normalizeState, snapshotForCheckpoint } from './schema.js';
+import { CHECKPOINT_LIMIT, MANUAL_OVERRIDE_FIELDS, RELATIONSHIP_AXES, RELATIONSHIP_MILESTONE_THRESHOLDS, STABLE_PROFILE_FIELDS, emptyRelationshipChange, normalizeNpc, normalizeRelationship, normalizeRelationshipMilestones, normalizeRelationshipProgress, normalizeState, snapshotForCheckpoint } from './schema.js';
 
 export const CHECKPOINT_BYTE_LIMIT = 4 * 1024 * 1024;
 
@@ -402,16 +402,57 @@ function latestAssistantMessageId(chat = []) {
 export function ensureBranchBase(state, chat = []) {
     const next = normalizeState(state, state?.chatKey || '');
     const currentLineage = chatLineage(chat);
-    if (!next.branchBase?.snapshot) {
+    const trusted = ['pre-update', 'accepted-current', 'pre-story'].includes(String(next.branchBase?.boundaryKind || ''));
+    if (!next.branchBase?.snapshot || !trusted) {
         const messageId = latestAssistantMessageId(chat);
         next.branchBase = {
             messageId: messageId >= 0 ? messageId : null,
-            lineage: messageId >= 0 ? chatLineage(chat, messageId) : currentLineage,
+            lineage: currentLineage,
+            boundaryKind: 'accepted-current',
+            sourceMessageId: messageId >= 0 ? messageId : null,
+            sourceFingerprint: messageId >= 0 ? fingerprintMessage(chat[messageId] || {}) : '',
+            precedingLineage: messageId > 0 ? chatLineage(chat, messageId - 1) : [],
+            chatKey: String(next.chatKey || ''),
             createdAt: Date.now(),
             snapshot: snapshotForCheckpoint(next),
         };
     }
     if (!next.branchHeadLineage.length) next.branchHeadLineage = currentLineage;
+    return next;
+}
+
+function exchangeStartMessageId(chat = [], sourceMessageId = null) {
+    if (!Number.isInteger(sourceMessageId) || sourceMessageId < 0 || sourceMessageId >= chat.length) return null;
+    let start = sourceMessageId;
+    for (let i = sourceMessageId - 1; i >= 0; i -= 1) {
+        const message = chat[i];
+        if (!message || message.is_system) continue;
+        if (message.is_user) start = i;
+        break;
+    }
+    return start;
+}
+
+export function ensurePreUpdateBaseline(state, chat = [], sourceMessageId = null) {
+    const next = normalizeState(state, state?.chatKey || '');
+    const trusted = ['pre-update', 'accepted-current', 'pre-story'].includes(String(next.branchBase?.boundaryKind || ''));
+    if (next.branchBase?.snapshot && trusted) return next;
+    const exchangeStart = exchangeStartMessageId(chat, sourceMessageId);
+    if (exchangeStart === null) return next;
+    const boundaryMessageId = exchangeStart - 1;
+    const precedingLineage = boundaryMessageId >= 0 ? chatLineage(chat, boundaryMessageId) : [];
+    next.branchBase = {
+        messageId: boundaryMessageId >= 0 ? boundaryMessageId : null,
+        lineage: precedingLineage,
+        boundaryKind: 'pre-update',
+        sourceMessageId,
+        sourceFingerprint: fingerprintMessage(chat[sourceMessageId] || {}),
+        precedingLineage,
+        chatKey: String(next.chatKey || ''),
+        createdAt: Date.now(),
+        snapshot: snapshotForCheckpoint(next),
+    };
+    if (!next.branchHeadLineage.length) next.branchHeadLineage = precedingLineage;
     return next;
 }
 
@@ -423,22 +464,23 @@ export function markBranchHead(state, chat = []) {
 
 export function recordCheckpoint(state, chat, messageId, reason = 'scan') {
     if (!Number.isInteger(messageId) || messageId < 0) return markBranchHead(state, chat);
-    const next = ensureBranchBase(state, chat);
+    const next = normalizeState(state, state?.chatKey || '');
     const lineage = chatLineage(chat, messageId);
+    const precedingLineage = messageId > 0 ? chatLineage(chat, messageId - 1) : [];
     const newestCheckpointTime = Math.max(0, ...(next.checkpoints || []).map(item => Number(item?.createdAt) || 0), Number(next.branchBase?.createdAt) || 0);
     const checkpoint = {
         messageId,
         lineage,
+        boundaryKind: 'post-update',
+        sourceMessageId: messageId,
+        sourceFingerprint: fingerprintMessage(chat[messageId] || {}),
+        precedingLineage,
+        chatKey: String(next.chatKey || ''),
         reason: String(reason || 'scan').slice(0, 80),
-        // Date.now() can repeat inside rapid swipe/regeneration churn. Keep checkpoint
-        // recency strictly monotonic so bounded sibling eviction is deterministic.
+        // Time is diagnostic/eviction metadata only. Narrative ownership is lineage based.
         createdAt: Math.max(Date.now(), newestCheckpointTime + 1),
         snapshot: snapshotForCheckpoint(next),
     };
-    // Keep several exact content-lineage siblings for one assistant message instead of
-    // collapsing every swipe/regeneration onto a single rollback slot. The cap prevents a
-    // swipe-heavy message from consuming the whole global checkpoint window. The embedded
-    // per-swipe payload remains the fallback after an older sibling snapshot is evicted.
     const siblingLimit = 4;
     const exact = next.checkpoints.findIndex(item => item.messageId === messageId && arraysEqual(item.lineage || [], lineage));
     if (exact >= 0) next.checkpoints[exact] = checkpoint;
@@ -457,59 +499,103 @@ export function recordCheckpoint(state, chat, messageId, reason = 'scan') {
     return next;
 }
 
+function checkpointChatOwned(state, boundary) {
+    const owner = String(boundary?.chatKey || '').trim();
+    return !owner || owner === String(state?.chatKey || '').trim();
+}
+
+function trustedBranchBase(state, base) {
+    return Boolean(
+        base?.snapshot
+        && checkpointChatOwned(state, base)
+        && ['pre-update', 'accepted-current', 'pre-story'].includes(String(base.boundaryKind || ''))
+    );
+}
+
 export function bestCheckpoint(state, chat) {
     const lineage = chatLineage(chat);
     let best = null;
     for (const checkpoint of state?.checkpoints || []) {
-        if (!checkpoint?.snapshot || !lineageIsPrefix(checkpoint.lineage || [], lineage)) continue;
+        if (!checkpoint?.snapshot || !checkpointChatOwned(state, checkpoint) || !lineageIsPrefix(checkpoint.lineage || [], lineage)) continue;
         if (!best || checkpoint.lineage.length > best.lineage.length || (checkpoint.lineage.length === best.lineage.length && checkpoint.createdAt > best.createdAt)) best = checkpoint;
     }
     const base = state?.branchBase;
-    if (base?.snapshot && lineageIsPrefix(base.lineage || [], lineage)) {
-        const candidate = { ...base, reason: 'v3-baseline', isBranchBase: true };
+    if (trustedBranchBase(state, base) && lineageIsPrefix(base.lineage || [], lineage)) {
+        const candidate = { ...base, reason: 'trusted-baseline', isBranchBase: true };
         if (!best || candidate.lineage.length > best.lineage.length || (candidate.lineage.length === best.lineage.length && candidate.createdAt > best.createdAt)) best = candidate;
     }
     return best;
 }
 
-function preserveCurrentPresentation(restored, current) {
+function manualRelationshipEventKey(item = {}) {
+    return [Number(item?.at) || 0, String(item?.reason || ''), JSON.stringify(normalizeRelationship(item?.delta || {}))].join('|');
+}
+
+function preserveLegacyManualRelationshipEvents(restoredNpc, liveNpc) {
+    if (liveNpc?.manualOverrides && Object.prototype.hasOwnProperty.call(liveNpc.manualOverrides, 'relationship')) return restoredNpc;
+    const known = new Set((restoredNpc.relationshipHistory || []).filter(item => item?.impact === 'manual').map(manualRelationshipEventKey));
+    const manualEvents = (liveNpc?.relationshipHistory || []).filter(item => item?.impact === 'manual' && !known.has(manualRelationshipEventKey(item)));
+    if (!manualEvents.length) return restoredNpc;
+    const next = structuredClone(restoredNpc);
+    let relationship = normalizeRelationship(next.relationship || {});
+    const progress = normalizeRelationshipProgress(next.relationshipProgress || {});
+    for (const event of manualEvents) {
+        const delta = normalizeRelationship(event.delta || {});
+        for (const axis of RELATIONSHIP_AXES) {
+            relationship[axis] = Number(relationship[axis] || 0) + Number(delta[axis] || 0);
+            if (delta[axis]) progress[axis] = 0;
+        }
+        relationship = normalizeRelationship(relationship);
+        next.relationshipHistory = [...(next.relationshipHistory || []), structuredClone(event)].slice(-24);
+        next.lastRelationshipChange = structuredClone(event);
+    }
+    next.relationship = relationship;
+    next.relationshipProgress = progress;
+    const inferred = normalizeRelationshipMilestones([], relationship, { inferFromRelationship: true, includeBoundary: true });
+    next.relationshipMilestones = normalizeRelationshipMilestones([...(next.relationshipMilestones || []), ...inferred], relationship, { inferFromRelationship: false });
+    return next;
+}
+
+function preserveUserOwnedState(restored, current) {
     const currentById = new Map((current?.npcs || []).map(npc => [npc.id, npc]));
     const stableFields = new Set(STABLE_PROFILE_FIELDS);
+    const overrideFields = new Set(MANUAL_OVERRIDE_FIELDS);
     restored.npcs = (restored.npcs || []).map(npc => {
         const live = currentById.get(npc.id);
         if (!live) return npc;
-        const next = { ...npc };
+        let next = { ...npc };
         if (live.portrait) next.portrait = structuredClone(live.portrait);
         const locked = [...new Set(Array.isArray(live.manualProfileFields) ? live.manualProfileFields : [])];
         next.manualProfileFields = structuredClone(locked);
         for (const field of locked) {
             if (stableFields.has(field)) next[field] = structuredClone(live[field]);
         }
-        // Importance became editor-owned in 0.4.44, so branch history must not undo it.
+        const overrides = live.manualOverrides && typeof live.manualOverrides === 'object' ? live.manualOverrides : {};
+        next.manualOverrides = structuredClone(overrides);
+        for (const [field, value] of Object.entries(overrides)) {
+            if (overrideFields.has(field)) next[field] = structuredClone(value);
+        }
         next.importance = Number(live.importance) || 0;
-        return next;
+        next = preserveLegacyManualRelationshipEvents(next, live);
+        return normalizeNpc(next);
     });
-    return restored;
-}
 
-function preserveTombstones(restored, current) {
-    const tombstones = new Set(current.deletedNpcIds || []);
-    for (const id of restored.deletedNpcIds || []) tombstones.add(id);
+    // Explicit user deletions/suppressions are monotonic user-owned intent, not story facts.
+    const tombstones = new Set([...(current.deletedNpcIds || []), ...(restored.deletedNpcIds || [])]);
     restored.deletedNpcIds = [...tombstones];
+    restored.suppressedNames = [...new Set([...(restored.suppressedNames || []), ...(current.suppressedNames || [])])];
     restored.npcs = restored.npcs.filter(npc => !tombstones.has(npc.id));
+    restored.socialGraph = (restored.socialGraph || []).filter(edge => !tombstones.has(edge.fromId) && !tombstones.has(edge.toId));
+    restored.familySlots = (restored.familySlots || [])
+        .filter(slot => !tombstones.has(slot.ownerId))
+        .map(slot => ({ ...slot, resolvedNpcIds: (slot.resolvedNpcIds || []).filter(id => !tombstones.has(id)) }));
     return restored;
 }
 
-function failClosedPrebaselineDivergence(state, chat, { rollbackDiscardedRelationships = false } = {}) {
+function failClosedPrebaselineDivergence(state, chat) {
     const next = normalizeState(state, state?.chatKey || '');
-    const kind = next.branchSafety?.kind || branchDivergenceKind(next, chat);
-    const divergenceMessageId = branchDivergenceMessageId(next, chat);
-    // A missing full-state checkpoint does not make discarded relationship events
-    // valid. Reuse the bounded relationship rollback ledger, including manual-anchor
-    // protection, while keeping the wider dossier timeline blocked for recovery.
-    if (rollbackDiscardedRelationships) {
-        next.npcs = next.npcs.map(npc => rollbackRebasedRelationship(npc, divergenceMessageId));
-    }
+    const detectedKind = next.branchSafety?.kind || branchDivergenceKind(next, chat);
+    const kind = detectedKind || 'missing-trusted-baseline';
     for (const npc of next.npcs) {
         npc.present = false;
         npc.worldActive = false;
@@ -521,36 +607,59 @@ function failClosedPrebaselineDivergence(state, chat, { rollbackDiscardedRelatio
         worldActiveNpcIds: [],
         targetNpcIds: [],
     };
-    next.lastScannedMessageId = null;
     next.branchSafety = {
         status: 'rebase-required',
         kind,
-        reason: `The chat was ${kind === 'prebaseline-truncation' ? 'truncated' : 'rewritten'} before NPC State's oldest recoverable checkpoint. ${rollbackDiscardedRelationships ? 'Known discarded relationship events were rolled back; other dossier data is retained.' : 'Durable dossiers remain intact.'} Rebase or rebuild the timeline before live scanning resumes.`,
+        reason: 'The surviving chat no longer has a trustworthy full-state checkpoint at or before its divergence. NPC State retained recoverable data without applying partial relationship-only rollback. Use historical recovery when a valid baseline is available, or explicitly accept/rebuild the timeline.',
     };
     next.updatedAt = Date.now();
     return next;
 }
 
-export function reconcileToCurrentBranch(state, chat, options = {}) {
-    const normalized = ensureBranchBase(state, chat);
+function assistantMessageIdsAfterLineage(chat = [], lineageLength = 0) {
+    const out = [];
+    for (let i = Math.max(0, Number(lineageLength) || 0); i < chat.length; i += 1) {
+        const message = chat[i];
+        if (message && !message.is_system && !message.is_user) out.push(i);
+    }
+    return out;
+}
+
+export function reconcileToCurrentBranch(state, chat) {
+    const normalized = normalizeState(state, state?.chatKey || '');
     const currentLineage = chatLineage(chat);
     if (lineageIsPrefix(normalized.branchHeadLineage || [], currentLineage)) {
-        if (normalized.branchSafety?.status === 'safe') return { changed: false, unsafeDivergence: false, state: normalized, checkpoint: bestCheckpoint(normalized, chat) };
+        if (normalized.branchSafety?.status === 'safe') {
+            return { changed: false, unsafeDivergence: false, needsRecovery: false, fullyRestored: true, state: normalized, checkpoint: bestCheckpoint(normalized, chat), recoveryMessageIds: [] };
+        }
     }
 
     const checkpoint = bestCheckpoint(normalized, chat);
     if (!checkpoint) {
-        const failed = failClosedPrebaselineDivergence(normalized, chat, options);
-        return { changed: true, unsafeDivergence: true, state: failed, checkpoint: null };
+        const failed = failClosedPrebaselineDivergence(normalized, chat);
+        return { changed: true, unsafeDivergence: true, needsRecovery: true, fullyRestored: false, state: failed, checkpoint: null, recoveryMessageIds: [] };
     }
 
-    const restored = preserveCurrentPresentation(preserveTombstones(normalizeState(checkpoint.snapshot, normalized.chatKey), normalized), normalized);
+    const restored = preserveUserOwnedState(normalizeState(checkpoint.snapshot, normalized.chatKey), normalized);
+    restored.revision = normalized.revision;
     restored.checkpoints = structuredClone(normalized.checkpoints || []);
     restored.branchBase = structuredClone(normalized.branchBase || null);
-    // rebase backup is durable recovery metadata, not rollback timeline state.
     restored.rebaseBackup = structuredClone(normalized.rebaseBackup || null);
+    const recoveryMessageIds = assistantMessageIdsAfterLineage(chat, checkpoint.lineage?.length || 0);
+    if (recoveryMessageIds.length) {
+        restored.branchHeadLineage = structuredClone(checkpoint.lineage || []);
+        restored.branchSafety = {
+            status: 'rebase-required',
+            kind: 'suffix-recovery-required',
+            reason: 'NPC State restored the latest verified full-state boundary. Later surviving assistant exchanges have different preceding history and must be reconstructed in order before this timeline is current.',
+        };
+        restored.updatedAt = Date.now();
+        return { changed: true, unsafeDivergence: false, needsRecovery: true, fullyRestored: false, state: restored, checkpoint, recoveryMessageIds };
+    }
+
     restored.branchHeadLineage = currentLineage;
     restored.branchSafety = { status: 'safe', kind: '', reason: '' };
+    restored.recovery = null;
     restored.updatedAt = Date.now();
-    return { changed: true, unsafeDivergence: false, state: restored, checkpoint };
+    return { changed: true, unsafeDivergence: false, needsRecovery: false, fullyRestored: true, state: restored, checkpoint, recoveryMessageIds: [] };
 }

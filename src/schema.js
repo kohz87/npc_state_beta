@@ -1,7 +1,7 @@
 import { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 export { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 import { normalizeNumericSetting } from './settings-contract.js';
-export const NPC_STATE_VERSION = '0.6.2';
+export const NPC_STATE_VERSION = '0.6.3';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     return normalizeNumericSetting('scannerResponseTokens', value);
@@ -27,8 +27,13 @@ export function normalizeRecoveryState(value) {
         : [];
     const total = Math.max(0, Math.trunc(Number(value.total) || messageIds.length));
     const completed = Math.max(0, Math.min(total, Math.trunc(Number(value.completed) || 0)));
+    const kind = String(value.kind || '').trim().toLocaleLowerCase() === 'branch-reconcile' ? 'branch-reconcile' : 'historical';
+    const anchorLineage = Array.isArray(value.anchorLineage)
+        ? value.anchorLineage.map(item => String(item || '')).filter(Boolean).slice(0, 40000)
+        : [];
     return {
-        version: 2,
+        version: 3,
+        kind,
         status,
         ownerSessionId: recoveryText(value.ownerSessionId, 160),
         leaseUntil: Number(value.leaseUntil) || null,
@@ -37,6 +42,7 @@ export function normalizeRecoveryState(value) {
         endMessageId: Number.isInteger(value.endMessageId) ? value.endMessageId : null,
         messageIds,
         plannedLineage,
+        anchorLineage,
         completed,
         total,
         lastCompletedMessageId: Number.isInteger(value.lastCompletedMessageId) ? value.lastCompletedMessageId : null,
@@ -131,6 +137,20 @@ export const STABLE_PROFILE_FIELDS = Object.freeze([
     'name', 'aliases', 'role', 'species', 'age', 'apparentAge', 'birthday', 'appearance', 'appearanceForms',
     'personality', 'behaviorProfile', 'speech', 'mannerisms', 'background', 'keyRelationships',
 ]);
+export const MANUAL_OVERRIDE_FIELDS = Object.freeze([
+    ...STABLE_PROFILE_FIELDS, 'memories', 'mood', 'location', 'goal', 'status', 'currentForm',
+    'relationship', 'relationshipSummary', 'lifeState', 'lifeStateCertainty', 'lifeStateReason',
+    'archived', 'archiveReason', 'retentionProtected', 'minor',
+]);
+
+function normalizeManualOverrides(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    const out = {};
+    for (const field of MANUAL_OVERRIDE_FIELDS) {
+        if (Object.prototype.hasOwnProperty.call(value, field)) out[field] = structuredClone(value[field]);
+    }
+    return out;
+}
 export const DEFAULT_RELATIONSHIP = Object.freeze({ trust: 0, affection: 0, desire: 0, tension: 0 });
 export const DEFAULT_RELATIONSHIP_PROGRESS = Object.freeze({ trust: 0, affection: 0, desire: 0, tension: 0 });
 export const RELATIONSHIP_EVIDENCE_HISTORY_LIMIT = 6;
@@ -906,6 +926,7 @@ export function normalizeNpc(input = {}, options = {}) {
         archivedAt: archived ? (Number(input.archivedAt) || now) : null,
         importance: Math.max(0, Math.min(100, Math.round(Number(input.importance) || 0))),
         manualProfileFields: STABLE_PROFILE_FIELDS.filter(field => locked.has(field)),
+        manualOverrides: normalizeManualOverrides(input.manualOverrides),
         retentionProtected: input.retentionProtected === true,
         minor: input.minor === true,
         portrait: input.portrait && typeof input.portrait === 'object' ? structuredClone(input.portrait) : null,
@@ -972,6 +993,11 @@ export function normalizeState(input = {}, chatKey = '') {
     const checkpoints = Array.isArray(input.checkpoints) ? input.checkpoints.slice(-CHECKPOINT_LIMIT).map(item => ({
         messageId: Number.isInteger(item?.messageId) ? item.messageId : null,
         lineage: Array.isArray(item?.lineage) ? item.lineage.map(value => String(value || '')).filter(Boolean) : [],
+        boundaryKind: String(item?.boundaryKind || '') === 'post-update' ? 'post-update' : '',
+        sourceMessageId: Number.isInteger(item?.sourceMessageId) ? item.sourceMessageId : null,
+        sourceFingerprint: text(item?.sourceFingerprint, 160),
+        precedingLineage: Array.isArray(item?.precedingLineage) ? item.precedingLineage.map(value => String(value || '')).filter(Boolean) : [],
+        chatKey: text(item?.chatKey, 300),
         reason: text(item?.reason, 80),
         createdAt: Number(item?.createdAt) || Date.now(),
         snapshot: item?.snapshot && typeof item.snapshot === 'object' ? structuredClone(item.snapshot) : null,
@@ -981,6 +1007,11 @@ export function normalizeState(input = {}, chatKey = '') {
         ? {
             messageId: Number.isInteger(rawBranchBase.messageId) ? rawBranchBase.messageId : null,
             lineage: rawBranchBase.lineage.map(value => String(value || '')).filter(Boolean),
+            boundaryKind: ['pre-update', 'accepted-current', 'pre-story'].includes(String(rawBranchBase.boundaryKind || '')) ? String(rawBranchBase.boundaryKind) : '',
+            sourceMessageId: Number.isInteger(rawBranchBase.sourceMessageId) ? rawBranchBase.sourceMessageId : null,
+            sourceFingerprint: text(rawBranchBase.sourceFingerprint, 160),
+            precedingLineage: Array.isArray(rawBranchBase.precedingLineage) ? rawBranchBase.precedingLineage.map(value => String(value || '')).filter(Boolean) : [],
+            chatKey: text(rawBranchBase.chatKey, 300),
             createdAt: Number(rawBranchBase.createdAt) || Date.now(),
             snapshot: structuredClone(rawBranchBase.snapshot),
         }
@@ -1017,7 +1048,7 @@ export function normalizeState(input = {}, chatKey = '') {
         ? 'rebase-required'
         : (['safe', 'rebase-required'].includes(rawSafetyStatus) ? rawSafetyStatus : 'safe');
     const rawSafetyKind = String(rawSafety.kind || '');
-    const branchSafetyKind = ['prebaseline-truncation', 'prebaseline-rewrite', 'legacy-prebaseline-divergence'].includes(rawSafetyKind)
+    const branchSafetyKind = ['prebaseline-truncation', 'prebaseline-rewrite', 'legacy-prebaseline-divergence', 'suffix-recovery-required', 'missing-trusted-baseline', 'rollback-save-failed'].includes(rawSafetyKind)
         ? rawSafetyKind
         : (rawSafetyStatus === 'prebaseline-diverged' ? 'legacy-prebaseline-divergence' : '');
     return {

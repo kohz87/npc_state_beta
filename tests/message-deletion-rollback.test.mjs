@@ -82,51 +82,47 @@ test('deleting the latest exchange restores all relationship state and persists 
     assert.equal(h.generations(), 0);
 });
 
-test('deleting beyond the oldest checkpoint removes known relationship changes while retaining recovery safety', async () => {
-    const { state, before } = fixture();
+test('deleting beyond retained full snapshots never performs a partial relationship-only rollback', async () => {
+    const { state } = fixture();
+    const before = normalizeState(state).npcs[0];
     const h = harness(state, chat);
     await h.engine.loadChat();
     h.context.chat.splice(1);
-    const result = await h.engine.reconcileBranch({ rollbackDiscardedRelationships: true });
+    const result = await h.engine.reconcileBranch();
     assert.equal(result.unsafeDivergence, true);
-    const npc = result.state.npcs[0];
-    assert.deepEqual(npc.relationship, before.relationship);
-    assert.deepEqual(npc.relationshipProgress, before.relationshipProgress);
-    assert.equal(npc.relationshipHistory.length, 0);
-    assert.equal(npc.relationshipEvidenceHistory.length, 0);
-    assert.equal(npc.relationshipDiagnostics.length, 0);
-    assert.equal(npc.lastRelationshipChange.reason, '');
-    assert.equal(npc.relationshipSummary, '');
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'recovery-required');
+    assertRelationships(result.state.npcs[0], before);
     assert.equal(result.state.branchSafety.status, 'rebase-required');
-    const reloaded = h.reload();
-    await reloaded.loadChat();
-    const again = await reloaded.reconcileBranch({ rollbackDiscardedRelationships: true });
-    assertRelationships(again.state.npcs[0], npc);
-    assertRelationships(h.persisted().npcs[0], npc);
     assert.equal(h.generations(), 0);
+    const reloaded = h.reload();
+    const loaded = await reloaded.loadChat();
+    assertRelationships(loaded.npcs[0], before);
 });
 
-test('deleting all messages and a prebaseline middle message also retire discarded relationship reasons', () => {
+test('deleting all or rewriting before an untrusted legacy baseline retains recoverable state without invented rollback', () => {
     for (const remaining of [[], [chat[1], chat[2], chat[3]]]) {
-        const { state, before } = fixture();
-        const result = reconcileToCurrentBranch(state, remaining, { rollbackDiscardedRelationships: true });
+        const { state } = fixture();
+        const before = normalizeState(state).npcs[0];
+        const result = reconcileToCurrentBranch(state, remaining);
         assert.equal(result.unsafeDivergence, true);
-        assert.deepEqual(result.state.npcs[0].relationship, before.relationship);
-        assert.equal(result.state.npcs[0].lastRelationshipChange.reason, '');
-        assert.equal(result.state.npcs[0].relationshipHistory.length, 0);
+        assertRelationships(result.state.npcs[0], before);
+        assert.equal(result.state.branchSafety.status, 'rebase-required');
     }
 });
 
-test('prebaseline deletion preserves manual relationship corrections', () => {
+test('missing-baseline failure preserves identifiable manual relationship corrections instead of double-applying them', () => {
     const { state } = fixture();
     const manual = { ...event, impact: 'manual', delta: axes(27), reason: 'User correction.', at: 30 };
     state.npcs[0].relationship = axes(40);
     state.npcs[0].relationshipProgress = axes();
     state.npcs[0].relationshipHistory.push(manual);
     state.npcs[0].lastRelationshipChange = manual;
-    const result = reconcileToCurrentBranch(state, [], { rollbackDiscardedRelationships: true });
+    const before = normalizeState(state).npcs[0];
+    const result = reconcileToCurrentBranch(state, []);
+    assert.equal(result.unsafeDivergence, true);
     assert.equal(result.state.npcs[0].relationship.trust, 40);
-    assert.equal(result.state.npcs[0].relationshipHistory.length, 1);
+    assert.deepEqual(result.state.npcs[0].relationshipHistory, before.relationshipHistory);
     assert.equal(result.state.npcs[0].lastRelationshipChange.reason, 'User correction.');
 });
 
@@ -144,40 +140,32 @@ test('explicit preserve rebase still retains relationship state', () => {
     assert.equal(result.npcs[0].relationshipHistory[0].timelineStatus, 'accepted-pre-rebase');
 });
 
-test('the deletion handler rolls back without rescanning an already-restored surviving response', async () => {
-    // Execute the installed handler with host adapters so its default messageId and
-    // deletion-specific engine options are covered without a browser dependency.
+test('the deletion handler restores an exact surviving checkpoint without running a second scanner', async () => {
     const source = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
     const handlerSource = source.slice(source.indexOf('async function settledBranchReconcile('), source.indexOf('\nfunction runBoundedLifecycleEvent('));
-    for (const length of [2, 1]) {
-        const { state, before } = fixture();
-        const h = harness(state, chat);
-        await h.engine.loadChat();
-        h.context.chat.splice(length);
-        let scans = 0;
-        const handler = runInNewContext(`(${handlerSource})`, {
-            getChatKey: () => state.chatKey, engine: h.engine, sleep: async () => {},
-            getContext: () => h.context, getSettings: () => normalizeSettings(),
-            latestAssistantMessageId: messages => messages.findLastIndex(message => !message.is_user && !message.is_system),
-            refreshSurfaces: () => {}, notify: () => {}, console,
-            runSeparateRecoveryScan: async () => { scans++; },
-        });
-        await handler({ reason: 'message-deleted' });
-        assert.equal(scans, 0);
-        assert.deepEqual(h.persisted().npcs[0].relationship, before.relationship);
-        assert.equal(h.persisted().npcs[0].lastRelationshipChange.reason, '');
-    }
+    const { state, before } = fixture();
+    const h = harness(state, chat);
+    await h.engine.loadChat();
+    h.context.chat.splice(2);
+    const handler = runInNewContext(`(${handlerSource})`, {
+        getChatKey: () => state.chatKey, engine: h.engine, sleep: async () => {},
+        refreshSurfaces: () => {}, notify: () => {}, console,
+    });
+    await handler({ reason: 'message-deleted' });
+    assert.deepEqual(h.persisted().npcs[0].relationship, before.relationship);
+    assert.equal(h.generations(), 0);
 });
 
-test('a deleted last-change reason cannot keep a stale summary when older history is unavailable', () => {
+test('missing historical provenance keeps stale-but-recoverable relationship state blocked instead of pretending exact repair', () => {
     const { state } = fixture();
     state.npcs[0].relationshipHistory = [];
     state.npcs[0].relationshipEvidenceHistory = [];
     state.npcs[0].relationshipDiagnostics = [];
-    const result = reconcileToCurrentBranch(state, [], { rollbackDiscardedRelationships: true });
-    assert.equal(result.state.npcs[0].lastRelationshipChange.reason, '');
-    assert.equal(result.state.npcs[0].relationshipSummary, '');
-    // No exact score ledger remains: do not invent an old score or mark the timeline safe.
+    const before = structuredClone(state.npcs[0]);
+    const result = reconcileToCurrentBranch(state, []);
+    assert.equal(result.unsafeDivergence, true);
+    assert.equal(result.state.npcs[0].lastRelationshipChange.reason, before.lastRelationshipChange.reason);
+    assert.equal(result.state.npcs[0].relationshipSummary, before.relationshipSummary);
     assert.equal(result.state.npcs[0].relationship.trust, 13);
     assert.equal(result.state.branchSafety.status, 'rebase-required');
 });

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.3
+
+- Message deletion/edit/swipe rollback now restores complete story-state snapshots selected by canonical message lineage, not partial relationship ledgers.
+- The first story mutation records a trustworthy pre-update baseline; post-update checkpoints record source fingerprint and preceding lineage. Legacy baselines without this provenance remain loadable but are not fabricated into exact rollback history.
+- Middle-history divergence restores the latest verified prefix and rebuilds surviving assistant exchanges in order through the existing historical recovery engine. Normal scanning remains blocked until that suffix is complete.
+- Manual locks, portraits, importance, manual deletions/suppressions, explicit manual field overrides, and legacy manual relationship events are preserved as user-owned state during story rollback.
+- Removed the automatic relationship-only deletion fallback and the one-latest-message branch rescan/stored-payload replay layer.
+- Persistence conflicts/failures leave the reconciled timeline blocked rather than claiming success.
+
 ## 0.6.2
 
 - Fixed normal first-pass embedded capture leaving existing NPC Mood, Location, Goal, or Status stale. The minimum selected foreground dossier now retains all four comparison values, and the foreground contract requires the model to evaluate them through the existing `semanticUpdates` channel.

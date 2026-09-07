@@ -130,3 +130,12 @@ Synthetic prompt-size fixtures and local construction timings are useful regress
 `runtime-files.mjs` traces manifest JS/CSS, static imports/reexports, literal dynamic imports, URL assets, and CSS dependencies. Validation rejects missing dependencies and unused source files. Keep runtime imports literal; new host imports need explicit review in that script. Release packaging uses that dependency set plus manifest, LICENSE, and README; development/history documents and tests are repository-only. ZIP compression is deterministic DEFLATE with fixed timestamps and UTF-8 names.
 
 See `docs/cleanup-v0.6.0.md` for the deletion inventory, size comparison, and verification scope. The package-install tests use a local SillyTavern host-API stub; they do not replace a live SillyTavern/provider smoke test.
+
+### Message-linked rollback ownership
+
+- Story-owned state is restored from full checkpoints: NPC admission/lifecycle, memories and provenance, live state, narrative profile/canon, relationship state/history/diagnostics, social/family graph, presence/observation, narrative counters, and replay bookkeeping.
+- User-owned state overlays a restored story snapshot: portraits, importance, manual field locks and their locked values, explicit `manualOverrides`, manual deletion/suppression tombstones, and identifiable legacy manual relationship events. Settings live outside story snapshots.
+- The first story mutation records a **pre-update** branch baseline tied to the source fingerprint and the verified lineage before its exchange. Post-update checkpoints record the source fingerprint plus preceding and resulting lineage. Timestamps are eviction/diagnostic metadata only.
+- Tail deletion restores an exact surviving checkpoint with no model request. Middle deletion restores only the latest verified prefix, blocks normal scanning, then replays surviving assistant exchanges in order through historical recovery when branch reconstruction is enabled.
+- If no trustworthy retained baseline/checkpoint exists, NPC State does not subtract only relationship points or invent missing state. It retains recoverable data and reports recovery/rebase required. Legacy sidecars without the new optional provenance remain loadable but cannot gain historical certainty retroactively.
+- Checkpoints remain bounded by the existing count/byte limits, and portraits remain excluded from snapshot duplication.

@@ -305,14 +305,6 @@ function storeCompletionMeta(ctx, messageId, value) {
     persistMessageMetadata(ctx);
 }
 
-function activeEmbeddedMeta(message) {
-    if (!message) return null;
-    const swipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
-    const swipe = Array.isArray(message.swipe_info) ? message.swipe_info?.[swipeId] : null;
-    if (swipe) return swipe.extra?.npc_state_beta_v1 || null;
-    return message.extra?.npc_state_beta_v1 || null;
-}
-
 function persistMessageMutation(ctx, messageId) {
     setTimeout(() => { try { ctx.updateMessageBlock?.(messageId, ctx.chat?.[messageId]); } catch {} }, 0);
     try { const save = ctx.saveChat?.(); if (save?.catch) save.catch(() => {}); } catch {}
@@ -453,62 +445,23 @@ export function processCompletedAssistantResponse(messageId) {
     return completionCoordinator.process(messageId);
 }
 
-async function reapplyStoredEmbeddedPayload(messageId) {
-    const ctx = getContext();
-    const id = Number(messageId);
-    const message = ctx?.chat?.[id];
-    const meta = activeEmbeddedMeta(message);
-    if (!meta?.accepted || !meta.payload) return { ok: false, reason: 'no-stored-payload' };
-    const consumed = consumeNpcStateControl(meta.payload);
-    if (consumed.errors.length || !consumed.parsed) return { ok: false, reason: 'stored-payload-invalid' };
-    const result = await engine.applyEmbeddedScan(id, consumed.parsed);
-    // Ordinary commits already refreshed via persistence. Skips have no persistence callback.
-    if (result?.ok && result?.skipped) refreshSurfaces();
-    return result;
-}
-
-async function settledBranchReconcile({ reason = 'branch-change', messageId = null, preferStoredPayload = false } = {}) {
+async function settledBranchReconcile({ reason = 'branch-change' } = {}) {
     const key = getChatKey();
     if (!key || key === 'no-chat') return;
     engine.invalidate(key);
     try {
         await sleep(90);
         if (getChatKey() !== key) return;
-        const recovery = engine.recoveryStatus(key);
-        if (['running', 'paused', 'failed', 'stale'].includes(String(recovery?.status || ''))) {
-            if (recovery?.status === 'running') await engine.pauseHistoricalRecovery('Chat history changed while recovery was running. Resume will validate completed history and replan only the unprocessed suffix when safe.');
-            refreshSurfaces();
-            return;
-        }
-        const result = await engine.reconcileBranch({ rescan: false, rollbackDiscardedRelationships: reason === 'message-deleted' });
-        if (result?.unsafeDivergence) {
-            notify('warning', result.branchSafety?.reason || 'Timeline recovery required. Open Recovery & Branch Safety in NPC State settings.');
-            refreshSurfaces();
-            return;
-        }
-        if (!result?.changed) { refreshSurfaces(); return; }
-
-        const ctx = getContext();
-        const requestedId = messageId == null ? null : Number(messageId);
-        const activeId = Number.isInteger(requestedId) && requestedId >= 0 ? requestedId : latestAssistantMessageId(ctx.chat || []);
-        const checkpointAlreadyContainsTarget = Number.isInteger(activeId)
-            && result?.checkpoint?.messageId === activeId
-            && result?.checkpoint?.isBranchBase !== true
-            && result?.checkpoint?.reason !== 'v3-baseline';
-
-        if (!checkpointAlreadyContainsTarget && preferStoredPayload && activeId >= 0) {
-            const replay = await reapplyStoredEmbeddedPayload(activeId);
-            if (replay?.ok) return;
-        }
-
-        if (!checkpointAlreadyContainsTarget && getSettings().branchRescan !== false) {
-            const scanId = latestAssistantMessageId(ctx.chat || []);
-            if (scanId >= 0) await runSeparateRecoveryScan(scanId, reason);
+        const result = await engine.reconcileBranch({ rescan: false });
+        if (result?.unsafeDivergence || result?.needsRecovery || !result?.ok) {
+            const detail = result?.state?.branchSafety?.reason || result?.branchSafety?.reason || result?.reason || 'Timeline recovery is required.';
+            notify('warning', detail);
         }
         refreshSurfaces();
     } catch (error) {
-        console.error('[NPC State Beta] branch reconciliation failed safely', error);
-        notify('error', 'branch reconciliation failed without committing partial state. ' + (error?.message || error));
+        console.error('[NPC State Beta] branch reconciliation failed safely', reason, error);
+        notify('error', 'branch reconciliation failed without claiming a current timeline. ' + (error?.message || error));
+        refreshSurfaces();
     }
 }
 
@@ -629,16 +582,16 @@ function registerEvents() {
 
     if (events.MESSAGE_EDITED) source.on(events.MESSAGE_EDITED, messageId => {
         invalidateEmbeddedMeta(messageId);
-        void settledBranchReconcile({ reason: 'message-edited', messageId, preferStoredPayload: false });
+        void settledBranchReconcile({ reason: 'message-edited' });
     });
     if (events.MESSAGE_SWIPED) source.on(events.MESSAGE_SWIPED, messageId => {
-        void settledBranchReconcile({ reason: 'message-swiped', messageId, preferStoredPayload: true });
+        void settledBranchReconcile({ reason: 'message-swiped' });
     });
     if (events.MESSAGE_DELETED) source.on(events.MESSAGE_DELETED, () => {
         void settledBranchReconcile({ reason: 'message-deleted' });
     });
     if (events.MESSAGE_SWIPE_DELETED) source.on(events.MESSAGE_SWIPE_DELETED, messageId => {
-        void settledBranchReconcile({ reason: 'swipe-deleted', messageId, preferStoredPayload: true });
+        void settledBranchReconcile({ reason: 'swipe-deleted' });
     });
 
     if (events.CHAT_RENAMED) source.on(events.CHAT_RENAMED, eventData =>
