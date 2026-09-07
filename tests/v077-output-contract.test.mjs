@@ -1,6 +1,4 @@
-apply([
-('tests/v077-output-contract.test.mjs', '26b1bb316f631badf2ab97a788db91dc29105871', [
-(0, 0, r'''import test from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { emptyScanPayload, scanOutputContract, scanOutputExamples, SCAN_ARRAY_MEMBERS } from '../src/scan-contract.js';
@@ -220,6 +218,13 @@ test('capture diagnostics retain only bounded failure details and source hashes'
     assert.ok(JSON.stringify(meta).length < 5000);
     assert.equal(captureSourceMatches(meta.source, 'chat:a', h.chat), true);
 });
-'''),
-]),
-])
+
+test('existing identity classification spelling normalization survives the stricter boundary without accepting admitted', () => {
+    for (const [value, expected] of [['Named', 'named'], ['role_label', 'role-label'], [' proper ', 'named'], ['ROLE', 'role-label'], ['', '']]) {
+        const parsed = strict(JSON.stringify(withNpc({ name: 'Nia', identityKind: value })));
+        assert.equal(parsed.npcs[0].identityKind, expected);
+    }
+    for (const value of ['admitted', ' accepted ', 'constructor', '__proto__', null, 1, {}]) {
+        assert.throws(() => strict(JSON.stringify(withNpc({ name: 'Nia', identityKind: value }))), /identityKind/);
+    }
+});

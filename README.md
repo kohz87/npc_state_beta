@@ -1,17 +1,16 @@
 # NPC State Beta
 
-NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.7.6 strengthens same-generation dossier extraction, permits grounded neutral Current Dynamic updates without invented score movement, and makes first-pass diagnostics inspectable without adding another model request or payload store.
+NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model.
 
+## Release 0.7.7
 
-## Release 0.7.6
+Foreground capture, Scan, and Refresh now share compact, literal JSON examples checked by the production parser. New dossier fields are flat; existing dossiers use semantic updates. Malformed or incompatible captures are rejected with specific reasons rather than repaired by guessing field names, relationship axes, or missing content. The existing `<npc_state_v1>` transport tag is unchanged. Successful first-pass capture adds no model request; automatic fallback, including for a missing block, runs only when explicitly enabled.
 
-The authoritative maintenance specification is [`docs/core-contract.md`](docs/core-contract.md). Foreground capture and Scan now share a compact extraction map derived from the dossier registry. New relevant NPCs are instructed to consider supported appearance, profile, live state, memories, non-player ties, and player relationship context before the embedded payload is emitted; existing compact dossiers identify unavailable/partial fields so budget omission is not confused with known-empty state. A private same-generation completeness review is instruction-only and never adds a second request.
+`NPCState.captureDiagnostics(messageId?)` reports parsing, current source ownership, application, and persistence separately. Capture attempts are associated with their chat, complete history boundary, message fingerprint, and active swipe, rather than just a message position. Old, evicted, or pre-upgrade operation records cannot imply that a new capture committed. Failure details are bounded; failed raw output is not archived. `NPCState.copyCapturedPayload(messageId?)` copies an already-retained successfully parsed payload, not proof that it was applied.
 
-Modern payloads may report compact `fieldEvaluations` lists for unchanged, insufficient-evidence, and unavailable fields while older `evaluatedGroups` payloads remain compatible. Direct new-dossier bootstrap writes, semantic validation/application, Current Dynamic decisions, identity failures, and coverage gaps now feed the same bounded operation diagnostics. `NPCState.captureDiagnostics(messageId?)` inspects the already-retained active message/swipe payload plus the matching first-pass operation when still retained; `NPCState.copyCapturedPayload(messageId?)` copies that same payload without creating a second archive.
+Supported first-pass appearance/profile/live state/memories and neutral Current Dynamic updates remain available, with evidence and relationship mechanics unchanged. Random birthday filling is intentional and retained. See [`docs/core-contract.md`](docs/core-contract.md) for the authoritative behavior and compatibility specification.
 
-A grounded `relationshipSummary` can establish or materially update a neutral NPC-to-player Current Dynamic at zero relationship scores and zero deltas when its bounded exact evidence is source-owned and correctly targeted. Numeric relationship history, replay protection, caps, gates, inertia, fractional progress, and milestone/intensity safeguards are unchanged. Random birthday filling remains unchanged.
-
-Persisted state schema/settings schema remain 1, semantic contract is 4, and foreground contract is 5. No database rebuild or storage-key migration is required.
+Release 0.7.7 uses semantic contract 5 and foreground contract 6. Persisted state and settings schemas remain 1, and storage identity remains `npc_state_beta.v3`. No database rebuild or storage-key migration is required. Automated tests simulate the host and persistence. They do not measure live provider reliability.
 
 ## Release 0.6.3
 
@@ -31,14 +30,6 @@ Unused age-progression code, the schema override facade, and the editor click br
 The canonical field registry lives in `src/model/dossier-fields.js` and drives the semantic contract, foreground contract, field kinds/durability, and evaluation groups. `currentForm` is now a first-class live semantic field. Full Scan appends only a compact edit-index containing stable collection/form refs and locks instead of serializing the complete dossier roster a second time.
 
 Full Scan, completeness, and historical recovery now validate semantic source excerpts against the same bounded history window supplied to the model. Deliberate Scan/Refresh/recovery also report coverage diagnostics when an expected NPC patch or dossier evaluation group was omitted, while foreground embedded capture stays budget-bounded and best-effort.
-
-Version boundaries:
-
-- Extension release: `0.7.6`
-- Persisted state schema: `1` (unchanged)
-- Model semantic update contract: `4`
-- Settings schema: `1` (unchanged)
-- Foreground embedded-capture contract: `5`
 
 No dossier rebuild or storage-key migration is required. Existing settings are normalized in place; an injection budget below 1600 is upgraded to the existing runtime floor, and an explicit injection depth of zero is preserved.
 

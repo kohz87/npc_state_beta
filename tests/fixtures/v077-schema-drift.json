@@ -1,0 +1,43 @@
+{
+  "npcs": [
+    {
+      "id": "",
+      "identityKind": "admitted",
+      "canonicalName": "Vrena Holt",
+      "activityRefs": ["Vrena Holt", "Vrena"],
+      "species": "Human",
+      "role": "Adventurer Guild intake clerk and receptionist at Rimecross Station",
+      "age": 24,
+      "apparentAge": 24,
+      "appearance": "Mid-twenties human woman with practical auburn hair secured by a polished horn hairpin, sharp hazel eyes, ink-stained fingertips, wearing a shearling-lined wool vest over rolled homespun sleeves.",
+      "personality": "Pragmatic, brisk, unsentimental, and direct. Treats Guild paperwork as a matter of logistics and community defense.",
+      "speech": "Rapid, clipped, professional frontier cadence without pleasantries. Avoids conjunctions in high-efficiency work mode.",
+      "mannerisms": [
+        "Taps ink-stained fingers on desks",
+        "Tugs visitors toward ledgers to protect floorboards"
+      ],
+      "live": {
+        "mood": "Busy, focused, mildly impatient",
+        "location": "Behind the counter, Adventurer Guild hall, Rimecross",
+        "goal": "Process incoming wanderers and get local suppression contracts taken",
+        "status": "Working the intake desk"
+      },
+      "memories": [
+        "Enrolled a lone, travel-worn wanderer carrying an unadorned metal staff straight out of the high northern snows without charging an intake fee."
+      ],
+      "relationshipToPlayer": {
+        "trust": 0,
+        "affection": 0,
+        "respect": 0,
+        "attraction": 0
+      },
+      "relationshipSummary": "Sees Lucien as another rough, unwashed wanderer coming down from the heights who might be useful for clearing pests around the village perimeter."
+    }
+  ],
+  "socialEdges": [],
+  "familyFacts": [],
+  "lifeStateUpdates": [],
+  "exchangeActiveNpcIds": ["Vrena Holt"],
+  "inChatNpcIds": ["Vrena Holt"],
+  "worldActiveNpcIds": []
+}

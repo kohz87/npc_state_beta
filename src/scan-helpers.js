@@ -54,29 +54,21 @@ export function appendUnique(existing = [], incoming = [], max = 12) {
     return out.slice(0, max);
 }
 
-const DOSSIER_IDENTITY_BOOTSTRAP_RULES = Object.freeze([
-    'IDENTITY HANDOFF: EXISTING NPC patches use supplied stable ids. NAME-ONLY ENRICHMENT: stored name-only dossiers keep that id and enrich via semanticUpdates. NEW NPC patches leave id empty, use the canonical human-facing name/readable unique role label in activity refs. NPC State assigns the stored id locally.',
-]);
-
-export function dossierIdentityBootstrapPromptRules() {
-    return [...DOSSIER_IDENTITY_BOOTSTRAP_RULES];
-}
-
 function dossierExtractionGroupSummary() {
     return DOSSIER_EVALUATION_GROUPS.map(group => {
         const fields = DOSSIER_SEMANTIC_FIELDS.filter(field => DOSSIER_FIELD_DEFINITIONS[field]?.group === group);
-        return `${group}:${fields.join(',')}`;
+        return `${group}:${fields.map(field => field + (DOSSIER_FIELD_DEFINITIONS[field].kind === 'collection' ? '[]' : '')).join(',')}`;
     }).join(';');
 }
 
 export function dossierExtractionPromptRules({ includeNew = true, includeExisting = true } = {}) {
     const modes = [];
-    if (includeNew) modes.push('NEW: fill every supported current identity/appearance/profile/live/memory/NPC-tie/Current-Dynamic fact; unsupported stays unknown');
-    if (includeExisting) modes.push('EXISTING: compare supplied context, enrich missing facts via semanticUpdates, preserve unrelated values/locks');
+    if (includeNew) modes.push('NEW: capture supported facts only; unknown is valid');
+    if (includeExisting) modes.push('EXISTING: compare supplied context; semanticUpdates only');
     return [
         `DOSSIER EXTRACTION MAP: ${dossierExtractionGroupSummary()}. ${modes.join('. ')}.`,
-        'FIELD EVALUATION DETAIL: fieldEvaluations={unchanged:[],insufficient:[],unavailable:[]} uses field ids; evaluatedGroups is group-only. contextCoverage.unavailable/partial means compacted/truncated stored context, not empty.',
-        'PRIVATE COMPLETENESS CHECK: after visible narrative and before payload, silently verify supported appearance/profile/live/memories/ties/Current Dynamic. Narrow observed gestures/tendencies are allowed; never promote one observation to a lifelong habit or output reasoning.',
+        'FIELD EVALUATION DETAIL: contextCoverage.unavailable/partial is hidden/truncated, NOT empty. Omission is not evaluation.',
+        'PRIVATE COMPLETENESS CHECK: silently check all supported dossier facts and Current Dynamic before payload; no reasoning output.',
     ];
 }
 

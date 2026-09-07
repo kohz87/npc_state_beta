@@ -4,11 +4,11 @@ The authoritative behavior and ownership specification is [`docs/core-contract.m
 
 ## Current boundaries
 
-- Extension release: `0.7.6`
+- Extension release: `0.7.7`
 - Persisted state schema: `1`
 - Settings schema: `1`
-- Model semantic update contract: `4`
-- Foreground embedded-capture contract: `5`
+- Model semantic update contract: `5`
+- Foreground embedded-capture contract: `6`
 - Sidecar/settings storage identity remains `npc_state_beta.v3`
 
 A release bump does not require a persisted schema bump. Change a persisted schema only for an actual incompatible storage contract.
@@ -18,6 +18,7 @@ A release bump does not require a persisted schema bump. Change a persisted sche
 - `src/schema.js`: persisted state normalization, ownership metadata and snapshot shape.
 - `src/model/dossier-fields.js`: ordinary semantic field registry.
 - `src/model/semantic-updates.js`: ordinary semantic validation/application and coverage diagnostics.
+- `src/scan-contract.js`: shared response envelope, identity classifications, and literal parser-tested examples.
 - `src/scanner.js` plus `src/scan-*.js`: model response boundary and focused identity/relationship/lifecycle/graph handlers.
 - `src/foreground-*.js` and `src/injection.js`: foreground contract, selection, compaction and local prompt diagnostics.
 - `src/engine.js`: operation ownership, shared story commit boundary, persistence orchestration and recovery sequencing.

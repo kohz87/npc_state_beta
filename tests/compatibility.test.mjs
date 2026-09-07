@@ -68,7 +68,8 @@ test('foreground uses one authoritative contract while deterministic scanner mec
     const scanner = read('src/scanner.js');
     assert.match(injection, /foregroundContract/);
     assert.match(contract, /dossierExtractionPromptRules/);
-    assert.match(contract, /DOSSIER_EVALUATION_GROUPS/);
+    assert.match(contract, /scanOutputContract/);
+    assert.match(read('src/scan-helpers.js'), /DOSSIER_EVALUATION_GROUPS/);
     assert.doesNotMatch(injection, /injection-core/);
     assert.equal(fs.existsSync(path.join(root, 'src/injection-core.js')), false);
     assert.match(read('src/scan-prompts.js'), /semanticUpdatePrompt/);

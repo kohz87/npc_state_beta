@@ -196,7 +196,7 @@ export function compactForegroundNpc(npc, level = 0, limits = {}) {
     if ((npc.keyRelationships || []).length > Math.min(sizes.relationships, dossierLimits.keyRelationships) && sizes.relationships > 0) partial.push('keyRelationships');
     if ((npc.memories || []).length > Math.min(sizes.memories, dossierLimits.memories) && sizes.memories > 0) partial.push('memories');
     const profileEvidence = (Array.isArray(npc?.profileEvolutionEvidence) ? npc.profileEvolutionEvidence : [])
-        .slice(-sizes.evidence)
+        .slice(sizes.evidence > 0 ? -sizes.evidence : 0, sizes.evidence > 0 ? undefined : 0)
         .map(row => ({
             field: clipForegroundText(row?.field, 40),
             mode: clipForegroundText(row?.mode, 40),

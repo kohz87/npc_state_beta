@@ -9,7 +9,7 @@ import { consumeNpcStateControl } from './foreground.js';
 import { hasRecognizedStructuredBlocks, profileEvidenceText } from './evidence-adapter.js';
 import { createMeguminBlockIntegration } from './megumin.js';
 import { createPortraitPromptUi } from './portrait-ui.js';
-import { inspectCapturedPayload } from './operation-diagnostics.js';
+import { inspectCapturedPayload, storeCapturedPayload, captureSourceIdentity, captureSourceMatches, captureTransportHash, activeSwipeMetadata } from './operation-diagnostics.js';
 import { NPC_STATE_VERSION, normalizeNpcAdmissionMode } from './schema.js';
 import { extensionSettings } from './settings.js';
 import { runSharedQuietGeneration } from './shared-generation-queue.js';
@@ -199,7 +199,9 @@ completionCoordinator = createCompletenessCoordinator({
     runEmbedded: processEmbeddedScan,
     runCompleteness: (messageId, options) => engine.completenessScan(messageId, options),
     readRecord: source => activeCompletionMeta(source.message),
-    writeRecord: (source, value) => storeCompletionMeta(source.ctx, source.messageId, value),
+    writeRecord: (source, value) => {
+        if (sourceForCompletedResponse(source.messageId).identity === source.identity) storeCompletionMeta(source.ctx, source.messageId, value);
+    },
     setStatus: setCompletenessStatus,
     invalidateCompleteness: chatKey => engine.invalidateCompleteness(chatKey),
     logError: error => console.error('[NPC State Beta] automatic completeness scan failed safely', error),
@@ -265,16 +267,22 @@ async function hydrateActiveChat({ reconcile = true } = {}) {
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-export function completedResponseIdentity(chatKey, messageId, message = {}) {
-    const swipeId = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
-    return [String(chatKey || ''), Number(messageId), swipeId, fingerprintMessage(message)].join('|');
+export function completedResponseIdentity(chatKey, messageId, message = {}, chat = [message]) {
+    const control = consumeNpcStateControl(message.mes);
+    // Removal of a malformed/partial transport tag must not change completion identity
+    // between the host's duplicate completion events. Narrative ownership stays strict.
+    const identityChat = chat.slice(0, messageId + 1);
+    identityChat[messageId] = control.found ? { ...message, mes: control.cleanedText } : message;
+    const source = captureSourceIdentity(chatKey, identityChat, messageId);
+    const transportHash = control.found ? captureTransportHash(control.raw) : (activeSwipeMetadata(message).meta?.transportHash || '');
+    return [chatKey, messageId, source.swipeId, source.fingerprint, source.history.length, source.history.hash, transportHash].join('|');
 }
 
 function activeCompletionMeta(message) {
     if (!message) return null;
     const swipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
     const swipe = Array.isArray(message.swipe_info) ? message.swipe_info?.[swipeId] : null;
-    if (swipe) return swipe.extra?.npc_state_beta_completion_v1 || null;
+    if (Array.isArray(message.swipe_info)) return swipe?.extra?.npc_state_beta_completion_v1 || null;
     return message.extra?.npc_state_beta_completion_v1 || null;
 }
 
@@ -299,36 +307,31 @@ function storeCompletionMeta(ctx, messageId, value) {
 }
 
 function persistMessageMutation(ctx, messageId) {
-    setTimeout(() => { try { ctx.updateMessageBlock?.(messageId, ctx.chat?.[messageId]); } catch {} }, 0);
+    const message = ctx.chat?.[messageId];
+    const owner = captureSourceIdentity(getChatIdentity(ctx).key, ctx.chat || [], messageId);
+    setTimeout(() => {
+        if (getContext().chat?.[messageId] !== message || !captureSourceMatches(owner, getChatKey(), getContext().chat || [], messageId)) return;
+        try { ctx.updateMessageBlock?.(messageId, message); } catch {}
+    }, 0);
     try { const save = ctx.saveChat?.(); if (save?.catch) save.catch(() => {}); } catch {}
 }
 
-function stripNpcTransportOnly(messageId) {
+function stripNpcTransportOnly(messageId, capture = null) {
     const ctx = getContext();
     const id = Number(messageId);
     const message = ctx?.chat?.[id];
     if (!Number.isInteger(id) || !message || message.is_user || message.is_system) return false;
+    if (capture && (!captureSourceMatches(capture.source, getChatKey(), ctx.chat, id)
+        || activeSwipeMetadata(message).meta?.captureId !== capture.captureId)) return false;
     const consumed = consumeNpcStateControl(message.mes);
-    if (!consumed.found) return false;
+    if (!consumed.found || (capture && captureTransportHash(consumed.raw) !== capture.transportHash)) return false;
     message.mes = consumed.cleanedText;
     persistMessageMutation(ctx, id);
     return true;
 }
 
-function scheduleTransportHygiene(messageId) {
-    for (const delay of [50, 250]) setTimeout(() => stripNpcTransportOnly(messageId), delay);
-}
-
-function storeEmbeddedMeta(ctx, messageId, consumed) {
-    const message = ctx?.chat?.[messageId];
-    if (!message) return;
-    const accepted = consumed.errors.length === 0 && Boolean(consumed.parsed);
-    const meta = { version: 1, accepted, payload: accepted ? consumed.raw : null, errors: accepted ? [] : [...consumed.errors], at: Date.now() };
-    message.extra ??= {};
-    message.extra.npc_state_beta_v1 = meta;
-    const swipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
-    const swipe = Array.isArray(message.swipe_info) ? message.swipe_info[swipeId] : null;
-    if (swipe) { swipe.extra ??= {}; swipe.extra.npc_state_beta_v1 = structuredClone(meta); }
+function scheduleTransportHygiene(messageId, capture) {
+    for (const delay of [50, 250]) setTimeout(() => stripNpcTransportOnly(messageId, capture), delay);
 }
 
 function invalidateEmbeddedMeta(messageId) {
@@ -375,13 +378,14 @@ async function maybeForegroundFallback(messageId, reason) {
 }
 
 // only newly generated embedded payloads require the lifecycle channel.
-async function processEmbeddedScan(messageId, { expectedFingerprint = '', expectedSwipeId = null } = {}) {
+export async function processEmbeddedScan(messageId, { expectedFingerprint = '', expectedSwipeId = null, expectedSource = null } = {}) {
     const ctx = getContext();
     const id = Number(messageId);
     const message = ctx?.chat?.[id];
     if (!Number.isInteger(id) || !message || message.is_user || message.is_system) return { ok: false, reason: 'not-assistant-message' };
     const activeSwipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
-    if ((expectedFingerprint && fingerprintMessage(message) !== expectedFingerprint)
+    if ((expectedSource && !captureSourceMatches(expectedSource, getChatKey(), ctx.chat, id))
+        || (expectedFingerprint && fingerprintMessage(message) !== expectedFingerprint)
         || (Number.isInteger(expectedSwipeId) && expectedSwipeId !== activeSwipeId)) {
         return { ok: false, discarded: true, reason: 'stale-operation', coverage: 'failure' };
     }
@@ -392,24 +396,24 @@ async function processEmbeddedScan(messageId, { expectedFingerprint = '', expect
     }
     const consumed = consumeNpcStateControl(message.mes, { requireLifeStateUpdates: true });
     if (!consumed.found) {
-        console.warn('[NPC State Beta] Foreground response omitted <npc_state_v1>; running one full recovery scan.');
-        return runSeparateRecoveryScan(id, 'foreground-missing-control');
+        consumed.errors = ['NPC State missing-block: response omitted the required <npc_state_v1> block.'];
+        consumed.errorCodes = ['missing-block'];
     }
 
     message.mes = consumed.cleanedText;
-    storeEmbeddedMeta(ctx, id, consumed);
+    const capture = storeCapturedPayload({ chatKey: getChatKey(), chat: ctx.chat, messageId: id, consumed });
     persistMessageMutation(ctx, id);
-    scheduleTransportHygiene(id);
+    scheduleTransportHygiene(id, capture);
 
     if (consumed.errors.length || !consumed.parsed) {
         console.warn('[NPC State Beta] Foreground NPC payload rejected.', consumed.errors);
-        const fallback = await maybeForegroundFallback(id, 'invalid-control');
-        if (!fallback.ok && getSettings().fallbackScan !== true) notify('warning', 'embedded NPC scan was malformed and discarded. State was left unchanged; use Scan current cast for recovery.');
-        return fallback;
+        const fallback = await maybeForegroundFallback(id, consumed.found ? 'invalid-control' : 'missing-control');
+        if (!fallback.ok && getSettings().fallbackScan !== true) notify('warning', 'embedded NPC scan discarded: ' + consumed.errors.slice(0, 2).join('; ').slice(0, 480) + ' State was left unchanged. Details: NPCState.captureDiagnostics().');
+        return { ...fallback, errors: consumed.errors, errorCodes: consumed.errorCodes };
     }
 
     try {
-        const result = await engine.applyEmbeddedScan(id, consumed.parsed, { expectedMessageText: consumed.cleanedText, expectedSwipeId: activeSwipeId });
+        const result = await engine.applyEmbeddedScan(id, consumed.parsed, { expectedMessageText: consumed.cleanedText, expectedSwipeId: activeSwipeId, captureId: capture.captureId, captureSource: capture.source });
         // Ordinary commits already refreshed via persistence. Skips have no persistence callback.
         if (result?.ok && result?.skipped) refreshSurfaces();
         return { ...result, coverage: result?.ok && !result?.skipped ? 'embedded' : 'embedded-skipped' };
@@ -428,7 +432,8 @@ function sourceForCompletedResponse(messageId) {
     const chatKey = getChatKey();
     return {
         valid: true, ctx, chatKey, messageId: id, message,
-        identity: completedResponseIdentity(chatKey, id, message),
+        identity: completedResponseIdentity(chatKey, id, message, ctx.chat),
+        expectedSource: captureSourceIdentity(chatKey, ctx.chat, id),
         expectedFingerprint: fingerprintMessage(message),
         expectedSwipeId: Number.isInteger(message.swipe_id) ? message.swipe_id : 0,
     };

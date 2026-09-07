@@ -1,8 +1,8 @@
 import { hasRecognizedStructuredBlocks, identityPresencePromptRules, scannerEvidenceText, structuredEvidencePromptRules } from './evidence-adapter.js';
-import { DOSSIER_FIELD_DEFINITIONS } from './model/dossier-fields.js';
+import { scanOutputContract } from './scan-contract.js';
 import { semanticUpdatePrompt } from './model/semantic-updates.js';
 import { relationshipCustomCriteriaPrompt, relationshipJudgmentRubricPrompt, relationshipMechanicsPrompt } from './relationship-policy.js';
-import { dossierExtractionPromptRules, dossierIdentityBootstrapPromptRules, relationshipSummaryRepairContext, compactText, containsNormalizedPhrase, currentExchange, nonSystemMessages, resolvePlayerName } from './scan-helpers.js';
+import { dossierExtractionPromptRules, relationshipSummaryRepairContext, compactText, containsNormalizedPhrase, currentExchange, nonSystemMessages, resolvePlayerName } from './scan-helpers.js';
 import { DEFAULT_RELATIONSHIP_CAPS, RELATIONSHIP_AXES, normalizeDossierLimits, normalizeNpcAdmissionMode, normalizeRelationship, normalizeRelationshipEvidenceHistory, normalizeRelationshipProgress, normalizeRelationshipSummary } from './schema.js';
 
 export function recentHistory(chat = [], assistantMessageId = null, depth = 8) {
@@ -101,26 +101,6 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
     const relationshipSummaryContextIds = relationshipSummaryCandidateIds(state, exchange);
     const relationshipSummaryRepairIds = relationshipSummaryRepair ? relationshipSummaryContextIds : null;
     const structuredDetected = [exchange.user?.mes, exchange.assistant?.mes, ...nonSystemMessages(chat).slice(-Math.max(2, Math.min(30, Number(scanDepth) || 8))).map(message => message.mes)].some(hasRecognizedStructuredBlocks);
-    const contract = {
-        exchangeActiveNpcIds: ['existing dossier id OR exact canonical name'],
-        inChatNpcIds: ['existing dossier id OR exact canonical name'],
-        worldActiveNpcIds: ['existing dossier id OR exact canonical name'],
-        npcs: [{
-            id: 'existing id when known, otherwise empty',
-            name: 'human-facing canonical proper name when known; readable role label only if genuinely unnamed; never npc-*',
-            identityKind: 'named|role-label',
-            identityEvidence: { anchor: 'proper-name or unique-role anchor from current visible narrative', excerpts: ['1-3 exact CURRENT VISIBLE quotations'], explanation: 'brief contextual identity binding' },
-            activityEvidence: { exchangeActive: { excerpts: ['1-3 exact CURRENT VISIBLE quotations'], explanation: 'why this NPC is exchange-active' }, inChat: { excerpts: ['1-3 exact CURRENT VISIBLE quotations'], explanation: 'why this NPC remains in-chat at the end' }, worldActive: { excerpts: ['1-3 exact CURRENT VISIBLE quotations'], explanation: 'why this NPC is explicitly active off-screen' } },
-            aliases: [], ...bootstrapDossierShape(),
-            evaluatedGroups: [], fieldEvaluations: { unchanged: [], insufficient: [], unavailable: [] }, semanticUpdates: [],
-            relationshipSummary: '', relationshipSummaryEvidence: { excerpts: [], explanation: '' }, mood: '', location: '', goal: '', status: 'concrete current activity, situation, or condition; never lifecycle presence', importance: 0,
-            lifeState: 'alive|dead|unknown', lifeStateCertainty: 'explicit|strong|uncertain', lifeStateReason: '', livingReturn: false,
-            relationshipChange: { evaluated: true, impact: 'none|ordinary|meaningful|major|extreme', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, priority: ['supported nonzero axes strongest/most central first'], axisEvidence: { trust: { excerpts: ['1-3 exact current-exchange quotations'], explanation: 'why this changes Trust toward the PLAYER' }, affection: { excerpts: [], explanation: '' }, desire: { excerpts: [], explanation: '' }, tension: { excerpts: [], explanation: '' } }, evidence: 'optional compact overall event summary', reason: 'overall evaluation; required concise reason when impact is none' },
-        }],
-        socialEdges: [{ from: 'NPC id/name only', to: 'NPC id/name only', relation: '', summary: '', provenance: 'explicit|strong-context' }],
-        familyFacts: [{ owner: 'existing NPC id/name', relation: 'family/kinship role, e.g. daughter|parent|sister|brother|aunt|uncle|niece|nephew|cousin|grandparent|grandchild|spouse|guardian|ward|in-law', count: 2, members: ['explicitly named members from visible evidence; [] when unnamed'], descriptor: 'optional family detail e.g. twin daughters', twinGroup: 'optional shared twin label', evidence: 'explicit family/kinship fact' }],
-        lifeStateUpdates: [{ id: 'existing NPC id when known, otherwise empty', name: 'canonical NPC name', lifeState: 'alive|dead|unknown', lifeStateCertainty: 'explicit|strong|uncertain', lifeStateReason: 'grounded current source span OR exact stored Status for terminal-status repair', livingReturn: false }],
-    };
     return [
         'You are NPC State, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
@@ -135,7 +115,6 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- status is the NPC current concrete activity, immediate situation, or condition: what they are doing or undergoing now, for example standing watch at the gate, bandaging a wound, travelling toward Bluewatch, or asleep by the hearth. It is NOT lifecycle presence. Never use active, inactive, in chat, off-screen, present, archived, or equivalent lifecycle labels as status; those are tracked separately.',
         '- Every new NPC referenced by those arrays must also have one npcs entry so identity can be created safely.',
         admissionPromptRule(admissionMode),
-        ...dossierIdentityBootstrapPromptRules().map(rule => '- ' + rule),
         ...dossierExtractionPromptRules().map(rule => '- ' + rule),
         ...identityPresencePromptRules(),
         '- For NEW NPC identity: if a proper/personal name is established anywhere in the current exchange, npcs.name MUST be that canonical name and nothing else. npcs.name is human-facing display text and MUST NEVER be an npc-* identifier, slug, key, or machine label, and MUST NEVER begin with npc-. Put occupation/function such as Clerk, Guard, Innkeeper, or Receptionist in role, not in name. Use a human-readable unique role label as name only while the NPC is genuinely unnamed.',
@@ -176,7 +155,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         `OLDER CONTEXT — CONTINUITY ONLY; NOT NEW EVENT EVIDENCE:\n${JSON.stringify(history)}`,
         `CURRENT USER MESSAGE:\n${compactText(scannerEvidenceText(exchange.user?.mes || ''), 10000)}`,
         `CURRENT ASSISTANT MESSAGE:\n${compactText(scannerEvidenceText(exchange.assistant?.mes || ''), 14000)}`,
-        `OUTPUT CONTRACT:\n${JSON.stringify(contract)}`,
+        scanOutputContract(),
         semanticAppend({ npcs: state?.npcs || [], mode: semanticMode, sourceIds: nonSystemIds(chat, assistantMessageId, Math.max(4, Number(scanDepth) || 8) + 2) }),
     ].filter(Boolean).join('\n\n');
 }
@@ -217,11 +196,8 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         ...dossierCollectionRules(limits),
         'MEMORY SEMANTIC HYGIENE: collapse paraphrases of the same durable event/fact, while preserving genuinely different events.',
         memoryCriteria ? 'IMPORTANT MEMORY RUBRIC:\n' + compactText(memoryCriteria, 6000) : '',
-        'OUTPUT CONTRACT: ' + JSON.stringify({
-            exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [],
-            npcs: [{ id: npc.id, name: npc.name, aliases: null, evaluatedGroups: [], semanticUpdates: [],
-            }], socialEdges: [], familyFacts: [], lifeStateUpdates: [],
-        }),
+        ...dossierExtractionPromptRules({ includeNew: false }),
+        scanOutputContract({ includeNew: false, includeRelationship: false }),
         semanticAppend({ npcs: npc ? [npc] : [], mode: 'structured-import', sourceIds: sources.map(row => row.messageId).filter(Number.isInteger) }),
     ].filter(Boolean).join('\n\n');
 }
@@ -253,7 +229,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
         ...(structuredDetected ? structuredEvidencePromptRules() : []),
         memoryCriteria ? `IMPORTANT MEMORY RUBRIC:\n${compactText(memoryCriteria, 6000)}` : '',
         `CHAT WINDOW:\n${JSON.stringify(history)}`,
-        `OUTPUT CONTRACT:\n${JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id: npc.id, name: npc.name, aliases: [], evaluatedGroups: [], fieldEvaluations: { unchanged: [], insufficient: [], unavailable: [] }, semanticUpdates: [], relationshipSummary: '', relationshipSummaryEvidence: { excerpts: [], explanation: '' }, relationshipChange: { evaluated: true, impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, priority: [], axisEvidence: {}, evidence: '', reason: '' } }], socialEdges: [], familyFacts: [], lifeStateUpdates: [] })}`,
+        scanOutputContract({ includeNew: false }),
 
         semanticAppend({ npcs: npc ? [npc] : [], mode: 'refresh', sourceIds: nonSystemIds(chat, assistantMessageId, Math.max(2, Math.min(30, Math.round(Number(scanDepth) || 12)))) }),
     ].filter(Boolean).join('\n\n');
@@ -279,8 +255,4 @@ function semanticAppend({ npcs = [], mode = 'scan', sourceIds = [] } = {}) {
         'SINGLE-PIPELINE INVARIANT: after response compatibility normalization, every ordinary EXISTING-dossier field change is applied through semanticUpdates exactly once. Identity/admission, NPC-to-player relationship scoring/Current Dynamic, lifecycle, activity/presence, and family graph safety remain separate deterministic channels.',
         'MODEL-LED FAMILY / KINSHIP: familyFacts.relation is directional from owner toward each member. Preserve custom relation labels; add reciprocalRelation only when established or safely symmetric. Never invent members, gender, biological status, or reciprocity.',
     ].join('\n\n');
-}
-
-function bootstrapDossierShape() {
-    return Object.fromEntries(Object.entries(DOSSIER_FIELD_DEFINITIONS).map(([field, rule]) => [field, rule.kind === 'scalar' ? '' : []]));
 }
