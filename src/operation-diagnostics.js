@@ -107,7 +107,17 @@ function mergeRecord(target, patch = {}) {
 export function activeSwipeMetadata(message) {
     const swipeId = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
     const swipe = Array.isArray(message?.swipe_info) ? message.swipe_info[swipeId] : null;
-    if (Array.isArray(message?.swipe_info)) return { swipeId, meta: swipe?.extra?.npc_state_beta_v1 || null, source: 'swipe' };
+    if (Array.isArray(message?.swipe_info)) {
+        const meta = swipe?.extra?.npc_state_beta_v1;
+        if (meta) return { swipeId, meta, source: 'swipe' };
+        // Some host lifecycles populate swipe_info after message.extra. Only an
+        // explicitly owned current-message copy may fill that gap, never legacy data
+        // or another swipe. Callers also validate chat and complete history ownership.
+        const pending = message?.extra?.npc_state_beta_v1;
+        if (pending?.version === 2 && pending.captureId && pending.source?.swipeId === swipeId
+            && pending.source?.fingerprint === fingerprintMessage(message)) return { swipeId, meta: pending, source: 'message' };
+        return { swipeId, meta: null, source: 'swipe' };
+    }
     return { swipeId, meta: message?.extra?.npc_state_beta_v1 || null, source: 'message' };
 }
 

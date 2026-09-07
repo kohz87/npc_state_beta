@@ -137,7 +137,8 @@ for (const change of ['past', 'swipe', 'deletion', 'chat']) test(`first-pass sou
 
 test('persistence failure remains failed rather than committed and closes the operation ledger', () => withHost(async h => {
     h.context.chat = chatFor();
-    h.beforeWrite = () => { throw new Error('fixture persistence denied'); };
+    const before = h.persisted();
+    h.beforeWrite = () => ({ ok: false, status: 403, text: async () => 'fixture persistence denied' });
     const result = await h.entry.processCompletedAssistantResponse(1);
     assert.equal(result.ok, false);
     const diag = h.api.captureDiagnostics();
@@ -145,6 +146,7 @@ test('persistence failure remains failed rather than committed and closes the op
     assert.equal(diag.application.status, 'failed');
     assert.notEqual(diag.application.persistenceStatus, 'committed');
     assert.equal(h.api.operationDiagnostics().some(row => row.status === 'running'), false);
+    assert.deepEqual(h.persisted(), before);
 }));
 
 test('history changes during save cannot advertise the new capture as committed', () => withHost(async h => {
@@ -169,4 +171,68 @@ test('delayed transport cleanup cannot strip another chat or a newer payload at 
     const other = h.context.chat[1].mes;
     await new Promise(resolve => setTimeout(resolve, 240));
     assert.equal(h.context.chat[1].mes, other);
+}));
+
+test('a newer capture attempt invalidates an earlier in-flight save even when the narrative is identical', () => withHost(async h => {
+    h.context.chat = chatFor();
+    const entered = deferred(), release = deferred(); let first = true;
+    h.beforeWrite = async () => { if (first) { first = false; entered.resolve(); await release.promise; } };
+    const older = h.entry.processCompletedAssistantResponse(1);
+    await entered.promise;
+    h.context.chat[1].mes = visible + '\n' + wrap('{bad}');
+    const newer = await h.entry.processCompletedAssistantResponse(1);
+    release.resolve();
+    const result = await older;
+    assert.equal(newer.ok, false);
+    assert.equal(result.ok, false);
+    assert.equal(result.discarded, true);
+    assert.notEqual(h.persisted().branchSafety.status, 'safe');
+    assert.equal(h.api.captureDiagnostics().application.status, 'rejected');
+    assert.equal(h.api.operationDiagnostics()[0].persistence.status, 'saved-unowned-blocked');
+}));
+
+test('duplicate host completion events preserve the original malformed-tag failure rather than replacing it with missing-block', () => withHost(async h => {
+    for (const tag of ['<npc_state_v1', '</npc_state_v1>']) {
+        h.context.chat = chatFor(); h.context.chat[1].mes = visible + '\n' + tag;
+        const first = await h.entry.processCompletedAssistantResponse(1);
+        const second = await h.entry.processCompletedAssistantResponse(1);
+        assert.equal(second.skipped, true);
+        assert.deepEqual(h.api.captureDiagnostics().errorCodes, first.errorCodes);
+    }
+    assert.equal(h.metrics.posts, 0);
+}));
+
+test('optional completeness rejects changed preceding history between first-pass commit and its own request', () => withHost(async h => {
+    h.context.chat = chatFor();
+    let changed = false;
+    h.context.setExtensionPrompt = () => {
+        if (h.metrics.posts > 0 && !changed) { changed = true; h.context.chat[0].mes = 'Changed between first pass and completeness.'; }
+    };
+    const result = await h.entry.processCompletedAssistantResponse(1);
+    assert.equal(changed, true);
+    assert.equal(result.completeness, 'discarded');
+    assert.equal(result.completenessResult.reason, 'source-changed-before-completeness');
+    assert.equal(h.metrics.generations, 0);
+}, { settings: { scanAfterEachResponse: true } }));
+
+test('a host with a not-yet-populated active swipe slot accepts its owned message metadata, never another swipe', () => withHost(async h => {
+    h.context.chat = chatFor(); h.context.chat[1].swipe_info = [];
+    const result = await h.entry.processCompletedAssistantResponse(1);
+    assert.equal(result.ok, true);
+    assert.equal(h.api.captureDiagnostics().application.persistenceStatus, 'committed');
+    assert.equal(h.api.captureDiagnostics().metadataSource, 'message');
+    h.context.chat[1].swipe_id = 1;
+    assert.equal(h.api.captureDiagnostics().available, false);
+}));
+
+test('lengthy narration with Inventory still captures supported facts without a supplemental request', () => withHost(async h => {
+    const payload = scanOutputExamples().populated; payload.npcs = [payload.npcs[0]];
+    const narration = 'Snow settles on the station roof. '.repeat(360) + visible;
+    h.context.chat = chatFor(JSON.stringify(payload), narration);
+    const result = await h.entry.processCompletedAssistantResponse(1);
+    assert.equal(result.ok, true);
+    assert.equal(h.metrics.generations, 0);
+    assert.equal(h.persisted().npcs[0].appearance, 'Blue coat.');
+    assert.ok(h.context.chat[1].mes.startsWith(narration));
+    assert.match(h.context.chat[1].mes, /<Inventory>Coin/);
 }));

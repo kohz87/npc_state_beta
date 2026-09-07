@@ -267,9 +267,15 @@ async function hydrateActiveChat({ reconcile = true } = {}) {
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-export function completedResponseIdentity(chatKey, messageId, message = {}, chat = [message], transportHash = '') {
-    const source = captureSourceIdentity(chatKey, chat, messageId);
-    return [chatKey, messageId, source.swipeId, fingerprintMessage(message), source.history.length, source.history.hash, transportHash].join('|');
+export function completedResponseIdentity(chatKey, messageId, message = {}, chat = [message]) {
+    const control = consumeNpcStateControl(message.mes);
+    // Removal of a malformed/partial transport tag must not change completion identity
+    // between the host's duplicate completion events. Narrative ownership stays strict.
+    const identityChat = chat.slice(0, messageId + 1);
+    identityChat[messageId] = control.found ? { ...message, mes: control.cleanedText } : message;
+    const source = captureSourceIdentity(chatKey, identityChat, messageId);
+    const transportHash = control.found ? captureTransportHash(control.raw) : (activeSwipeMetadata(message).meta?.transportHash || '');
+    return [chatKey, messageId, source.swipeId, source.fingerprint, source.history.length, source.history.hash, transportHash].join('|');
 }
 
 function activeCompletionMeta(message) {
@@ -426,10 +432,7 @@ function sourceForCompletedResponse(messageId) {
     const chatKey = getChatKey();
     return {
         valid: true, ctx, chatKey, messageId: id, message,
-        identity: completedResponseIdentity(chatKey, id, message, ctx.chat, (() => {
-            const control = consumeNpcStateControl(message.mes);
-            return control.found ? captureTransportHash(control.raw) : (activeSwipeMetadata(message).meta?.transportHash || '');
-        })()),
+        identity: completedResponseIdentity(chatKey, id, message, ctx.chat),
         expectedSource: captureSourceIdentity(chatKey, ctx.chat, id),
         expectedFingerprint: fingerprintMessage(message),
         expectedSwipeId: Number.isInteger(message.swipe_id) ? message.swipe_id : 0,

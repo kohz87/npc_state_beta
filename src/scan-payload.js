@@ -15,6 +15,13 @@ function payloadError(code, details) {
     return Object.assign(new Error(`NPC State ${code}: ${issues.join('; ')}`), { code, issues });
 }
 
+function canonicalIdentityKind(value) {
+    if (typeof value !== 'string') return null;
+    const key = value.trim().toLocaleLowerCase().replace(/[_ ]+/g, '-');
+    // Empty was historically unspecified, not proof of a named identity.
+    return !key || SCAN_IDENTITY_KINDS.includes(key) ? key : (has(LEGACY_IDENTITY_KINDS, key) ? LEGACY_IDENTITY_KINDS[key] : null);
+}
+
 function npcIssues(npc, index, issues) {
     const path = `npcs[${index}]`;
     if (!object(npc)) { issues.push(`${path}: expected object-with-string-identity`); return; }
@@ -23,7 +30,7 @@ function npcIssues(npc, index, issues) {
         issues.push(`${path}: object-with-string-identity requires id or name (NEW id:"", name:"canonical name")`);
     }
     if (has(npc, 'aliases') && (!Array.isArray(npc.aliases) || !npc.aliases.every(alias => typeof alias === 'string'))) issues.push(`${path}.aliases: expected string array`);
-    if (has(npc, 'identityKind') && !SCAN_IDENTITY_KINDS.includes(npc.identityKind) && !has(LEGACY_IDENTITY_KINDS, npc.identityKind)) {
+    if (has(npc, 'identityKind') && canonicalIdentityKind(npc.identityKind) === null) {
         issues.push(`${path}.identityKind: expected ${SCAN_IDENTITY_KINDS.join('|')}, not ${String(npc.identityKind).slice(0, 40)}`);
     }
     for (const [field, canonical] of Object.entries(DRIFT_KEYS)) if (has(npc, field)) issues.push(`${path}.${field}: unsupported; use ${canonical}`);
@@ -67,7 +74,7 @@ export function normalizeScanPayload(parsed, { requireContract = true, allowOmit
         finalPresentNpcIds: uniqueStrings(parsed[presentKey]),
         worldActiveNpcIds: uniqueStrings(parsed.worldActiveNpcIds),
         npcs: Array.isArray(parsed.npcs) ? parsed.npcs.slice(0, 100).map(npc => {
-            if (object(npc) && has(LEGACY_IDENTITY_KINDS, npc.identityKind)) return { ...npc, identityKind: LEGACY_IDENTITY_KINDS[npc.identityKind] };
+            if (object(npc) && has(npc, 'identityKind')) return { ...npc, identityKind: canonicalIdentityKind(npc.identityKind) };
             return npc;
         }) : [],
         socialEdges: Array.isArray(parsed.socialEdges) ? parsed.socialEdges.slice(0, 100) : [],

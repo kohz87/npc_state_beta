@@ -44,7 +44,8 @@ export async function withHost(run, { sourceRoot = root, state = null, settings 
     globalThis.fetch = async (url, options = {}) => {
         if (options.method === 'POST') {
             metrics.posts += 1;
-            await host.beforeWrite?.();
+            const response = await host.beforeWrite?.();
+            if (response) return response;
             saved = Buffer.from(JSON.parse(options.body).data, 'base64').toString('utf8');
             return { ok: true, json: async () => ({ path: '/files/fixture.json' }) };
         }

@@ -55,7 +55,7 @@ import {
 } from './stale.js';
 import { clearV3PointerHint, createRecoveryV3Sidecar, deleteV3SidecarFile, readV3PointerHint, readV3Sidecar, retireV3Sidecar, writeV3Sidecar } from './storage.js';
 import { estimateForegroundTokens, FOREGROUND_TOKEN_ESTIMATE_METHOD } from './foreground-budget.js';
-import { captureSourceMatches, createOperationDiagnostics, operationHistoryIdentity, summarizeProposalDiagnostics } from './operation-diagnostics.js';
+import { activeSwipeMetadata, captureSourceMatches, createOperationDiagnostics, operationHistoryIdentity, summarizeProposalDiagnostics } from './operation-diagnostics.js';
 import { resolvePlayerName } from './scan-helpers.js';
 
 const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State recovery scanner. Obey the supplied schema and evidence rules exactly.';
@@ -333,11 +333,12 @@ export function createNpcStateEngine(adapters = {}) {
 
 
 
-    function captureOperationOwnership(type, chatKey, chat = [], messageId = null, { completeness = false } = {}) {
+    function captureOperationOwnership(type, chatKey, chat = [], messageId = null, { completeness = false, captureId = '' } = {}) {
         const sourceId = Number.isInteger(messageId) ? messageId : null;
         const source = sourceId !== null ? chat[sourceId] : null;
         return {
             type: String(type || 'operation'),
+            captureId: String(captureId || ''),
             chatKey: String(chatKey || ''),
             messageId: sourceId,
             epoch: epoch(chatKey),
@@ -357,6 +358,7 @@ export function createNpcStateEngine(adapters = {}) {
         if (token.messageId === null) return true;
         const live = liveChat[token.messageId];
         if (!live || fingerprintMessage(live) !== token.sourceFingerprint) return false;
+        if (token.captureId && activeSwipeMetadata(live).meta?.captureId !== token.captureId) return false;
         const swipeId = Number.isInteger(live.swipe_id) ? live.swipe_id : 0;
         return swipeId === token.swipeId;
     }
@@ -379,7 +381,7 @@ export function createNpcStateEngine(adapters = {}) {
             type: token?.type || 'operation',
             chatKey: token?.chatKey || '',
             source: {
-                ...(extra.captureId ? { captureId: extra.captureId } : {}),
+                ...(token?.captureId ? { captureId: token.captureId } : {}),
                 messageId: token?.messageId ?? null,
                 fingerprint: token?.sourceFingerprint || '',
                 swipeId: token?.messageId !== null ? token?.swipeId ?? 0 : null,
@@ -797,8 +799,8 @@ export function createNpcStateEngine(adapters = {}) {
         if (!chatKey || chatKey === 'no-chat' || /-pending:/.test(chatKey)) return { ok: false, reason: 'no-chat' };
         const settings = getSettings();
         if (settings.enabled === false || settings.autoScan === false) return { ok: false, reason: 'auto-disabled' };
-        const ownership = captureOperationOwnership('first-pass', chatKey, getContext().chat || [], messageId);
-        const operationId = beginOperationDiagnostics(ownership, '', { captureId: options.captureId });
+        const ownership = captureOperationOwnership('first-pass', chatKey, getContext().chat || [], messageId, { captureId: options.captureId });
+        const operationId = beginOperationDiagnostics(ownership);
         const stop = result => {
             operationLog.finish(operationId, {
                 status: result.discarded ? 'discarded' : (result.skipped ? 'skipped' : 'rejected'),
@@ -902,15 +904,19 @@ export function createNpcStateEngine(adapters = {}) {
         });
     }
 
-    async function completenessScan(messageId, { expectedFingerprint = '', expectedSwipeId = null } = {}) {
+    async function completenessScan(messageId, { expectedFingerprint = '', expectedSwipeId = null, expectedSource = null } = {}) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat' || /-pending:/.test(chatKey)) return { ok: false, reason: 'no-chat', kind: 'completeness' };
         const settings = getSettings();
         if (settings.enabled === false || settings.autoScan === false || settings.scanAfterEachResponse !== true) {
             return { ok: false, skipped: true, reason: 'completeness-disabled', kind: 'completeness', messageId };
         }
+        const ownership = captureOperationOwnership('completeness', chatKey, getContext().chat || [], messageId, { completeness: true });
         return exclusive(chatKey, async () => {
             const state = await loadChat(chatKey);
+            if (!operationOwnershipMatches(ownership) || (expectedSource && !captureSourceMatches(expectedSource, getChatKey(), getContext().chat || [], messageId))) {
+                return { ok: false, discarded: true, reason: 'source-changed-before-completeness', kind: 'completeness', messageId };
+            }
             if (!state) return { ok: false, reason: 'no-state', kind: 'completeness', messageId };
             if (recoveryBlocksLiveScan(state)) return { ok: false, skipped: true, reason: 'recovery-active', kind: 'completeness', messageId, recovery: structuredClone(state.recovery) };
             if (state.branchSafety?.status !== 'safe') return { ok: false, skipped: true, reason: 'branch-unsafe', kind: 'completeness', messageId };
@@ -924,7 +930,6 @@ export function createNpcStateEngine(adapters = {}) {
             const startSwipeId = Number.isInteger(sourceMessage?.swipe_id) ? sourceMessage.swipe_id : 0;
             if (expectedFingerprint && expectedFingerprint !== startFingerprint) return { ok: false, discarded: true, reason: 'source-changed-before-completeness', kind: 'completeness', messageId };
             if (Number.isInteger(expectedSwipeId) && expectedSwipeId !== startSwipeId) return { ok: false, discarded: true, reason: 'swipe-changed-before-completeness', kind: 'completeness', messageId };
-            const ownership = captureOperationOwnership('completeness', chatKey, chat, messageId, { completeness: true });
             const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(settings.relationshipHistoryLimit);
             const prompt = buildCompletenessPrompt({
                 state,
