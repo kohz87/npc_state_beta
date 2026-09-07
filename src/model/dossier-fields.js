@@ -11,10 +11,10 @@ export const DOSSIER_FIELD_DEFINITIONS = Object.freeze({
     behaviorProfile: { kind: 'collection', durability: 'durable', group: 'profile' },
     speech: { kind: 'scalar', durability: 'durable', group: 'profile' },
     mannerisms: { kind: 'collection', durability: 'durable', group: 'profile' },
-    mood: { kind: 'scalar', durability: 'live', group: 'live', structuredContext: 'semanticPrivateContext' },
-    location: { kind: 'scalar', durability: 'live', group: 'live', structuredContext: 'semanticWorldContext' },
-    goal: { kind: 'scalar', durability: 'live', group: 'live', structuredContext: 'semanticPrivateContext' },
-    status: { kind: 'scalar', durability: 'live', group: 'live', structuredContext: 'semanticWorldContext' },
+    mood: { kind: 'scalar', durability: 'live', group: 'live', structuredContext: 'semanticPrivateContext', firstPass: true },
+    location: { kind: 'scalar', durability: 'live', group: 'live', structuredContext: 'semanticWorldContext', firstPass: true },
+    goal: { kind: 'scalar', durability: 'live', group: 'live', structuredContext: 'semanticPrivateContext', firstPass: true },
+    status: { kind: 'scalar', durability: 'live', group: 'live', structuredContext: 'semanticWorldContext', firstPass: true },
     currentForm: { kind: 'scalar', durability: 'live', group: 'live' },
     memories: { kind: 'collection', durability: 'durable', group: 'memory' },
     keyRelationships: { kind: 'collection', durability: 'durable', group: 'npcRelationships' },
@@ -27,6 +27,7 @@ export const DOSSIER_COLLECTION_FIELDS = Object.freeze(DOSSIER_SEMANTIC_FIELDS.f
 export const DOSSIER_FORM_FIELDS = Object.freeze(DOSSIER_SEMANTIC_FIELDS.filter(field => DOSSIER_FIELD_DEFINITIONS[field].kind === 'forms'));
 export const DOSSIER_DURABLE_FIELDS = Object.freeze(DOSSIER_SEMANTIC_FIELDS.filter(field => DOSSIER_FIELD_DEFINITIONS[field].durability === 'durable'));
 export const DOSSIER_LIVE_FIELDS = Object.freeze(DOSSIER_SEMANTIC_FIELDS.filter(field => DOSSIER_FIELD_DEFINITIONS[field].durability === 'live'));
+export const DOSSIER_FIRST_PASS_LIVE_FIELDS = Object.freeze(DOSSIER_SEMANTIC_FIELDS.filter(field => DOSSIER_FIELD_DEFINITIONS[field].firstPass === true));
 
 export function dossierFieldDefinition(field) {
     return DOSSIER_FIELD_DEFINITIONS[String(field || '').trim()] || null;
@@ -38,4 +39,8 @@ export function dossierFieldGroup(field) {
 
 export function dossierSemanticFieldList() {
     return DOSSIER_SEMANTIC_FIELDS.join('|');
+}
+
+export function dossierFirstPassLiveFieldList() {
+    return DOSSIER_FIRST_PASS_LIVE_FIELDS.join('|');
 }

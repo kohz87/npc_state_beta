@@ -62,7 +62,7 @@ test('live-state semantic fields are present in foreground/model contracts', () 
     for (const field of ['mood', 'location', 'goal', 'status', 'currentForm']) assert.match(semanticPrompt, new RegExp(`\\b${field}\\b`));
     const foreground = foregroundContract({}, { capture: true });
     assert.match(foreground, /mood\|location\|goal\|status\|currentForm/);
-    assert.match(foreground, /LIVE STATE: mood\/location\/goal\/status\/currentForm/);
+    assert.match(foreground, /FIRST-PASS LIVE STATE: mood\|location\|goal\|status/);
 });
 
 test('one-pass semantic updates replace all live-state scalars and override compatibility fields', () => {

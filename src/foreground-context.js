@@ -1,5 +1,6 @@
 import { resolvedCurrentAppearance } from './appearance.js';
 import { semanticEntryRef } from './model/semantic-updates.js';
+import { DOSSIER_FIRST_PASS_LIVE_FIELDS } from './model/dossier-fields.js';
 import { normalizeDossierLimits } from './schema.js';
 
 export function hashForegroundText(value) {
@@ -141,6 +142,20 @@ function hasRelationshipSignal(npc = {}) {
     return ['trust', 'affection', 'desire', 'tension'].some(key => Math.abs(Number(rel[key]) || 0) >= 10);
 }
 
+
+const FIRST_PASS_LIVE_LIMITS = Object.freeze([
+    Object.freeze({ mood: 160, location: 180, goal: 220, status: 220 }),
+    Object.freeze({ mood: 160, location: 180, goal: 220, status: 220 }),
+    Object.freeze({ mood: 140, location: 160, goal: 180, status: 180 }),
+    Object.freeze({ mood: 90, location: 100, goal: 120, status: 120 }),
+    Object.freeze({ mood: 72, location: 84, goal: 96, status: 90 }),
+]);
+
+function compactFirstPassLiveState(npc, level) {
+    const limits = FIRST_PASS_LIVE_LIMITS[Math.max(0, Math.min(FIRST_PASS_LIVE_LIMITS.length - 1, Number(level) || 0))];
+    return Object.fromEntries(DOSSIER_FIRST_PASS_LIVE_FIELDS.map(field => [field, clipForegroundText(npc?.[field], limits[field])]));
+}
+
 function pruneEmpty(value) {
     if (Array.isArray(value)) return value.map(pruneEmpty).filter(item => item !== undefined);
     if (!value || typeof value !== 'object') {
@@ -198,10 +213,7 @@ export function compactForegroundNpc(npc, level = 0, limits = {}) {
         memories: refEntries('memories', npc.memories, Math.min(sizes.memories, dossierLimits.memories), sizes.entryChars),
         background: sizes.background > 0 ? clipForegroundText(npc.background, sizes.background) : '',
         live: {
-            mood: level >= 3 ? '' : clipForegroundText(npc.mood, 160),
-            location: level >= 4 ? '' : (level >= 3 ? clipForegroundText(npc.location, 100) : clipForegroundText(npc.location, 180)),
-            goal: level >= 3 ? '' : clipForegroundText(npc.goal, 220),
-            status: level >= 4 ? clipForegroundText(npc.status, 90) : (level >= 3 ? clipForegroundText(npc.status, 120) : clipForegroundText(npc.status, 220)),
+            ...compactFirstPassLiveState(npc, level),
             lifeState: clipForegroundText(npc.lifeState, 40),
         },
         playerRelationship: {

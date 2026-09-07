@@ -1,6 +1,14 @@
 # NPC State Beta
 
-NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.6.1 fixes relationship rollback when deleting messages beyond the checkpoint window, on top of the 0.6.0 code and package cleanup.
+NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.6.2 makes normal first-pass embedded capture reliably evaluate the selected NPCs' live Mood, Location, Goal, and Status without requiring a follow-up scan.
+
+## Release 0.6.2
+
+For every existing NPC selected into foreground context, the minimum budget representation now retains Mood, Location, Goal, and Status. The model compares those stored values with the completed response and uses the same canonical `semanticUpdates` pipeline to establish, replace, or explicitly remove a live value. Unchanged or insufficiently supported values are preserved rather than rewritten for style.
+
+Legacy direct live fields remain accepted only as a bounded response-compatibility format. They are normalized once at the scanner boundary when the proposed value and NPC identity occur together in permitted current evidence; otherwise they are rejected with diagnostics before the ordinary direct fields are stripped. Generic presence/activity evidence no longer grants blanket authority over every live field. World_State remains limited to Location/Status and NPC_Inner_Chatter to Mood/Goal.
+
+Embedded first-pass application now reports dossier coverage gaps, including an omitted live evaluation, without launching a repair request. Optional completeness scanning remains off unless the existing user setting enables it. Swipe identity is also carried through completed-response processing so a stale payload cannot commit to a replacement swipe.
 
 ## Release 0.6.1
 
@@ -20,7 +28,7 @@ Full Scan, completeness, and historical recovery now validate semantic source ex
 
 Version boundaries:
 
-- Extension release: `0.6.1`
+- Extension release: `0.6.2`
 - Persisted state schema: `1` (unchanged)
 - Model semantic update contract: `3`
 - Settings schema: `1` (unchanged)

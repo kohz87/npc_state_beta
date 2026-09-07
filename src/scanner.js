@@ -38,7 +38,8 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         semanticPrivateContext: options.semanticPrivateContext ?? options.evidencePolicy?.innerChatterText ?? '',
     };
     const parsed = typeof resultInput === 'string' ? parseScanJson(resultInput) : structuredClone(resultInput || {});
-    const adapted = adaptLegacySemanticPayload(stateInput, parsed, semanticOptions);
+    const compatibilityDiagnostics = [];
+    const adapted = adaptLegacySemanticPayload(stateInput, parsed, { ...semanticOptions, compatibilityDiagnostics });
     const prepared = prepareModelLedPayload(stateInput, adapted, options.admissionMode);
     const applied = core.applyScanResult(stateInput, prepared, options);
     const semantic = applyModelLedSemanticUpdates(applied.state, adapted, semanticOptions);
@@ -52,7 +53,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     return {
         ...applied,
         state: family.state,
-        semanticDiagnostics: [...semantic.diagnostics, ...family.diagnostics],
+        semanticDiagnostics: [...compatibilityDiagnostics, ...semantic.diagnostics, ...family.diagnostics],
         coverageDiagnostics,
     };
 }

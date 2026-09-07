@@ -149,7 +149,6 @@ test('legacy profile/live response shapes are adapted once at the boundary then 
         personality: 'Animated, practical, and inquisitive.',
         profileChanges: [{ field: 'personality', mode: 'explicit', evidence: context, concept: 'active curiosity' }],
         location: 'Market square.',
-        activityEvidence: { exchangeActive: { excerpts: [context], explanation: 'Sora acts in the exchange.' } },
     }), context);
     const npc = result.state.npcs[0];
     assert.equal(npc.personality, 'Animated, practical, and inquisitive.');

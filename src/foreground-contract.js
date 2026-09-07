@@ -1,5 +1,5 @@
 import { SEMANTIC_UPDATE_OPERATIONS } from './model/semantic-updates.js';
-import { DOSSIER_EVALUATION_GROUPS, dossierSemanticFieldList } from './model/dossier-fields.js';
+import { DOSSIER_EVALUATION_GROUPS, dossierFirstPassLiveFieldList, dossierSemanticFieldList } from './model/dossier-fields.js';
 import { NPC_STATE_VERSION, normalizeNpcAdmissionMode } from './schema.js';
 
 export const FOREGROUND_CONTRACT_VERSION = 4;
@@ -23,6 +23,7 @@ export function foregroundContract(settings = {}, { capture = true, continuity =
     ].join('\n');
 
     const fields = dossierSemanticFieldList();
+    const firstPassLiveFields = dossierFirstPassLiveFieldList();
     const groups = DOSSIER_EVALUATION_GROUPS.join('|');
     const structured = settings.structuredEvidenceDetected === true
         ? 'Reference/control blocks may inform continuity but do not by themselves prove visible activity, admission, relationship events, or lifecycle transitions.'
@@ -33,10 +34,10 @@ export function foregroundContract(settings = {}, { capture = true, continuity =
         admissionRule(settings.newNpcAdmissionMode),
         'ACTIVITY/IDENTITY: inChatNpcIds = individually relevant NPCs participating at the end; exchangeActiveNpcIds = NPCs that spoke/acted/were directly affected now; worldActiveNpcIds = explicitly active off-screen. Existing NPCs use stable ids. New identity/activity claims need short exact current-visible excerpts. Mentions, crowds and incidental bodies are not active.',
         `ONE DOSSIER UPDATE PIPELINE: for an EXISTING dossier, ordinary changes use semanticUpdates only for ${fields}. Operations are ${SEMANTIC_UPDATE_OPERATIONS.join('|')}. Do not also emit legacy profileChanges/canonChanges/ageChange/appearanceFormChanges/keyRelationshipChanges or direct replacements for those fields. New NPC bootstrap may still use direct grounded fields.`,
-        `COVERAGE: for an exchange-active existing NPC, inspect every dossier group visible in its supplied context and include evaluatedGroups from ${groups}. Do not claim a group was checked when budget compaction omitted the relevant stored context.`,
+        `COVERAGE: for an exchange-active existing NPC, inspect every dossier group visible in its supplied context and include evaluatedGroups from ${groups}. The live group specifically means every supplied first-pass live value (${firstPassLiveFields}) was checked against the completed response, even when unchanged. Do not claim another group was checked when budget compaction omitted its stored context.`,
         'SEMANTIC UPDATE: {field,operation,value?,changes?,clear?,durability?,scope?,ageKind?,sources:[{messageId:null,excerpt}],explanation}. Omission preserves stored data. remove is explicit; empty arrays never clear unless clear:true is supported. Collection replace/remove should target supplied ref or exact expected value.',
         'PROFILE/CANON: sleeping, unconsciousness, silence while asleep, isolated reactions, poses, temporary moods/forms and one-off gestures are not durable personality/speech/canon. Later grounded characterization may replace obsolete temporary placeholders. Form-specific traits stay scoped. Chronological age is separate from apparentAge; replacing established age needs ageKind birthday|elapsed|correction and the resulting grounded number.',
-        'LIVE STATE: mood/location/goal/status/currentForm are semantic live scalars for existing dossiers. Replace them when current truth changes; remove values that conclusively ended without replacement. Status is current activity/condition, never presence/lifecycle.',
+        `FIRST-PASS LIVE STATE: ${firstPassLiveFields} are never budget-pruned for a selected existing dossier. Compare all four with current evidence. Use establish/replace only when current truth warrants it, remove only when the stored value conclusively ended without replacement, and emit no cosmetic update when it remains valid or evidence is insufficient. A missing value in supplied context means the stored value is empty, not compacted away. currentForm is also a live semantic scalar. Status is activity/condition, never presence/lifecycle.`,
         'COLLECTIONS: behaviorProfile, mannerisms, keyRelationships and memories preserve unrelated entries. Important Memories are durable distinct events/facts, not paraphrase logs. keyRelationships is NON-PLAYER ties only.',
         'LIFECYCLE/PLAYER RELATIONSHIP: death/return uses lifeStateUpdates; dead-to-alive requires livingReturn:true. Every exchange-active NPC has relationshipChange.evaluated=true; nonzero trust/affection/desire/tension needs exact current-exchange evidence. relationshipSummary is the current NPC-to-PLAYER dynamic and may update descriptively when grounded even if replay/caps/gates/inertia suppress numeric movement. Never infer desire from friendliness.',
         'NPC-TO-NPC GRAPH: familyFacts/socialEdges are separate graph channels. Never use the PLAYER as an NPC-to-NPC endpoint or family member.',

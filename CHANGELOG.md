@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.2
+
+- Fixed normal first-pass embedded capture leaving existing NPC Mood, Location, Goal, or Status stale. The minimum selected foreground dossier now retains all four comparison values, and the foreground contract requires the model to evaluate them through the existing `semanticUpdates` channel.
+- Replaced the legacy blanket `activityEvidence` live-field bridge with bounded boundary normalization: a direct compatibility value is translated only when the NPC identity and proposed value co-occur in a permitted visible or field-scoped structured evidence span. Unsupported direct proposals are preserved as no-ops with diagnostics instead of disappearing silently.
+- Enabled dossier coverage diagnostics on embedded first-pass application, so an omitted NPC/live-group evaluation is distinguishable from an explicitly evaluated unchanged state. Completeness remains optional and disabled by default.
+- Forwarded completed-response swipe identity into embedded application and reject a changed swipe before or during commit. Existing edit/deletion/branch stale guards remain in place.
+- Added behavioral regressions covering one-pass live updates, compatibility normalization/rejection, unchanged/omitted/unknown/remove semantics, locks/provenance, structured evidence authority, relationship replay, stale edit/delete/swipe handling, persistence/reload, completeness-disabled operation, and foreground budget compaction. Tests use simulated host/storage adapters; no live SillyTavern/provider smoke test was performed.
+
+
 ## 0.6.1
 
 - Fixed message deletion beyond the oldest usable checkpoint leaving known discarded relationship scores, progress, history, evidence, and reasons active. Reused the relationship rollback ledger with manual-anchor protection; incomplete timeline recovery still requires rebase/rebuild.

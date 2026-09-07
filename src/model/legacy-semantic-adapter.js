@@ -1,5 +1,5 @@
 import { findNpcByReference, normalizeName } from '../schema.js';
-import { DOSSIER_LIVE_FIELDS } from './dossier-fields.js';
+import { DOSSIER_LIVE_FIELDS, dossierFieldDefinition, dossierFieldGroup } from './dossier-fields.js';
 
 function compact(value, max = 1200) {
     return String(value ?? '').replace(/\u0000/g, '').trim().slice(0, max);
@@ -20,11 +20,45 @@ function source(evidence, options = {}) {
     return excerpt ? [{ messageId: Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null, excerpt }] : [];
 }
 
-function activitySource(patch, options = {}) {
-    for (const channel of ['exchangeActive', 'inChat', 'worldActive']) {
-        const excerpts = patch?.activityEvidence?.[channel]?.excerpts;
-        const excerpt = Array.isArray(excerpts) ? excerpts.find(value => compact(value, 1000)) : '';
-        if (excerpt) return source(excerpt, options);
+function evidenceKey(value, max = 50000) {
+    return String(value ?? '')
+        .normalize('NFKC')
+        .toLocaleLowerCase()
+        .replace(/[\s\p{P}\p{S}]+/gu, ' ')
+        .trim()
+        .slice(0, max);
+}
+
+function compatibilityDiagnostic(options, row) {
+    if (Array.isArray(options.compatibilityDiagnostics)) options.compatibilityDiagnostics.push(row);
+}
+
+function identityKeys(npc) {
+    return [npc?.name, ...(Array.isArray(npc?.aliases) ? npc.aliases : [])]
+        .map(value => evidenceKey(value, 500))
+        .filter(value => value.length >= 2);
+}
+
+function directEvidenceContexts(field, options = {}) {
+    const visible = compact(options.currentAdmissionText || options.semanticEvidenceContext || options.profileContext, 50000);
+    const structuredKey = dossierFieldDefinition(field)?.structuredContext;
+    const structured = structuredKey ? compact(options[structuredKey], 50000) : '';
+    return [visible, structured].filter(Boolean);
+}
+
+function directFieldSource(npc, field, value, options = {}) {
+    const proposed = evidenceKey(value, 2000);
+    const identities = identityKeys(npc);
+    if (!proposed || !identities.length) return [];
+    for (const context of directEvidenceContexts(field, options)) {
+        const lines = context.split(/\r?\n/);
+        const sentences = context.split(/(?<=[.!?])\s+/);
+        const spans = [...new Set([...lines, ...sentences])].map(row => row.trim()).filter(Boolean);
+        for (const span of spans) {
+            const key = evidenceKey(span, 4000);
+            if (!key.includes(proposed) || !identities.some(identity => (` ${key} `).includes(` ${identity} `))) continue;
+            return source(span, options);
+        }
     }
     return [];
 }
@@ -116,21 +150,23 @@ export function adaptLegacySemanticPayload(stateInput, resultInput, options = {}
             if (changes.length) updates.push({ field: 'keyRelationships', operation: 'refine', changes, durability: 'durable', sources: source(evidence, options), explanation: 'Legacy key-relationship removal.' });
         }
 
-        const liveEvidence = activitySource(patch, options);
-        if (liveEvidence.length) {
-            for (const field of DOSSIER_LIVE_FIELDS) {
-                if (hasUpdate(updates, field)) continue;
-                const value = compact(patch?.[field], field === 'currentForm' ? 80 : 1200);
-                if (!value || normalizeName(value) === normalizeName(existing?.[field])) continue;
-                updates.push({
-                    field,
-                    operation: compact(existing?.[field]) ? 'replace' : 'establish',
-                    value,
-                    durability: 'temporary',
-                    sources: structuredClone(liveEvidence),
-                    explanation: 'Legacy live-state compatibility value.',
+        for (const field of DOSSIER_LIVE_FIELDS) {
+            if (hasUpdate(updates, field) || !Object.prototype.hasOwnProperty.call(patch, field)) continue;
+            const value = compact(patch?.[field], field === 'currentForm' ? 80 : 1200);
+            if (!value || normalizeName(value) === normalizeName(existing?.[field])) continue;
+            const fieldSources = directFieldSource(existing, field, value, options);
+            const operationName = compact(existing?.[field]) ? 'replace' : 'establish';
+            if (!fieldSources.length) {
+                compatibilityDiagnostic(options, {
+                    npcId: existing.id, field, operation: operationName, group: dossierFieldGroup(field),
+                    status: 'unsupported-direct-proposal', reason: 'missing-field-specific-evidence',
                 });
+                continue;
             }
+            updates.push({
+                field, operation: operationName, value, durability: 'temporary',
+                sources: fieldSources, explanation: 'Boundary-normalized direct live-state compatibility value.',
+            });
         }
 
         if (updates.length) patch.semanticUpdates = updates;

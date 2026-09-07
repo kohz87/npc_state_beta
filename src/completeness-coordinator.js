@@ -41,7 +41,10 @@ export function createCompletenessCoordinator(adapters = {}) {
             const completenessRequested = settingsAtStart.enabled !== false
                 && settingsAtStart.autoScan !== false
                 && settingsAtStart.scanAfterEachResponse === true;
-            const embedded = await runEmbedded(source.messageId);
+            const embedded = await runEmbedded(source.messageId, {
+                expectedFingerprint: source.expectedFingerprint,
+                expectedSwipeId: source.expectedSwipeId,
+            });
             if (!embedded?.ok) {
                 const skipped = embedded?.coverage === 'skipped';
                 writeRecord(source, { identity: source.identity, status: skipped ? 'complete' : 'failed', coverage: embedded?.coverage || 'failure', completeness: 'not-run', reason: embedded?.reason || (skipped ? 'embedded-skipped' : 'embedded-failed') });

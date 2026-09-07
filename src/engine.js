@@ -499,7 +499,8 @@ export function createNpcStateEngine(adapters = {}) {
             const parsed = await invokeJson(prompt, manual ? 'manual-current-cast' : 'automatic-current-cast');
             const liveCtx = getContext();
             const liveChat = liveCtx.chat || [];
-            if (getChatKey() !== chatKey || epoch(chatKey) !== startEpoch || fingerprintMessage(liveChat[messageId] || {}) !== startFingerprint) {
+            const liveSwipeId = Number.isInteger(liveChat[messageId]?.swipe_id) ? liveChat[messageId].swipe_id : 0;
+            if (getChatKey() !== chatKey || epoch(chatKey) !== startEpoch || liveSwipeId !== startSwipeId || fingerprintMessage(liveChat[messageId] || {}) !== startFingerprint) {
                 return { ok: false, discarded: true, reason: 'stale-operation', messageId };
             }
             const working = normalizeState(state, chatKey);
@@ -577,6 +578,10 @@ export function createNpcStateEngine(adapters = {}) {
             const chat = ctx.chat || [];
             const message = chat[messageId];
             if (!message || message.is_system || message.is_user) return { ok: false, reason: 'not-assistant-message' };
+            const startSwipeId = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
+            if (Number.isInteger(options.expectedSwipeId) && options.expectedSwipeId !== startSwipeId) {
+                return { ok: false, discarded: true, reason: 'stale-operation', messageId };
+            }
             if (typeof options.expectedMessageText === 'string') {
                 const expectedFingerprint = fingerprintMessage({ ...message, mes: options.expectedMessageText });
                 if (fingerprintMessage(message) !== expectedFingerprint) {
@@ -610,6 +615,7 @@ export function createNpcStateEngine(adapters = {}) {
                     fallbackDays: settings.birthdayRandomDaysPerMonth,
                 },
                 applyReturnedNpcPatches: true,
+                requireDossierCoverage: true,
                 applyRelationship: !relationshipReplayProtected(state, chat, messageId),
             });
             const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(settings.relationshipHistoryLimit);

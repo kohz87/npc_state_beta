@@ -390,11 +390,16 @@ async function maybeForegroundFallback(messageId, reason) {
 }
 
 // only newly generated embedded payloads require the lifecycle channel.
-async function processEmbeddedScan(messageId) {
+async function processEmbeddedScan(messageId, { expectedFingerprint = '', expectedSwipeId = null } = {}) {
     const ctx = getContext();
     const id = Number(messageId);
     const message = ctx?.chat?.[id];
     if (!Number.isInteger(id) || !message || message.is_user || message.is_system) return { ok: false, reason: 'not-assistant-message' };
+    const activeSwipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
+    if ((expectedFingerprint && fingerprintMessage(message) !== expectedFingerprint)
+        || (Number.isInteger(expectedSwipeId) && expectedSwipeId !== activeSwipeId)) {
+        return { ok: false, discarded: true, reason: 'stale-operation', coverage: 'failure' };
+    }
     const settings = getSettings();
     if (settings.enabled === false || settings.autoScan === false) {
         stripNpcTransportOnly(id);
@@ -419,7 +424,7 @@ async function processEmbeddedScan(messageId) {
     }
 
     try {
-        const result = await engine.applyEmbeddedScan(id, consumed.parsed, { expectedMessageText: consumed.cleanedText });
+        const result = await engine.applyEmbeddedScan(id, consumed.parsed, { expectedMessageText: consumed.cleanedText, expectedSwipeId: activeSwipeId });
         // Ordinary commits already refreshed via persistence. Skips have no persistence callback.
         if (result?.ok && result?.skipped) refreshSurfaces();
         return { ...result, coverage: result?.ok && !result?.skipped ? 'embedded' : 'embedded-skipped' };

@@ -46,6 +46,8 @@ Existing-dossier ordinary changes use one `semanticUpdates` pipeline. `scan-appl
 
 Structured evidence authority is field-scoped in the semantic validator: World_State may support live `location`/`status`; NPC_Inner_Chatter may support private `mood`/`goal`; neither may rewrite durable canon/profile/memory/key relationships/current form.
 
+Foreground invariant: every selected existing dossier retains the four first-pass comparison values `mood`, `location`, `goal`, and `status` even at minimum compaction. Listing the `live` evaluation group means those supplied values were checked against the completed response. Compatibility direct live values may only be normalized at the response boundary from field-scoped grounded evidence; they never become a second write path.
+
 Existing-dossier durable changes use `semanticUpdates`:
 
 - `establish`: populate a genuinely unestablished field;
