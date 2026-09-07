@@ -813,11 +813,11 @@ export function applyModelLedFamilyFacts(stateInput, resultInput, options = {}) 
     const context = evidenceKey(options.semanticEvidenceContext ?? options.profileContext, 50000);
     for (const raw of Array.isArray(resultInput?.familyFacts) ? resultInput.familyFacts : []) {
         const owner = findNpcByReference(state, raw?.owner || '');
-        const relation = compact(raw?.relation, 180);
-        const reciprocal = compact(raw?.reciprocalRelation, 180);
-        const evidence = compact(raw?.evidence, 1000);
+        const relation = typeof raw?.relation === 'string' ? compact(raw.relation, 180) : '';
+        const reciprocal = typeof raw?.reciprocalRelation === 'string' ? compact(raw.reciprocalRelation, 180) : '';
+        const evidence = typeof raw?.evidence === 'string' ? compact(raw.evidence, 1000) : '';
         if (!owner || !relation || !evidence || !context.includes(evidenceKey(evidence, 1600))) continue;
-        const members = (Array.isArray(raw?.members) ? raw.members : []).map(value => compact(value, 160)).filter(Boolean).slice(0, 20);
+        const members = (Array.isArray(raw?.members) ? raw.members : []).filter(value => typeof value === 'string').map(value => compact(value, 160)).filter(Boolean).slice(0, 20);
         for (const memberName of members) {
             if (normalizeName(memberName) === normalizeName(owner.name)) continue;
             const memberNpc = findNpcByReference(state, memberName);

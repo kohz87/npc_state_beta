@@ -300,7 +300,7 @@ function groundedFamilyMemberNames(raw, count, evidenceContext = '', owner = nul
     const out = [];
     const seen = new Set();
     for (const value of source) {
-        const member = String(value || '').trim().slice(0, 160);
+        const member = typeof value === 'string' ? value.trim().slice(0, 160) : '';
         const key = normalizeName(member);
         if (!member || !key || seen.has(key) || isTechnicalNpcIdentity(member) || GENERIC_REFERENCES.has(key)) continue;
         if (owner && [owner.name, ...(owner.aliases || [])].some(label => normalizeName(label) === key)) continue;
@@ -383,15 +383,15 @@ function addFamilyFacts(state, facts, resolveReference, sourceMessageId, evidenc
     const byKey = new Map(slots.map((slot, index) => [familySlotKey(slot.ownerId, slot.relation, slot.twinGroup), index]));
     for (const raw of Array.isArray(facts) ? facts : []) {
         const owner = resolveReference(raw?.owner);
-        const relation = String(raw?.relation || '').trim().slice(0, 120);
-        const evidence = String(raw?.evidence || '').trim().slice(0, 600);
+        const relation = typeof raw?.relation === 'string' ? raw.relation.trim().slice(0, 120) : '';
+        const evidence = typeof raw?.evidence === 'string' ? raw.evidence.trim().slice(0, 600) : '';
         const role = familyRole(relation);
         if (!owner || !role || !relation || !evidence) continue;
         if (String(evidenceContext || '').trim() && !profileEvidenceGrounded(evidence, evidenceContext)) continue;
         const count = Math.max(1, Math.min(20, Math.round(Number(raw?.count) || 1)));
         const memberNames = groundedFamilyMemberNames(raw, count, evidenceContext, owner, playerName);
-        const descriptor = String(raw?.descriptor || '').trim().slice(0, 240);
-        const twinGroup = String(raw?.twinGroup || '').trim().slice(0, 160);
+        const descriptor = typeof raw?.descriptor === 'string' ? raw.descriptor.trim().slice(0, 240) : '';
+        const twinGroup = typeof raw?.twinGroup === 'string' ? raw.twinGroup.trim().slice(0, 160) : '';
         const key = familySlotKey(owner.id, relation, twinGroup);
         const index = byKey.get(key);
         if (Number.isInteger(index)) {
@@ -1026,7 +1026,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     const worldSet = new Set(worldIds);
     const lifeStateUpdateByNpcId = new Map();
     for (const raw of result.lifeStateUpdates || []) {
-        const refs = [raw?.id, raw?.name, raw?.target].map(value => String(value || '').trim()).filter(Boolean);
+        const refs = [raw?.id, raw?.name, raw?.target].filter(value => typeof value === 'string').map(value => value.trim()).filter(Boolean);
         const target = refs.map(ref => findNpcByReference(state, ref)).find(Boolean) || null;
         if (!target || lifeStateUpdateByNpcId.has(target.id)) continue;
         lifeStateUpdateByNpcId.set(target.id, { ...structuredClone(raw), id: target.id, name: target.name });
@@ -1119,10 +1119,11 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         if (!from || !to || from.id === to.id) continue;
         const returnedPair = options.applyReturnedNpcPatches === true && returnedPatchSet.has(from.id) && returnedPatchSet.has(to.id);
         if (!targetSet.has(from.id) && !targetSet.has(to.id) && !allowHistoricalProfilePatches && !returnedPair) continue;
-        const relation = String(raw?.relation || '').trim().slice(0, 160);
+        const relation = typeof raw?.relation === 'string' ? raw.relation.trim().slice(0, 160) : '';
         if (!relation) continue;
-        const provenance = ['explicit', 'strong-context'].includes(String(raw?.provenance)) ? String(raw.provenance) : 'explicit';
-        const edge = { fromId: from.id, toId: to.id, relation, summary: String(raw?.summary || '').trim().slice(0, 500), updatedAt: Date.now(), sourceMessageId, provenance, confidence: provenance === 'explicit' ? 1 : 0.8, inferred: false };
+        const provenance = typeof raw?.provenance === 'string' && ['explicit', 'strong-context'].includes(raw.provenance) ? raw.provenance : 'explicit';
+        const summary = typeof raw?.summary === 'string' ? raw.summary.trim().slice(0, 500) : '';
+        const edge = { fromId: from.id, toId: to.id, relation, summary, updatedAt: Date.now(), sourceMessageId, provenance, confidence: provenance === 'explicit' ? 1 : 0.8, inferred: false };
         edgeMap.set(socialEdgeKey(edge), edge);
     }
     state.socialGraph = [...edgeMap.values()].slice(-200);

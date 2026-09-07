@@ -1,6 +1,8 @@
 # Changelog
 
 ## 0.7.8
+- A later independent value-boundary review extended the same no-coercion rule to focused social/family/lifecycle proposals and relationship metadata. Object-valued graph/lifecycle scalars or family members are rejected once at the scanner coordination boundary, malformed Current Dynamic is rejected, and non-string relationship reason/evidence metadata can no longer enter durable relationship history as JavaScript object text. Valid sibling graph proposals and evidence-grounded numeric relationship movement remain independent.
+
 - Independent contract/validation review fixed two adjacent coercion/accounting holes: named-preferred role compatibility now preserves the raw proposal until registry validation (so invalid roles cannot become `[object Object]` or be counted twice), and legacy direct-live/form adapters validate raw shapes before compaction. Refresh and structured import share the same canonical semantic validator.
 
 - Bind optional malformed/missing-capture fallback scans to the originating capture attempt and canonical source history. A newer capture now invalidates queued/in-flight fallback work before it can consume the newer first-pass boundary; the existing guarded commit path still blocks saved-but-unowned writes. Manual Scan keeps its established non-capture-bound ownership policy.

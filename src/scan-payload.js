@@ -48,6 +48,51 @@ function npcIssues(npc, index, issues) {
     }
 }
 
+
+function focusedProposalIssue(kind, raw) {
+    if (!object(raw)) return 'expected-object';
+    const stringFields = kind === 'socialEdges'
+        ? ['from', 'to', 'relation', 'summary', 'provenance']
+        : kind === 'familyFacts'
+            ? ['owner', 'relation', 'reciprocalRelation', 'evidence', 'descriptor', 'twinGroup']
+            : ['id', 'name', 'target', 'lifeState', 'lifeStateCertainty', 'lifeStateReason'];
+    for (const field of stringFields) {
+        if (!has(raw, field) || raw[field] == null) continue;
+        if (typeof raw[field] !== 'string') return `${field}-expected-string`;
+    }
+    if (kind === 'familyFacts') {
+        for (const field of ['members', 'memberNames']) {
+            if (!has(raw, field) || raw[field] == null) continue;
+            if (!Array.isArray(raw[field])) return `${field}-expected-string-array`;
+            const invalid = raw[field].findIndex(value => typeof value !== 'string');
+            if (invalid >= 0) return `${field}-${invalid}-expected-string`;
+        }
+    }
+    if (kind === 'lifeStateUpdates' && has(raw, 'livingReturn') && raw.livingReturn != null && typeof raw.livingReturn !== 'boolean') {
+        return 'livingReturn-expected-boolean';
+    }
+    return '';
+}
+
+export function validateFocusedProposalPayload(input) {
+    const result = { ...(input || {}) };
+    const diagnostics = [];
+    for (const kind of ['socialEdges', 'familyFacts', 'lifeStateUpdates']) {
+        const accepted = [];
+        const rows = Array.isArray(result[kind]) ? result[kind] : [];
+        for (let index = 0; index < rows.length; index += 1) {
+            const issue = focusedProposalIssue(kind, rows[index]);
+            if (issue) {
+                diagnostics.push({ field: kind, patchIndex: index, channel: 'focused-proposal', status: 'rejected-proposal', reason: `invalid-value-type:${issue}` });
+                continue;
+            }
+            accepted.push(rows[index]);
+        }
+        result[kind] = accepted;
+    }
+    return { result, diagnostics };
+}
+
 export function normalizeScanPayload(parsed, { requireContract = true, allowOmittedSupplemental = false, requireLifeStateUpdates = false } = {}) {
     if (!object(parsed)) throw payloadError('wrong-root', ['JSON must be an object']);
     const presentKey = has(parsed, 'inChatNpcIds') ? 'inChatNpcIds' : 'finalPresentNpcIds';

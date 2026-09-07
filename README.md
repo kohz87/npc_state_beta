@@ -10,6 +10,8 @@ Ordinary dossier field inputs are type-checked before bootstrap or semantic norm
 
 The v0.7.7 canonical JSON envelope and `<npc_state_v1>` transport are unchanged. Supported first-pass appearance/profile/live state/memories, neutral Current Dynamic at zero relationship deltas, random birthday filling, relationship scoring/replay protection, correction rollback/recovery, optional completeness, and alternate-model routing remain intact. See [`docs/core-contract.md`](docs/core-contract.md) for the authoritative behavior.
 
+Focused social/family/lifecycle rows and relationship text metadata also reject malformed object-valued text before persistence while valid sibling proposals remain independent.
+
 Release 0.7.8 uses semantic contract 5 and foreground contract 6. Persisted state and settings schemas remain 1, and storage identity remains `npc_state_beta.v3`. No database rebuild or storage-key migration is required. Automated tests do not measure live provider reliability.
 
 ## Release 0.6.3

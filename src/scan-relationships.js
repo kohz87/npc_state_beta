@@ -127,8 +127,9 @@ function relationshipSummarySupported(value, relationship, milestones) {
 function relationshipSummaryEvidenceGrounded(npc, patch, options = {}) {
     const raw = patch?.relationshipSummaryEvidence;
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, reason: 'missing-summary-evidence' };
-    const excerpts = Array.isArray(raw.excerpts) ? raw.excerpts.map(value => String(value || '').trim()).filter(Boolean).slice(0, 4) : [];
-    const explanation = String(raw.explanation || '').trim().slice(0, 800);
+    if (!Array.isArray(raw.excerpts) || raw.excerpts.some(value => typeof value !== 'string')) return { ok: false, reason: 'malformed-summary-evidence' };
+    const excerpts = raw.excerpts.map(value => value.trim()).filter(Boolean).slice(0, 4);
+    const explanation = typeof raw.explanation === 'string' ? raw.explanation.trim().slice(0, 800) : '';
     if (excerpts.length < 1 || excerpts.length > 3 || !explanation) return { ok: false, reason: 'malformed-summary-evidence' };
     const sources = relationshipEvidenceSourcesForOptions(options);
     if (!sources.length) return { ok: false, reason: 'no-summary-evidence-source' };
@@ -174,6 +175,10 @@ function relationshipSummaryDiagnostic(options, row) {
 
 export function applyRelationshipSummaryProjection(npc, patch, options = {}) {
     const current = normalizeRelationshipSummary(npc?.relationshipSummary);
+    if (patch?.relationshipSummary != null && typeof patch.relationshipSummary !== 'string') {
+        relationshipSummaryDiagnostic(options, { npcId: npc.id, field: 'relationshipSummary', group: 'playerRelationship', channel: 'relationship-summary', status: 'rejected-proposal', reason: 'invalid-value-type:expected-string-value' });
+        return npc;
+    }
     const summary = normalizeRelationshipSummary(patch?.relationshipSummary);
     if (!summary) return npc;
     if (summary === current) {
@@ -210,7 +215,7 @@ export function relationshipDeltaForPatch(patch, caps = DEFAULT_RELATIONSHIP_CAP
     const reasons = [];
     const zero = { trust: 0, affection: 0, desire: 0, tension: 0 };
     if (!raw) return { evaluated: false, impactValid: false, impact: 'none', proposed: zero, delta: zero, axisEvidence: {}, priority: [], evidence: '', reason: '', reasons, hasRawMovement: false };
-    const impactText = String(raw.impact || '').trim();
+    const impactText = typeof raw.impact === 'string' ? raw.impact.trim() : '';
     const impactValid = IMPACTS.has(impactText);
     const impact = impactValid ? impactText : 'none';
     const proposedRaw = raw.delta && typeof raw.delta === 'object' && !Array.isArray(raw.delta) ? raw.delta : {};
@@ -250,7 +255,7 @@ export function relationshipDeltaForPatch(patch, caps = DEFAULT_RELATIONSHIP_CAP
             continue;
         }
         const rawExcerpts = item.excerpts;
-        const explanation = String(item.explanation || '').trim().slice(0, 800);
+        const explanation = typeof item.explanation === 'string' ? item.explanation.trim().slice(0, 800) : '';
         if (!Array.isArray(rawExcerpts) || rawExcerpts.length < 1 || rawExcerpts.length > 3
             || rawExcerpts.some(excerpt => typeof excerpt !== 'string' || !excerpt.trim())) {
             axisEvidenceStatus[axis] = 'malformed-axis-evidence';
@@ -267,7 +272,8 @@ export function relationshipDeltaForPatch(patch, caps = DEFAULT_RELATIONSHIP_CAP
         if (!Array.isArray(raw.priority)) reasons.push('priority:malformed');
         else {
             for (const entry of raw.priority) {
-                const axis = String(entry || '').trim().toLocaleLowerCase();
+                if (typeof entry !== 'string') { reasons.push('priority:invalid-axis-type'); continue; }
+                const axis = entry.trim().toLocaleLowerCase();
                 if (!RELATIONSHIP_AXES.includes(axis)) { reasons.push('priority:unknown-axis:' + axis.slice(0, 40)); continue; }
                 if (!delta[axis]) { reasons.push('priority:nonmoving-axis:' + axis); continue; }
                 if (!priority.includes(axis)) priority.push(axis);
@@ -275,6 +281,8 @@ export function relationshipDeltaForPatch(patch, caps = DEFAULT_RELATIONSHIP_CAP
         }
     }
     priority = normalizeRelationshipPriority(priority);
+    if (raw.evidence != null && typeof raw.evidence !== 'string') reasons.push('evidence:invalid-type');
+    if (raw.reason != null && typeof raw.reason !== 'string') reasons.push('reason:invalid-type');
     return {
         evaluated: raw.evaluated === true,
         impactValid,
@@ -284,8 +292,8 @@ export function relationshipDeltaForPatch(patch, caps = DEFAULT_RELATIONSHIP_CAP
         axisEvidence: normalizeRelationshipAxisEvidence(axisEvidence),
         axisEvidenceStatus,
         priority,
-        evidence: String(raw.evidence || '').trim().slice(0, 800),
-        reason: String(raw.reason || '').trim().slice(0, 800),
+        evidence: typeof raw.evidence === 'string' ? raw.evidence.trim().slice(0, 800) : '',
+        reason: typeof raw.reason === 'string' ? raw.reason.trim().slice(0, 800) : '',
         reasons,
         hasRawMovement,
         verifiedSources: {},
@@ -327,7 +335,7 @@ export function relationshipEvaluationDiagnostic(npc, patch, options = {}) {
     const proposal = relationshipDeltaForPatch(patch, options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS);
     const rawDelta = raw.delta && typeof raw.delta === 'object' && !Array.isArray(raw.delta) ? raw.delta : {};
     const hasRawDelta = RELATIONSHIP_AXES.some(axis => Number(rawDelta?.[axis]) !== 0);
-    const reason = String(raw.reason || '').trim().slice(0, 800);
+    const reason = typeof raw.reason === 'string' ? raw.reason.trim().slice(0, 800) : '';
     if (proposal.evaluated && proposal.impactValid && proposal.impact === 'none' && !hasRawDelta && reason) {
         return relationshipDiagnostic(npc, npc, { ...proposal, proposed: zero, delta: zero, reason }, options, ['evaluated-no-change']);
     }
