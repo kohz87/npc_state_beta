@@ -6,6 +6,8 @@ import { createEmptyState, normalizeNpc, normalizeState } from '../src/schema.js
 import { semanticEntryRef } from '../src/model/semantic-updates.js';
 import { createCompletenessCoordinator } from '../src/completeness-coordinator.js';
 import { generateWithScanRoute, resolveScanGenerationRoute } from '../src/scan-connection.js';
+import { foregroundNpcCandidates } from '../src/foreground-context.js';
+import { injectionStateProjection } from '../src/engine.js';
 
 function makeNpc(i, large = false) {
     const repeat = (text, n) => large ? text.repeat(n) : text;
@@ -52,6 +54,31 @@ test('one selection pipeline honors injection limit even with twelve available N
     assert.equal(result.diagnostics.eligibleNpcCount, 12);
     assert.equal(result.diagnostics.selectedNpcCount, 2);
     assert.deepEqual(context(result.prompt).dossiers.map(row => row.id), result.diagnostics.selectedNpcIds);
+});
+
+
+test('tight budgets retain a strict prefix of NPC priority instead of lower-priority replacements', () => {
+    const fixture = state(6, true);
+    const opts = settings({ injectLimit: 6, injectBudgetTokens: 1800 });
+    const priority = foregroundNpcCandidates(fixture, opts).slice(0, 6).map(row => row.id);
+    const result = buildForegroundInjection(fixture, opts);
+    assert.ok(result.diagnostics.selectedNpcCount > 0);
+    assert.ok(result.diagnostics.selectedNpcCount < priority.length);
+    assert.deepEqual(result.diagnostics.selectedNpcIds, priority.slice(0, result.diagnostics.selectedNpcCount));
+    assert.deepEqual(result.diagnostics.droppedForBudgetNpcIds, priority.slice(result.diagnostics.selectedNpcCount));
+});
+
+test('engine foreground projection preserves manual locks and recent profile evolution metadata', () => {
+    const fixture = state();
+    fixture.npcs[0].manualProfileFields = ['personality', 'speech'];
+    fixture.npcs[0].profileEvolutionEvidence = [{ field: 'personality', mode: 'replace', concept: 'awake baseline', sourceMessageId: 42, evidence: 'Sora is lively and curious.' }];
+    const projected = injectionStateProjection(fixture);
+    assert.deepEqual(projected.npcs[0].manualProfileFields, ['personality', 'speech']);
+    assert.equal(projected.npcs[0].profileEvolutionEvidence[0].concept, 'awake baseline');
+    const result = buildForegroundInjection(projected, settings({ injectBudgetTokens: 5000 }));
+    const dossier = context(result.prompt).dossiers.find(row => row.id === fixture.npcs[0].id);
+    assert.deepEqual(dossier.manualProfileFields, ['personality', 'speech']);
+    assert.equal(dossier.recentProfileEvidence[0].sourceMessageId, 42);
 });
 
 test('total budget is enforceable for small, ordinary, and oversized dossiers', () => {

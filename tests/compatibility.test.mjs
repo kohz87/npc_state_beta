@@ -77,6 +77,11 @@ test('foreground uses one authoritative contract while deterministic scanner mec
     assert.equal(fs.existsSync(path.join(root, 'src/scanner-core.js')), true);
 });
 
+test('MESSAGE_SENT refreshes foreground selection after invalidating pending work', () => {
+    const index = read('src/index.js');
+    assert.match(index, /MESSAGE_SENT[\s\S]{0,500}engine\.invalidate\(key\)[\s\S]{0,500}updateInjection\(\)/);
+});
+
 test('normal MESSAGE_RECEIVED handling remains nonblocking for post-response work', () => {
     const index = read('src/index.js');
     assert.match(index, /MESSAGE_RECEIVED[\s\S]{0,500}void processCompletedAssistantResponse\(messageId\)/);

@@ -157,36 +157,43 @@ export function buildForegroundInjection(state = {}, settings = {}) {
     let dynamicText = JSON.stringify(dynamic);
     let totalEstimate = estimateForegroundTokens(`${instructionText}\n${FOREGROUND_CONTEXT_PREFIX}${dynamicText}`);
 
+    // Reserve the smallest complete dossier in strict priority order first. Once a
+    // higher-priority candidate cannot fit, lower-priority candidates cannot displace it.
     for (let i = 0; i < eligible.length; i += 1) {
         const npc = eligible[i];
-        let accepted = null;
-        const remainingCount = Math.max(1, eligible.length - i);
-        const currentDynamicEstimate = Math.max(0, totalEstimate - instructionTokenEstimate);
-        const availableForDossiers = Math.max(0, dynamicBudgetTokens - currentDynamicEstimate);
-        const fairShare = Math.max(80, Math.floor(availableForDossiers / remainingCount));
+        const compacted = compactForegroundNpc(npc, 4, settings.dossierLimits);
+        const next = { ...dynamic, dossiers: [...dynamic.dossiers, compacted] };
+        const nextText = JSON.stringify(next);
+        const estimate = estimateForegroundTokens(`${instructionText}\n${FOREGROUND_CONTEXT_PREFIX}${nextText}`);
+        const nextDynamicEstimate = Math.max(0, estimate - instructionTokenEstimate);
+        if (estimate > actualBudgetTokens || nextDynamicEstimate > dynamicBudgetTokens) {
+            dropped.push(...eligible.slice(i).map(row => row.id));
+            break;
+        }
+        dynamic = next;
+        dynamicText = nextText;
+        totalEstimate = estimate;
+        selected.push(npc.id);
+    }
 
-        for (const level of [0, 1, 2, 3, 4]) {
+    // Enrich only after priority reservations are secure. Upgrade in rounds so the
+    // remaining space improves already-selected dossiers without changing membership.
+    for (const level of [3, 2, 1, 0]) {
+        for (let i = 0; i < selected.length; i += 1) {
+            const npc = eligible[i];
+            if (!npc || npc.id !== selected[i]) continue;
             const compacted = compactForegroundNpc(npc, level, settings.dossierLimits);
-            const next = { ...dynamic, dossiers: [...dynamic.dossiers, compacted] };
+            const dossiers = [...dynamic.dossiers];
+            dossiers[i] = compacted;
+            const next = { ...dynamic, dossiers };
             const nextText = JSON.stringify(next);
             const estimate = estimateForegroundTokens(`${instructionText}\n${FOREGROUND_CONTEXT_PREFIX}${nextText}`);
-            const incremental = estimate - totalEstimate;
             const nextDynamicEstimate = Math.max(0, estimate - instructionTokenEstimate);
-            const withinBudget = estimate <= actualBudgetTokens && nextDynamicEstimate <= dynamicBudgetTokens;
-            if ((incremental <= fairShare && withinBudget) || (level === 4 && i === eligible.length - 1 && withinBudget)) {
-                accepted = { next, nextText, estimate };
-                break;
-            }
+            if (estimate > actualBudgetTokens || nextDynamicEstimate > dynamicBudgetTokens) continue;
+            dynamic = next;
+            dynamicText = nextText;
+            totalEstimate = estimate;
         }
-
-        if (!accepted) {
-            dropped.push(npc.id);
-            continue;
-        }
-        dynamic = accepted.next;
-        dynamicText = accepted.nextText;
-        totalEstimate = accepted.estimate;
-        selected.push(npc.id);
     }
 
     if (capture && settings.newNpcHistoryEnrichment !== false) {

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.3
+
+### Semantic update safety
+
+- Empty collection `replace` operations no longer erase behavior, mannerisms, key relationships, or memories unless `clear:true` explicitly authorizes a whole-collection clear.
+- Semantic-operation deduplication now includes normalized targeted `changes`, refs/expected targets, scope, clear intent, age/durability metadata, and grounded sources so distinct same-evidence edits are not discarded.
+
+### Foreground priority and freshness
+
+- Foreground budgeting now reserves the smallest complete dossiers in strict salience order before enriching them, so lower-priority NPCs cannot displace higher-priority NPCs under a tight total budget.
+- `MESSAGE_SENT` now refreshes the lightweight extension injection after invalidating pending work, allowing NPCs named in the just-sent user message to affect selection for that response.
+- The engine hot-path projection now preserves manual profile locks and recent profile-evolution evidence that the foreground compactor already consumes.
+
+### Compatibility
+
+- Persisted dossier schema, settings schema, model semantic contract, foreground contract, storage identity, routing behavior, and relationship mechanics remain unchanged.
+
 ## 0.5.2
 
 ### Foreground prompt consolidation

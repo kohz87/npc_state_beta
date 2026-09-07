@@ -1,14 +1,14 @@
 # NPC State Beta
 
-NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.5.2 consolidates foreground capture into one bounded model contract and adds local prompt/background diagnostics without changing the normal roleplay route.
+NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.5.3 hardens semantic collection edits and foreground priority/freshness while retaining the bounded single-contract architecture.
 
-## Release 0.5.2
+## Release 0.5.3
 
 The checked-in `src/` tree is authoritative. A clean checkout is sufficient to validate, test, and package the extension.
 
 Version boundaries remain independent:
 
-- Extension release: `0.5.2`
+- Extension release: `0.5.3`
 - Persisted state schema: `1` (unchanged)
 - Model semantic update contract: `2` (unchanged)
 - Settings schema: `1` (unchanged; no new settings keys)

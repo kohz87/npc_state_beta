@@ -267,8 +267,12 @@ function applyCollectionOperation(npc, update, limits) {
         }
     } else if (Array.isArray(update.value)) {
         const incoming = normalizeCollection(field, update.value, limits);
-        if (operation === 'replace') next = incoming;
-        else if (operation === 'refine' || operation === 'establish') {
+        if (operation === 'replace') {
+            if (!incoming.length && current.length && update.clear !== true) {
+                return { changed: false, reason: 'explicit-clear-required' };
+            }
+            next = incoming;
+        } else if (operation === 'refine' || operation === 'establish') {
             for (const value of incoming) if (!next.some(item => sameValue(item, value))) next.push(value);
         } else if (operation === 'remove') {
             for (const value of incoming) next = next.filter(item => !sameValue(item, value));
@@ -398,9 +402,34 @@ function restoreNewNpcModelLedRole(state, originalResult) {
     }
 }
 
+function identityValue(value) {
+    if (Array.isArray(value)) return value.map(identityValue);
+    if (!value || typeof value !== 'object') return value ?? null;
+    const out = {};
+    for (const key of Object.keys(value).sort()) out[key] = identityValue(value[key]);
+    return out;
+}
+
 function updateIdentity(raw) {
-    const sources = sourceRows(raw).map(row => `${row.messageId ?? 'na'}:${evidenceKey(row.excerpt, 900)}`).join('|');
-    return `${raw.field}|${raw.operation}|${evidenceKey(raw.value, 2000)}|${sources}|${compact(raw?.scope?.form, 80)}`;
+    const sources = sourceRows(raw).map(row => ({
+        messageId: row.messageId ?? null,
+        excerpt: evidenceKey(row.excerpt, 900),
+    }));
+    const operation = {
+        field: raw.field,
+        operation: raw.operation,
+        value: identityValue(raw.value),
+        changes: identityValue(Array.isArray(raw.changes) ? raw.changes : []),
+        clear: raw.clear === true,
+        scope: identityValue(raw.scope || {}),
+        targetForm: compact(raw.targetForm, 80),
+        ref: compact(raw.ref, 260),
+        expected: compact(raw.expected, 2000),
+        ageKind: String(raw.ageKind || '').trim().toLocaleLowerCase(),
+        durability: String(raw.durability || '').trim().toLocaleLowerCase(),
+        sources,
+    };
+    return JSON.stringify(operation);
 }
 
 export function applyModelLedSemanticUpdates(stateInput, resultInput, options = {}) {

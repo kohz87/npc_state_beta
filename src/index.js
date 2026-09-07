@@ -708,6 +708,9 @@ function registerEvents() {
     if (events.MESSAGE_SENT) source.on(events.MESSAGE_SENT, () => {
         const key = getChatKey();
         if (key && key !== 'no-chat') engine.invalidate(key);
+        // MESSAGE_SENT runs after the live user message enters chat. Rebuild the cheap
+        // extension prompt now so explicit NPC references affect this response.
+        updateInjection();
     });
 
     if (events.MESSAGE_RECEIVED) source.on(events.MESSAGE_RECEIVED, messageId => {

@@ -169,6 +169,50 @@ test('empty collection arrays do not clear without explicit remove authorization
     assert.deepEqual(applied.state.npcs[0].behaviorProfile, ['Studies before acting.']);
 });
 
+
+test('empty collection replacement requires explicit clear authorization for every durable collection', () => {
+    const fields = {
+        behaviorProfile: ['Studies before acting.'],
+        mannerisms: ['Taps one boot while thinking.'],
+        keyRelationships: ['Lucien - guardian: trusts his judgment.'],
+        memories: ['Lucien rescued her from the winter pass.'],
+    };
+    const context = 'No evidence in this exchange retires any established collection entry.';
+    for (const [field, value] of Object.entries(fields)) {
+        const state = stateWithNpc({ [field]: value });
+        const result = fixture([{ field, operation: 'replace', value: [], sources: source(context), explanation: 'No replacement entries.' }]);
+        const applied = apply(state, result, context);
+        assert.deepEqual(applied.state.npcs[0][field], value, field);
+        assert.equal(applied.semanticDiagnostics[0].status, 'no-change-proposed', field);
+        assert.equal(applied.semanticDiagnostics[0].reason, 'explicit-clear-required', field);
+    }
+});
+
+test('explicit clear authorization can intentionally clear a collection', () => {
+    const state = stateWithNpc({ memories: ['An obsolete memory entry.'] });
+    const context = 'The stored memory entry is explicitly confirmed to be invalid and must be cleared.';
+    const result = fixture([{ field: 'memories', operation: 'replace', value: [], clear: true, sources: source(context), explanation: 'Explicit whole-collection correction.' }]);
+    const applied = apply(state, result, context);
+    assert.deepEqual(applied.state.npcs[0].memories, []);
+    assert.equal(applied.semanticDiagnostics[0].status, 'applied');
+});
+
+test('same-evidence targeted collection replacements are deduplicated by complete operation identity', () => {
+    const first = 'Taps one boot while thinking.';
+    const second = 'Tilts her head before answering.';
+    const state = stateWithNpc({ mannerisms: [first, second] });
+    const context = 'Sora now drums two fingers while calculating and folds her hands before answering.';
+    const sharedSources = source(context);
+    const result = fixture([
+        { field: 'mannerisms', operation: 'replace', changes: [{ action: 'replace', ref: semanticEntryRef('mannerisms', first), value: 'Drums two fingers while calculating.' }], sources: sharedSources, explanation: 'First habit changed.' },
+        { field: 'mannerisms', operation: 'replace', changes: [{ action: 'replace', ref: semanticEntryRef('mannerisms', second), value: 'Folds her hands before answering.' }], sources: sharedSources, explanation: 'Second habit changed.' },
+    ]);
+    const applied = apply(state, result, context);
+    assert.deepEqual(applied.state.npcs[0].mannerisms, ['Drums two fingers while calculating.', 'Folds her hands before answering.']);
+    assert.equal(applied.semanticDiagnostics.filter(row => row.status === 'applied').length, 2);
+    assert.equal(applied.semanticDiagnostics.some(row => row.status === 'duplicate-operation'), false);
+});
+
 test('age change is model-classified without English cue phrases and remains separate from apparent age', () => {
     const state = stateWithNpc({ age: '6', apparentAge: '~6' });
     const context = '記録上のソラの年齢は7。見た目についての新情報はない。';
