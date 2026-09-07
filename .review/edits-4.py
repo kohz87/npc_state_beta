@@ -1,0 +1,248 @@
+apply([
+('tests/helpers/host-harness.mjs', '5aca4395ca435afca3b9f6d917153c7f0e96140a', [
+(0, 0, r'''import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+import { createEmptyState } from '../../src/schema.js';
+import { encodeV3Payload, decodeV3Payload } from '../../src/storage.js';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+// Real entrypoint/engine/sidecar code at the host's actual import depth. Only host
+// APIs and persistence are simulated; no deployment or user files are consulted.
+export async function withHost(run, { sourceRoot = root, state = null, settings = {} } = {}) {
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'npc-capture-host-'));
+    const extension = path.join(temp, 'public/scripts/extensions/third-party/npc_state_beta');
+    fs.mkdirSync(extension, { recursive: true });
+    fs.cpSync(path.join(sourceRoot, 'src'), path.join(extension, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(temp, 'package.json'), '{"type":"module"}');
+    fs.writeFileSync(path.join(temp, 'public/script.js'), 'export const extension_prompt_types = {}; export const extension_prompt_roles = {}; export const getRequestHeaders = () => ({});');
+    fs.writeFileSync(path.join(temp, 'public/scripts/extensions.js'), 'export const extension_settings = globalThis.__npcHost.settings; export const getContext = () => globalThis.__npcHost.context;');
+    const key = 'chat:actor.png:fixture';
+    const initial = state || createEmptyState(key);
+    initial.chatKey = key;
+    initial.branchSafety = { status: 'safe' };
+    let saved = encodeV3Payload(key, initial, 1);
+    const metrics = { posts: 0, reads: 0, generations: 0, chatSaves: 0, renders: 0, notices: [] };
+    const host = {
+        key, metrics, beforeRead: null, beforeWrite: null,
+        settings: { npc_state_beta: { v3: { enabled: true, autoScan: true, fallbackScan: false, scanAfterEachResponse: false, branchRescan: false, birthdayFillMode: 'off',
+            dataFiles: { [key]: { name: 'fixture.json', path: '/files/fixture.json', revision: 1 } }, ...settings } } },
+        context: { chatId: 'fixture', characterId: 0, characters: [{ avatar: 'actor.png' }], name1: 'Ari', eventTypes: {}, chat: [],
+            saveChat() { metrics.chatSaves += 1; }, saveSettingsDebounced() {}, setExtensionPrompt() {},
+            updateMessageBlock() { metrics.renders += 1; },
+            async generateRaw() { metrics.generations += 1; throw new Error('Unexpected provider request'); },
+        },
+        persisted: () => decodeV3Payload(saved, key).state,
+    };
+    const previous = Object.fromEntries(['__npcHost', 'document', 'fetch', 'NPCState', 'toastr', 'setTimeout', 'setInterval'].map(key => [key, globalThis[key]]));
+    const timers = new Set();
+    for (const name of ['setTimeout', 'setInterval']) globalThis[name] = (...args) => {
+        const handle = previous[name](...args); timers.add(handle); return handle;
+    };
+    globalThis.__npcHost = host;
+    globalThis.document = { readyState: 'loading', body: null, addEventListener() {}, querySelector() { return null; }, querySelectorAll() { return []; }, getElementById() { return null; }, createElement() { return { dataset: {}, classList: { add() {} } }; }, head: { appendChild() {} } };
+    globalThis.toastr = Object.fromEntries(['warning', 'error', 'info', 'success'].map(kind => [kind, text => metrics.notices.push({ kind, text })]));
+    globalThis.fetch = async (url, options = {}) => {
+        if (options.method === 'POST') {
+            metrics.posts += 1;
+            await host.beforeWrite?.();
+            saved = Buffer.from(JSON.parse(options.body).data, 'base64').toString('utf8');
+            return { ok: true, json: async () => ({ path: '/files/fixture.json' }) };
+        }
+        metrics.reads += 1;
+        await host.beforeRead?.();
+        return { ok: true, text: async () => saved };
+    };
+    try {
+        host.entry = await import(pathToFileURL(path.join(extension, 'src/index.js')));
+        host.api = globalThis.NPCState;
+        return await run(host);
+    } finally {
+        // Drain bounded host callbacks before restoring globals for the next fixture.
+        await new Promise(resolve => setTimeout(resolve, 310));
+        for (const timer of timers) { clearTimeout(timer); clearInterval(timer); }
+        for (const [key, value] of Object.entries(previous)) {
+            if (value === undefined) delete globalThis[key]; else globalThis[key] = value;
+        }
+        fs.rmSync(temp, { recursive: true, force: true });
+    }
+}
+'''),
+]),
+('tests/v077-host-capture.test.mjs', 'a9ed11eed0188541e1f54efa85cf86b13d6248ae', [
+(0, 0, r'''import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { withHost } from './helpers/host-harness.mjs';
+import { emptyScanPayload, scanOutputExamples } from '../src/scan-contract.js';
+import { createEmptyState, normalizeNpc } from '../src/schema.js';
+
+const empty = () => JSON.stringify(emptyScanPayload());
+const wrap = raw => `<npc_state_v1>${raw}</npc_state_v1>`;
+const visible = 'Nia wears a blue coat. Nia greets Ari. Ivo has green eyes.';
+const chatFor = (raw = empty(), narrative = visible) => [{ is_user: true, name: 'Ari', mes: 'Hello.' }, { is_user: false, swipe_id: 0, swipe_info: [{ extra: {} }, { extra: {} }], mes: narrative + '\n' + wrap(raw) + '\n<Inventory>Coin | 1 | Belt</Inventory>' }];
+const drift = fs.readFileSync(new URL('./fixtures/v077-schema-drift.json', import.meta.url), 'utf8');
+function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
+
+for (const [name, raw, code] of [
+    ['exact real drift', drift, 'invalid-structure'], ['syntax', '{broken}', 'json-syntax'], ['truncated JSON', '{"npcs":[]', 'truncated-json'],
+    ['missing array', JSON.stringify({ ...emptyScanPayload(), familyFacts: undefined }), 'missing-required-members'],
+]) test(`host rejects ${name} with specific metadata/notice and zero sidecar or model writes`, () => withHost(async h => {
+    const before = h.persisted();
+    h.context.chat = chatFor(raw);
+    const result = await h.entry.processCompletedAssistantResponse(1);
+    assert.equal(result.ok, false);
+    assert.ok(result.errorCodes.includes(code));
+    assert.deepEqual(h.persisted(), before);
+    assert.equal(h.metrics.posts, 0);
+    assert.equal(h.metrics.generations, 0);
+    const diagnosis = h.api.captureDiagnostics();
+    assert.equal(diagnosis.parseStatus, 'rejected');
+    assert.equal(diagnosis.application.persistenceStatus, 'not-run');
+    assert.ok(diagnosis.parseErrors.some(error => error.includes(code)));
+    assert.ok(h.metrics.notices.some(notice => notice.text.includes(code)));
+    assert.match(h.context.chat[1].mes, /<Inventory>Coin/);
+}));
+
+test('missing/duplicate/truncated control leaves the sidecar untouched without implicit recovery generation', () => withHost(async h => {
+    for (const text of [visible, visible + '\n' + wrap(empty()) + wrap(empty()), visible + '\n<npc_state_v1', visible + '\n</npc_state_v1>']) {
+        h.context.chat = chatFor(); h.context.chat[1].mes = text;
+        const result = await h.entry.processEmbeddedScan(1);
+        assert.equal(result.ok, false);
+        assert.ok(result.errorCodes.length);
+    }
+    assert.equal(h.metrics.posts, 0);
+    assert.equal(h.metrics.generations, 0);
+}));
+
+test('real narrative plus embedded payload populates supported dossiers and persists once with no extra request', () => {
+    const state = createEmptyState('unused');
+    state.npcs = [normalizeNpc({ id: 'npc-ivo', name: 'Ivo', appearance: 'Brown eyes.', manualProfileFields: ['speech'], speech: 'Measured.' })];
+    return withHost(async h => {
+        const payload = scanOutputExamples().populated;
+        const nia = payload.npcs[0];
+        Object.assign(nia, {
+            role: 'Station clerk', personality: 'Careful with records.', speech: 'Speaks clearly.', behaviorProfile: ['Checks each ledger entry.'],
+            mannerisms: ['Taps the ledger while greeting Ari.'], mood: 'Focused', location: 'Station counter', goal: 'Register Ari', status: 'Completing registration',
+            memories: ['Registered Ari at the station.'],
+        });
+        const story = visible + ' Nia is the station clerk, careful with records, speaking clearly, checking each entry, tapping the ledger while greeting Ari. Nia is focused at the station counter. Nia registers Ari.';
+        h.context.chat = chatFor(JSON.stringify(payload), story);
+        const result = await h.entry.processCompletedAssistantResponse(1);
+        assert.equal(result.ok, true);
+        assert.equal(h.metrics.generations, 0);
+        assert.equal(h.metrics.posts, 1);
+        const saved = h.persisted();
+        const n = saved.npcs.find(npc => npc.name === 'Nia');
+        for (const field of ['appearance', 'personality', 'speech', 'behaviorProfile', 'mannerisms', 'mood', 'location', 'goal', 'status', 'memories']) assert.deepEqual(n[field], nia[field], field);
+        assert.equal(n.relationshipSummary, nia.relationshipSummary);
+        assert.equal(n.relationshipHistory.length, 0);
+        assert.equal(n.age, ''); assert.equal(n.background, '');
+        assert.deepEqual(n.relationship, { trust: 0, affection: 0, desire: 0, tension: 0 });
+        assert.equal(saved.npcs.find(npc => npc.id === 'npc-ivo').appearance, 'Green eyes.');
+        assert.equal(saved.npcs.find(npc => npc.id === 'npc-ivo').speech, 'Measured.');
+        const diag = h.api.captureDiagnostics();
+        assert.equal(diag.parseStatus, 'parsed');
+        assert.equal(diag.application.applicationStatus, 'applied');
+        assert.equal(diag.application.persistenceStatus, 'committed');
+        assert.ok(diag.application.proposals.accepted >= 12);
+        assert.equal((await h.entry.processCompletedAssistantResponse(1)).skipped, true);
+        assert.equal(h.metrics.posts, 1);
+    }, { state });
+});
+
+test('unknown model transport id is not stored and accepted binding preserves new fields', () => withHost(async h => {
+    const payload = scanOutputExamples().populated;
+    payload.npcs = [payload.npcs[0]]; payload.npcs[0].id = 'foreign-model-id';
+    h.context.chat = chatFor(JSON.stringify(payload));
+    assert.equal((await h.entry.processCompletedAssistantResponse(1)).ok, true);
+    assert.equal(h.persisted().npcs.length, 1);
+    assert.notEqual(h.persisted().npcs[0].id, 'foreign-model-id');
+    assert.equal(h.persisted().npcs[0].appearance, 'Blue coat.');
+}));
+
+test('completion dedupe never hides a new malformed or duplicate payload after a successful capture', () => withHost(async h => {
+    h.context.chat = chatFor();
+    assert.equal((await h.entry.processCompletedAssistantResponse(1)).ok, true);
+    const committed = h.api.captureDiagnostics().application.operationId;
+    for (const raw of [wrap('{broken}'), wrap(empty()) + wrap(empty())]) {
+        h.context.chat[1].mes = visible + '\n' + raw;
+        const result = await h.entry.processCompletedAssistantResponse(1);
+        assert.equal(result.ok, false);
+        const diag = h.api.captureDiagnostics();
+        assert.equal(diag.application.status, 'rejected');
+        assert.notEqual(diag.application.operationId, committed);
+        assert.equal(diag.application.revision, null);
+    }
+    assert.equal(h.metrics.posts, 1);
+}));
+
+test('completion and capture identity include preceding history even with unchanged assistant text', () => withHost(async h => {
+    h.context.chat = chatFor();
+    await h.entry.processCompletedAssistantResponse(1);
+    h.context.chat[0].mes = 'An entirely different request.';
+    assert.equal(h.api.captureDiagnostics().application.status, 'stale');
+    h.context.chat[1].mes = visible + '\n' + wrap('{broken}');
+    const result = await h.entry.processCompletedAssistantResponse(1);
+    assert.equal(result.ok, false);
+    assert.notEqual(result.reason, 'completion-already-recorded');
+    assert.equal(h.metrics.posts, 1);
+}));
+
+for (const change of ['past', 'swipe', 'deletion', 'chat']) test(`first-pass source cannot become current during hydration after ${change}`, () => withHost(async h => {
+    h.context.chat = chatFor();
+    const entered = deferred(), release = deferred();
+    h.beforeRead = async () => { entered.resolve(); await release.promise; };
+    const pending = h.entry.processCompletedAssistantResponse(1);
+    await entered.promise;
+    if (change === 'past') h.context.chat[0].mes = 'Changed request';
+    if (change === 'swipe') h.context.chat[1].swipe_id = 1;
+    if (change === 'deletion') h.context.chat.shift();
+    if (change === 'chat') h.context = { ...h.context, chatId: 'other', chat: chatFor() };
+    release.resolve();
+    const result = await pending;
+    assert.equal(result.ok, false);
+    assert.equal(result.discarded, true);
+    assert.equal(h.metrics.posts, 0);
+    assert.equal(h.metrics.generations, 0);
+}));
+
+test('persistence failure remains failed rather than committed and closes the operation ledger', () => withHost(async h => {
+    h.context.chat = chatFor();
+    h.beforeWrite = () => { throw new Error('fixture persistence denied'); };
+    const result = await h.entry.processCompletedAssistantResponse(1);
+    assert.equal(result.ok, false);
+    const diag = h.api.captureDiagnostics();
+    assert.equal(diag.parseStatus, 'parsed');
+    assert.equal(diag.application.status, 'failed');
+    assert.notEqual(diag.application.persistenceStatus, 'committed');
+    assert.equal(h.api.operationDiagnostics().some(row => row.status === 'running'), false);
+}));
+
+test('history changes during save cannot advertise the new capture as committed', () => withHost(async h => {
+    h.context.chat = chatFor();
+    let first = true;
+    h.beforeWrite = () => { if (first) { first = false; h.context.chat[0].mes = 'Changed during save.'; } };
+    const result = await h.entry.processCompletedAssistantResponse(1);
+    assert.equal(result.ok, false);
+    assert.equal(result.discarded, true);
+    assert.equal(h.api.captureDiagnostics().application.status, 'stale');
+    assert.notEqual(h.persisted().branchSafety.status, 'safe');
+}));
+
+test('delayed transport cleanup cannot strip another chat or a newer payload at the same address', () => withHost(async h => {
+    h.context.chat = chatFor();
+    await h.entry.processCompletedAssistantResponse(1);
+    const replacement = visible + '\n' + wrap('{new capture}');
+    h.context.chat[1].mes = replacement;
+    await new Promise(resolve => setTimeout(resolve, 80));
+    assert.equal(h.context.chat[1].mes, replacement);
+    h.context = { ...h.context, chatId: 'other', chat: chatFor('{other chat}') };
+    const other = h.context.chat[1].mes;
+    await new Promise(resolve => setTimeout(resolve, 240));
+    assert.equal(h.context.chat[1].mes, other);
+}));
+'''),
+]),
+])
