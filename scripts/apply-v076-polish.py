@@ -83,8 +83,8 @@ s = replace_once(
 s = s.replace("proposals: { accepted: 0, rejected: 0, unchanged: 0, insufficient: 0, unavailable: 0, omitted: 0, reasons: [] },", "proposals: { accepted: 0, rejected: 0, unchanged: 0, omitted: 0, reasons: [] },")
 write(p, s)
 
-# Resolve the player identity once from the same chat/exchange used for model
-# prompting, and pass it into deterministic summary/evidence validation.
+# Resolve the player identity from the same chat/exchange used for prompting and
+# pass it into deterministic Current Dynamic evidence validation.
 p = 'src/engine.js'
 s = read(p)
 s = replace_once(
@@ -93,15 +93,15 @@ s = replace_once(
     "import { createOperationDiagnostics, operationHistoryIdentity, summarizeProposalDiagnostics } from './operation-diagnostics.js';\nimport { resolvePlayerName } from './scan-helpers.js';",
     'engine player identity import',
 )
-# Current Scan and first pass.
-s = replace_once(s, "                relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,\n                relationshipContext: relationshipContextForExchange(exchange),", "                relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,\n                playerName: resolvePlayerName('', chat, messageId),\n                relationshipContext: relationshipContextForExchange(exchange),", 'scan player identity')
-s = replace_once(s, "                relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,\n                relationshipContext: relationshipContextForExchange(exchange),", "                relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,\n                playerName: resolvePlayerName('', chat, messageId),\n                relationshipContext: relationshipContextForExchange(exchange),", 'embedded player identity')
-# Completeness uses the same current exchange but no numeric relationship mutation.
+relationship_pair = "                relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,\n                relationshipContext: relationshipContextForExchange(exchange),"
+if s.count(relationship_pair) != 3:
+    raise SystemExit(f'engine relationship call sites: expected 3, found {s.count(relationship_pair)}')
+current_pair = "                relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,\n                playerName: resolvePlayerName('', chat, messageId),\n                relationshipContext: relationshipContextForExchange(exchange),"
+s = s.replace(relationship_pair, current_pair, 2)
+historical_pair = "                relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,\n                playerName: resolvePlayerName('', historicalChat, nextMessageId),\n                relationshipContext: relationshipContextForExchange(exchange),"
+s = s.replace(relationship_pair, historical_pair, 1)
 s = replace_once(s, "                relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,\n                relationshipContext: '',", "                relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,\n                playerName: resolvePlayerName('', liveChat, messageId),\n                relationshipContext: '',", 'completeness player identity')
-# Targeted Refresh reconciliation receives the target chat identity too.
 s = replace_once(s, "                relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,\n                dossierLimits: settings.dossierLimits,", "                relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,\n                playerName: resolvePlayerName('', liveChat, messageId),\n                dossierLimits: settings.dossierLimits,", 'refresh player identity')
-# Historical replay must validate the same NPC-to-player target as the original exchange.
-s = replace_once(s, "                relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,\n                relationshipContext: relationshipContextForExchange(exchange),", "                relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,\n                playerName: resolvePlayerName('', historicalChat, nextMessageId),\n                relationshipContext: relationshipContextForExchange(exchange),", 'recovery player identity')
 write(p, s)
 
 # Retain the established anti-placeholder instruction while adding zero-delta evidence.
@@ -148,7 +148,6 @@ p = 'tests/foreground-injection.test.mjs'
 s = read(p).replace('/FOREGROUND CONTRACT v4/g', '/FOREGROUND CONTRACT v5/g')
 write(p, s)
 
-# The first pass live-state contract version is asserted in one more focused test.
 p = 'tests/first-pass-live-state.test.mjs'
 s = read(p).replace('/FOREGROUND CONTRACT v4/', '/FOREGROUND CONTRACT v5/')
 write(p, s)
