@@ -20,6 +20,7 @@ import {
     DOSSIER_SEMANTIC_FIELDS,
     dossierFieldDefinition,
     dossierFieldGroup,
+    dossierFieldManualProtected,
     dossierSemanticFieldList,
 } from './dossier-fields.js';
 
@@ -212,7 +213,7 @@ function sourceValidation(update, options = {}) {
 }
 
 function manualProtected(npc, field) {
-    return (Array.isArray(npc?.manualProfileFields) ? npc.manualProfileFields : []).includes(field);
+    return dossierFieldManualProtected(npc, field);
 }
 
 function sameValue(left, right) {

@@ -1,6 +1,19 @@
 # NPC State Beta
 
-NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.6.3 makes normal first-pass embedded capture reliably evaluate the selected NPCs' live Mood, Location, Goal, and Status without requiring a follow-up scan.
+NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.7.0 consolidates the runtime around explicit ownership/history contracts, one shared durable story-commit boundary, and bounded operation diagnostics.
+
+
+## Release 0.7.0
+
+The authoritative maintenance specification is [`docs/core-contract.md`](docs/core-contract.md). It defines seven responsibilities: state/ownership, chat/history identity, model context, update application, commit/persistence, rollback/reconstruction, and diagnostics. `DEVELOPMENT.md` now references that contract instead of carrying a second set of runtime rules.
+
+The ordinary dossier registry now records field kind, durability, normalization contract, permitted operations/evidence, first-pass requirements, and manual ownership. Explicit `manualOverrides` and explicit manual locks are both authoritative against later automatic semantic updates. Relationship/lifecycle/graph mechanics remain focused deterministic domains rather than being forced through the ordinary field validator.
+
+Foreground capture, Scan, Refresh, completeness, structured import, historical recovery, and branch restoration share the same durable commit responsibility: verify source ownership, checkpoint the candidate, persist through existing CAS/locks, then verify source history again after the asynchronous save. If history changes while saving, the write is not accepted as current and the timeline is persisted/held blocked for reconciliation. No pre-generation model request was added.
+
+A bounded in-memory operation ledger observes the real workflow without storing prompts or chat content. `NPCState.debugStatus()` exposes only a concise operation summary; `NPCState.operationDiagnostics()` opts into detailed local records with source fingerprints/history hashes, selected NPC ids, local prompt estimates, proposal outcomes/reasons, persistence revision, checkpoint/recovery state, and failures.
+
+Persisted state schema/settings schema remain 1, semantic contract remains 3, and foreground contract remains 4. No database rebuild or storage-key migration is required.
 
 ## Release 0.6.3
 
@@ -10,11 +23,6 @@ Legacy direct live fields remain accepted only as a bounded response-compatibili
 
 Embedded first-pass application now reports dossier coverage gaps, including an omitted live evaluation, without launching a repair request. Optional completeness scanning remains off unless the existing user setting enables it. Swipe identity is also carried through completed-response processing so a stale payload cannot commit to a replacement swipe.
 
-## Release 0.6.1
-
-Deleting messages restores a matching checkpoint when available, including relationship scores, fractional progress, milestones, history, reasons, and Current Dynamic. If deletion crosses the oldest usable checkpoint, the extension now also rolls back discarded relationship events from the remaining relationship ledger and removes their reasons. Manual relationship corrections remain protected. Without sufficient history, exact older scores cannot be reconstructed; the timeline stays blocked for explicit rebase or historical recovery. Other dossier data is retained in that case.
-
-Deletion no longer mistakes an absent message ID for message zero and starts a redundant scan after restoring the surviving response. Explicit preserve/rollback rebase modes remain available; this fallback is specific to message deletion. The fix runs on subsequent deletion events and does not retroactively reconstruct history already lost or accepted by a preserve rebase.
 
 ## Release 0.6.0
 
@@ -28,7 +36,7 @@ Full Scan, completeness, and historical recovery now validate semantic source ex
 
 Version boundaries:
 
-- Extension release: `0.6.3`
+- Extension release: `0.7.0`
 - Persisted state schema: `1` (unchanged)
 - Model semantic update contract: `3`
 - Settings schema: `1` (unchanged)

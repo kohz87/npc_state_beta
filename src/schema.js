@@ -1,7 +1,7 @@
 import { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 export { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 import { normalizeNumericSetting } from './settings-contract.js';
-export const NPC_STATE_VERSION = '0.6.3';
+export const NPC_STATE_VERSION = '0.7.0';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     return normalizeNumericSetting('scannerResponseTokens', value);
@@ -1048,7 +1048,7 @@ export function normalizeState(input = {}, chatKey = '') {
         ? 'rebase-required'
         : (['safe', 'rebase-required'].includes(rawSafetyStatus) ? rawSafetyStatus : 'safe');
     const rawSafetyKind = String(rawSafety.kind || '');
-    const branchSafetyKind = ['prebaseline-truncation', 'prebaseline-rewrite', 'legacy-prebaseline-divergence', 'suffix-recovery-required', 'missing-trusted-baseline', 'rollback-save-failed'].includes(rawSafetyKind)
+    const branchSafetyKind = ['prebaseline-truncation', 'prebaseline-rewrite', 'legacy-prebaseline-divergence', 'suffix-recovery-required', 'missing-trusted-baseline', 'rollback-save-failed', 'commit-history-changed'].includes(rawSafetyKind)
         ? rawSafetyKind
         : (rawSafetyStatus === 'prebaseline-diverged' ? 'legacy-prebaseline-divergence' : '');
     return {

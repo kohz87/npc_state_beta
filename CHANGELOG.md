@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0
+
+- Added `docs/core-contract.md` as the single authoritative feature/ownership/history/commit/rollback/diagnostics specification; `DEVELOPMENT.md` now delegates behavior to it instead of carrying stale competing rules.
+- Extended the ordinary dossier field registry with explicit normalization, evidence, operation and manual-ownership contracts. Explicit manual overrides now block later automatic semantic rewrites just like manual locks.
+- Added one shared story commit boundary for first-pass capture, Scan, completeness, Refresh, structured import, historical recovery and branch restoration. It verifies source/history ownership before and after asynchronous persistence and blocks an unowned completed write instead of reporting stale state as current.
+- Added bounded runtime-only operation diagnostics with hashed history ownership, selected NPC ids, local prompt estimates, explicit proposal outcomes/reasons, persistence revisions, checkpoint/recovery details and failures. Detailed records are opt-in through `NPCState.operationDiagnostics()`.
+- Consolidated the duplicated latest-assistant history helper and removed the unused engine `ensureBranchBase` import. Existing snapshot rollback, first-pass live updates, relationship mechanics, explicit rebase modes, alternate routing and sidecar CAS/locks remain authoritative.
+- Persisted state/settings schema remain 1; semantic contract remains 3; foreground contract remains 4. No database rebuild is required.
+
 ## 0.6.3
 
 - Message deletion/edit/swipe rollback now restores complete story-state snapshots selected by canonical message lineage, not partial relationship ledgers.

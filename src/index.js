@@ -1,4 +1,4 @@
-/* NPC State v0.3.2 - clean runtime */
+/* NPC State Beta - clean runtime */
 import { extension_settings, getContext } from '../../../../extensions.js';
 import { extension_prompt_types, extension_prompt_roles, getRequestHeaders } from '../../../../../script.js';
 import { createBundleManagementUi } from './bundle-ui.js';
@@ -14,7 +14,7 @@ import { extensionSettings } from './settings.js';
 import { runSharedQuietGeneration } from './shared-generation-queue.js';
 import { generateWithScanRoute, resolveScanGenerationRoute, scanConnectionProfileOptions } from './scan-connection.js';
 import { createCompletenessCoordinator } from './completeness-coordinator.js';
-import { checkpointStorageBytes, fingerprintMessage } from './branches.js';
+import { checkpointStorageBytes, fingerprintMessage, latestAssistantMessageId } from './branches.js';
 import { createStaleManagementUi } from './stale-ui.js';
 import { createNpcStateUi } from './ui.js';
 
@@ -263,14 +263,6 @@ async function hydrateActiveChat({ reconcile = true } = {}) {
 }
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-
-function latestAssistantMessageId(chat = []) {
-    for (let i = chat.length - 1; i >= 0; i -= 1) {
-        const message = chat[i];
-        if (message && !message.is_system && !message.is_user) return i;
-    }
-    return -1;
-}
 
 export function completedResponseIdentity(chatKey, messageId, message = {}) {
     const swipeId = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
@@ -675,6 +667,7 @@ function npcStateDebugStatus() {
         scanAfterEachResponse: settings.scanAfterEachResponse === true,
         completeness: currentCompletenessStatus(chatKey),
         injection: state ? injectionDiagnostics(state, { ...settings, foregroundCurrentUserText: latestForegroundUserText(getContext().chat || []) }) : null,
+        operations: chatKey && chatKey !== 'no-chat' ? engine.operationDiagnosticsSummary(chatKey) : { count: 0, running: 0, latest: null },
     };
 }
 
@@ -696,6 +689,7 @@ globalThis.NPCState = Object.freeze({
     version: NPC_STATE_VERSION,
     debugStatus: npcStateDebugStatus,
     scanMetrics: npcStateScanMetrics,
+    operationDiagnostics: options => engine.operationDiagnostics(getChatKey(), options),
     scanConnectionProfiles: npcScanProfileOptions,
     completenessStatus: () => currentCompletenessStatus(getChatKey()),
     scan: () => {

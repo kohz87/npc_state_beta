@@ -237,6 +237,7 @@ test('fresh and upgraded packages load the public API at the SillyTavern import 
             assert.equal(globalThis.NPCState.settings().schemaVersion, 1);
             assert.equal(globalThis.NPCState.debugStatus().admissionMode, 'balanced');
             assert.equal(globalThis.NPCState.scanMetrics().npcCount, 0);
+            assert.equal(typeof globalThis.NPCState.operationDiagnostics, 'function');
             for (const key of ['scan', 'refreshFromChat', 'portraitPrompts', 'previewBundleImport', 'resumeRebuild', 'previewRebase']) assert.equal(typeof globalThis.NPCState[key], 'function');
             if (process.env.NPC_TEST_SETTINGS) {
                 assert.equal(globalThis.NPCState.settings().scanConnectionProfileId, 'secondary');

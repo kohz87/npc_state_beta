@@ -1,23 +1,47 @@
+export const DOSSIER_SEMANTIC_OPERATIONS = Object.freeze(['establish', 'refine', 'replace', 'remove']);
+
+function fieldContract({
+    kind,
+    durability,
+    group,
+    normalization,
+    evidence = 'visible-narrative',
+    structuredContext = '',
+    firstPass = false,
+}) {
+    return Object.freeze({
+        kind,
+        durability,
+        group,
+        normalization,
+        evidence,
+        structuredContext,
+        firstPass,
+        operations: DOSSIER_SEMANTIC_OPERATIONS,
+        manualOwnership: 'manualProfileFields|manualOverrides',
+    });
+}
+
 export const DOSSIER_FIELD_DEFINITIONS = Object.freeze({
-    role: { kind: 'scalar', durability: 'durable', group: 'canon' },
-    species: { kind: 'scalar', durability: 'durable', group: 'canon' },
-    background: { kind: 'scalar', durability: 'durable', group: 'canon' },
-    age: { kind: 'scalar', durability: 'durable', group: 'canon' },
-    apparentAge: { kind: 'scalar', durability: 'durable', group: 'canon' },
-    birthday: { kind: 'scalar', durability: 'durable', group: 'canon' },
-    appearance: { kind: 'scalar', durability: 'durable', group: 'canon' },
-    appearanceForms: { kind: 'forms', durability: 'durable', group: 'canon' },
-    personality: { kind: 'scalar', durability: 'durable', group: 'profile' },
-    behaviorProfile: { kind: 'collection', durability: 'durable', group: 'profile' },
-    speech: { kind: 'scalar', durability: 'durable', group: 'profile' },
-    mannerisms: { kind: 'collection', durability: 'durable', group: 'profile' },
-    mood: { kind: 'scalar', durability: 'live', group: 'live', structuredContext: 'semanticPrivateContext', firstPass: true },
-    location: { kind: 'scalar', durability: 'live', group: 'live', structuredContext: 'semanticWorldContext', firstPass: true },
-    goal: { kind: 'scalar', durability: 'live', group: 'live', structuredContext: 'semanticPrivateContext', firstPass: true },
-    status: { kind: 'scalar', durability: 'live', group: 'live', structuredContext: 'semanticWorldContext', firstPass: true },
-    currentForm: { kind: 'scalar', durability: 'live', group: 'live' },
-    memories: { kind: 'collection', durability: 'durable', group: 'memory' },
-    keyRelationships: { kind: 'collection', durability: 'durable', group: 'npcRelationships' },
+    role: fieldContract({ kind: 'scalar', durability: 'durable', group: 'canon', normalization: 'text:240' }),
+    species: fieldContract({ kind: 'scalar', durability: 'durable', group: 'canon', normalization: 'text:160' }),
+    background: fieldContract({ kind: 'scalar', durability: 'durable', group: 'canon', normalization: 'text:1600' }),
+    age: fieldContract({ kind: 'scalar', durability: 'durable', group: 'canon', normalization: 'normalizeActualAge' }),
+    apparentAge: fieldContract({ kind: 'scalar', durability: 'durable', group: 'canon', normalization: 'normalizeApparentAge' }),
+    birthday: fieldContract({ kind: 'scalar', durability: 'durable', group: 'canon', normalization: 'normalizeBirthday' }),
+    appearance: fieldContract({ kind: 'scalar', durability: 'durable', group: 'canon', normalization: 'text:1800' }),
+    appearanceForms: fieldContract({ kind: 'forms', durability: 'durable', group: 'canon', normalization: 'normalizeAppearanceForms' }),
+    personality: fieldContract({ kind: 'scalar', durability: 'durable', group: 'profile', normalization: 'text:1200' }),
+    behaviorProfile: fieldContract({ kind: 'collection', durability: 'durable', group: 'profile', normalization: 'bounded-list:behaviorProfile' }),
+    speech: fieldContract({ kind: 'scalar', durability: 'durable', group: 'profile', normalization: 'text:900' }),
+    mannerisms: fieldContract({ kind: 'collection', durability: 'durable', group: 'profile', normalization: 'bounded-list:mannerisms' }),
+    mood: fieldContract({ kind: 'scalar', durability: 'live', group: 'live', normalization: 'text:240', evidence: 'visible-narrative|npc-inner-chatter', structuredContext: 'semanticPrivateContext', firstPass: true }),
+    location: fieldContract({ kind: 'scalar', durability: 'live', group: 'live', normalization: 'text:360', evidence: 'visible-narrative|world-state', structuredContext: 'semanticWorldContext', firstPass: true }),
+    goal: fieldContract({ kind: 'scalar', durability: 'live', group: 'live', normalization: 'text:600', evidence: 'visible-narrative|npc-inner-chatter', structuredContext: 'semanticPrivateContext', firstPass: true }),
+    status: fieldContract({ kind: 'scalar', durability: 'live', group: 'live', normalization: 'normalizeCurrentStatus', evidence: 'visible-narrative|world-state', structuredContext: 'semanticWorldContext', firstPass: true }),
+    currentForm: fieldContract({ kind: 'scalar', durability: 'live', group: 'live', normalization: 'appearance-form-name' }),
+    memories: fieldContract({ kind: 'collection', durability: 'durable', group: 'memory', normalization: 'normalizeMemoryEntries' }),
+    keyRelationships: fieldContract({ kind: 'collection', durability: 'durable', group: 'npcRelationships', normalization: 'normalizeKeyRelationshipEntries' }),
 });
 
 export const DOSSIER_SEMANTIC_FIELDS = Object.freeze(Object.keys(DOSSIER_FIELD_DEFINITIONS));
@@ -35,6 +59,14 @@ export function dossierFieldDefinition(field) {
 
 export function dossierFieldGroup(field) {
     return dossierFieldDefinition(field)?.group || '';
+}
+
+export function dossierFieldManualProtected(npc, field) {
+    if (!dossierFieldDefinition(field)) return false;
+    if ((Array.isArray(npc?.manualProfileFields) ? npc.manualProfileFields : []).includes(field)) return true;
+    const overrides = npc?.manualOverrides;
+    return Boolean(overrides && typeof overrides === 'object' && !Array.isArray(overrides)
+        && Object.prototype.hasOwnProperty.call(overrides, field));
 }
 
 export function dossierSemanticFieldList() {

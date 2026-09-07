@@ -391,7 +391,7 @@ function arraysEqual(a = [], b = []) {
     return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
-function latestAssistantMessageId(chat = []) {
+export function latestAssistantMessageId(chat = []) {
     for (let i = chat.length - 1; i >= 0; i -= 1) {
         const message = chat[i];
         if (message && !message.is_system && !message.is_user) return i;
