@@ -25,6 +25,7 @@ jobs:
         run: |
           python3 scripts/apply-v076.py
           python3 scripts/apply-v076-polish.py
+          python3 scripts/apply-v076-lean.py
       - name: Validate source
         run: npm run validate
       - name: Run behavioral tests
@@ -38,7 +39,7 @@ jobs:
           git status --short
       - name: Commit verified candidate without scaffolding
         run: |
-          git rm scripts/apply-v076.py scripts/apply-v076-polish.py .github/workflows/v076-verify.yml
+          git rm scripts/apply-v076.py scripts/apply-v076-polish.py scripts/apply-v076-lean.py .github/workflows/v076-verify.yml
           git add CHANGELOG.md DEVELOPMENT.md README.md docs/core-contract.md manifest.json src tests
           git diff --cached --check
           git config user.name "OpenAI automation"
