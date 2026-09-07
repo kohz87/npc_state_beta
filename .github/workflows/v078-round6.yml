@@ -1,0 +1,39 @@
+name: v078 round 6 publisher
+on:
+  push:
+    branches: [automation/v078-review]
+    paths: [.github/workflows/v078-round6.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply round 6 fix
+        run: |
+          base64 -d scripts/v078-round6.patch.gz.b64 | gzip -d > /tmp/r6.patch
+          git fetch origin automation/v078-candidate
+          git checkout -B automation/v078-candidate origin/automation/v078-candidate
+          git apply --check /tmp/r6.patch
+          git apply /tmp/r6.patch
+          git diff --check
+      - name: Validate exact candidate
+        run: |
+          npm run validate
+          npm test
+          npm run package
+          unzip -t dist/npc_state_beta-0.7.8.zip
+      - name: Commit and push
+        run: |
+          git config user.name 'OpenAI automation'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add CHANGELOG.md README.md docs/core-contract.md src/engine.js tests/v078-manual-api-value-boundaries.test.mjs
+          git commit -m 'fix: validate explicit manual override values' -m 'Independent Round 6 ownership review found malformed explicit manualOverrides could remain latent and later be re-applied during a trusted full-state rollback, turning an object value into [object Object]. Validate override-owned fields before storage using the same manual/dossier shape rules. Preserve empty override clearing, legacy relationship compatibility, portrait object updates, correction remediation and user-owned rollback semantics. Validation, 283 tests, packaging and ZIP integrity pass; release remains 0.7.8.'
+          git push origin HEAD:automation/v078-candidate
+          git rev-parse HEAD
