@@ -69,13 +69,13 @@ test('ordinary field registry exposes normalization, evidence, operations, first
     assert.equal(mood.evidence, 'visible-narrative|npc-inner-chatter');
     assert.equal(mood.firstPass, true);
     assert.deepEqual(mood.operations, ['establish', 'refine', 'replace', 'remove']);
-    assert.match(mood.manualOwnership, /manualOverrides/);
+    assert.equal(mood.manualOwnership, 'manualProfileFields');
 });
 
-test('explicit manual override metadata prevents later automatic semantic rewrite', () => {
+test('manual correction metadata does not freeze later automatic semantic evolution', () => {
     const state = createEmptyState('manual-ownership');
-    state.npcs = [normalizeNpc({ id: 'sora', name: 'Sora', mood: 'User pinned calm.', manualOverrides: { mood: 'User pinned calm.' } })];
-    assert.equal(dossierFieldManualProtected(state.npcs[0], 'mood'), true);
+    state.npcs = [normalizeNpc({ id: 'sora', name: 'Sora', mood: 'User corrected calm.', manualOverrides: { mood: 'User corrected calm.' } })];
+    assert.equal(dossierFieldManualProtected(state.npcs[0], 'mood'), false);
     const evidence = 'Sora looks furious now.';
     const result = applyScanResult(state, payloadForMood(1, evidence, 'Furious.'), {
         sourceMessageId: 1,
@@ -85,8 +85,10 @@ test('explicit manual override metadata prevents later automatic semantic rewrit
         applyReturnedNpcPatches: true,
         applyRelationship: false,
     });
-    assert.equal(result.state.npcs[0].mood, 'User pinned calm.');
-    assert.ok(result.semanticDiagnostics.some(row => row.field === 'mood' && row.status === 'manually-protected'));
+    assert.equal(result.state.npcs[0].mood, 'Furious.');
+    assert.ok(result.semanticDiagnostics.some(row => row.field === 'mood' && row.status === 'applied'));
+    const locked = normalizeNpc({ id: 'locked', name: 'Locked', personality: 'Quiet.', manualProfileFields: ['personality'] });
+    assert.equal(dossierFieldManualProtected(locked, 'personality'), true);
 });
 
 test('operation diagnostic ledger is bounded, hashes history, and never invents unchanged evaluation from omission', () => {

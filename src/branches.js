@@ -499,6 +499,37 @@ export function recordCheckpoint(state, chat, messageId, reason = 'scan') {
     return next;
 }
 
+function retargetSnapshotChatKey(snapshot, chatKey) {
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return snapshot;
+    return { ...structuredClone(snapshot), chatKey: String(chatKey || '') };
+}
+
+export function retargetCheckpointOwnership(stateInput, chatKey) {
+    const key = String(chatKey || '').trim();
+    const next = normalizeState(stateInput, key || stateInput?.chatKey || '');
+    if (!key) return next;
+    next.chatKey = key;
+    if (next.branchBase) {
+        next.branchBase = {
+            ...next.branchBase,
+            chatKey: key,
+            snapshot: retargetSnapshotChatKey(next.branchBase.snapshot, key),
+        };
+    }
+    next.checkpoints = (next.checkpoints || []).map(checkpoint => ({
+        ...checkpoint,
+        chatKey: key,
+        snapshot: retargetSnapshotChatKey(checkpoint.snapshot, key),
+    }));
+    if (next.rebaseBackup?.snapshot) {
+        next.rebaseBackup = {
+            ...next.rebaseBackup,
+            snapshot: retargetSnapshotChatKey(next.rebaseBackup.snapshot, key),
+        };
+    }
+    return normalizeState(next, key);
+}
+
 function checkpointChatOwned(state, boundary) {
     const owner = String(boundary?.chatKey || '').trim();
     return !owner || owner === String(state?.chatKey || '').trim();
@@ -532,7 +563,6 @@ function manualRelationshipEventKey(item = {}) {
 }
 
 function preserveLegacyManualRelationshipEvents(restoredNpc, liveNpc) {
-    if (liveNpc?.manualOverrides && Object.prototype.hasOwnProperty.call(liveNpc.manualOverrides, 'relationship')) return restoredNpc;
     const known = new Set((restoredNpc.relationshipHistory || []).filter(item => item?.impact === 'manual').map(manualRelationshipEventKey));
     const manualEvents = (liveNpc?.relationshipHistory || []).filter(item => item?.impact === 'manual' && !known.has(manualRelationshipEventKey(item)));
     if (!manualEvents.length) return restoredNpc;
@@ -570,12 +600,30 @@ function preserveUserOwnedState(restored, current) {
         for (const field of locked) {
             if (stableFields.has(field)) next[field] = structuredClone(live[field]);
         }
-        const overrides = live.manualOverrides && typeof live.manualOverrides === 'object' ? live.manualOverrides : {};
-        next.manualOverrides = structuredClone(overrides);
-        for (const [field, value] of Object.entries(overrides)) {
-            if (overrideFields.has(field)) next[field] = structuredClone(value);
+        const restoredOverrides = npc.manualOverrides && typeof npc.manualOverrides === 'object' ? npc.manualOverrides : {};
+        const restoredOverrideMeta = npc.manualOverrideMeta && typeof npc.manualOverrideMeta === 'object' ? npc.manualOverrideMeta : {};
+        const liveOverrides = live.manualOverrides && typeof live.manualOverrides === 'object' ? live.manualOverrides : {};
+        const liveOverrideMeta = live.manualOverrideMeta && typeof live.manualOverrideMeta === 'object' ? live.manualOverrideMeta : {};
+        // The live metadata map is authoritative for explicit unlock/clear operations, but
+        // an older correction must not overwrite later story state already in the snapshot.
+        next.manualOverrides = structuredClone(liveOverrides);
+        next.manualOverrideMeta = structuredClone(liveOverrideMeta);
+        for (const [field, value] of Object.entries(liveOverrides)) {
+            if (!overrideFields.has(field) || field === 'relationship') continue;
+            const liveAt = Number(liveOverrideMeta?.[field]?.at) || 0;
+            const restoredAt = Number(restoredOverrideMeta?.[field]?.at) || 0;
+            const restoredHas = Object.prototype.hasOwnProperty.call(restoredOverrides, field);
+            let fallbackChanged = false;
+            if (!liveAt) {
+                try { fallbackChanged = !restoredHas || JSON.stringify(restoredOverrides[field]) !== JSON.stringify(value); }
+                catch { fallbackChanged = !restoredHas; }
+            }
+            if ((liveAt && liveAt > restoredAt) || fallbackChanged) next[field] = structuredClone(value);
         }
         next.importance = Number(live.importance) || 0;
+        // Relationship corrections are replayed from explicit manual relationship events.
+        // This preserves corrections made after the checkpoint without replacing a newer
+        // surviving story score with an old relationship override value.
         next = preserveLegacyManualRelationshipEvents(next, live);
         return normalizeNpc(next);
     });

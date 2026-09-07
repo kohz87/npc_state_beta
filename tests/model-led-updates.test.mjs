@@ -184,7 +184,7 @@ test('empty collection replacement requires explicit clear authorization for eve
         const result = fixture([{ field, operation: 'replace', value: [], sources: source(context), explanation: 'No replacement entries.' }]);
         const applied = apply(state, result, context);
         assert.deepEqual(applied.state.npcs[0][field], value, field);
-        assert.equal(applied.semanticDiagnostics[0].status, 'no-change-proposed', field);
+        assert.equal(applied.semanticDiagnostics[0].status, 'rejected-proposal', field);
         assert.equal(applied.semanticDiagnostics[0].reason, 'explicit-clear-required', field);
     }
 });

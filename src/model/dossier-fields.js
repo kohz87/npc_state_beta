@@ -18,7 +18,7 @@ function fieldContract({
         structuredContext,
         firstPass,
         operations: DOSSIER_SEMANTIC_OPERATIONS,
-        manualOwnership: 'manualProfileFields|manualOverrides',
+        manualOwnership: 'manualProfileFields',
     });
 }
 
@@ -63,10 +63,9 @@ export function dossierFieldGroup(field) {
 
 export function dossierFieldManualProtected(npc, field) {
     if (!dossierFieldDefinition(field)) return false;
-    if ((Array.isArray(npc?.manualProfileFields) ? npc.manualProfileFields : []).includes(field)) return true;
-    const overrides = npc?.manualOverrides;
-    return Boolean(overrides && typeof overrides === 'object' && !Array.isArray(overrides)
-        && Object.prototype.hasOwnProperty.call(overrides, field));
+    // Manual corrections are preserved across rollback separately. Only an explicit
+    // field lock is allowed to suppress future automatic semantic evolution.
+    return (Array.isArray(npc?.manualProfileFields) ? npc.manualProfileFields : []).includes(field);
 }
 
 export function dossierSemanticFieldList() {

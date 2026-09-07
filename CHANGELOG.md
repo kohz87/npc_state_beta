@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1
+
+- Separated manual correction provenance from automatic-update locking. Unchanged editor submissions no longer create blanket overrides, explicit override clearing works, stable-field unlocks are effective, and older corrections do not overwrite newer story state already present in a restored checkpoint.
+- Preserved relationship corrections through explicit manual relationship events instead of replaying a stale whole-relationship override over a surviving snapshot.
+- Retargeted branch-base/checkpoint/rebase-backup ownership, including embedded snapshot chat keys, when a chat is renamed.
+- Routed historical-recovery finalization through the shared guarded commit boundary and publish committed state only after post-save ownership validation, preventing transient stale-safe UI state.
+- Classified structurally/semantically rejected dossier proposals separately from genuine no-change results, with bounded rejection reasons in operation diagnostics.
+- Consolidated semantic operation names under the canonical dossier field registry. Persisted state/settings schema remain 1; semantic contract remains 3; foreground contract remains 4. No NPC database rebuild is required.
+
 ## 0.7.0
 
 - Added `docs/core-contract.md` as the single authoritative feature/ownership/history/commit/rollback/diagnostics specification; `DEVELOPMENT.md` now delegates behavior to it instead of carrying stale competing rules.

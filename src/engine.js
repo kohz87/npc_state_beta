@@ -1,6 +1,6 @@
 import { dossierIndexProjection, injectionStateProjection, npcPortraitSource } from './state-projections.js';
 export { dossierIndexProjection, injectionStateProjection } from './state-projections.js';
-import { chatLineage, bestCheckpoint, ensurePreUpdateBaseline, fingerprintMessage, latestAssistantMessageId, normalizeRebaseRelationshipMode, previewRelationshipRebase, rebaseToCurrentChat, reconcileToCurrentBranch, recordCheckpoint } from './branches.js';
+import { chatLineage, bestCheckpoint, ensurePreUpdateBaseline, fingerprintMessage, latestAssistantMessageId, normalizeRebaseRelationshipMode, previewRelationshipRebase, rebaseToCurrentChat, reconcileToCurrentBranch, recordCheckpoint, retargetCheckpointOwnership } from './branches.js';
 // preserve-mode rebase cannot mutate relationship state during its immediate refresh.
 import { analyzeStructuredEvidence, buildExchangeEvidencePolicy, profileEvidenceText, relationshipEvidenceText, retentionEvidenceText, structuredDossierBlocksForNpc } from './evidence-adapter.js';
 import {
@@ -21,6 +21,7 @@ import {
     normalizeName,
     normalizeActualAge,
     normalizeApparentAge,
+    normalizeBirthday,
     normalizeScannerResponseTokens,
     normalizeRecoveryRelationshipMode,
     normalizeNpc,
@@ -416,7 +417,14 @@ export function createNpcStateEngine(adapters = {}) {
         }
     }
 
-    async function persist(chatKey, state) {
+    function publishPersistedState(chatKey, state, error = null) {
+        cache.set(chatKey, state);
+        hydration.set(chatKey, { status: 'ready', error });
+        emitStateChanged(chatKey, state);
+        return state;
+    }
+
+    async function persist(chatKey, state, { publish = true } = {}) {
         const result = await writeV3Sidecar({
             chatKey,
             state,
@@ -426,9 +434,7 @@ export function createNpcStateEngine(adapters = {}) {
         });
         setPointer(chatKey, result.pointer);
         persistSettings();
-        cache.set(chatKey, result.state);
-        hydration.set(chatKey, { status: 'ready', error: null });
-        emitStateChanged(chatKey, result.state);
+        if (publish) publishPersistedState(chatKey, result.state);
         return result.state;
     }
 
@@ -477,7 +483,7 @@ export function createNpcStateEngine(adapters = {}) {
 
         let persisted;
         try {
-            persisted = await persist(candidate.chatKey, candidate);
+            persisted = await persist(candidate.chatKey, candidate, { publish: false });
         } catch (error) {
             operationLog.finish(operationId, {
                 status: 'failed',
@@ -517,6 +523,7 @@ export function createNpcStateEngine(adapters = {}) {
             return { ok: false, discarded: true, reason, persistenceFailed: Boolean(blockError), state: structuredClone(blocked) };
         }
 
+        publishPersistedState(candidate.chatKey, persisted);
         operationLog.finish(operationId, {
             status: 'committed',
             persistence: { status: 'committed', revision: Number(persisted.revision) || null },
@@ -1157,6 +1164,11 @@ export function createNpcStateEngine(adapters = {}) {
         }, { checkpointReason: 'manual-add' });
     }
 
+    function manualOwnedValueEqual(left, right) {
+        try { return JSON.stringify(left) === JSON.stringify(right); }
+        catch { return false; }
+    }
+
     async function updateNpc(reference, patch = {}, options = {}) {
         return mutate('update', (state, chat) => {
             const matched = findNpcByReference(state, reference);
@@ -1164,7 +1176,16 @@ export function createNpcStateEngine(adapters = {}) {
             if (index < 0) return false;
             const current = state.npcs[index];
             if (Number.isFinite(Number(options.expectedUpdatedAt)) && Number(current.updatedAt) !== Number(options.expectedUpdatedAt)) return { rejected: 'stale-editor' };
+            const explicitOverridePatch = Object.prototype.hasOwnProperty.call(patch || {}, 'manualOverrides');
+            if (explicitOverridePatch && (!patch.manualOverrides || typeof patch.manualOverrides !== 'object' || Array.isArray(patch.manualOverrides))) {
+                return { rejected: 'invalid-manual-overrides' };
+            }
+            const manualBirthdayChanged = Object.prototype.hasOwnProperty.call(patch || {}, 'birthday')
+                && normalizeBirthday(patch.birthday) !== normalizeBirthday(current.birthday);
             const nextRaw = { ...current, ...structuredClone(patch), id: current.id, updatedAt: Math.max(Date.now(), Number(current.updatedAt || 0) + 1), manual: true };
+            // The editor historically submits birthdayProvenance:'manual' with every save.
+            // Do not turn an unchanged birthday into hidden manual ownership.
+            if (!manualBirthdayChanged && patch?.birthdayProvenance === 'manual') nextRaw.birthdayProvenance = current.birthdayProvenance;
             const manualAgeChanged = Object.prototype.hasOwnProperty.call(patch || {}, 'age')
                 && normalizeActualAge(patch.age) !== normalizeActualAge(current.age);
             const manualApparentAgeChanged = Object.prototype.hasOwnProperty.call(patch || {}, 'apparentAge')
@@ -1208,11 +1229,25 @@ export function createNpcStateEngine(adapters = {}) {
             let next = normalizeNpc(transitionedRaw);
             if (next.name !== current.name && current.name) next.aliases = [...new Set([...(next.aliases || []), current.name])].slice(0, 10);
             next = normalizeNpc(next);
-            const manualOverrides = { ...(current.manualOverrides || {}) };
+            const manualOverrides = explicitOverridePatch
+                ? structuredClone(next.manualOverrides || {})
+                : { ...(current.manualOverrides || {}) };
+            const manualOverrideMeta = explicitOverridePatch
+                ? {}
+                : structuredClone(current.manualOverrideMeta || {});
+            const manualAt = Date.now();
+            const manualSourceMessageId = latestAssistantMessageId(chat);
             for (const field of MANUAL_OVERRIDE_FIELDS) {
-                if (Object.prototype.hasOwnProperty.call(patch || {}, field)) manualOverrides[field] = structuredClone(next[field]);
+                if (!Object.prototype.hasOwnProperty.call(patch || {}, field)) continue;
+                if (manualOwnedValueEqual(current[field], next[field])) continue;
+                manualOverrides[field] = structuredClone(next[field]);
+                manualOverrideMeta[field] = {
+                    at: manualAt,
+                    sourceMessageId: manualSourceMessageId >= 0 ? manualSourceMessageId : null,
+                };
             }
             next.manualOverrides = manualOverrides;
+            next.manualOverrideMeta = manualOverrideMeta;
             next = normalizeNpc(next);
             const nextIdentityKeys = new Set([next.name, ...(next.aliases || [])].map(value => normalizeName(value)).filter(Boolean));
             const collision = state.npcs.some((npc, i) => i !== index && [npc.name, ...(npc.aliases || [])]
@@ -1426,7 +1461,7 @@ export function createNpcStateEngine(adapters = {}) {
                     const source = await readV3Sidecar({ chatKey: sourceKey, pointer: sourcePointer, fetchFn });
                     if (!source || source.retired) return { ok: false, reason: source?.retired ? 'source-retired' : 'source-missing' };
                     const sourceToken = { ...sourcePointer, revision: source.revision };
-                    const nextState = normalizeState(source.state, targetKey);
+                    const nextState = retargetCheckpointOwnership(source.state, targetKey);
                     const written = await writeV3Sidecar({ chatKey: targetKey, state: nextState, pointer: destinationPointer, fetchFn, headers: getHeaders() });
                     destinationPointer = written.pointer;
                     copiedState = written.state;
@@ -1616,7 +1651,26 @@ export function createNpcStateEngine(adapters = {}) {
         next.branchSafety = { status: 'safe', kind: '', reason: '' };
         next.updatedAt = Date.now();
         if (getChatKey() !== chatKey) return pauseRecoveryForChatSwitchUnlocked(chatKey, next);
-        const persisted = await persist(chatKey, next);
+        const ownership = captureOperationOwnership('historical-recovery-finalize', chatKey, chat, null);
+        const operationId = beginOperationDiagnostics(ownership, '', {
+            recovery: { completed: recovery.total || 0, total: recovery.total || 0, status: 'complete' },
+        });
+        const commit = await commitState({
+            token: ownership,
+            operationId,
+            state: next,
+            chat,
+            checkpoint: false,
+        });
+        if (!commit.ok) {
+            return {
+                ...commit,
+                complete: false,
+                restartRequired: true,
+                recovery: decoratedRecoveryStatus(commit.state?.recovery || next.recovery, chatKey),
+            };
+        }
+        const persisted = commit.state;
         notify('success', 'Historical reconstruction completed. Normal scanning and continuity injection are active again.');
         return { ok: true, complete: true, recovery: decoratedRecoveryStatus(persisted.recovery, chatKey), state: structuredClone(persisted) };
     }

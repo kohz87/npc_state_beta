@@ -18,6 +18,7 @@ import {
     DOSSIER_FORM_FIELDS,
     DOSSIER_SCALAR_FIELDS,
     DOSSIER_SEMANTIC_FIELDS,
+    DOSSIER_SEMANTIC_OPERATIONS,
     dossierFieldDefinition,
     dossierFieldGroup,
     dossierFieldManualProtected,
@@ -25,7 +26,6 @@ import {
 } from './dossier-fields.js';
 
 export const NPC_STATE_MODEL_CONTRACT_VERSION = 3;
-export const SEMANTIC_UPDATE_OPERATIONS = Object.freeze(['establish', 'refine', 'replace', 'remove']);
 
 const FIELD_SET = new Set(DOSSIER_SEMANTIC_FIELDS);
 const SCALAR_FIELDS = new Set(DOSSIER_SCALAR_FIELDS);
@@ -140,7 +140,7 @@ export function semanticUpdatePrompt({ npcs = [], mode = 'scan', allowedSourceId
     return [
         `NPC STATE DOSSIER UPDATE CONTRACT v${NPC_STATE_MODEL_CONTRACT_VERSION}:`,
         `Mode: ${mode}. EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates. Do not also emit profileChanges, canonChanges, ageChange, appearanceFormChanges, keyRelationshipChanges, or direct ordinary dossier replacements for an existing NPC. Those are compatibility/new-NPC bootstrap only.`,
-        `Semantic fields: ${dossierSemanticFieldList()}. Operations: ${SEMANTIC_UPDATE_OPERATIONS.join('|')}.`,
+        `Semantic fields: ${dossierSemanticFieldList()}. Operations: ${DOSSIER_SEMANTIC_OPERATIONS.join('|')}.`,
         `For every exchange-active EXISTING NPC, inspect all evaluation groups and return evaluatedGroups:[${groups}]. A listed group means you actually checked its stored values against supplied evidence, even when it produced no update. For targeted Refresh, inspect all groups for the target.`,
         'Each semantic update is {field,operation,value?,changes?,clear?,durability?,scope?,ageKind?,sources:[{messageId,excerpt}],explanation}. Omission means unchanged, not deletion. remove is explicit. Empty arrays never clear unless clear:true is explicitly supported.',
         'Evidence excerpts must be concrete text from the supplied permitted source window. Saved dossier summaries are context, not independent proof. Code validates source provenance, targeting, manual locks, normalization, collection limits and persistence; you decide semantic meaning.',
@@ -169,7 +169,7 @@ export function semanticUpdatePrompt({ npcs = [], mode = 'scan', allowedSourceId
             evaluatedGroups: DOSSIER_EVALUATION_GROUPS,
             semanticUpdates: [{
                 field: dossierSemanticFieldList(),
-                operation: SEMANTIC_UPDATE_OPERATIONS.join('|'),
+                operation: DOSSIER_SEMANTIC_OPERATIONS.join('|'),
                 value: 'scalar, collection, or form value as appropriate',
                 changes: [{ action: 'add|replace|remove', ref: 'supplied stable entry ref', expected: 'exact current value fallback', value: 'new value for add/replace' }],
                 clear: false,
@@ -218,6 +218,14 @@ function manualProtected(npc, field) {
 
 function sameValue(left, right) {
     return evidenceKey(left, 8000) === evidenceKey(right, 8000);
+}
+
+const GENUINE_NO_CHANGE_REASONS = new Set(['no-change', 'already-established', 'already-empty']);
+function semanticApplicationStatus(result = {}) {
+    if (result.changed) return 'applied';
+    return GENUINE_NO_CHANGE_REASONS.has(String(result.reason || ''))
+        ? 'no-change-proposed'
+        : 'rejected-proposal';
 }
 
 function normalizedScalar(field, value) {
@@ -402,7 +410,7 @@ function normalizedUpdate(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
     const field = String(raw.field || '').trim();
     const operation = String(raw.operation || '').trim().toLocaleLowerCase();
-    if (!FIELD_SET.has(field) || !SEMANTIC_UPDATE_OPERATIONS.includes(operation)) return null;
+    if (!FIELD_SET.has(field) || !DOSSIER_SEMANTIC_OPERATIONS.includes(operation)) return null;
     return {
         ...structuredClone(raw),
         field,
@@ -521,7 +529,7 @@ export function applyModelLedSemanticUpdates(stateInput, resultInput, options = 
                 field: update.field,
                 operation: update.operation,
                 group: dossierFieldGroup(update.field),
-                status: result.changed ? 'applied' : 'no-change-proposed',
+                status: semanticApplicationStatus(result),
                 reason: result.reason || '',
             });
             if (result.changed) npc.updatedAt = Math.max(Date.now(), Number(npc.updatedAt || 0) + 1);
@@ -599,4 +607,4 @@ export function applyModelLedFamilyFacts(stateInput, resultInput, options = {}) 
     return { state, diagnostics };
 }
 
-export { DOSSIER_EVALUATION_GROUPS, DOSSIER_FIELD_DEFINITIONS, DOSSIER_SEMANTIC_FIELDS, dossierFieldDefinition };
+export { DOSSIER_SEMANTIC_OPERATIONS as SEMANTIC_UPDATE_OPERATIONS, DOSSIER_EVALUATION_GROUPS, DOSSIER_FIELD_DEFINITIONS, DOSSIER_SEMANTIC_FIELDS, dossierFieldDefinition };

@@ -24,9 +24,9 @@ A complete story snapshot restores these together. A newer story value is not pr
 
 ### User-owned state
 
-User-owned state includes settings, portraits, explicit manual field overrides, explicit manual locks, importance, and manual NPC deletion/suppression tombstones. Existing legacy manual relationship events remain a conservative compatibility form of user intent when no newer explicit override metadata exists.
+User-owned state includes settings, portraits, explicit manual corrections, explicit automatic-update locks, importance, and manual NPC deletion/suppression tombstones. Manual relationship events are the authoritative rollback-preservation form for relationship corrections.
 
-Manual ownership metadata is authoritative for later automatic updates and for rollback overlays. A story operation must not overwrite an explicitly user-owned value.
+Manual correction metadata and automatic-update locking are separate concerns. Corrections are preserved across rollback only when they are newer than the selected story snapshot; an older correction already represented by that snapshot must not replace later surviving story state. Automatic semantic evolution is blocked only by explicit field locks, and clearing a lock immediately restores automatic ownership.
 
 ### Operational state
 
@@ -155,7 +155,7 @@ Starts from a valid baseline and processes surviving assistant exchanges sequent
 
 ### Manual edit/import
 
-Manual editor changes express user intent and record ownership metadata. Structured/manual imports use bounded validation and established persistence. User-owned overrides are not later replaced by story updates unless the user changes/removes that ownership through supported UI/API behavior. Manual writes are owned by the target chat and user intent rather than by a narrative source event. If history shifts during their asynchronous save, keep the durable user edit/import but block the old narrative boundary for reconciliation instead of discarding the user action or advertising the old checkpoint as current.
+Manual editor changes express user intent and record correction provenance without implicitly freezing future semantic evolution. Stable fields are protected from automatic updates only while their explicit lock is enabled; clearing that lock is a real unlock. Rollback preserves a correction made after the selected checkpoint but does not let an older correction overwrite newer story state already contained by that checkpoint. Structured/manual imports use bounded validation and established persistence. Manual writes are owned by the target chat and user intent rather than by a narrative source event. If history shifts during their asynchronous save, keep the durable user edit/import but block the old narrative boundary for reconciliation instead of discarding the user action or advertising the old checkpoint as current.
 
 ### Deletion/edit/swipe reconciliation
 

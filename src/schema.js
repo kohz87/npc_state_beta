@@ -1,7 +1,7 @@
 import { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 export { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 import { normalizeNumericSetting } from './settings-contract.js';
-export const NPC_STATE_VERSION = '0.7.0';
+export const NPC_STATE_VERSION = '0.7.1';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     return normalizeNumericSetting('scannerResponseTokens', value);
@@ -148,6 +148,20 @@ function normalizeManualOverrides(value) {
     const out = {};
     for (const field of MANUAL_OVERRIDE_FIELDS) {
         if (Object.prototype.hasOwnProperty.call(value, field)) out[field] = structuredClone(value[field]);
+    }
+    return out;
+}
+
+function normalizeManualOverrideMeta(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    const out = {};
+    for (const field of MANUAL_OVERRIDE_FIELDS) {
+        const raw = value[field];
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+        const at = Number(raw.at) || null;
+        const sourceMessageId = Number.isInteger(raw.sourceMessageId) ? raw.sourceMessageId : null;
+        if (at === null && sourceMessageId === null) continue;
+        out[field] = { at, sourceMessageId };
     }
     return out;
 }
@@ -927,6 +941,7 @@ export function normalizeNpc(input = {}, options = {}) {
         importance: Math.max(0, Math.min(100, Math.round(Number(input.importance) || 0))),
         manualProfileFields: STABLE_PROFILE_FIELDS.filter(field => locked.has(field)),
         manualOverrides: normalizeManualOverrides(input.manualOverrides),
+        manualOverrideMeta: normalizeManualOverrideMeta(input.manualOverrideMeta),
         retentionProtected: input.retentionProtected === true,
         minor: input.minor === true,
         portrait: input.portrait && typeof input.portrait === 'object' ? structuredClone(input.portrait) : null,
