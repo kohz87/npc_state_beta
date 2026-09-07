@@ -1,0 +1,39 @@
+name: v078 phase A publisher
+on:
+  push:
+    branches: [automation/v078-review]
+    paths: [.github/workflows/v078-apply.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Restore candidate patch
+        run: |
+          base64 -d scripts/v078-phaseA.patch.gz.b64 | gzip -d > /tmp/v078.patch
+          git fetch origin main
+          git checkout -B automation/v078-candidate origin/main
+          git apply --check /tmp/v078.patch
+          git apply /tmp/v078.patch
+          git diff --check
+      - name: Validate exact candidate tree
+        run: |
+          npm run validate
+          npm test
+          npm run package
+          unzip -t dist/npc_state_beta-0.7.8.zip
+      - name: Commit and push candidate
+        run: |
+          git config user.name 'OpenAI automation'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add CHANGELOG.md DEVELOPMENT.md README.md docs/core-contract.md manifest.json src/engine.js src/index.js src/model/dossier-fields.js src/model/semantic-updates.js src/scan-application.js src/schema.js tests/structure.test.mjs tests/v078-fallback-value-validation.test.mjs
+          git commit -m 'fix: bind fallback scans and validate dossier value types' -m 'Release v0.7.8. Bind optional foreground fallback scans to the originating capture attempt and canonical source history so a superseded recovery cannot consume a newer valid first-pass boundary. Validate ordinary dossier field shapes through the canonical registry before bootstrap or semantic coercion, preserving numeric age and supported collection/form compatibility while rejecting object-to-text artifacts with concrete diagnostics. Validation, 269 tests, packaging and ZIP integrity pass on Node 22; persisted/settings schema and model/foreground contracts remain unchanged.'
+          git push origin HEAD:automation/v078-candidate
+          git rev-parse HEAD
