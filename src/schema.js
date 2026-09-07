@@ -1,7 +1,7 @@
 import { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 export { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 import { normalizeNumericSetting } from './settings-contract.js';
-export const NPC_STATE_VERSION = '0.7.3';
+export const NPC_STATE_VERSION = '0.7.4';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     return normalizeNumericSetting('scannerResponseTokens', value);
@@ -185,6 +185,8 @@ export function normalizeManualRelationshipCorrections(value = [], revisionValue
             sourceMessageId: Number.isInteger(raw.sourceMessageId) ? raw.sourceMessageId : null,
             at: Number(raw.at) || null,
         };
+        const legacyOriginKey = String(raw.legacyOriginKey || '').trim().slice(0, 160);
+        if (legacyOriginKey) item.legacyOriginKey = legacyOriginKey;
         const prior = byAxis.get(axis);
         if (!prior || item.revision >= prior.revision) byAxis.set(axis, item);
         revision = Math.max(revision, itemRevision);
@@ -194,6 +196,12 @@ export function normalizeManualRelationshipCorrections(value = [], revisionValue
         revision,
         corrections: RELATIONSHIP_AXES.map(axis => byAxis.get(axis)).filter(Boolean),
     };
+}
+export function normalizeManualRelationshipCorrectionUnresolvedAxes(value = []) {
+    const axes = new Set((Array.isArray(value) ? value : [])
+        .map(axis => String(axis || '').trim().toLocaleLowerCase())
+        .filter(axis => RELATIONSHIP_AXES.includes(axis)));
+    return RELATIONSHIP_AXES.filter(axis => axes.has(axis));
 }
 export const DEFAULT_RELATIONSHIP = Object.freeze({ trust: 0, affection: 0, desire: 0, tension: 0 });
 export const DEFAULT_RELATIONSHIP_PROGRESS = Object.freeze({ trust: 0, affection: 0, desire: 0, tension: 0 });
@@ -912,6 +920,9 @@ export function normalizeNpc(input = {}, options = {}) {
         input.manualRelationshipCorrections,
         input.manualRelationshipCorrectionRevision,
     );
+    const manualRelationshipCorrectionUnresolvedAxes = normalizeManualRelationshipCorrectionUnresolvedAxes(
+        input.manualRelationshipCorrectionUnresolvedAxes,
+    );
     const appearanceForms = normalizeAppearanceForms(input.appearanceForms);
     const requestedCurrentForm = text(input.currentForm, 80);
     const matchedCurrentForm = appearanceFormByName(appearanceForms, requestedCurrentForm);
@@ -979,6 +990,7 @@ export function normalizeNpc(input = {}, options = {}) {
         manualRelationshipCorrectionVersion: manualRelationshipCorrectionState.version,
         manualRelationshipCorrectionRevision: manualRelationshipCorrectionState.revision,
         manualRelationshipCorrections: manualRelationshipCorrectionState.corrections,
+        manualRelationshipCorrectionUnresolvedAxes,
         retentionProtected: input.retentionProtected === true,
         minor: input.minor === true,
         portrait: input.portrait && typeof input.portrait === 'object' ? structuredClone(input.portrait) : null,
