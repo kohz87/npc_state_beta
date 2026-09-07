@@ -28,9 +28,15 @@ export function branchRecoveryRequired(value = readBranchSafetyStatus()) {
     return Boolean(safety && safety.status !== 'safe');
 }
 
+export function branchSafetyNeedsCorrectionRemediation(value = readBranchSafetyStatus()) {
+    const safety = value?.branchSafety || value;
+    return Boolean(safety && safety.status !== 'safe' && safety.kind === 'manual-relationship-correction-uncertain');
+}
+
 function messageForKind(kind = '') {
     if (kind === 'prebaseline-truncation') return 'The chat was shortened beyond NPC State\'s oldest recoverable checkpoint.';
     if (kind === 'prebaseline-rewrite') return 'The chat was rewritten before NPC State\'s oldest recoverable checkpoint.';
+    if (kind === 'manual-relationship-correction-uncertain') return 'A legacy manual relationship correction cannot be mapped to exact axes. Open the affected NPC dossier and use Relationship correction remediation to confirm one axis at a time, or explicitly clear that NPC relationship correction ownership. Other edits and normal scanning remain blocked.';
     return 'The current chat is outside NPC State\'s oldest recoverable checkpoint.';
 }
 
@@ -465,9 +471,14 @@ export function renderBranchRecoveryUi() {
     if (banner.dataset.renderKey !== renderKey) {
         banner.dataset.renderKey = renderKey;
         banner.dataset.running = running ? '1' : '0';
-        banner.innerHTML = `<b>Timeline rebase required</b><small>${messageForKind(kind)} Durable dossiers are intact. Rebase to current chat only if the remaining chat is now the canon you want to keep. Choose whether relationship state is preserved or explicitly rolled back.</small><div class="npc-state-v3-branch-recovery-actions"><button type="button" class="menu_button npc-state-v3-rebase-preserve"><i class="fa-solid fa-shield-heart"></i> ${running ? 'Rebasing...' : 'Keep NPC state and accept timeline'}</button><button type="button" class="menu_button npc-state-v3-rebase-rollback"><i class="fa-solid fa-rotate-left"></i> Roll back discarded story changes</button></div>`;
-        banner.querySelector('.npc-state-v3-rebase-preserve')?.addEventListener('click', () => rebaseCurrentChat('preserve', false));
-        banner.querySelector('.npc-state-v3-rebase-rollback')?.addEventListener('click', () => rebaseCurrentChat('rollback', false));
+        if (branchSafetyNeedsCorrectionRemediation(current)) {
+            banner.innerHTML = `<b>Relationship correction confirmation required</b><small>${messageForKind(kind)} The verified rollback boundary is preserved; confirming or clearing correction ownership will revalidate it without accepting stale story state.</small><div class="npc-state-v3-branch-recovery-actions"><button type="button" class="menu_button npc-state-v3-open-correction-remediation"><i class="fa-solid fa-address-book"></i> Open dossier library</button></div>`;
+            banner.querySelector('.npc-state-v3-open-correction-remediation')?.addEventListener('click', () => globalThis.NPCState?.openLibrary?.());
+        } else {
+            banner.innerHTML = `<b>Timeline rebase required</b><small>${messageForKind(kind)} Durable dossiers are intact. Rebase to current chat only if the remaining chat is now the canon you want to keep. Choose whether relationship state is preserved or explicitly rolled back.</small><div class="npc-state-v3-branch-recovery-actions"><button type="button" class="menu_button npc-state-v3-rebase-preserve"><i class="fa-solid fa-shield-heart"></i> ${running ? 'Rebasing...' : 'Keep NPC state and accept timeline'}</button><button type="button" class="menu_button npc-state-v3-rebase-rollback"><i class="fa-solid fa-rotate-left"></i> Roll back discarded story changes</button></div>`;
+            banner.querySelector('.npc-state-v3-rebase-preserve')?.addEventListener('click', () => rebaseCurrentChat('preserve', false));
+            banner.querySelector('.npc-state-v3-rebase-rollback')?.addEventListener('click', () => rebaseCurrentChat('rollback', false));
+        }
     }
     return true;
 }
