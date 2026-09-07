@@ -170,6 +170,27 @@ function text(value, max = 1200) {
     return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
+const RELATIONSHIP_SUMMARY_PLACEHOLDER_KEYS = new Set([
+    'npc relationship with player only',
+    'npc relationship with the player only',
+    'relationship with player only',
+    'relationship with the player only',
+]);
+
+function relationshipSummaryKey(value) {
+    return String(value ?? '')
+        .normalize('NFKC')
+        .toLocaleLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .trim();
+}
+
+export function normalizeRelationshipSummary(value) {
+    const summary = text(value, 1000);
+    if (!summary) return '';
+    return RELATIONSHIP_SUMMARY_PLACEHOLDER_KEYS.has(relationshipSummaryKey(summary)) ? '' : summary;
+}
+
 // PHASE61_SAFE_REBASE_RELATIONSHIP_MODES: accepted pre-rebase records remain inspectable but cannot claim current-timeline provenance.
 function normalizeRebaseRelationshipAudit(raw = {}) {
     const status = String(raw?.timelineStatus || '').trim().toLocaleLowerCase();
@@ -865,7 +886,7 @@ export function normalizeNpc(input = {}, options = {}) {
         relationshipDiagnostics: normalizeRelationshipDiagnostics(input.relationshipDiagnostics),
         lifeStateDiagnostics: normalizeLifeStateDiagnostics(input.lifeStateDiagnostics),
         relationshipMilestones,
-        relationshipSummary: text(input.relationshipSummary, 1000),
+        relationshipSummary: normalizeRelationshipSummary(input.relationshipSummary),
         relationshipHistory,
         lastRelationshipChange: input.lastRelationshipChange ? {
             ...emptyRelationshipChange(),

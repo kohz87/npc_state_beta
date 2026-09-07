@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.5
+
+### Player-relationship summary safety
+
+- Removed the instructional `NPC relationship with PLAYER only` value from Full Scan and targeted Refresh output examples; `relationshipSummary` now uses an empty schema value plus explicit natural-language guidance.
+- Added backend normalization that rejects known relationship-summary schema placeholders before they can overwrite a real NPC-to-player dynamic during an accepted relationship change.
+- Existing dossiers already polluted with the old placeholder self-repair to an empty relationship summary on normalization/reload instead of preserving the template text.
+- Added regression coverage proving placeholder cleanup, prompt hygiene, preservation of an existing real summary, and continued application of grounded natural-language relationship summaries.
+
+### Compatibility
+
+- Persisted state schema remains `1`; settings schema remains `1`; model semantic contract remains `2`; foreground contract remains `3`. No migration or dossier rebuild is required.
+
 ## 0.5.4
 
 ### One-pass live-state semantics

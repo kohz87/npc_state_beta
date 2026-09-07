@@ -35,8 +35,8 @@ test('release, persisted schema, model contract, foreground contract, and settin
     const semantic = read('src/model/semantic-updates.js');
     const foreground = read('src/foreground-contract.js');
     const index = read('src/index.js');
-    assert.equal(manifest.version, '0.5.4');
-    assert.match(schema, /NPC_STATE_VERSION = '0\.5\.4'/);
+    assert.equal(manifest.version, '0.5.5');
+    assert.match(schema, /NPC_STATE_VERSION = '0\.5\.5'/);
     assert.match(schema, /NPC_STATE_SCHEMA_VERSION = 1/);
     assert.match(semantic, /NPC_STATE_MODEL_CONTRACT_VERSION = 2/);
     assert.match(foreground, /FOREGROUND_CONTRACT_VERSION = 3/);

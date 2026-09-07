@@ -12,9 +12,9 @@ The deterministic scan/application implementation remains in `scanner-core.js`; 
 
 Versions serve different compatibility purposes:
 
-- Release version: `0.5.4` in `manifest.json` and `NPC_STATE_VERSION`.
+- Release version: `0.5.5` in `manifest.json` and `NPC_STATE_VERSION`.
 - Persisted state schema: `1`. Prompt/behavior changes that remain load-compatible do not require a data-schema bump.
-- Settings schema: `1` (unchanged). No new settings keys are required for 0.5.4.
+- Settings schema: `1` (unchanged). No new settings keys are required for 0.5.5.
 - Model semantic update contract: `2` in `src/model/semantic-updates.js`.
 - Foreground embedded-capture contract: `3` in `src/foreground-contract.js`.
 
@@ -32,7 +32,7 @@ Do not rename existing storage keys, sidecar identity, or supported import forma
 6. enforcement of the total budget, with the remaining allowance assigned to dynamic context;
 7. local diagnostics and content-aware prompt caching.
 
-The existing `injectBudgetTokens` key is the complete foreground extension-prompt budget in 0.5.4. Its stored key/default remain compatible (`1800`), while the builder enforces an effective minimum of `1600` estimated tokens so the fixed contract is never silently emitted above a claimed smaller cap. If the fixed contract grows later, diagnostics report the actual floor.
+The existing `injectBudgetTokens` key is the complete foreground extension-prompt budget in 0.5.5. Its stored key/default remain compatible (`1800`), while the builder enforces an effective minimum of `1600` estimated tokens so the fixed contract is never silently emitted above a claimed smaller cap. If the fixed contract grows later, diagnostics report the actual floor.
 
 Token counts are explicitly estimates. The foreground send path must not add a remote tokenizer request or an expensive repeated tokenization pass. If SillyTavern later exposes a stable synchronous compatible tokenizer through the extension API, it may replace the estimator behind the same diagnostics contract.
 
@@ -67,7 +67,7 @@ The shared quiet-generation queue serializes hidden extension generations only. 
 
 Diagnostics remain opt-in through the existing `NPCState.debugStatus()` API and local. They may record prompt character/estimated-token sizes, selected NPCs, budgets, construction time, cache hits, configured scan route identifiers, engine/completeness background status, and cache state. Never log credentials, provider secrets, full prompts, or per-token events.
 
-Only report lifecycle phases backed by real hooks. At 0.5.4 NPC State does not have reliable cross-provider hooks for browser dispatch, first provider data, or first visible paint, so those phases are explicitly unavailable. Do not attribute unmeasured delay to SillyTavern, a proxy, a provider, or model reasoning.
+Only report lifecycle phases backed by real hooks. At 0.5.5 NPC State does not have reliable cross-provider hooks for browser dispatch, first provider data, or first visible paint, so those phases are explicitly unavailable. Do not attribute unmeasured delay to SillyTavern, a proxy, a provider, or model reasoning.
 
 ## Context and history safety
 

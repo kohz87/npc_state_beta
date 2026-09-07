@@ -1,14 +1,14 @@
 # NPC State Beta
 
-NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.5.4 makes live NPC state update reliably during the normal one-pass foreground generation while retaining the bounded single-contract architecture.
+NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.5.5 prevents scanner schema placeholders from leaking into the player-relationship summary while retaining reliable one-pass live-state updates and the bounded single-contract architecture.
 
-## Release 0.5.4
+## Release 0.5.5
 
 The checked-in `src/` tree is authoritative. A clean checkout is sufficient to validate, test, and package the extension.
 
 Version boundaries remain independent:
 
-- Extension release: `0.5.4`
+- Extension release: `0.5.5`
 - Persisted state schema: `1` (unchanged)
 - Model semantic update contract: `2`
 - Settings schema: `1` (unchanged; no new settings keys)
