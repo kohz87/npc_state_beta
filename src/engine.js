@@ -954,6 +954,7 @@ export function createNpcStateEngine(adapters = {}) {
                     fallbackDays: settings.birthdayRandomDaysPerMonth,
                 },
                 applyReturnedNpcPatches: true,
+                reconcileRelationshipSummary: true,
                 reconcileFamilyGraph: false,
             });
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);

@@ -240,6 +240,7 @@ function rosterForPrompt(state, { relationshipSummaryRepair = false, relationshi
             lifeStateCertainty: npc.lifeStateCertainty,
             lifeStateReason: npc.lifeStateReason,
             relationship: npc.relationship,
+            relationshipSummary: normalizeRelationshipSummary(npc.relationshipSummary),
             behaviorProfile: npc.behaviorProfile,
             mannerisms: npc.mannerisms,
             memories: npc.memories,
@@ -247,7 +248,6 @@ function rosterForPrompt(state, { relationshipSummaryRepair = false, relationshi
             manualProfileFields: npc.manualProfileFields,
         };
         if (relationshipSummaryRepair && relationshipSummaryRepairIds?.has(npc.id)) {
-            row.relationshipSummary = normalizeRelationshipSummary(npc.relationshipSummary);
             const repairContext = relationshipSummaryRepairContext(npc);
             if (!row.relationshipSummary && repairContext) row.relationshipSummaryRepairContext = repairContext;
         }
@@ -321,7 +321,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- A single scan may update MULTIPLE existing NPCs in the same response. Do not stop after the first and do not omit a dossier patch merely because another NPC is more prominent. Return one separate npcs object for EVERY exchange-active existing NPC so relationship evaluation is explicit, plus any other individually relevant existing NPC whose grounded dossier data is established, corrected, or materially changed. Keep exchangeActiveNpcIds, inChatNpcIds, and worldActiveNpcIds complete for their own semantics.',
         '- The PLAYER/current USER persona is not an NPC for this scanner, even when named in narration. Never create the PLAYER as an npcs entry.',
         '- relationship, relationshipSummary, and relationshipChange describe THIS NPC toward the PLAYER. They are the dedicated player-relationship channel.',
-        '- relationshipSummary, when returned, must be a concise natural-language description of the CURRENT NPC-to-PLAYER dynamic supported by the accepted relationship state. Never copy schema instructions, field descriptions, placeholders, or labels into it. Leave it empty/omit it when no supported summary update is needed.',
+        '- relationshipSummary is the CURRENT NPC-to-PLAYER dynamic, a descriptive projection separate from numeric score mutation. For an existing NPC, compare against the stored relationshipSummary and return a new value only when the CURRENT exchange materially changes or newly clarifies that dynamic, or when explicit repair mode below applies. Do not rewrite it merely for style. A grounded current relationship proposal may update relationshipSummary even if runtime replay protection, inertia, caps, or gates later prevent numeric movement. Never copy schema instructions, field descriptions, placeholders, or labels into it; leave it empty/omit it when unchanged.',
         ...(relationshipSummaryRepair ? [
             '- CURRENT-DYNAMIC REPAIR MODE: this is an explicit Scan current cast reconciliation. For an existing current-cast NPC whose relationshipSummary is blank and whose relationshipSummaryRepairContext is present, reconstruct one concise Current Dynamic from the STORED relationship values, fractional progress, unlocked milestones, and accepted recent relationship evidence supplied there.',
             '- Summary repair is independent of relationship scoring. Do NOT invent or replay a relationshipChange merely to make relationshipSummary eligible. If the current exchange has no genuinely new relationship event, relationshipChange must remain impact none with zero deltas while relationshipSummary may still be repaired from the stored accepted state.',
@@ -455,7 +455,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
         'status is the NPC current concrete activity, immediate situation, or condition: what they are doing or undergoing now. Never use active, inactive, in chat, off-screen, present, archived, or equivalent lifecycle labels as status; lifecycle presence is tracked separately.',
         'LIFE-STATE RECONCILIATION: TARGET DOSSIER Status and Life state are continuity together. Every authoritative transition MUST be returned in top-level lifeStateUpdates. If the stored Status itself unambiguously establishes this NPC is dead or terminally/irreversibly dissolved while stored Life state is not dead, return a lifeStateUpdates row with lifeState dead, explicit/strong certainty, and lifeStateReason EXACTLY equal to the stored Status even if no ordinary npcs patch is otherwise needed. Explicitly deceased irreversible dissolution with no continuing living form is death; reversible transformations are not. Stored Status can repair death only; it can never prove livingReturn or resurrection.',
         'The PLAYER/current USER persona is not an NPC. relationshipSummary is this NPC toward the PLAYER; keyRelationships is NON-PLAYER ties only and must never duplicate the PLAYER.',
-        'If relationshipSummary is returned, write an actual concise natural-language relationship dynamic. Never copy an output-schema instruction or placeholder into the field; leave it empty when no supported update is needed.',
+        'TARGET DOSSIER includes the stored relationshipSummary. Reconcile it as the NPC current relationship dynamic toward the PLAYER: return a new concise natural-language value only when it is missing/invalid or the supplied chat establishes a materially newer dynamic. Do not rewrite merely for style. This targeted refresh may reconcile relationshipSummary without changing any relationship score. Never copy an output-schema instruction or placeholder into the field; leave it empty when unchanged.',
         'age is ACTUAL chronological age only. Use grounded numeric age data only: N or ~N years, or N days/weeks/months when explicitly established. Never use child, teenager, adult, young adult, middle-aged, elder, elderly, old, or another life-stage label. If the target already has an age, leave age empty for any different number and use ageChange only for an explicit birthday, elapsed-time update, or correction that states the resulting numeric age.',
         'ageChange is the only automatic revision channel for an established chronological age: {age, kind birthday|elapsed|correction, evidence}. Evidence must explicitly state the new age and the birthday/elapsed/correction basis. Casual contradictions and appearance guesses are not revisions.',
         'birthday is passive freeform calendar continuity metadata. Never infer it from age or calculate age from it. Explicit chat evidence may seed a blank/generated birthday; an established explicit/manual value changes only through canonChanges field birthday mode correction. Birthday metadata alone never triggers ageChange or ageProgression.',
@@ -1640,11 +1640,29 @@ function relationshipSummarySupported(value, relationship, milestones) {
     return true;
 }
 
-function repairMissingRelationshipSummary(npc, patch) {
-    if (normalizeRelationshipSummary(npc?.relationshipSummary)) return npc;
+function relationshipSummaryProposalGrounded(patch, options = {}) {
+    const caps = options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS;
+    const change = relationshipDeltaForPatch(patch, caps);
+    if (!change.evaluated || !change.impactValid || change.impact === 'none' || !change.hasRawMovement) return false;
+    if (!RELATIONSHIP_AXES.some(axis => Number(change.delta?.[axis]) !== 0)) return false;
+    const reasons = [...change.reasons];
+    const provenance = relationshipAxisProvenance(change, options, { ...change.delta }, reasons);
+    return RELATIONSHIP_AXES.some(axis => Number(provenance.delta?.[axis]) !== 0);
+}
+
+function applyRelationshipSummaryProjection(npc, patch, options = {}) {
+    const current = normalizeRelationshipSummary(npc?.relationshipSummary);
     const summary = normalizeRelationshipSummary(patch?.relationshipSummary);
-    if (!summary || !relationshipSummaryRepairContext(npc)) return npc;
+    if (!summary || summary === current) return npc;
     if (!relationshipSummarySupported(summary, npc.relationship, npc.relationshipMilestones)) return npc;
+
+    const repairAllowed = options.repairRelationshipSummary === true
+        && !current
+        && Boolean(relationshipSummaryRepairContext(npc));
+    const explicitReconcile = options.reconcileRelationshipSummary === true;
+    const groundedCurrentProposal = relationshipSummaryProposalGrounded(patch, options);
+    if (!repairAllowed && !explicitReconcile && !groundedCurrentProposal) return npc;
+
     const next = structuredClone(npc);
     next.relationshipSummary = summary;
     return next;
@@ -1966,10 +1984,6 @@ function applyRelationshipChange(npc, patch, options = {}) {
 
     const progressChanged = RELATIONSHIP_AXES.some(axis => Number(next.relationshipProgress?.[axis] || 0) !== Number(priorProgress?.[axis] || 0));
     const relationshipStateChanged = visibleChanged || progressChanged || crossings.length > 0;
-    const summary = normalizeRelationshipSummary(patch?.relationshipSummary);
-    if (summary && relationshipStateChanged && relationshipSummarySupported(summary, next.relationship, next.relationshipMilestones)) {
-        next.relationshipSummary = summary;
-    }
     if (progressChanged && !visibleChanged) reasons.push('fractional-progress');
     const partialAxisRejection = reasons.some(reason => /^(?:trust|affection|desire|tension):(?:non-finite|missing-axis-evidence|malformed-axis-evidence|missing-explanation|no-permitted-evidence-source|unverifiable-excerpt|duplicate|axis-limit)$/.test(reason));
     if (relationshipStateChanged && partialAxisRejection && !reasons.includes('partial-applied')) reasons.push('partial-applied');
@@ -2558,7 +2572,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
             npc = applyStablePatch(npc, patch, { playerName, dossierLimits, isBootstrap: createdNpcIds.has(npc.id), profileContext: String(options.profileContext || ''), sourceMessageId, turn });
             npc = applyDynamicPatch(npc, patch, { dossierLimits, supplementalPass: options.supplementalPass === true });
             if (!lifecyclePatch) npc = applyLifeState(npc, patch, { ...options, state, storedStatus: storedStatusBeforePatch });
-            if (applyRelationship && exchangeSet.has(npc.id)) npc = applyRelationshipChange(npc, patch, {
+            const relationshipOptions = {
                 relationshipCaps: options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 relationshipContext: String(options.relationshipContext || ''),
                 relationshipEvidenceSources: Array.isArray(options.evidencePolicy?.relationshipSources) ? options.evidencePolicy.relationshipSources : [],
@@ -2571,9 +2585,14 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                 requireCurrentRelationshipEvidence: createdNpcIds.has(npc.id) || Boolean(String(options.relationshipContext || '').trim()),
                 sourceMessageId,
                 turn,
-            });
-            if (options.repairRelationshipSummary === true && targetSet.has(npc.id)) {
-                npc = repairMissingRelationshipSummary(npc, patch);
+            };
+            if (applyRelationship && exchangeSet.has(npc.id)) npc = applyRelationshipChange(npc, patch, relationshipOptions);
+            if (exchangeSet.has(npc.id) || options.reconcileRelationshipSummary === true || (options.repairRelationshipSummary === true && targetSet.has(npc.id))) {
+                npc = applyRelationshipSummaryProjection(npc, patch, {
+                    ...relationshipOptions,
+                    repairRelationshipSummary: options.repairRelationshipSummary === true,
+                    reconcileRelationshipSummary: options.reconcileRelationshipSummary === true,
+                });
             }
             npc.updatedAt = Math.max(Date.now(), Number(npc.updatedAt || 0) + 1);
         } else if (patch && privateEvidenceSet.has(npc.id)) {

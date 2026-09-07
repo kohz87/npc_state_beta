@@ -1,14 +1,14 @@
 # NPC State Beta
 
-NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.5.6 lets Scan current cast reconstruct a missing player-relationship Current Dynamic from already accepted relationship state/history without replaying relationship scores, while retaining the placeholder safety and reliable one-pass live-state updates from 0.5.5.
+NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.5.7 makes the player-relationship Current Dynamic an independently maintained descriptive projection, so grounded relationship developments can update it even when replay protection, caps, gates, or inertia suppress numeric movement.
 
-## Release 0.5.6
+## Release 0.5.7
 
 The checked-in `src/` tree is authoritative. A clean checkout is sufficient to validate, test, and package the extension.
 
 Version boundaries remain independent:
 
-- Extension release: `0.5.6`
+- Extension release: `0.5.7`
 - Persisted state schema: `1` (unchanged)
 - Model semantic update contract: `2`
 - Settings schema: `1` (unchanged; no new settings keys)
@@ -35,6 +35,8 @@ Temporary conditions stay distinct from durable characterization. Sleeping, unco
 The runtime remains authoritative for structure, permitted fields, NPC/entry targeting, source provenance, manual locks, deterministic numeric normalization, relationship caps/milestones/inertia/fractional progress, replay protection, lifecycle transitions, stale-result rejection, persistence, branch recovery, and collection limits. It does not reintroduce English keyword or arbitrary repetition gates as semantic approval.
 
 `Scan current cast` also has a narrow Current Dynamic repair mode. When an existing NPC's `relationshipSummary` is blank, the manual scan may reconstruct it from already accepted relationship meters, fractional progress, milestones, evidence history, and recent relationship changes. This repair does not replay relationship scoring and never overwrites an existing non-empty summary merely to rephrase it.
+
+Current Dynamic evolution is no longer gated on a score actually moving. For exchange-active NPCs, a model-proposed `relationshipSummary` may persist when it is supported by the current stored relationship depth and the same grounded current-exchange relationship proposal, even if numeric application is blocked as duplicate/replay, capped, gated, or absorbed by inertia. Ordinary `impact:none` turns cannot stylistically rewrite it. Targeted Refresh can also reconcile a missing or materially stale Current Dynamic from its supplied history without changing relationship scores.
 
 ## Routing and response lifecycle
 

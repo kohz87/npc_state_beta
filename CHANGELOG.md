@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.7
+
+### Current Dynamic evolution
+
+- Decoupled `relationshipSummary` persistence from actual numeric Trust/Affection/Desire/Tension movement. A grounded current-exchange relationship proposal can now update Current Dynamic even when replay protection, caps, gates, or inertia suppress score movement.
+- Regular Full Scan and targeted Refresh prompts now receive the stored Current Dynamic so the model can evolve it instead of rewriting blind.
+- Replay-protected embedded processing may still update the descriptive Current Dynamic while leaving all relationship meters, fractional progress, milestones, evidence history, and last-change history untouched.
+- `impact:none` / ungrounded turns cannot stylistically rewrite an existing Current Dynamic.
+- Targeted Refresh may explicitly reconcile a missing or materially stale Current Dynamic from its supplied chat history without changing relationship scores.
+
+### Compatibility
+
+- Persisted state schema remains `1`; settings schema remains `1`; model semantic contract remains `2`; foreground contract remains `3`. No migration or dossier rebuild is required.
+
 ## 0.5.6
 
 ### Current Dynamic repair
