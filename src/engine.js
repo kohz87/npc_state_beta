@@ -1146,7 +1146,18 @@ export function createNpcStateEngine(adapters = {}) {
             if (result?.rejected) { operationLog.finish(operationId, { status: 'rejected', failure: { stage: 'validation', reason: String(result.rejected).slice(0, 300) } }); return { ok: false, reason: String(result.rejected) }; }
             if (result?.npcId) operationLog.patch(operationId, { selectedNpcIds: [result.npcId] });
             if (getChatKey() !== chatKey) { finishDiscardedOperation(operationId, 'chat-changed', 'mutation-before-commit'); return chatChanged('mutation-before-commit'); }
-            const commit = await commitState({ operationId, token: ownership, state, chat, messageId, checkpointReason, checkpoint: unsafeRemediation ? false : checkpoint, ownershipPolicy: 'user' });
+            let commit;
+            try {
+                commit = await commitState({ operationId, token: ownership, state, chat, messageId, checkpointReason, checkpoint: unsafeRemediation ? false : checkpoint, ownershipPolicy: 'user' });
+            } catch (error) {
+                if (!unsafeRemediation) throw error;
+                const persistedBlocked = cache.get(chatKey) || state;
+                return {
+                    ok: false, label, reason: 'correction-remediation-persistence-failed', persistenceFailed: true,
+                    error: String(error?.message || error).slice(0, 500),
+                    state: structuredClone(persistedBlocked), result,
+                };
+            }
             return { ok: true, label, state: structuredClone(commit.state), result, needsReconcile: commit.needsReconcile === true, reason: commit.reason || '' };
         });
     }
@@ -1205,11 +1216,9 @@ export function createNpcStateEngine(adapters = {}) {
             const clearRelationshipCorrections = clearRelationshipOnly
                 || (explicitOverridePatch && !Object.prototype.hasOwnProperty.call(patch.manualOverrides, 'relationship'));
             const hasRelationshipPatch = patch?.relationship && typeof patch.relationship === 'object' && !Array.isArray(patch.relationship);
-            let migrationLimitations = [];
             if (hasRelationshipPatch && !clearRelationshipCorrections) {
                 const migrated = migrateSupportedLegacyManualRelationshipCorrections(current);
                 current = migrated.npc;
-                migrationLimitations = migrated.limitations || [];
                 state.npcs[index] = current;
             }
             const manualBirthdayChanged = Object.prototype.hasOwnProperty.call(patch || {}, 'birthday')
@@ -1337,7 +1346,6 @@ export function createNpcStateEngine(adapters = {}) {
                 return {
                     npcId: current.id,
                     remediation: true,
-                    migratedLegacyAxes: migrationLimitations.length ? [] : undefined,
                     resolved: state.branchSafety?.status === 'safe',
                     needsRecovery: state.branchSafety?.kind === 'suffix-recovery-required' || Boolean(state.recovery),
                     manualRelationshipLimitations: structuredClone(limitations),

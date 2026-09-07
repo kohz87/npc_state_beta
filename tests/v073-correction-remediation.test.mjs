@@ -6,6 +6,7 @@ import { ensurePreUpdateBaseline, recordCheckpoint, reconcileToCurrentBranch } f
 import { decodeV3Payload, encodeV3Payload } from '../src/storage.js';
 import { normalizeSettings } from '../src/settings.js';
 import { manualRelationshipRemediationPatch } from '../src/ui.js';
+import { branchSafetyNeedsCorrectionRemediation } from '../src/branch-recovery-ui.js';
 
 const rel = (trust = 0, affection = 0, desire = 0, tension = 0) => ({ trust, affection, desire, tension });
 const manualEvent = (delta, sourceMessageId = 1, at = 100) => ({ impact: 'manual', delta, evidence: '', reason: 'Manual dossier adjustment by player.', sourceMessageId, turn: 1, at });
@@ -272,13 +273,23 @@ test('unrelated mutations remain rejected while correction uncertainty is blocke
     assert.equal(h.persisted().npcs.some(npc => npc.name === 'Nope'), false);
 });
 
+test('uncertainty UI routes to correction remediation instead of generic timeline acceptance', () => {
+    assert.equal(branchSafetyNeedsCorrectionRemediation({ status: 'rebase-required', kind: 'manual-relationship-correction-uncertain' }), true);
+    assert.equal(branchSafetyNeedsCorrectionRemediation({ status: 'rebase-required', kind: 'suffix-recovery-required' }), false);
+    assert.equal(branchSafetyNeedsCorrectionRemediation({ status: 'safe', kind: '' }), false);
+});
+
 test('persistence conflict during remediation leaves persisted state blocked and reload honest', async () => {
     const state = baselineState('v073-conflict', chat, legacyNpc({ trust: 20, includeEvent: false }));
     let fail = false;
     const h = harness(state, chat, { failPredicate: () => fail });
     await enterUncertainty(h);
     fail = true;
-    await assert.rejects(() => h.engine.clearManualRelationshipCorrection('sora'));
+    const failed = await h.engine.clearManualRelationshipCorrection('sora');
+    assert.equal(failed.ok, false);
+    assert.equal(failed.reason, 'correction-remediation-persistence-failed');
+    assert.equal(failed.persistenceFailed, true);
+    assert.equal(failed.state.branchSafety.kind, 'manual-relationship-correction-uncertain');
     assert.equal(h.persisted().branchSafety.kind, 'manual-relationship-correction-uncertain');
     const reload = h.reload();
     const loaded = await reload.loadChat(h.key);
