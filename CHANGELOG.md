@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.4
+
+- Preserves surviving story movement across the legacy-to-modern relationship correction transition. Migrated legacy axes carry a compact provenance identity, so a valid pre-migration checkpoint that already contains the same correction keeps later story gains; checkpoints before the correction still receive its absolute target, and a genuinely newer same-axis edit still supersedes it.
+- Makes legacy correction uncertainty durable per axis instead of re-deriving it from bounded display history. Current-format confirmation events are excluded from legacy evidence, partial confirmation survives reload/history trimming, and confirming an unchanged value still resolves that explicitly selected axis.
+- Completing all unresolved axes now retains the confirmed modern corrections, retires obsolete legacy whole-relationship metadata, and immediately revalidates the verified rollback boundary. Other NPC uncertainty and surviving suffix recovery remain blocked until independently resolved; explicit clear-all correction ownership remains a separate action.
+- Persistence conflicts and in-flight history changes remain fail-safe through the existing guarded user commit path. Persisted state/settings schema remain 1; semantic contract remains 3; foreground contract remains 4. No NPC database rebuild is required.
+
 ## 0.7.3
 
 - Migrates supported legacy relationship correction axes into the compact per-axis correction representation before a new manual relationship edit can overwrite the legacy evidence that proves them. Modern and still-supported legacy ownership are preserved independently during rollback, so editing Affection cannot silently discard an older Trust correction.

@@ -28,6 +28,7 @@ import {
     normalizeNpc,
     normalizeBirthdayFillMode,
     normalizeRelationship,
+    normalizeManualRelationshipCorrectionUnresolvedAxes,
     normalizeRelationshipMilestones,
     normalizeState,
 } from './schema.js';
@@ -1227,7 +1228,13 @@ export function createNpcStateEngine(adapters = {}) {
             const nextRaw = { ...current, ...structuredClone(patch), id: current.id, updatedAt: Math.max(manualAt, Number(current.updatedAt || 0) + 1), manual: true };
             let correctionRevision = Math.max(0, Math.trunc(Number(current.manualRelationshipCorrectionRevision) || 0));
             const correctionByAxis = new Map((current.manualRelationshipCorrections || []).map(item => [item.axis, structuredClone(item)]));
-            if (clearRelationshipCorrections) correctionByAxis.clear();
+            const unresolvedCorrectionAxes = new Set(normalizeManualRelationshipCorrectionUnresolvedAxes(current.manualRelationshipCorrectionUnresolvedAxes));
+            const hadLegacyUnresolvedAxes = unresolvedCorrectionAxes.size > 0;
+            let resolvedCorrectionAxes = [];
+            if (clearRelationshipCorrections) {
+                correctionByAxis.clear();
+                unresolvedCorrectionAxes.clear();
+            }
             // The editor historically submits birthdayProvenance:'manual' with every save.
             // Do not turn an unchanged birthday into hidden manual ownership.
             if (!manualBirthdayChanged && patch?.birthdayProvenance === 'manual') nextRaw.birthdayProvenance = current.birthdayProvenance;
@@ -1245,6 +1252,7 @@ export function createNpcStateEngine(adapters = {}) {
                 const requestedAxes = RELATIONSHIP_AXES.filter(axis => Object.prototype.hasOwnProperty.call(patch.relationship, axis));
                 const changedAxes = requestedAxes.filter(axis => before[axis] !== after[axis]);
                 const correctionAxes = remediation ? requestedAxes : changedAxes;
+                resolvedCorrectionAxes = correctionAxes;
                 const inferred = normalizeRelationshipMilestones([], after, { inferFromRelationship: true, includeBoundary: true })
                     .filter(entry => changedAxes.includes(entry.axis));
                 nextRaw.relationshipMilestones = normalizeRelationshipMilestones(
@@ -1264,6 +1272,7 @@ export function createNpcStateEngine(adapters = {}) {
                             sourceMessageId: sourceMessageId >= 0 ? sourceMessageId : null,
                             at: manualAt,
                         });
+                        unresolvedCorrectionAxes.delete(axis);
                     }
                     if (changedAxes.length) {
                         const event = {
@@ -1282,6 +1291,10 @@ export function createNpcStateEngine(adapters = {}) {
             }
             nextRaw.manualRelationshipCorrectionRevision = correctionRevision;
             nextRaw.manualRelationshipCorrections = [...correctionByAxis.values()];
+            nextRaw.manualRelationshipCorrectionUnresolvedAxes = [...unresolvedCorrectionAxes];
+            const retireResolvedLegacyRelationship = hadLegacyUnresolvedAxes
+                && resolvedCorrectionAxes.length > 0
+                && unresolvedCorrectionAxes.size === 0;
             const hasManualLifeState = Object.prototype.hasOwnProperty.call(patch || {}, 'lifeState');
             const requestedLifeState = String(patch?.lifeState || '').trim().toLocaleLowerCase();
             if (hasManualLifeState && !['alive', 'dead', 'unknown'].includes(requestedLifeState)) return { rejected: 'invalid-life-state' };
@@ -1302,7 +1315,7 @@ export function createNpcStateEngine(adapters = {}) {
             const manualOverrideMeta = explicitOverridePatch
                 ? {}
                 : structuredClone(current.manualOverrideMeta || {});
-            if (clearRelationshipOnly) {
+            if (clearRelationshipOnly || retireResolvedLegacyRelationship) {
                 delete manualOverrides.relationship;
                 delete manualOverrideMeta.relationship;
             }
