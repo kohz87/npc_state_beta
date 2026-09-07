@@ -1,60 +1,79 @@
 # NPC State Beta
 
-NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.5.1 is a patch over the consolidated 0.5.x runtime that fixes release-label drift in the settings UI and model-facing facades.
+NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.5.2 consolidates foreground capture into one bounded model contract and adds local prompt/background diagnostics without changing the normal roleplay route.
 
-## Release 0.5.1
+## Release 0.5.2
 
-The current source of truth is `src/`. A clean checkout is sufficient to validate, test, and package the extension. The build no longer clones an older repository or replays historical patch scripts.
+The checked-in `src/` tree is authoritative. A clean checkout is sufficient to validate, test, and package the extension.
 
-Release version, persisted state schema, and model-output contract are intentionally separate:
+Version boundaries remain independent:
 
-- Extension release: `0.5.1`
+- Extension release: `0.5.2`
 - Persisted state schema: `1` (unchanged)
-- Model semantic update contract: `2`
+- Model semantic update contract: `2` (unchanged)
+- Settings schema: `1` (unchanged; no new settings keys)
+- Foreground embedded-capture contract: `3`
 
-The 0.5.1 patch makes the settings header, settings intro, roster summary, scanner facade, and foreground injection facade derive their release label from the shared `NPC_STATE_VERSION` constant. Existing v0.4.x sidecars and settings continue using their established storage identity. This release does not rename storage keys or require dossier deletion/rebuild.
+Existing v0.4.x/0.5.x sidecars keep their established storage identity. No dossier rebuild or storage-key migration is required.
+
+## Foreground capture and prompt budgets
+
+Foreground roleplay now receives one authoritative NPC State contract from `src/injection.js`. The previous layered path, where a full legacy foreground contract was built and a second semantic-update contract plus a second dossier serialization was appended, has been removed.
+
+One selection pipeline ranks explicitly referenced, present, recently active, and otherwise salient NPCs, then honors the configured injection limit for every dossier-bearing foreground section. Dossier context is serialized once as complete compact JSON. Collection/form entries keep stable edit refs required by `semanticUpdates`; memories, relationships, forms, and history are bounded by whole-entry selection rather than cutting JSON into fragments.
+
+The existing **Injection budget** (`injectBudgetTokens`) is now the total NPC State foreground budget, covering fixed instructions plus dossier/history context. Its stored key and default (`1800`) are unchanged, so no settings migration is required. The effective valid range is `1600` to `8000` estimated tokens. Older saved values below `1600` are accepted but reported and treated as the effective minimum rather than silently exceeded. If a future fixed contract itself grows beyond that floor, diagnostics report the real effective minimum.
+
+NPC State does not make a remote tokenizer request on the send path. Diagnostics therefore label counts as a local conservative estimate (`ASCII/3.5 + non-ASCII*1.1`), not exact provider tokens. Prompt results are cached by relevant state/settings/content and invalidated when dossier content or selection inputs change.
 
 ## Model-led semantic updates
 
-For existing dossiers, the model can emit `semanticUpdates` with `establish`, `refine`, `replace`, or `remove`. The proposal identifies the target field, proposed value or targeted collection changes, concrete source excerpts, and a short explanation.
+For existing dossiers, durable semantic changes use `semanticUpdates` with `establish`, `refine`, `replace`, or `remove`. The model decides whether story evidence establishes a first meaningful personality baseline, enriches compatible characterization, demonstrates genuine development, corrects mistaken canon, or retires obsolete information.
 
-The model interprets narrative meaning, including whether evidence establishes a first meaningful personality baseline, refines compatible characterization, demonstrates genuine development, corrects canon, retires obsolete information, distinguishes temporary state from durable traits, identifies age/date semantics, judges fantasy maturation, recognizes names/roles, and interprets directional kinship.
+Temporary conditions stay distinct from durable characterization. Sleeping, unconsciousness, silence while asleep, one-off reactions, and poses do not become permanent personality or speech merely because they were observed first. Later grounded evidence can replace a frozen sleep/emergence placeholder. A form-specific habit stays scoped to that form unless evidence changes it, and omission from one response is never deletion evidence.
 
-The runtime remains authoritative for structure and mechanics. It validates NPC/field targeting, manual locks, source provenance, stable collection references, deterministic numeric normalization, relationship caps/milestones/inertia/fractional progress, replay protection, lifecycle transitions, stale-result guards, persistence, branch recovery, and collection limits.
+The runtime remains authoritative for structure, permitted fields, NPC/entry targeting, source provenance, manual locks, deterministic numeric normalization, relationship caps/milestones/inertia/fractional progress, replay protection, lifecycle transitions, stale-result rejection, persistence, branch recovery, and collection limits. It does not reintroduce English keyword or arbitrary repetition gates as semantic approval.
 
-Evidence validation establishes that a cited excerpt exists in the permitted source window. It does not independently claim the model's semantic interpretation is correct.
+## Routing and response lifecycle
 
-## Repairing existing dossiers
+Normal roleplay and embedded `<npc_state_v1>` capture remain part of the main roleplay generation. Full scans, Refresh, recovery, historical rebuild, and optional post-response completeness requests may use the configured NPC connection profile. The alternate profile path does not intentionally change or fall back to the active main connection.
 
-Scan and Refresh receive the current personality, speech, behavior profile, mannerisms, canon, forms, and compact prior evidence. They can therefore repair dossiers that were frozen on temporary emergence/sleep observations, for example:
+Post-response embedded/completeness work is started without awaiting it from the `MESSAGE_RECEIVED` event handler. Completeness remains optional, starts only after the assistant response exists, and receives stale fingerprints/swipe identity so discarded background results cannot overwrite a newer branch or edit.
 
-- `Quiet and dormant baseline post-emergence.`
-- `Rests in deep, restorative slumber following her emergence.`
-- `Unvoiced; currently sleeping.`
-- a sleeping wing-folding pose stored as a permanent mannerism
+## Diagnostics and latency interpretation
 
-Later grounded evidence may establish the actual baseline or replace/remove obsolete placeholders. Sleeping does not imply muteness. A stale sleeping Status can be retired after awakening. Form-specific habits remain scoped continuity and are not erased merely because the NPC is currently in another form.
+Opt-in diagnostics are available through the existing `NPCState.debugStatus()` console API and report local extension facts only:
 
-Manual field protection remains authoritative.
+- fixed instruction, dynamic-context, and total character counts
+- estimated tokens and estimate method
+- selected NPC count/ids and configured/effective budgets
+- prompt construction time and cache hit status
+- background scan state/completeness state and configured scan route id without credentials
+
+NPC State does not currently own reliable hooks for browser request dispatch, provider first response data, or first visible token/paint across providers. Those phases are therefore reported as unavailable rather than inferred.
+
+A smaller extension prompt can reduce prompt-processing work, but it does not prove or promise that an observed 15–20 second delay will disappear. If the browser generation request is dispatched immediately, remaining time can include SillyTavern server/proxy processing, provider queueing, prompt ingestion, model reasoning, and streaming/render behavior outside NPC State's measured local construction time.
 
 ## Source layout
 
 - `src/` - authoritative runtime source
-- `src/model/` - model semantic contract, response adaptation, and model-facing logic
-- `src/scanner.js` - model-led scanner facade over deterministic scanner mechanics
-- `src/scanner-core.js` - deterministic scan/application mechanics retained from the consolidated runtime
-- `src/injection.js` - foreground continuity/model-contract facade
-- `src/injection-core.js` - deterministic foreground continuity builder
-- `tests/` - deterministic behavioral and compatibility regressions
+- `src/model/` - semantic update contract and compatibility response adaptation
+- `src/injection.js` - single foreground orchestration/cache/diagnostics entrypoint
+- `src/foreground-contract.js` - concise authoritative embedded-capture/model-led update contract
+- `src/foreground-context.js` - one NPC selection and complete-entry dossier compaction pipeline
+- `src/foreground-budget.js` - local estimate and total-budget normalization
+- `src/scanner.js` - model-led scan/Refresh/completeness facade
+- `src/scanner-core.js` - deterministic scan/application mechanics
+- `tests/` - behavioral and compatibility regressions
 - `scripts/validate.mjs` - clean-checkout source/import validation
 - `scripts/package.mjs` - dependency-free release packaging
-- `.github/workflows/ci.yml` - validation, tests, and package artifact generation
+- `.github/workflows/ci.yml` - validation, tests, package generation, and artifact upload
 
-Historical v0.4 documentation is retained under `docs/history/`; implementation history remains available in Git.
+Historical v0.4 documentation is retained under `docs/history/`.
 
 ## Development
 
-Requires Node.js 22 or later for the repository validation/test workflow used in CI.
+Requires Node.js 22 or later for the repository workflow.
 
 ```sh
 npm run validate
@@ -62,12 +81,6 @@ npm test
 npm run package
 ```
 
-`npm run package` writes a versioned ZIP under `dist/` containing the extension runtime and release documentation.
+See `DEVELOPMENT.md` for architecture and release guidance.
 
-See `DEVELOPMENT.md` for architecture, compatibility, and release guidance.
-
-## Integration notes
-
-NPC State preserves the existing SillyTavern nested extension import depth and its established storage/sidecar identity. Separate NPC model requests continue using the selected NPC connection profile without intentionally changing SillyTavern's active main connection. The optional completeness pass remains off unless enabled and is treated as supplemental, non-replaying reconciliation.
-
-Live model quality varies by provider/model. Repository tests use deterministic model-response fixtures to verify parsing/application behavior; they do not constitute live-provider accuracy measurements.
+Live model quality varies by provider/model. Deterministic fixtures verify parsing/application behavior; they are not live-provider latency or judgment measurements.

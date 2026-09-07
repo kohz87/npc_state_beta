@@ -4,48 +4,80 @@
 
 `src/` is the checked-in source of truth. Do not reconstruct the runtime from an older repository, version-numbered source folder, or historical patch chain.
 
-The repository intentionally keeps the consolidated deterministic scanner/injection mechanics in `scanner-core.js` and `injection-core.js`, with small facades in `scanner.js` and `injection.js` that provide the current model-led contract. This avoids duplicating persistence/relationship/lifecycle mechanics while keeping model semantics isolated and testable.
+Foreground capture has one pipeline rooted in `src/injection.js`, with `foreground-contract.js`, `foreground-context.js`, and `foreground-budget.js` as focused components. Do not restore an `injection-core.js` plus append-only facade or a second dossier-selection path: fixed instructions, NPC selection, compaction, total budgeting, cache keys, and diagnostics must describe the one prompt actually injected.
+
+The deterministic scan/application implementation remains in `scanner-core.js`; `scanner.js` adds current model-led semantic response handling without duplicating persistence, relationship, lifecycle, or branch mechanics.
 
 ## Version boundaries
 
-Three versions serve different purposes:
+Versions serve different compatibility purposes:
 
-- Release version: `0.5.0` in `manifest.json` and the exported runtime app version.
-- Persisted state schema: `1`. Do not bump it for behavior/prompt changes that remain load-compatible.
-- Model-output contract: `2` in `src/model/semantic-updates.js`. Bump when the model-facing structured update contract changes incompatibly or materially.
+- Release version: `0.5.2` in `manifest.json` and `NPC_STATE_VERSION`.
+- Persisted state schema: `1`. Prompt/behavior changes that remain load-compatible do not require a data-schema bump.
+- Settings schema: `1` (unchanged). No new settings keys are required for 0.5.2.
+- Model semantic update contract: `2` in `src/model/semantic-updates.js`.
+- Foreground embedded-capture contract: `3` in `src/foreground-contract.js`.
 
-Do not rename existing storage keys, sidecar identity, or supported import formats as part of source organization work.
+Do not rename existing storage keys, sidecar identity, or supported import formats as part of prompt cleanup.
+
+## Foreground architecture
+
+`buildForegroundInjection()` performs, in order:
+
+1. capture/continuity/branch-safety gating;
+2. one salience selection bounded by `injectLimit`;
+3. one fixed foreground contract;
+4. compact complete dossier JSON with stable collection/form refs;
+5. whole-entry history selection;
+6. enforcement of the total budget, with the remaining allowance assigned to dynamic context;
+7. local diagnostics and content-aware prompt caching.
+
+The existing `injectBudgetTokens` key is the complete foreground extension-prompt budget in 0.5.2. Its stored key/default remain compatible (`1800`), while the builder enforces an effective minimum of `1600` estimated tokens so the fixed contract is never silently emitted above a claimed smaller cap. If the fixed contract grows later, diagnostics report the actual floor.
+
+Token counts are explicitly estimates. The foreground send path must not add a remote tokenizer request or an expensive repeated tokenization pass. If SillyTavern later exposes a stable synchronous compatible tokenizer through the extension API, it may replace the estimator behind the same diagnostics contract.
+
+Compaction must preserve valid serialization. Prefer fewer complete entries, shorter bounded scalar summaries, and progressively smaller complete dossier shapes. Never slice serialized JSON or schema instructions into invalid fragments. Stable `semanticEntryRef()` identifiers must survive whenever an existing collection/form item is included.
 
 ## Semantic architecture
 
-The language model interprets narrative meaning. Existing-dossier durable changes should use `semanticUpdates`:
+Existing-dossier durable changes use `semanticUpdates`:
 
-- `establish`: populate a genuinely unestablished field.
-- `refine`: add compatible precision while leaving the existing characterization true.
-- `replace`: correct an outdated value or represent genuine development/change.
-- `remove`: explicitly retire unsupported/abandoned information.
+- `establish`: populate a genuinely unestablished field;
+- `refine`: add compatible precision while the existing characterization remains true;
+- `replace`: correct an outdated value or represent genuine development/change;
+- `remove`: explicitly retire obsolete/abandoned information.
 
-Each automatic update needs grounded source excerpts from the supplied context. Collection edits should target stable entry refs or exact expected values. Omission preserves existing state; empty arrays are not destructive authorization.
+The model judges narrative meaning. Backend validation owns permitted fields/targets, source windows, manual locks, exact collection refs, deterministic normalization, replay/idempotence, relationship mechanics, lifecycle safety, persistence, and branch ownership. Do not add English keyword lists or arbitrary repeat-count gates as semantic authority.
 
-`src/model/legacy-semantic-adapter.js` is a maintained compatibility adapter for older structured model response shapes. It translates the model's already-structured judgment into v2 operations so old backend English phrase gates do not regain semantic authority.
+Temporary state, newly revealed enduring traits, genuine development, correction, and form-specific traits remain distinct. Omission preserves state. Empty arrays are not destructive authorization.
 
-The backend remains deterministic for structure, targets, manual locks, provenance bounds, numeric mechanics, relationship progression, lifecycle safety, stale-result rejection, persistence, collection limits, and branch/recovery consistency.
+`src/model/legacy-semantic-adapter.js` remains for older structured scan response shapes. It translates already-structured legacy proposals into model-contract v2 for scan/recovery compatibility; it is not part of the foreground prompt contract.
+
+## Routing and nonblocking generation
+
+Foreground capture stays on SillyTavern's normal main roleplay request via the extension prompt. It must never enqueue a separate scan before dispatching normal roleplay.
+
+Separate scan/Refresh/recovery/historical/completeness requests use `generateJson()` and may route through the configured Connection Profile. The profile request service must not mutate the user's active main connection or silently fall back after a profile error/change.
+
+`MESSAGE_RECEIVED` starts completion processing with `void processCompletedAssistantResponse(...)`; do not make the event callback await background scan completion. Completeness is optional and runs only after embedded processing of the completed assistant message. Engine fingerprint, swipe, chat-key, operation-epoch, and completeness-epoch guards reject stale results before persistence.
+
+The shared quiet-generation queue serializes hidden extension generations only. Do not place main foreground roleplay on that queue. Remove serialization only when a demonstrated race is understood; do not trade latency for cross-extension/profile corruption.
+
+## Diagnostics
+
+Diagnostics remain opt-in through the existing `NPCState.debugStatus()` API and local. They may record prompt character/estimated-token sizes, selected NPCs, budgets, construction time, cache hits, configured scan route identifiers, engine/completeness background status, and cache state. Never log credentials, provider secrets, full prompts, or per-token events.
+
+Only report lifecycle phases backed by real hooks. At 0.5.2 NPC State does not have reliable cross-provider hooks for browser dispatch, first provider data, or first visible paint, so those phases are explicitly unavailable. Do not attribute unmeasured delay to SillyTavern, a proxy, a provider, or model reasoning.
 
 ## Context and history safety
 
-Model prompts must remain bounded. Full scan/recovery/Refresh may use their supplied history window but must never pull future messages into historical reconstruction. Foreground embedded capture may cite the current exchange with a null message id because the assistant response is not committed yet; the runtime binds/checks that evidence against the committed exchange.
+Full scan/recovery/Refresh may use their bounded supplied history window but never future messages during historical reconstruction. Foreground embedded semantic sources use `messageId:null` because the assistant response is not committed while generation is in progress; application validates exact excerpts against the committed current exchange.
 
-A saved model summary is continuity context, not independent proof of itself.
-
-Completeness is supplemental. It must not duplicate relationship scoring, lifecycle changes, narrative-turn advancement, aging, memories, or development evidence already committed for the response.
+Completeness is supplemental. It must not replay relationship scoring, lifecycle transitions, narrative-turn advancement, aging, memories, or development evidence already committed for the response.
 
 ## SillyTavern integration
 
-The extension is nested under SillyTavern's extension hosting path. Preserve the established relative import depth to `extensions.js` and `script.js`; `scripts/validate.mjs` checks these paths.
-
-Separate model requests must use the configured NPC connection profile without globally changing the user's main active connection. Foreground embedded capture stays on the normal roleplay generation path.
-
-Initialization/listener registration must remain idempotent. Do not add polling loops or global observers when an existing event/operation hook can carry the behavior.
+Preserve the established relative import depth to `extensions.js` and `script.js`; `scripts/validate.mjs` checks these paths. Listener registration must remain idempotent. Do not add polling loops or global observers when existing lifecycle hooks suffice.
 
 ## Verification
 
@@ -57,18 +89,18 @@ npm test
 npm run package
 ```
 
-The CI workflow runs the same sequence under Node 22 and uploads the generated release ZIP.
-
-Tests that feed deterministic model-response JSON prove application, validation, persistence-shape, and replay behavior. They do not prove live provider/model judgment quality. If a live integration test is available, report it separately from deterministic fixture coverage.
+CI runs the same sequence on Node 22 and uploads the release ZIP.
 
 Before release, review:
 
-- manifest/bootstrap/CSS paths
-- release/schema/contract version separation
-- storage key compatibility
-- Scan/Refresh/foreground/completeness prompt context
-- manual locks and source validation
-- relationship/lifecycle replay protection
-- branch preserve/rollback behavior
-- stale-operation guards
-- package contents and clean-checkout CI
+- manifest/bootstrap/release/schema/contract/settings version separation;
+- foreground one-contract invariant and absence of obsolete foreground builder;
+- injection limit and total budget enforcement;
+- compact JSON and semantic entry/source refs;
+- model-led profile evolution and manual locks;
+- main/alternate route separation and nonblocking `MESSAGE_RECEIVED` handling;
+- completeness/stale-operation guards;
+- branch preserve/rollback behavior;
+- package contents and clean-checkout CI.
+
+Synthetic prompt-size fixtures and local construction timings are useful regression measurements, not end-to-end latency measurements. Report them separately from any live provider/browser observation.

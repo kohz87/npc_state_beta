@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.5.2
+
+### Foreground prompt consolidation
+
+- Replaced the layered legacy foreground builder plus appended semantic contract with one authoritative foreground pipeline rooted in `src/injection.js` with focused contract/context/budget modules; removed obsolete `src/injection-core.js`.
+- Unified dossier selection for all foreground context under `injectLimit`; removed the independent 12-NPC semantic selection and duplicate full dossier serialization.
+- Kept model-led `semanticUpdates` for personality, behavioral profile, speech, mannerisms, canon, age, forms, and targeted collections, including stable entry/source references and manual-lock enforcement.
+- Bounded memories, relationships, forms, and new-NPC history with complete compact entries instead of slicing serialized JSON.
+
+### Budgets and diagnostics
+
+- Changed the existing generic `injectBudgetTokens` setting from a content-only allowance to the **total foreground injection budget**. Its key and default (`1800`) are unchanged; no settings migration is required.
+- The total budget now covers fixed instructions plus dynamic context. Effective minimum is `1600` estimated tokens; older saved values below it are explicitly reported and raised rather than silently exceeded.
+- Added a local conservative token estimate and content-aware prompt cache; no tokenizer/network request is added to the send path.
+- Expanded the existing opt-in `NPCState.debugStatus()` diagnostics with instruction/context/total size, selected NPC count, configured/effective budget, construction time, cache status, configured background scan route, and explicit unavailable request-dispatch/first-data/first-visible phases.
+
+### Routing and regression coverage
+
+- Preserved main-connection foreground roleplay, alternate-profile separate scans, optional post-response completeness, nonblocking `MESSAGE_RECEIVED` completion processing, and stale-result rejection.
+- Added focused behavioral coverage for one-contract output, selection limits, small/large/oversized budgets, below-minimum handling, valid compact refs, capture/continuity setting combinations, persisted profile evolution, locks/temporary states, pending completeness, alternate routing, and prompt-cache invalidation.
+- Settings schema remains `1`; no new settings keys are required. Persisted dossier schema remains `1`; model semantic contract remains `2`.
+
+### Synthetic prompt-size measurement
+
+Using the same local fixtures before/after, `injectLimit=2`, total injection budget `1800`:
+
+| Fixture | 0.5.1 layered chars | 0.5.2 chars | Reduction | 0.5.2 split / estimate |
+| --- | ---: | ---: | ---: | --- |
+| Two ordinary NPCs | 42,209 | 5,837 | 86.2% | 3,519 instruction + 2,318 context; ~1,668 estimated tokens; 2 selected |
+| Twelve available, limit two | 60,234 | 5,837 | 90.3% | 3,519 instruction + 2,318 context; ~1,668 estimated tokens; 2 selected |
+| Twelve large dossiers, limit two | 386,446 | 5,964 | 98.5% | 3,519 instruction + 2,445 context; ~1,713 estimated tokens; 2 selected |
+
+These are synthetic character counts and a local conservative token estimate, not measured user prompt/tokenizer totals. Local construction stayed in the single-digit-millisecond range in these fixtures, so this change does not by itself prove an end-to-end latency improvement.
+
 ## 0.5.1
 
 ### Release label consistency
