@@ -42,6 +42,8 @@ export function operationHistoryIdentity(lineage = []) {
 
 export function summarizeProposalDiagnostics(semanticDiagnostics = [], coverageDiagnostics = []) {
     const summary = { accepted: 0, rejected: 0, unchanged: 0, omitted: 0, reasons: [] };
+    let insufficient = 0;
+    let unavailable = 0;
     const reasons = [];
     const identityFailures = new Set();
     const countIdentityFailure = row => {
@@ -57,6 +59,8 @@ export function summarizeProposalDiagnostics(semanticDiagnostics = [], coverageD
         if (status === 'applied') summary.accepted += 1;
         else if (status === 'no-change-proposed') summary.unchanged += 1;
         else if (status === 'evaluated-unchanged') summary.unchanged += Math.max(1, Array.isArray(row?.evaluatedGroups) ? row.evaluatedGroups.length : 1);
+        else if (status === 'insufficient-evidence') insufficient += 1;
+        else if (status === 'context-unavailable') unavailable += 1;
         else if (status === 'no-field-proposal') reasons.push('no-field-proposal');
         else if (status === 'identity-rejected' || status === 'identity-unresolved') countIdentityFailure(row);
         else {
@@ -77,6 +81,8 @@ export function summarizeProposalDiagnostics(semanticDiagnostics = [], coverageD
             reasons.push([status, row?.reason].filter(Boolean).join(': '));
         }
     }
+    if (insufficient > 0) summary.insufficient = insufficient;
+    if (unavailable > 0) summary.unavailable = unavailable;
     summary.reasons = uniqueStrings(reasons);
     return summary;
 }
@@ -94,6 +100,58 @@ function mergeRecord(target, patch = {}) {
     if (Array.isArray(target.selectedNpcIds)) target.selectedNpcIds = boundedIds(target.selectedNpcIds);
     if (target.proposals?.reasons) target.proposals.reasons = uniqueStrings(target.proposals.reasons);
     return target;
+}
+
+function activeSwipeMetadata(message) {
+    const swipeId = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
+    const swipe = Array.isArray(message?.swipe_info) ? message.swipe_info[swipeId] : null;
+    if (swipe) return { swipeId, meta: swipe.extra?.npc_state_beta_v1 || null, source: 'swipe' };
+    return { swipeId, meta: message?.extra?.npc_state_beta_v1 || null, source: 'message' };
+}
+
+export function inspectCapturedPayload({ chat = [], chatKey = '', messageId = null, operations = [] } = {}) {
+    const source = Array.isArray(chat) ? chat : [];
+    let id = Number.isInteger(messageId) ? messageId : -1;
+    if (id < 0) {
+        for (let index = source.length - 1; index >= 0; index -= 1) {
+            if (source[index] && !source[index].is_user && !source[index].is_system) { id = index; break; }
+        }
+    }
+    const message = source[id];
+    if (!Number.isInteger(id) || id < 0 || !message || message.is_user || message.is_system) {
+        return { available: false, reason: 'not-assistant-message', chatKey: clean(chatKey, 300), messageId: Number.isInteger(id) ? id : null, swipeId: null };
+    }
+    const selected = activeSwipeMetadata(message);
+    const meta = selected.meta;
+    if (!meta) {
+        return { available: false, reason: selected.source === 'swipe' ? 'capture-metadata-unavailable-for-active-swipe' : 'capture-metadata-unavailable', chatKey: clean(chatKey, 300), messageId: id, swipeId: selected.swipeId };
+    }
+    const rows = (Array.isArray(operations) ? operations : []).filter(row =>
+        String(row?.type || '') === 'first-pass'
+        && Number(row?.source?.messageId) === id
+        && Number(row?.source?.swipeId ?? 0) === selected.swipeId);
+    const operation = rows.at(-1) || null;
+    const parsedSuccessfully = meta.accepted === true && typeof meta.payload === 'string' && Boolean(meta.payload.trim());
+    return {
+        available: true,
+        chatKey: clean(chatKey, 300),
+        messageId: id,
+        swipeId: selected.swipeId,
+        metadataSource: selected.source,
+        parsedSuccessfully,
+        payload: parsedSuccessfully ? String(meta.payload) : '',
+        parseErrors: Array.isArray(meta.errors) ? meta.errors.map(value => clean(value, 300)).filter(Boolean).slice(0, 12) : [],
+        capturedAt: Number(meta.at) || null,
+        application: operation ? {
+            available: true,
+            operationId: clean(operation.id, 160),
+            status: clean(operation.status, 80),
+            persistenceStatus: clean(operation.persistence?.status, 120) || 'not-run',
+            revision: Number.isInteger(operation.persistence?.revision) ? operation.persistence.revision : null,
+            proposals: operation.proposals && typeof operation.proposals === 'object' ? structuredClone(operation.proposals) : null,
+            reason: clean(operation.failure?.reason, 300),
+        } : { available: false, status: 'unavailable', persistenceStatus: 'unavailable', revision: null, proposals: null, reason: 'matching-first-pass-operation-not-retained' },
+    };
 }
 
 export function createOperationDiagnostics({ limit = DEFAULT_LIMIT, now = () => Date.now() } = {}) {

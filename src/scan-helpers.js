@@ -6,6 +6,7 @@ const ACTIVITY_SHORT_IDENTITY_STOP = new Set([
     'may', 'will', 'can', 'shall',
 ]);
 
+import { DOSSIER_EVALUATION_GROUPS, DOSSIER_FIELD_DEFINITIONS, DOSSIER_SEMANTIC_FIELDS } from './model/dossier-fields.js';
 import { RELATIONSHIP_AXES, normalizeRelationship, normalizeRelationshipProgress, normalizeRelationshipEvidenceHistory, normalizeName } from './schema.js';
 
 export const GENERIC_REFERENCES = new Set(['he', 'she', 'they', 'them', 'him', 'her', 'it', 'someone', 'somebody', 'npc', 'unknown npc']);
@@ -54,13 +55,29 @@ export function appendUnique(existing = [], incoming = [], max = 12) {
 }
 
 const DOSSIER_IDENTITY_BOOTSTRAP_RULES = Object.freeze([
-    'IDENTITY HANDOFF: EXISTING NPC patches use the supplied stable id. NEW NPC patches leave id empty, use the canonical human-facing name (or unique readable role label while genuinely unnamed), and reference that exact name/label in activity arrays. NPC State assigns the stored id locally.',
-    'NEW DOSSIER BOOTSTRAP: for a newly admitted relevant NPC, capture every supported fact established by the current exchange, including live state and grounded role/species/appearance/profile/canon/collection facts. Do not invent age, species, personality, relationships, or any other unsupported fact; empty/unknown is correct when evidence is absent.',
-    'NAME-ONLY ENRICHMENT: a dossier that already exists but has only identity remains an EXISTING dossier. Keep its stable id and enrich grounded missing fields through normal semanticUpdates; never create a duplicate just to fill Unknown fields.',
+    'IDENTITY HANDOFF: EXISTING NPC patches use supplied stable ids. NAME-ONLY ENRICHMENT: stored name-only dossiers keep that id and enrich via semanticUpdates. NEW NPC patches leave id empty, use the canonical human-facing name/readable unique role label in activity refs. NPC State assigns the stored id locally.',
 ]);
 
 export function dossierIdentityBootstrapPromptRules() {
     return [...DOSSIER_IDENTITY_BOOTSTRAP_RULES];
+}
+
+function dossierExtractionGroupSummary() {
+    return DOSSIER_EVALUATION_GROUPS.map(group => {
+        const fields = DOSSIER_SEMANTIC_FIELDS.filter(field => DOSSIER_FIELD_DEFINITIONS[field]?.group === group);
+        return `${group}:${fields.join(',')}`;
+    }).join(';');
+}
+
+export function dossierExtractionPromptRules({ includeNew = true, includeExisting = true } = {}) {
+    const modes = [];
+    if (includeNew) modes.push('NEW: fill every supported current identity/appearance/profile/live/memory/NPC-tie/Current-Dynamic fact; unsupported stays unknown');
+    if (includeExisting) modes.push('EXISTING: compare supplied context, enrich missing facts via semanticUpdates, preserve unrelated values/locks');
+    return [
+        `DOSSIER EXTRACTION MAP: ${dossierExtractionGroupSummary()}. ${modes.join('. ')}.`,
+        'FIELD EVALUATION DETAIL: fieldEvaluations={unchanged:[],insufficient:[],unavailable:[]} uses field ids; evaluatedGroups is group-only. contextCoverage.unavailable/partial means compacted/truncated stored context, not empty.',
+        'PRIVATE COMPLETENESS CHECK: after visible narrative and before payload, silently verify supported appearance/profile/live/memories/ties/Current Dynamic. Narrow observed gestures/tendencies are allowed; never promote one observation to a lifelong habit or output reasoning.',
+    ];
 }
 
 export function nonSystemMessages(chat = []) {

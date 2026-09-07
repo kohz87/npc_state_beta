@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.6
+
+- Consolidated first-pass and Scan extraction requirements around the shared dossier registry, including same-generation completeness review and compact foreground unavailable/partial context markers.
+- Added optional compact per-field evaluation metadata so explicit unchanged, insufficient evidence, unavailable context, runtime rejection, accepted application, and genuine omission remain distinguishable without full dossier echoes.
+- Decoupled grounded Current Dynamic evidence from numeric relationship movement, allowing neutral professional/other descriptive relationship summaries at zero scores and zero deltas without fabricating score history.
+- Accounted for direct new-dossier bootstrap and Current Dynamic decisions in the bounded operation ledger, and added on-demand active message/swipe capture inspection/copy APIs over already-retained metadata.
+- Preserved identity handoff, rollback/correction remediation, replay protection, random birthday fill, storage identity, persisted schema 1, settings schema 1, and optional completeness behavior.
+
 ## 0.7.5
 
 - Carries the deterministic identity/admission decision through first-pass semantic application, role restoration, and coverage diagnostics. A newly admitted patch with an unexpected model transport id now targets the locally allocated stable dossier id, while a rejected id/name conflict cannot mutate either candidate through downstream ordinary fields.

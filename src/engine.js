@@ -56,6 +56,7 @@ import {
 import { clearV3PointerHint, createRecoveryV3Sidecar, deleteV3SidecarFile, readV3PointerHint, readV3Sidecar, retireV3Sidecar, writeV3Sidecar } from './storage.js';
 import { estimateForegroundTokens, FOREGROUND_TOKEN_ESTIMATE_METHOD } from './foreground-budget.js';
 import { createOperationDiagnostics, operationHistoryIdentity, summarizeProposalDiagnostics } from './operation-diagnostics.js';
+import { resolvePlayerName } from './scan-helpers.js';
 
 const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State recovery scanner. Obey the supplied schema and evidence rules exactly.';
 
@@ -733,6 +734,7 @@ export function createNpcStateEngine(adapters = {}) {
                 sourceMessageId: messageId,
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
+                playerName: resolvePlayerName('', chat, messageId),
                 relationshipContext: relationshipContextForExchange(exchange),
                 profileContext: profileContextForWindow(chat, messageId, settings.scanDepth),
                 evidencePolicy: buildExchangeEvidencePolicy(exchange),
@@ -827,6 +829,7 @@ export function createNpcStateEngine(adapters = {}) {
                 sourceMessageId: messageId,
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
+                playerName: resolvePlayerName('', chat, messageId),
                 relationshipContext: relationshipContextForExchange(exchange),
                 profileContext: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
                 evidencePolicy: buildExchangeEvidencePolicy(exchange),
@@ -929,6 +932,7 @@ export function createNpcStateEngine(adapters = {}) {
                 sourceMessageId: messageId,
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
+                playerName: resolvePlayerName('', liveChat, messageId),
                 relationshipContext: '',
                 profileContext: profileContextForWindow(liveChat, messageId, settings.scanDepth),
                 evidencePolicy: buildExchangeEvidencePolicy(exchange),
@@ -1102,6 +1106,7 @@ export function createNpcStateEngine(adapters = {}) {
                 semanticWorldContext: refreshStructured.world,
                 semanticPrivateContext: refreshStructured.private,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
+                playerName: resolvePlayerName('', liveChat, messageId),
                 dossierLimits: settings.dossierLimits,
                 birthdayFill: {
                     mode: settings.birthdayFillMode,
@@ -1912,6 +1917,7 @@ export function createNpcStateEngine(adapters = {}) {
                 sourceMessageId: nextMessageId,
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
+                playerName: resolvePlayerName('', historicalChat, nextMessageId),
                 relationshipContext: relationshipContextForExchange(exchange),
                 profileContext: profileContextForWindow(historicalChat, nextMessageId, settings.scanDepth),
                 evidencePolicy: buildExchangeEvidencePolicy(exchange),

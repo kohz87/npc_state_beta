@@ -25,7 +25,7 @@ import {
     dossierSemanticFieldList,
 } from './dossier-fields.js';
 
-export const NPC_STATE_MODEL_CONTRACT_VERSION = 3;
+export const NPC_STATE_MODEL_CONTRACT_VERSION = 4;
 
 const FIELD_SET = new Set(DOSSIER_SEMANTIC_FIELDS);
 const SCALAR_FIELDS = new Set(DOSSIER_SCALAR_FIELDS);
@@ -141,12 +141,12 @@ export function semanticUpdatePrompt({ npcs = [], mode = 'scan', allowedSourceId
         `NPC STATE DOSSIER UPDATE CONTRACT v${NPC_STATE_MODEL_CONTRACT_VERSION}:`,
         `Mode: ${mode}. EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates. Do not also emit profileChanges, canonChanges, ageChange, appearanceFormChanges, keyRelationshipChanges, or direct ordinary dossier replacements for an existing NPC. Those are compatibility/new-NPC bootstrap only.`,
         `Semantic fields: ${dossierSemanticFieldList()}. Operations: ${DOSSIER_SEMANTIC_OPERATIONS.join('|')}.`,
-        `For every exchange-active EXISTING NPC, inspect all evaluation groups and return evaluatedGroups:[${groups}]. A listed group means you actually checked its stored values against supplied evidence, even when it produced no update. For targeted Refresh, inspect all groups for the target.`,
+        `For every exchange-active EXISTING NPC, inspect all evaluation groups and return evaluatedGroups:[${groups}]. A listed group is group-level only. Add fieldEvaluations:{unchanged:[],insufficient:[],unavailable:[]} when you can report field-level outcomes; proposed fields stay in semanticUpdates. For targeted Refresh, inspect all supplied groups for the target.`,
         'Each semantic update is {field,operation,value?,changes?,clear?,durability?,scope?,ageKind?,sources:[{messageId,excerpt}],explanation}. Omission means unchanged, not deletion. remove is explicit. Empty arrays never clear unless clear:true is explicitly supported.',
         'Evidence excerpts must be concrete text from the supplied permitted source window. Saved dossier summaries are context, not independent proof. Code validates source provenance, targeting, manual locks, normalization, collection limits and persistence; you decide semantic meaning.',
         'STRUCTURED EVIDENCE AUTHORITY: World_State may support only live location/status; NPC_Inner_Chatter may support only private mood/goal. Neither source may rewrite durable canon/profile/memory/keyRelationships/currentForm. Visible narrative remains valid for every semantic field.',
         'Durable canon/profile fields may establish, refine, replace, or remove only when the narrative supports durable truth. Temporary sleep, unconsciousness, silence while asleep, one-off reactions, poses, moods and forms do not rewrite durable personality/speech/canon. A real later characterization may replace an obsolete temporary placeholder.',
-        'Profile fields are personality, behaviorProfile, speech and mannerisms. Mannerisms represent durable recurring tendencies, not isolated gestures. Form-specific traits stay scoped when relevant.',
+        'Profile fields are personality, behaviorProfile, speech and mannerisms. A directly observed distinctive gesture may be recorded when phrased as that observation; one observation never proves a recurring/lifelong habit. Form-specific traits stay scoped when relevant.',
         'Canon fields are role, species, background, appearance, appearanceForms, age, apparentAge and birthday. Temporary form changes do not rewrite species or ordinary/shared appearance. Established chronological age replacement needs ageKind birthday|elapsed|correction and evidence containing the resulting number. Do not infer chronological age from appearance or invent calendar arithmetic.',
         'Birthday is passive freeform calendar metadata: preserve fantasy calendars, do not infer a date from age, and never advance age just because that date passes. Revise established birthday only with grounded correction evidence; manual locks remain binding.',
         'After a grounded birthday/elapsed age update, evaluate apparent age and affected appearance/forms using established species and setting maturation. Unknown fantasy biology stays unknown, ageless beings need not change, and age correction alone never implies physical growth. Apply any supported visual development through targeted semantic updates, preserving unrelated traits and forms. Minor maturation descriptions remain neutral and non-sexual.',
@@ -167,6 +167,7 @@ export function semanticUpdatePrompt({ npcs = [], mode = 'scan', allowedSourceId
         'SEMANTIC UPDATE SHAPE:',
         JSON.stringify({
             evaluatedGroups: DOSSIER_EVALUATION_GROUPS,
+            fieldEvaluations: { unchanged: ['canonical field id'], insufficient: ['canonical field id'], unavailable: ['canonical field id'] },
             semanticUpdates: [{
                 field: dossierSemanticFieldList(),
                 operation: DOSSIER_SEMANTIC_OPERATIONS.join('|'),
@@ -425,10 +426,17 @@ export function prepareModelLedPayload(stateInput, resultInput, admissionMode = 
     const result = structuredClone(resultInput);
     const state = stateInput || {};
     for (const patch of Array.isArray(result.npcs) ? result.npcs : []) {
+        const semanticFields = new Set((Array.isArray(patch.semanticUpdates) ? patch.semanticUpdates : [])
+            .map(update => String(update?.field || '').trim()).filter(field => FIELD_SET.has(field)));
         const byId = String(patch.id || '').trim() ? (state.npcs || []).find(npc => npc.id === String(patch.id).trim()) : null;
         const existing = byId || findNpcByReference(state, patch.name || '');
         if (!existing) {
-            if (String(admissionMode) === 'named_preferred' && String(patch.identityKind || '').trim().toLocaleLowerCase() === 'named') {
+            // A field proposed through semanticUpdates has one mutation authority. Remove its
+            // direct NEW-bootstrap duplicate from the deterministic core copy only; the
+            // original result still reaches the semantic validator with evidence/provenance.
+            for (const field of semanticFields) delete patch[field];
+            if (semanticFields.has('role')) delete patch._modelLedRole;
+            if (String(admissionMode) === 'named_preferred' && String(patch.identityKind || '').trim().toLocaleLowerCase() === 'named' && !semanticFields.has('role')) {
                 patch._modelLedRole = patch.role;
                 patch.role = '';
             }
@@ -469,15 +477,72 @@ function resolvedPatchTarget(state, patch, patchIndex, options = {}) {
         : { npc: null, resolution: { ...resolution, status: 'unresolved', reason: 'accepted-target-missing' } };
 }
 
+function directFieldProposed(patch, field) {
+    if (!Object.prototype.hasOwnProperty.call(patch || {}, field)) return false;
+    const value = patch?.[field];
+    if (Array.isArray(value)) return value.length > 0;
+    if (value && typeof value === 'object') return Object.keys(value).length > 0;
+    return String(value ?? '').trim().length > 0;
+}
+
 function proposedFieldsForPatch(patch = {}) {
     const fields = [];
     const add = value => {
         const field = String(value || '').trim();
-        if (field && !fields.includes(field) && fields.length < 32) fields.push(field);
+        if (FIELD_SET.has(field) && !fields.includes(field) && fields.length < 32) fields.push(field);
     };
-    for (const field of DOSSIER_SEMANTIC_FIELDS) if (Object.prototype.hasOwnProperty.call(patch, field)) add(field);
+    for (const field of DOSSIER_SEMANTIC_FIELDS) if (directFieldProposed(patch, field)) add(field);
     for (const update of Array.isArray(patch?.semanticUpdates) ? patch.semanticUpdates : []) add(update?.field);
     return fields;
+}
+
+const FIELD_EVALUATION_STATES = Object.freeze(['unchanged', 'insufficient', 'unavailable']);
+function fieldEvaluationsForPatch(patch = {}) {
+    const raw = patch?.fieldEvaluations;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { present: false, byField: new Map(), invalid: [] };
+    const byField = new Map();
+    const invalid = [];
+    for (const status of FIELD_EVALUATION_STATES) {
+        const rows = raw[status];
+        if (rows == null) continue;
+        if (!Array.isArray(rows)) {
+            invalid.push({ field: '', status, reason: 'evaluation-list-not-array' });
+            continue;
+        }
+        for (const value of rows.slice(0, 64)) {
+            const field = String(value || '').trim();
+            if (!FIELD_SET.has(field)) {
+                invalid.push({ field, status, reason: 'unknown-field' });
+                continue;
+            }
+            const previous = byField.get(field);
+            if (previous && previous !== status) {
+                invalid.push({ field, status, reason: `conflicts-with-${previous}` });
+                continue;
+            }
+            byField.set(field, status);
+        }
+    }
+    return { present: true, byField, invalid };
+}
+
+function fieldEvaluationDiagnostics(patch, npcId, proposedFields = []) {
+    const detail = fieldEvaluationsForPatch(patch);
+    if (!detail.present) return { present: false, diagnostics: [], accountedFields: [] };
+    const proposals = new Set(proposedFields);
+    const diagnostics = detail.invalid.map(row => ({
+        npcId, field: row.field, group: dossierFieldGroup(row.field), status: 'invalid-field-evaluation', reason: row.reason,
+    }));
+    const accountedFields = [];
+    for (const [field, status] of detail.byField.entries()) {
+        if (proposals.has(field)) continue;
+        accountedFields.push(field);
+        diagnostics.push({
+            npcId, field, group: dossierFieldGroup(field),
+            status: status === 'unchanged' ? 'evaluated-unchanged' : (status === 'insufficient' ? 'insufficient-evidence' : 'context-unavailable'),
+        });
+    }
+    return { present: true, diagnostics, accountedFields };
 }
 
 function identityDiagnostic(patch, patchIndex, resolution) {
@@ -497,7 +562,7 @@ function evaluatedGroupsForPatch(patch = {}) {
         .filter(value => DOSSIER_EVALUATION_GROUPS.includes(value)))];
 }
 
-function restoreNewNpcModelLedRole(state, originalResult, options = {}) {
+function restoreNewNpcModelLedRole(state, originalResult, options = {}, diagnostics = []) {
     const patches = Array.isArray(originalResult?.npcs) ? originalResult.npcs : [];
     for (let patchIndex = 0; patchIndex < patches.length; patchIndex += 1) {
         const patch = patches[patchIndex];
@@ -505,8 +570,10 @@ function restoreNewNpcModelLedRole(state, originalResult, options = {}) {
         if (!role || String(patch?.identityKind || '').trim().toLocaleLowerCase() !== 'named') continue;
         const { npc } = resolvedPatchTarget(state, patch, patchIndex, options);
         if (!npc || manualProtected(npc, 'role') || npc.role) continue;
+        if ((Array.isArray(patch.semanticUpdates) ? patch.semanticUpdates : []).some(update => String(update?.field || '').trim() === 'role')) continue;
         npc.role = role;
         npc.updatedAt = Math.max(Date.now(), Number(npc.updatedAt || 0) + 1);
+        diagnostics.push({ npcId: npc.id, patchIndex, field: 'role', group: dossierFieldGroup('role'), channel: 'bootstrap-role', status: 'applied' });
     }
 }
 
@@ -538,7 +605,7 @@ export function applyModelLedSemanticUpdates(stateInput, resultInput, options = 
     const diagnostics = [];
     const seen = new Set();
     const limits = normalizeDossierLimits(options.dossierLimits);
-    restoreNewNpcModelLedRole(state, resultInput, options);
+    restoreNewNpcModelLedRole(state, resultInput, options, diagnostics);
 
     const patches = Array.isArray(resultInput?.npcs) ? resultInput.npcs : [];
     for (let patchIndex = 0; patchIndex < patches.length; patchIndex += 1) {
@@ -551,7 +618,9 @@ export function applyModelLedSemanticUpdates(stateInput, resultInput, options = 
         }
         const ordinaryProposalFields = proposedFieldsForPatch(patch);
         const semanticRows = Array.isArray(patch.semanticUpdates) ? patch.semanticUpdates : [];
-        if (!ordinaryProposalFields.length) {
+        const fieldEvaluation = fieldEvaluationDiagnostics(patch, npc.id, ordinaryProposalFields);
+        diagnostics.push(...fieldEvaluation.diagnostics.map(row => ({ patchIndex, ...row })));
+        if (!ordinaryProposalFields.length && !fieldEvaluation.present) {
             const evaluatedGroups = evaluatedGroupsForPatch(patch);
             diagnostics.push(evaluatedGroups.length
                 ? { npcId: npc.id, patchIndex, status: 'evaluated-unchanged', evaluatedGroups }
@@ -654,7 +723,17 @@ export function auditDossierEvaluationCoverage(stateInput, resultInput, { npcIds
         }
         const groups = new Set(evaluatedGroupsForPatch(patch));
         const missingGroups = DOSSIER_EVALUATION_GROUPS.filter(group => !groups.has(group));
-        if (missingGroups.length) diagnostics.push({ npcId: npc.id, status: 'incomplete-evaluation', missingGroups });
+        const fieldEvaluation = fieldEvaluationsForPatch(patch);
+        if (fieldEvaluation.present) {
+            const accounted = new Set([...proposedFieldsForPatch(patch), ...fieldEvaluation.byField.keys()]);
+            const missingFields = DOSSIER_SEMANTIC_FIELDS.filter(field => !accounted.has(field));
+            if (missingFields.length || missingGroups.length) diagnostics.push({
+                npcId: npc.id, status: 'incomplete-evaluation', missingGroups,
+                missingFields: missingFields.slice(0, 32),
+            });
+        } else if (missingGroups.length) {
+            diagnostics.push({ npcId: npc.id, status: 'incomplete-evaluation', missingGroups });
+        }
     }
     return diagnostics;
 }

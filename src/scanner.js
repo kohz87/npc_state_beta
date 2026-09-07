@@ -56,7 +56,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     return {
         ...applied,
         state: family.state,
-        semanticDiagnostics: [...compatibilityDiagnostics, ...semantic.diagnostics, ...family.diagnostics],
+        semanticDiagnostics: [...compatibilityDiagnostics, ...(applied.applicationDiagnostics || []), ...semantic.diagnostics, ...family.diagnostics],
         coverageDiagnostics,
     };
 }

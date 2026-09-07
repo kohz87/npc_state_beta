@@ -1,19 +1,17 @@
 # NPC State Beta
 
-NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.7.5 carries accepted NPC identity through first-pass dossier application and diagnostics so newly admitted characters can be populated in the same response without weakening conflict safety.
+NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.7.6 strengthens same-generation dossier extraction, permits grounded neutral Current Dynamic updates without invented score movement, and makes first-pass diagnostics inspectable without adding another model request or payload store.
 
 
-## Release 0.7.5
+## Release 0.7.6
 
-The authoritative maintenance specification is [`docs/core-contract.md`](docs/core-contract.md). It defines seven responsibilities: state/ownership, chat/history identity, model context, update application, commit/persistence, rollback/reconstruction, and diagnostics. `DEVELOPMENT.md` now references that contract instead of carrying a second set of runtime rules.
+The authoritative maintenance specification is [`docs/core-contract.md`](docs/core-contract.md). Foreground capture and Scan now share a compact extraction map derived from the dossier registry. New relevant NPCs are instructed to consider supported appearance, profile, live state, memories, non-player ties, and player relationship context before the embedded payload is emitted; existing compact dossiers identify unavailable/partial fields so budget omission is not confused with known-empty state. A private same-generation completeness review is instruction-only and never adds a second request.
 
-The ordinary dossier registry records field kind, durability, normalization contract, permitted operations/evidence, first-pass requirements, and manual ownership. First-pass identity/admission now produces one accepted patch-to-dossier binding that ordinary semantic updates, role restoration, and coverage all reuse; unknown model transport ids are never promoted to stored ids, and conflicting id/name bindings fail closed. The v0.7.4 compact per-axis relationship-correction and remediation behavior remains unchanged.
+Modern payloads may report compact `fieldEvaluations` lists for unchanged, insufficient-evidence, and unavailable fields while older `evaluatedGroups` payloads remain compatible. Direct new-dossier bootstrap writes, semantic validation/application, Current Dynamic decisions, identity failures, and coverage gaps now feed the same bounded operation diagnostics. `NPCState.captureDiagnostics(messageId?)` inspects the already-retained active message/swipe payload plus the matching first-pass operation when still retained; `NPCState.copyCapturedPayload(messageId?)` copies that same payload without creating a second archive.
 
-Foreground capture, Scan, Refresh, completeness, structured import, historical recovery, recovery finalization, and branch restoration share the guarded durable commit responsibility. Candidate state is published to consumers only after the post-save ownership check. If recovery finalization loses history ownership, both recovery and branch safety remain blocked, and Resume revalidates completed history before it can report success. Chat renames continue to retarget checkpoint/baseline ownership. No pre-generation model request was added.
+A grounded `relationshipSummary` can establish or materially update a neutral NPC-to-player Current Dynamic at zero relationship scores and zero deltas when its bounded exact evidence is source-owned and correctly targeted. Numeric relationship history, replay protection, caps, gates, inertia, fractional progress, and milestone/intensity safeguards are unchanged. Random birthday filling remains unchanged.
 
-A bounded in-memory operation ledger observes the real workflow without storing prompts or chat content. `NPCState.debugStatus()` exposes only a concise operation summary; `NPCState.operationDiagnostics()` opts into detailed local records with source fingerprints/history hashes, selected NPC ids, local prompt estimates, proposal outcomes/reasons, persistence revision, checkpoint/recovery state, and failures. Invalid proposals are reported as rejected with their reason instead of being hidden inside unchanged counts.
-
-Persisted state schema/settings schema remain 1, semantic contract remains 3, and foreground contract remains 4. No database rebuild or storage-key migration is required.
+Persisted state schema/settings schema remain 1, semantic contract is 4, and foreground contract is 5. No database rebuild or storage-key migration is required.
 
 ## Release 0.6.3
 
@@ -36,11 +34,11 @@ Full Scan, completeness, and historical recovery now validate semantic source ex
 
 Version boundaries:
 
-- Extension release: `0.7.5`
+- Extension release: `0.7.6`
 - Persisted state schema: `1` (unchanged)
-- Model semantic update contract: `3`
+- Model semantic update contract: `4`
 - Settings schema: `1` (unchanged)
-- Foreground embedded-capture contract: `4`
+- Foreground embedded-capture contract: `5`
 
 No dossier rebuild or storage-key migration is required. Existing settings are normalized in place; an injection budget below 1600 is upgraded to the existing runtime floor, and an explicit injection depth of zero is preserved.
 
