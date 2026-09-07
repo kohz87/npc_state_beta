@@ -31,6 +31,7 @@ export function branchRecoveryRequired(value = readBranchSafetyStatus()) {
 function messageForKind(kind = '') {
     if (kind === 'prebaseline-truncation') return 'The chat was shortened beyond NPC State\'s oldest recoverable checkpoint.';
     if (kind === 'prebaseline-rewrite') return 'The chat was rewritten before NPC State\'s oldest recoverable checkpoint.';
+    if (kind === 'manual-relationship-correction-uncertain') return 'A legacy manual relationship correction cannot be mapped to exact axes. Open the affected NPC dossier and use Relationship correction remediation to confirm one axis at a time, or explicitly clear that NPC relationship correction ownership. Other edits and normal scanning remain blocked.';
     return 'The current chat is outside NPC State\'s oldest recoverable checkpoint.';
 }
 

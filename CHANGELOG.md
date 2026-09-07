@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.3
+
+- Migrates supported legacy relationship correction axes into the compact per-axis correction representation before a new manual relationship edit can overwrite the legacy evidence that proves them. Modern and still-supported legacy ownership are preserved independently during rollback, so editing Affection cannot silently discard an older Trust correction.
+- New relationship edits no longer create whole-relationship manual overrides. Whole-object relationship overrides remain bounded legacy compatibility input only; ambiguous residual legacy axes are reported as unresolved instead of being treated as fully migrated.
+- Adds a narrowly scoped remediation path for `manual-relationship-correction-uncertain`: the editor/API can confirm one relationship axis at a time or explicitly clear that NPC relationship correction ownership while unrelated mutations and automatic story updates remain blocked. Remediation does not create a narrative checkpoint and immediately revalidates the verified rollback boundary.
+- Resolving one NPC/axis does not approve others. If correction uncertainty is gone but surviving history still needs reconstruction, the state transitions to the existing suffix-recovery requirement. Persistence conflicts/history changes remain blocked and reload-safe.
+- Persisted state/settings schema remain 1; semantic contract remains 3; foreground contract remains 4. No NPC database rebuild is required.
+
 ## 0.7.2
 
 - Replaced trimmed relationship-history events as manual rollback authority with a compact durable per-axis correction record. Editor relationship inputs are absolute corrections only for axes actually changed; later story movement remains free to evolve from those values, and checkpoints that already contain a correction revision retain their surviving story gains.

@@ -715,6 +715,7 @@ globalThis.NPCState = Object.freeze({
     isBusy: () => engine.isBusy(getChatKey()),
     addNpc: name => engine.addNpc(name),
     updateNpc: (reference, patch) => engine.updateNpc(reference, patch),
+    clearRelationshipCorrection: reference => engine.clearManualRelationshipCorrection(reference),
     archive: reference => engine.archiveNpc(reference, true),
     restore: reference => engine.archiveNpc(reference, false),
     resetStaleness: reference => engine.resetNpcStaleness(reference),

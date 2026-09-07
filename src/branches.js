@@ -637,50 +637,148 @@ function matchingLegacyManualEvent(liveNpc, identity) {
     return events[0] || null;
 }
 
-function preserveLegacyManualRelationshipEvents(restoredNpc, liveNpc, restoredOwnershipNpc = restoredNpc) {
-    const identity = legacyRelationshipOverrideIdentity(liveNpc);
+
+function hasLegacyRelationshipOverride(npc = {}) {
+    const overrides = npc?.manualOverrides;
+    return Boolean(overrides && typeof overrides === 'object' && !Array.isArray(overrides)
+        && Object.prototype.hasOwnProperty.call(overrides, 'relationship'));
+}
+
+function manualRelationshipEventAxes(item = {}) {
+    return RELATIONSHIP_AXES.filter(axis => Number(item?.delta?.[axis]) !== 0);
+}
+
+function legacyRelationshipCandidateAxes(npc = {}, ownedAxes = new Set()) {
+    const events = (npc?.relationshipHistory || []).filter(item => String(item?.impact || '').toLocaleLowerCase() === 'manual');
+    const axes = new Set();
+    for (const event of events) {
+        for (const axis of manualRelationshipEventAxes(event)) if (!ownedAxes.has(axis)) axes.add(axis);
+    }
+    if (!events.length) for (const axis of RELATIONSHIP_AXES) if (!ownedAxes.has(axis)) axes.add(axis);
+    return RELATIONSHIP_AXES.filter(axis => axes.has(axis));
+}
+
+function legacyRelationshipResidualAxes(npc = {}, matchedEvent = null, ownedAxes = new Set()) {
+    const matchedKey = matchedEvent ? manualRelationshipEventKey(matchedEvent) : '';
+    const axes = new Set();
+    for (const event of (npc?.relationshipHistory || []).filter(item => String(item?.impact || '').toLocaleLowerCase() === 'manual')) {
+        if (matchedKey && manualRelationshipEventKey(event) === matchedKey) continue;
+        for (const axis of manualRelationshipEventAxes(event)) if (!ownedAxes.has(axis)) axes.add(axis);
+    }
+    return RELATIONSHIP_AXES.filter(axis => axes.has(axis));
+}
+
+function legacyCorrectionLimitation(code, axes = []) {
+    return { code, axes: RELATIONSHIP_AXES.filter(axis => (axes || []).includes(axis)) };
+}
+
+export function migrateSupportedLegacyManualRelationshipCorrections(npcInput) {
+    const npc = normalizeNpc(npcInput || {});
+    const modern = relationshipCorrectionState(npc);
+    const ownedAxes = new Set(modern.corrections.map(item => item.axis));
+    if (!hasLegacyRelationshipOverride(npc)) return { npc, migratedAxes: [], limitations: [] };
+
+    const identity = legacyRelationshipOverrideIdentity(npc);
     if (!identity) {
-        const overrides = liveNpc?.manualOverrides;
-        const hasLegacyRelationshipOverride = Boolean(overrides && typeof overrides === 'object' && !Array.isArray(overrides)
-            && Object.prototype.hasOwnProperty.call(overrides, 'relationship'));
         return {
-            npc: restoredNpc,
-            limitations: hasLegacyRelationshipOverride
-                ? [{ code: 'legacy-relationship-correction-missing-axis-provenance' }]
-                : [],
+            npc,
+            migratedAxes: [],
+            limitations: [legacyCorrectionLimitation('legacy-relationship-correction-missing-axis-provenance', legacyRelationshipCandidateAxes(npc, ownedAxes))],
         };
     }
-    // If the snapshot carries the same legacy override identity, it already contains
-    // that correction; do not reset later surviving story movement.
+    const matched = matchingLegacyManualEvent(npc, identity);
+    const matchedAxes = manualRelationshipEventAxes(matched);
+    if (!matched || !matchedAxes.length) {
+        return {
+            npc,
+            migratedAxes: [],
+            limitations: [legacyCorrectionLimitation('legacy-relationship-correction-missing-axis-provenance', legacyRelationshipCandidateAxes(npc, ownedAxes))],
+        };
+    }
+
+    const migratableAxes = matchedAxes.filter(axis => !ownedAxes.has(axis));
+    const next = structuredClone(npc);
+    const byAxis = new Map(modern.corrections.map(item => [item.axis, structuredClone(item)]));
+    let revision = modern.revision;
+    if (migratableAxes.length) {
+        revision += 1;
+        for (const axis of migratableAxes) {
+            byAxis.set(axis, {
+                id: axis + ':' + revision,
+                axis,
+                value: identity.relationship[axis],
+                revision,
+                sourceMessageId: identity.sourceMessageId,
+                at: identity.at || Number(matched?.at) || null,
+            });
+            ownedAxes.add(axis);
+        }
+        next.manualRelationshipCorrectionRevision = revision;
+        next.manualRelationshipCorrections = [...byAxis.values()];
+    }
+
+    const residualAxes = legacyRelationshipResidualAxes(npc, matched, ownedAxes);
+    const limitations = residualAxes.length
+        ? [legacyCorrectionLimitation('legacy-relationship-correction-partial-axis-provenance', residualAxes)]
+        : [];
+    if (!limitations.length) {
+        const overrides = { ...(next.manualOverrides || {}) };
+        const meta = { ...(next.manualOverrideMeta || {}) };
+        delete overrides.relationship;
+        delete meta.relationship;
+        next.manualOverrides = overrides;
+        next.manualOverrideMeta = meta;
+    }
+    return { npc: normalizeNpc(next), migratedAxes: migratableAxes, limitations };
+}
+
+function preserveLegacyManualRelationshipEvents(restoredNpc, liveNpc, restoredOwnershipNpc = restoredNpc) {
+    if (!hasLegacyRelationshipOverride(liveNpc)) return { npc: restoredNpc, limitations: [] };
+    const modernAxes = new Set(relationshipCorrectionState(liveNpc).corrections.map(item => item.axis));
+    const identity = legacyRelationshipOverrideIdentity(liveNpc);
+    if (!identity) {
+        return {
+            npc: restoredNpc,
+            limitations: [legacyCorrectionLimitation('legacy-relationship-correction-missing-axis-provenance', legacyRelationshipCandidateAxes(liveNpc, modernAxes))],
+        };
+    }
+    // A snapshot with the same legacy identity already contains that correction and any
+    // surviving story movement after it. Modern axes are preserved independently below.
     if (sameLegacyRelationshipOverride(restoredOwnershipNpc, liveNpc)) return { npc: restoredNpc, limitations: [] };
 
     const known = new Set((restoredNpc.relationshipHistory || [])
         .filter(item => item?.impact === 'manual')
         .map(manualRelationshipEventKey));
-    const unseen = (liveNpc?.relationshipHistory || [])
-        .filter(item => item?.impact === 'manual' && !known.has(manualRelationshipEventKey(item)));
     const matched = matchingLegacyManualEvent(liveNpc, identity);
     if (!matched || known.has(manualRelationshipEventKey(matched))) {
         return {
             npc: restoredNpc,
-            limitations: [{ code: 'legacy-relationship-correction-missing-axis-provenance' }],
+            limitations: [legacyCorrectionLimitation('legacy-relationship-correction-missing-axis-provenance', legacyRelationshipCandidateAxes(liveNpc, modernAxes))],
         };
     }
-    const changedAxes = RELATIONSHIP_AXES.filter(axis => Number(matched?.delta?.[axis]) !== 0);
-    if (!changedAxes.length) {
+    const eventAxes = manualRelationshipEventAxes(matched);
+    if (!eventAxes.length) {
         return {
             npc: restoredNpc,
-            limitations: [{ code: 'legacy-relationship-correction-missing-axis-provenance' }],
+            limitations: [legacyCorrectionLimitation('legacy-relationship-correction-missing-axis-provenance', legacyRelationshipCandidateAxes(liveNpc, modernAxes))],
         };
     }
 
-    let next = applyAbsoluteRelationshipAxes(restoredNpc, changedAxes.map(axis => ({ axis, value: identity.relationship[axis] })));
-    next.relationshipHistory = [...(next.relationshipHistory || []), structuredClone(matched)].slice(-24);
-    next.lastRelationshipChange = structuredClone(matched);
-    const unresolved = unseen.filter(item => manualRelationshipEventKey(item) !== manualRelationshipEventKey(matched));
+    const changedAxes = eventAxes.filter(axis => !modernAxes.has(axis));
+    const ownedAxes = new Set([...modernAxes, ...changedAxes]);
+    let next = changedAxes.length
+        ? applyAbsoluteRelationshipAxes(restoredNpc, changedAxes.map(axis => ({ axis, value: identity.relationship[axis] })))
+        : structuredClone(restoredNpc);
+    if (changedAxes.length) {
+        next.relationshipHistory = [...(next.relationshipHistory || []), structuredClone(matched)].slice(-24);
+        next.lastRelationshipChange = structuredClone(matched);
+    }
+    const residualAxes = legacyRelationshipResidualAxes(liveNpc, matched, ownedAxes);
     return {
         npc: normalizeNpc(next),
-        limitations: unresolved.length ? [{ code: 'legacy-relationship-correction-partial-axis-provenance' }] : [],
+        limitations: residualAxes.length
+            ? [legacyCorrectionLimitation('legacy-relationship-correction-partial-axis-provenance', residualAxes)]
+            : [],
     };
 }
 
@@ -728,9 +826,15 @@ function preserveUserOwnedState(restored, current) {
             manualOverrideMeta: structuredClone(restoredOverrideMeta),
         };
         const durable = preserveDurableManualRelationshipCorrections(next, live);
-        const preserved = durable || preserveLegacyManualRelationshipEvents(next, live, restoredOwnershipNpc);
-        next = preserved.npc;
-        for (const limitation of preserved.limitations || []) {
+        if (durable) {
+            next = durable.npc;
+            for (const limitation of durable.limitations || []) {
+                manualRelationshipLimitations.push({ npcId: live.id, npcName: live.name, ...limitation });
+            }
+        }
+        const legacy = preserveLegacyManualRelationshipEvents(next, live, restoredOwnershipNpc);
+        next = legacy.npc;
+        for (const limitation of legacy.limitations || []) {
             manualRelationshipLimitations.push({ npcId: live.id, npcName: live.name, ...limitation });
         }
         return normalizeNpc(next);
@@ -806,10 +910,14 @@ export function reconcileToCurrentBranch(state, chat) {
     const recoveryMessageIds = assistantMessageIdsAfterLineage(chat, checkpoint.lineage?.length || 0);
     if (manualRelationshipLimitations.length) {
         restored.branchHeadLineage = structuredClone(checkpoint.lineage || []);
+        const affected = manualRelationshipLimitations.slice(0, 6).map(item => {
+            const axes = Array.isArray(item.axes) && item.axes.length ? ' (' + item.axes.join(', ') + ')' : '';
+            return String(item.npcName || item.npcId || 'NPC') + axes;
+        }).join('; ');
         restored.branchSafety = {
             status: 'rebase-required',
             kind: 'manual-relationship-correction-uncertain',
-            reason: 'A legacy manual relationship correction predates exact per-axis correction ownership, and the surviving metadata cannot prove every edited axis. NPC State retained the recoverable state without guessing an exact score. Clear/re-enter the correction or explicitly rebuild the timeline before normal scanning resumes.',
+            reason: 'Legacy manual relationship correction ownership is unresolved' + (affected ? ': ' + affected : '') + '. Open each affected dossier to confirm one relationship axis at a time or clear that NPC relationship correction ownership. Normal story updates stay blocked until the remaining correction uncertainty and any surviving-history reconstruction are resolved.',
         };
         restored.recovery = null;
         restored.updatedAt = Date.now();

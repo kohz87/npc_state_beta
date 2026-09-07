@@ -1,6 +1,6 @@
 import { NUMERIC_SETTINGS, numericSettingAttributes, normalizeNumericSetting } from './settings-contract.js';
 import { castRailHtml, dossierHtml, filterDossierNpcs } from './dossier-view.js';
-import { NPC_STATE_VERSION, DOSSIER_LIMIT_MAXIMUMS, normalizeNpcAdmissionMode, normalizeBirthdayFillMode, normalizeDossierLimits, normalizeScannerResponseTokens } from './schema.js';
+import { NPC_STATE_VERSION, DOSSIER_LIMIT_MAXIMUMS, RELATIONSHIP_AXES, normalizeNpcAdmissionMode, normalizeBirthdayFillMode, normalizeDossierLimits, normalizeScannerResponseTokens } from './schema.js';
 
 const SETTINGS_ID = 'npc_state_settings';
 const LIBRARY_ID = 'npc_state_v3_library_overlay';
@@ -16,6 +16,15 @@ export function editorIdentityMatches(activeId, shellId) {
     const active = String(activeId || '');
     const shell = String(shellId || '');
     return Boolean(active && shell && active === shell);
+}
+
+
+export function manualRelationshipRemediationPatch(axis, value) {
+    const key = String(axis || '').trim().toLocaleLowerCase();
+    if (!RELATIONSHIP_AXES.includes(key)) return null;
+    const number = Number(value);
+    const normalized = Number.isFinite(number) ? Math.max(-100, Math.min(100, Math.round(number))) : 0;
+    return { relationship: { [key]: normalized } };
 }
 
 export function presentNpcAgeLabel(npc = {}) {
@@ -604,6 +613,10 @@ export function createNpcStateUi(adapters = {}) {
 
     function editorHtml(npc) {
         const rel = npc.relationship || {};
+        const correctionRemediation = engine.branchSafetyStatus?.(getChatKey())?.kind === 'manual-relationship-correction-uncertain';
+        const remediationHtml = correctionRemediation
+            ? `<label class="npc-state-v3-editor-wide"><b>Relationship correction remediation</b><select id="npc_state_v3_edit_remediation_axis" class="text_pole">${RELATIONSHIP_AXES.map(axis => `<option value="${axis}">Confirm ${axis}</option>`).join('')}</select><small>Only the selected relationship axis will be asserted as explicit user intent. Other dossier fields and unresolved NPCs remain blocked. Use Clear relationship correction ownership to discard this NPC's uncertain legacy relationship correction ownership.</small></label>`
+            : '';
         const field = (label, id, value, wide = false) => `<label class="${wide ? 'npc-state-v3-editor-wide' : ''}">${label}<input id="${id}" class="text_pole" value="${escapeHtml(value || '')}"></label>`;
         const lifeStateSelect = value => {
             const selected = String(value || 'unknown').trim().toLocaleLowerCase();
@@ -614,8 +627,9 @@ export function createNpcStateUi(adapters = {}) {
           <label class="npc-state-v3-editor-wide">Personality<textarea id="npc_state_v3_edit_personality" class="text_pole" rows="3">${escapeHtml(npc.personality)}</textarea></label><label class="npc-state-v3-editor-wide">Behavioral profile · one per line<textarea id="npc_state_v3_edit_behavior" class="text_pole" rows="5">${escapeHtml((npc.behaviorProfile || []).join('\n'))}</textarea></label><label class="npc-state-v3-editor-wide">Speech<textarea id="npc_state_v3_edit_speech" class="text_pole" rows="3">${escapeHtml(npc.speech)}</textarea></label><label class="npc-state-v3-editor-wide">Appearance · shared/common or ordinary single form<textarea id="npc_state_v3_edit_appearance" class="text_pole" rows="5">${escapeHtml(npc.appearance)}</textarea></label>${field('Current physical form', 'npc_state_v3_edit_current_form', npc.currentForm)}<label class="npc-state-v3-editor-wide">Appearance forms · one per line as Form | description<textarea id="npc_state_v3_edit_appearance_forms" class="text_pole" rows="6">${escapeHtml(appearanceFormsEditorText(npc))}</textarea></label><label class="npc-state-v3-editor-wide">Background<textarea id="npc_state_v3_edit_background" class="text_pole" rows="4">${escapeHtml(npc.background)}</textarea></label><label class="npc-state-v3-editor-wide">Mannerisms · one per line<textarea id="npc_state_v3_edit_mannerisms" class="text_pole" rows="4">${escapeHtml((npc.mannerisms || []).join('\n'))}</textarea></label><label class="npc-state-v3-editor-wide">Key relationships · one per line<textarea id="npc_state_v3_edit_key_relationships" class="text_pole" rows="4">${escapeHtml((npc.keyRelationships || []).join('\n'))}</textarea></label>
           ${field('Mood', 'npc_state_v3_edit_mood', npc.mood)}${field('Location', 'npc_state_v3_edit_location', npc.location)}${field('Goal', 'npc_state_v3_edit_goal', npc.goal)}${field('Activity / condition', 'npc_state_v3_edit_status', npc.status)}${lifeStateSelect(npc.lifeState)}<label class="npc-state-v3-editor-wide">Life-state note<textarea id="npc_state_v3_edit_life_state_reason" class="text_pole" rows="2">${escapeHtml(npc.lifeStateReason || '')}</textarea><small>Manual Life state changes are authoritative. Dead archives as deceased; changing a deceased dossier to Alive or Unknown recovers it.</small></label><label class="npc-state-v3-editor-wide">Relationship summary<textarea id="npc_state_v3_edit_relationship_summary" class="text_pole" rows="3">${escapeHtml(npc.relationshipSummary)}</textarea></label><label class="npc-state-v3-editor-wide">Important memories · one per line<textarea id="npc_state_v3_edit_memories" class="text_pole" rows="5">${escapeHtml((npc.memories || []).join('\n'))}</textarea></label>
           ${field('Trust', 'npc_state_v3_edit_trust', rel.trust)}${field('Affection', 'npc_state_v3_edit_affection', rel.affection)}${field('Desire', 'npc_state_v3_edit_desire', rel.desire)}${field('Tension', 'npc_state_v3_edit_tension', rel.tension)}
+          ${remediationHtml}
           <label class="npc-state-v3-editor-wide"><input id="npc_state_v3_edit_lock" type="checkbox" ${npc.manualProfileFields?.length ? 'checked' : ''}> Protect stable profile fields from scanner rewrites</label><label class="npc-state-v3-editor-wide"><input id="npc_state_v3_edit_retention" type="checkbox" ${npc.retentionProtected ? 'checked' : ''}> Retention protected</label><label class="npc-state-v3-editor-wide"><input id="npc_state_v3_edit_minor" type="checkbox" ${npc.minor ? 'checked' : ''}> Minor NPC</label>
-        </div><footer><button class="menu_button npc-state-v3-editor-cancel">Cancel</button><button class="menu_button npc-state-v3-editor-save"><i class="fa-solid fa-floppy-disk"></i> Save dossier</button></footer></div>`;
+        </div><footer><button class="menu_button npc-state-v3-editor-cancel">Cancel</button>${correctionRemediation ? '<button class="menu_button npc-state-v3-editor-clear-relationship-correction">Clear relationship correction ownership</button>' : ''}<button class="menu_button npc-state-v3-editor-save"><i class="fa-solid fa-floppy-disk"></i> ${correctionRemediation ? 'Confirm selected axis' : 'Save dossier'}</button></footer></div>`;
     }
 
     function openEditor(id) {
@@ -629,12 +643,36 @@ export function createNpcStateUi(adapters = {}) {
         overlay.innerHTML = editorHtml(npc);
         overlay.addEventListener('click', event => { if (event.target === overlay || event.target.closest?.('.npc-state-v3-editor-close, .npc-state-v3-editor-cancel')) closeEditor(); });
         overlay.querySelector('.npc-state-v3-editor-save')?.addEventListener('click', saveEditor);
+        overlay.querySelector('.npc-state-v3-editor-clear-relationship-correction')?.addEventListener('click', clearRelationshipCorrectionFromEditor);
         document.body.appendChild(overlay);
         promoteEditorToTopLayer();
         return true;
     }
 
     function closeEditor() { document.getElementById(EDITOR_ID)?.remove(); activeEditorNpcId = ''; }
+
+    async function clearRelationshipCorrectionFromEditor() {
+        const overlay = document.getElementById(EDITOR_ID);
+        const shell = overlay?.querySelector('.npc-state-v3-editor-shell');
+        const id = String(shell?.dataset.npcId || '');
+        if (!overlay || !editorIdentityMatches(activeEditorNpcId, id)) return false;
+        const npc = dossierNpc(id);
+        if (!npc) return false;
+        if (!globalThis.confirm?.(`Clear uncertain relationship correction ownership for ${npc.name}? Story-derived relationship state at the verified rollback boundary is kept. This does not approve unrelated timeline history.`)) return false;
+        const result = await safely('clear relationship correction ownership', () => engine.clearManualRelationshipCorrection(id, { expectedUpdatedAt: Number(shell.dataset.updatedAt) || 0 }));
+        if (!result.ok) {
+            notify('warning', `NPC State: relationship correction remediation did not commit (${result.reason || 'unknown'}).`);
+            return false;
+        }
+        selectedNpcId = id;
+        closeEditor();
+        const safety = result.state?.branchSafety || engine.branchSafetyStatus?.(getChatKey());
+        notify(safety?.status === 'safe' ? 'success' : 'info', safety?.status === 'safe'
+            ? 'NPC State: uncertain relationship correction ownership cleared and the verified timeline is safe.'
+            : 'NPC State: this NPC correction uncertainty was cleared. Remaining correction or history recovery requirements are still blocked.');
+        refresh();
+        return true;
+    }
 
     async function saveEditor() {
         const overlay = document.getElementById(EDITOR_ID);
@@ -647,6 +685,27 @@ export function createNpcStateUi(adapters = {}) {
         const value = fieldId => overlay.querySelector(`#${fieldId}`)?.value ?? '';
         const clamp = fieldId => Math.max(-100, Math.min(100, Math.round(Number(value(fieldId)) || 0)));
         const limits = normalizeDossierLimits(getSettings().dossierLimits);
+        const correctionRemediation = engine.branchSafetyStatus?.(getChatKey())?.kind === 'manual-relationship-correction-uncertain';
+        if (correctionRemediation) {
+            const axis = String(overlay.querySelector('#npc_state_v3_edit_remediation_axis')?.value || 'trust');
+            const fieldByAxis = { trust: 'npc_state_v3_edit_trust', affection: 'npc_state_v3_edit_affection', desire: 'npc_state_v3_edit_desire', tension: 'npc_state_v3_edit_tension' };
+            const remediationPatch = manualRelationshipRemediationPatch(axis, clamp(fieldByAxis[axis] || fieldByAxis.trust));
+            const remediation = await safely('resolve relationship correction', () => engine.updateNpc(id, remediationPatch || {}, { expectedUpdatedAt: Number(shell.dataset.updatedAt) || 0 }));
+            if (!remediation.ok) {
+                notify('warning', remediation.reason === 'stale-editor'
+                    ? 'NPC State: this dossier changed while the editor was open. Reopen it before resolving correction ownership.'
+                    : `NPC State: relationship correction remediation did not commit (${remediation.reason || 'unknown'}).`);
+                return false;
+            }
+            selectedNpcId = id;
+            closeEditor();
+            const safety = remediation.state?.branchSafety || engine.branchSafetyStatus?.(getChatKey());
+            notify(safety?.status === 'safe' ? 'success' : 'info', safety?.status === 'safe'
+                ? 'NPC State: selected relationship axis confirmed and the verified timeline is safe.'
+                : 'NPC State: selected relationship axis confirmed. Other correction or history recovery requirements remain blocked.');
+            refresh();
+            return true;
+        }
         const stableFields = ['name', 'role', 'species', 'age', 'apparentAge', 'birthday', 'personality', 'behaviorProfile', 'speech', 'appearance', 'appearanceForms', 'background', 'mannerisms', 'keyRelationships'];
         const patch = {
             name: value('npc_state_v3_edit_name').trim(), role: value('npc_state_v3_edit_role'), species: value('npc_state_v3_edit_species'), age: value('npc_state_v3_edit_age'), apparentAge: value('npc_state_v3_edit_apparent_age'), birthday: value('npc_state_v3_edit_birthday').trim(), birthdayProvenance: 'manual',

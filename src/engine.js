@@ -1,6 +1,6 @@
 import { dossierIndexProjection, injectionStateProjection, npcPortraitSource } from './state-projections.js';
 export { dossierIndexProjection, injectionStateProjection } from './state-projections.js';
-import { chatLineage, bestCheckpoint, ensurePreUpdateBaseline, fingerprintMessage, latestAssistantMessageId, normalizeRebaseRelationshipMode, previewRelationshipRebase, rebaseToCurrentChat, reconcileToCurrentBranch, recordCheckpoint, retargetCheckpointOwnership } from './branches.js';
+import { chatLineage, bestCheckpoint, ensurePreUpdateBaseline, fingerprintMessage, latestAssistantMessageId, migrateSupportedLegacyManualRelationshipCorrections, normalizeRebaseRelationshipMode, previewRelationshipRebase, rebaseToCurrentChat, reconcileToCurrentBranch, recordCheckpoint, retargetCheckpointOwnership } from './branches.js';
 // preserve-mode rebase cannot mutate relationship state during its immediate refresh.
 import { analyzeStructuredEvidence, buildExchangeEvidencePolicy, profileEvidenceText, relationshipEvidenceText, retentionEvidenceText, structuredDossierBlocksForNpc } from './evidence-adapter.js';
 import {
@@ -1120,7 +1120,7 @@ export function createNpcStateEngine(adapters = {}) {
         });
     }
 
-    async function mutate(label, mutator, { checkpointReason = 'manual' } = {}) {
+    async function mutate(label, mutator, { checkpointReason = 'manual', allowUnsafeKind = '', checkpoint = true } = {}) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat' || /-pending:/.test(chatKey)) return { ok: false, reason: 'no-chat' };
         // A user/editor mutation requested while a completeness model call is running wins.
@@ -1131,7 +1131,9 @@ export function createNpcStateEngine(adapters = {}) {
             const state = normalizeState(await loadChat(chatKey), chatKey);
             if (getChatKey() !== chatKey) return chatChanged('mutation-after-load');
             if (recoveryBlocksLiveScan(state)) return { ok: false, reason: 'recovery-active', recovery: structuredClone(state.recovery) };
-            if (state.branchSafety?.status !== 'safe') return { ok: false, reason: 'branch-unsafe' };
+            const unsafeKind = state.branchSafety?.status !== 'safe' ? String(state.branchSafety?.kind || '') : '';
+            const unsafeRemediation = Boolean(unsafeKind && allowUnsafeKind && unsafeKind === allowUnsafeKind);
+            if (unsafeKind && !unsafeRemediation) return { ok: false, reason: 'branch-unsafe' };
             const context = getContext();
             if (getChatKey() !== chatKey) return chatChanged('mutation-before-read');
             const chat = context.chat || [];
@@ -1139,12 +1141,12 @@ export function createNpcStateEngine(adapters = {}) {
             const ownership = captureOperationOwnership('manual-' + label, chatKey, chat, messageId >= 0 ? messageId : null);
             const operationId = beginOperationDiagnostics(ownership, '');
             if (getChatKey() !== chatKey) { finishDiscardedOperation(operationId, 'chat-changed', 'mutation-before-apply'); return chatChanged('mutation-before-apply'); }
-            const result = await mutator(state, chat);
+            const result = await mutator(state, chat, { unsafeKind: unsafeRemediation ? unsafeKind : '' });
             if (result === false) { operationLog.finish(operationId, { status: 'rejected', failure: { stage: 'validation', reason: 'rejected' } }); return { ok: false, reason: 'rejected' }; }
             if (result?.rejected) { operationLog.finish(operationId, { status: 'rejected', failure: { stage: 'validation', reason: String(result.rejected).slice(0, 300) } }); return { ok: false, reason: String(result.rejected) }; }
             if (result?.npcId) operationLog.patch(operationId, { selectedNpcIds: [result.npcId] });
             if (getChatKey() !== chatKey) { finishDiscardedOperation(operationId, 'chat-changed', 'mutation-before-commit'); return chatChanged('mutation-before-commit'); }
-            const commit = await commitState({ operationId, token: ownership, state, chat, messageId, checkpointReason, ownershipPolicy: 'user' });
+            const commit = await commitState({ operationId, token: ownership, state, chat, messageId, checkpointReason, checkpoint: unsafeRemediation ? false : checkpoint, ownershipPolicy: 'user' });
             return { ok: true, label, state: structuredClone(commit.state), result, needsReconcile: commit.needsReconcile === true, reason: commit.reason || '' };
         });
     }
@@ -1179,15 +1181,36 @@ export function createNpcStateEngine(adapters = {}) {
     }
 
     async function updateNpc(reference, patch = {}, options = {}) {
-        return mutate('update', (state, chat) => {
+        return mutate('update', (state, chat, mutationContext = {}) => {
             const matched = findNpcByReference(state, reference);
             const index = matched ? state.npcs.findIndex(npc => npc.id === matched.id) : -1;
             if (index < 0) return false;
-            const current = state.npcs[index];
+            let current = state.npcs[index];
             if (Number.isFinite(Number(options.expectedUpdatedAt)) && Number(current.updatedAt) !== Number(options.expectedUpdatedAt)) return { rejected: 'stale-editor' };
+            const remediation = mutationContext.unsafeKind === 'manual-relationship-correction-uncertain';
+            const clearRelationshipOnly = options.clearRelationshipCorrectionsOnly === true;
+            if (remediation) {
+                const allowed = new Set(['relationship', 'manualOverrides']);
+                if (!clearRelationshipOnly && Object.keys(patch || {}).some(key => !allowed.has(key))) return { rejected: 'correction-remediation-only' };
+                const hasRelationship = patch?.relationship && typeof patch.relationship === 'object' && !Array.isArray(patch.relationship);
+                const explicitClear = Object.prototype.hasOwnProperty.call(patch || {}, 'manualOverrides')
+                    && patch.manualOverrides && typeof patch.manualOverrides === 'object' && !Array.isArray(patch.manualOverrides)
+                    && !Object.prototype.hasOwnProperty.call(patch.manualOverrides, 'relationship');
+                if (!clearRelationshipOnly && !hasRelationship && !explicitClear) return { rejected: 'correction-remediation-required' };
+            }
             const explicitOverridePatch = Object.prototype.hasOwnProperty.call(patch || {}, 'manualOverrides');
             if (explicitOverridePatch && (!patch.manualOverrides || typeof patch.manualOverrides !== 'object' || Array.isArray(patch.manualOverrides))) {
                 return { rejected: 'invalid-manual-overrides' };
+            }
+            const clearRelationshipCorrections = clearRelationshipOnly
+                || (explicitOverridePatch && !Object.prototype.hasOwnProperty.call(patch.manualOverrides, 'relationship'));
+            const hasRelationshipPatch = patch?.relationship && typeof patch.relationship === 'object' && !Array.isArray(patch.relationship);
+            let migrationLimitations = [];
+            if (hasRelationshipPatch && !clearRelationshipCorrections) {
+                const migrated = migrateSupportedLegacyManualRelationshipCorrections(current);
+                current = migrated.npc;
+                migrationLimitations = migrated.limitations || [];
+                state.npcs[index] = current;
             }
             const manualBirthdayChanged = Object.prototype.hasOwnProperty.call(patch || {}, 'birthday')
                 && normalizeBirthday(patch.birthday) !== normalizeBirthday(current.birthday);
@@ -1195,8 +1218,6 @@ export function createNpcStateEngine(adapters = {}) {
             const nextRaw = { ...current, ...structuredClone(patch), id: current.id, updatedAt: Math.max(manualAt, Number(current.updatedAt || 0) + 1), manual: true };
             let correctionRevision = Math.max(0, Math.trunc(Number(current.manualRelationshipCorrectionRevision) || 0));
             const correctionByAxis = new Map((current.manualRelationshipCorrections || []).map(item => [item.axis, structuredClone(item)]));
-            const clearRelationshipCorrections = explicitOverridePatch
-                && !Object.prototype.hasOwnProperty.call(patch.manualOverrides, 'relationship');
             if (clearRelationshipCorrections) correctionByAxis.clear();
             // The editor historically submits birthdayProvenance:'manual' with every save.
             // Do not turn an unchanged birthday into hidden manual ownership.
@@ -1208,22 +1229,24 @@ export function createNpcStateEngine(adapters = {}) {
             if (manualAgeChanged || manualApparentAgeChanged) {
                 nextRaw.ageProgressionBaselineAge = normalizeActualAge(manualAgeChanged ? patch.age : current.age);
             }
-            if (patch?.relationship && typeof patch.relationship === 'object') {
+            if (hasRelationshipPatch) {
                 const before = normalizeRelationship(current.relationship);
                 const after = normalizeRelationship({ ...before, ...patch.relationship });
                 nextRaw.relationship = after;
-                const changedAxes = RELATIONSHIP_AXES.filter(axis => before[axis] !== after[axis]);
+                const requestedAxes = RELATIONSHIP_AXES.filter(axis => Object.prototype.hasOwnProperty.call(patch.relationship, axis));
+                const changedAxes = requestedAxes.filter(axis => before[axis] !== after[axis]);
+                const correctionAxes = remediation ? requestedAxes : changedAxes;
                 const inferred = normalizeRelationshipMilestones([], after, { inferFromRelationship: true, includeBoundary: true })
                     .filter(entry => changedAxes.includes(entry.axis));
                 nextRaw.relationshipMilestones = normalizeRelationshipMilestones(
                     [...(current.relationshipMilestones || []), ...inferred], after, { inferFromRelationship: false });
-                const delta = Object.fromEntries(Object.keys(before).map(axis => [axis, after[axis] - before[axis]]));
+                const delta = Object.fromEntries(RELATIONSHIP_AXES.map(axis => [axis, after[axis] - before[axis]]));
                 nextRaw.relationshipProgress = { ...(current.relationshipProgress || {}) };
-                for (const axis of Object.keys(delta)) if (delta[axis] !== 0) nextRaw.relationshipProgress[axis] = 0;
-                if (changedAxes.length) {
+                for (const axis of changedAxes) nextRaw.relationshipProgress[axis] = 0;
+                if (correctionAxes.length) {
                     correctionRevision += 1;
                     const sourceMessageId = latestAssistantMessageId(chat);
-                    for (const axis of changedAxes) {
+                    for (const axis of correctionAxes) {
                         correctionByAxis.set(axis, {
                             id: axis + ':' + correctionRevision,
                             axis,
@@ -1233,13 +1256,15 @@ export function createNpcStateEngine(adapters = {}) {
                             at: manualAt,
                         });
                     }
-                    const event = {
-                        impact: 'manual', delta, evidence: '', reason: 'Manual dossier adjustment by player.',
-                        sourceMessageId, turn: Number.isInteger(state.turn) ? state.turn : null, at: manualAt,
-                    };
-                    const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(getSettings().relationshipHistoryLimit);
-                    nextRaw.lastRelationshipChange = event;
-                    nextRaw.relationshipHistory = [...(current.relationshipHistory || []), event].slice(-relationshipHistoryLimit);
+                    if (changedAxes.length) {
+                        const event = {
+                            impact: 'manual', delta, evidence: '', reason: 'Manual dossier adjustment by player.',
+                            sourceMessageId, turn: Number.isInteger(state.turn) ? state.turn : null, at: manualAt,
+                        };
+                        const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(getSettings().relationshipHistoryLimit);
+                        nextRaw.lastRelationshipChange = event;
+                        nextRaw.relationshipHistory = [...(current.relationshipHistory || []), event].slice(-relationshipHistoryLimit);
+                    }
                 } else if (clearRelationshipCorrections) {
                     correctionRevision += 1;
                 }
@@ -1268,8 +1293,15 @@ export function createNpcStateEngine(adapters = {}) {
             const manualOverrideMeta = explicitOverridePatch
                 ? {}
                 : structuredClone(current.manualOverrideMeta || {});
+            if (clearRelationshipOnly) {
+                delete manualOverrides.relationship;
+                delete manualOverrideMeta.relationship;
+            }
             const manualSourceMessageId = latestAssistantMessageId(chat);
             for (const field of MANUAL_OVERRIDE_FIELDS) {
+                // Modern relationship corrections are per-axis records. Whole-object relationship
+                // overrides remain read-only legacy compatibility and are never created by new edits.
+                if (field === 'relationship') continue;
                 if (!Object.prototype.hasOwnProperty.call(patch || {}, field)) continue;
                 if (manualOwnedValueEqual(current[field], next[field])) continue;
                 manualOverrides[field] = structuredClone(next[field]);
@@ -1287,13 +1319,37 @@ export function createNpcStateEngine(adapters = {}) {
             if (collision) return { rejected: 'identity-collision' };
             state.npcs[index] = next;
             if (Object.prototype.hasOwnProperty.call(patch || {}, 'keyRelationships')) {
-                const reconciled = reconcileFamilyGraphState(state, { sourceMessageId: latestAssistantMessageId(chat), dossierLimits: getSettings().dossierLimits });
-                state.npcs = reconciled.npcs;
-                state.socialGraph = reconciled.socialGraph;
-                state.familySlots = reconciled.familySlots;
+                const reconciledGraph = reconcileFamilyGraphState(state, { sourceMessageId: latestAssistantMessageId(chat), dossierLimits: getSettings().dossierLimits });
+                state.npcs = reconciledGraph.npcs;
+                state.socialGraph = reconciledGraph.socialGraph;
+                state.familySlots = reconciledGraph.familySlots;
+            }
+            if (remediation) {
+                const reconciled = reconcileToCurrentBranch(state, chat);
+                if (reconciled.unsafeDivergence) return { rejected: 'correction-remediation-boundary-lost' };
+                const limitations = reconciled.manualRelationshipLimitations || [];
+                let candidate = normalizeState(reconciled.state, state.chatKey);
+                if (reconciled.needsRecovery && !limitations.length) {
+                    candidate = prepareBranchRecoveryState(candidate, chat, reconciled.recoveryMessageIds, reconciled.checkpoint?.lineage || [], false);
+                }
+                for (const key of Object.keys(state)) delete state[key];
+                Object.assign(state, candidate);
+                return {
+                    npcId: current.id,
+                    remediation: true,
+                    migratedLegacyAxes: migrationLimitations.length ? [] : undefined,
+                    resolved: state.branchSafety?.status === 'safe',
+                    needsRecovery: state.branchSafety?.kind === 'suffix-recovery-required' || Boolean(state.recovery),
+                    manualRelationshipLimitations: structuredClone(limitations),
+                    branchSafety: structuredClone(state.branchSafety),
+                };
             }
             return { npcId: current.id };
-        }, { checkpointReason: 'manual-edit' });
+        }, { checkpointReason: 'manual-edit', allowUnsafeKind: 'manual-relationship-correction-uncertain' });
+    }
+
+    async function clearManualRelationshipCorrection(reference, options = {}) {
+        return updateNpc(reference, {}, { ...options, clearRelationshipCorrectionsOnly: true });
     }
 
     async function fillMissingBirthdays() {
@@ -2317,6 +2373,7 @@ export function createNpcStateEngine(adapters = {}) {
         importStructuredDossier,
         addNpc,
         updateNpc,
+        clearManualRelationshipCorrection,
         fillMissingBirthdays,
         archiveNpc,
         resetNpcStaleness,
