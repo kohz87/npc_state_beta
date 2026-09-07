@@ -1,6 +1,7 @@
-export const FOREGROUND_MIN_BUDGET_TOKENS = 1600;
-export const FOREGROUND_MAX_BUDGET_TOKENS = 8000;
-export const FOREGROUND_DEFAULT_BUDGET_TOKENS = 1800;
+import { NUMERIC_SETTINGS, normalizeNumericSetting } from './settings-contract.js';
+export const FOREGROUND_MIN_BUDGET_TOKENS = NUMERIC_SETTINGS.injectBudgetTokens.min;
+export const FOREGROUND_MAX_BUDGET_TOKENS = NUMERIC_SETTINGS.injectBudgetTokens.max;
+export const FOREGROUND_DEFAULT_BUDGET_TOKENS = NUMERIC_SETTINGS.injectBudgetTokens.default;
 export const FOREGROUND_TOKEN_ESTIMATE_METHOD = 'local conservative estimate (ASCII/3.5 + non-ASCII*1.1)';
 
 export function estimateForegroundTokens(text) {
@@ -14,7 +15,5 @@ export function estimateForegroundTokens(text) {
 }
 
 export function normalizeForegroundBudgetTokens(value, fallback = FOREGROUND_DEFAULT_BUDGET_TOKENS) {
-    const parsed = Math.round(Number(value));
-    const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-    return Math.max(FOREGROUND_MIN_BUDGET_TOKENS, Math.min(FOREGROUND_MAX_BUDGET_TOKENS, safe));
+    return normalizeNumericSetting('injectBudgetTokens', value, fallback);
 }

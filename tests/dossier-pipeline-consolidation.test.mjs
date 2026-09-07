@@ -288,7 +288,7 @@ test('new NPC bootstrap remains complete while later existing-dossier changes st
 });
 
 test('scanner core no longer contains duplicate existing-dossier semantic decision engines', () => {
-    const source = fs.readFileSync(path.join(root, 'src/scanner-core.js'), 'utf8');
+    const source = fs.readFileSync(path.join(root, 'src/scan-application.js'), 'utf8');
     for (const oldName of ['applyStablePatch', 'applyDynamicPatch', 'profileEvolutionDecision', 'durableCanonDecision', 'explicitAgeChange', 'mergeAppearanceFormPatch']) {
         assert.doesNotMatch(source, new RegExp('function\\s+' + oldName + '\\b'), oldName);
     }

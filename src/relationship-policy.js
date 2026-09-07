@@ -1,13 +1,12 @@
-import { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps } from './schema.js';
+import { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_AXIS_LIMITS, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
+import { NUMERIC_SETTINGS, normalizeNumericSetting } from './settings-contract.js';
 
-export const RELATIONSHIP_HISTORY_DEFAULT = 8;
-export const RELATIONSHIP_HISTORY_MIN = 1;
-export const RELATIONSHIP_HISTORY_MAX = 24;
+export const RELATIONSHIP_HISTORY_DEFAULT = NUMERIC_SETTINGS.relationshipHistoryLimit.default;
+export const RELATIONSHIP_HISTORY_MIN = NUMERIC_SETTINGS.relationshipHistoryLimit.min;
+export const RELATIONSHIP_HISTORY_MAX = NUMERIC_SETTINGS.relationshipHistoryLimit.max;
 
 export function normalizeRelationshipHistoryLimit(value) {
-    const number = Math.round(Number(value));
-    if (!Number.isFinite(number)) return RELATIONSHIP_HISTORY_DEFAULT;
-    return Math.max(RELATIONSHIP_HISTORY_MIN, Math.min(RELATIONSHIP_HISTORY_MAX, number));
+    return normalizeNumericSetting('relationshipHistoryLimit', value);
 }
 
 export function trimRelationshipHistory(npc, limit = RELATIONSHIP_HISTORY_DEFAULT) {
@@ -54,12 +53,13 @@ export function relationshipJudgmentRubricPrompt() {
 
 export function relationshipMechanicsPrompt(caps = DEFAULT_RELATIONSHIP_CAPS) {
     const effectiveCaps = normalizeRelationshipCaps(caps);
-    const ordinaryUnit = effectiveCaps.ordinary === 1 ? 'point' : 'points';
+    const ceilings = Object.entries(effectiveCaps).map(([tier, cap]) => `${tier}: at most ${cap} raw points per supported axis, at most ${RELATIONSHIP_AXIS_LIMITS[tier]} supported axes`).join('; ');
+    const gates = RELATIONSHIP_MILESTONE_THRESHOLDS.map(threshold => `${threshold} needs ${RELATIONSHIP_MILESTONE_REQUIREMENTS[threshold]}+ with raw ${RELATIONSHIP_MILESTONE_MIN_RAW[threshold]}`).join('; ');
     return [
         'RELATIONSHIP NUMERIC CONTRACT:',
-        `- ordinary: at most ${effectiveCaps.ordinary} raw ${ordinaryUnit} on at most 1 supported axis; meaningful: at most ${effectiveCaps.meaningful} per supported axis and at most 2 axes; major: at most ${effectiveCaps.major} per supported axis and at most 3 axes; extreme: at most ${effectiveCaps.extreme} per supported axis and at most 4 axes. These are the effective configured ceilings, not targets.`,
+        `- ${ceilings}. These are the effective configured ceilings, not targets.`,
         '- priority orders only supported nonzero axes from strongest/most central to weakest so impact-tier overflow can be resolved. Do not list unsupported or zero axes.',
-        '- RELATIONSHIP REPEATS AND GATES: repeated aftermath/restatement is zero unless a genuinely new relationship-changing development occurs. Runtime checkpoints outward depth at 25/50/75/90 independently by axis and direction: crossing 25 needs meaningful+, 50 major+ with raw 3, 75 extreme with raw 5, and 90 extreme relationship-defining with raw 8. Movement toward neutral is not gate-blocked. Never inflate impact/delta to force a gate.',
+        `- RELATIONSHIP REPEATS AND GATES: repeated aftermath/restatement is zero unless a genuinely new relationship-changing development occurs. Runtime checkpoints outward depth independently by axis and direction: ${gates}. Movement toward neutral is not gate-blocked. Never inflate impact/delta to force a gate.`,
         '- Raw deltas are pre-inertia evidence weights. Runtime applies the existing depth resistance and retains accepted fractional progress; do not pre-discount raw deltas for inertia.',
         '- Relationship Summary may describe accepted depth/context, but it must not become evidence for a new delta or become deeper/more absolute than the accepted state supports.',
     ].join('\n');
@@ -73,9 +73,4 @@ export function relationshipCustomCriteriaPrompt(value, maxChars = 6000) {
         '- Apply the user-authored criteria as campaign-specific refinements. Preserve them as written, but do not let them replace the shared judgment rubric, current-exchange quotation contract, axis definitions, or deterministic numeric mechanics.',
         text,
     ].join('\n');
-}
-
-// Compatibility name retained for existing imports/tests; the helper now represents the full shared rubric.
-export function relationshipAxisIndependencePrompt() {
-    return relationshipJudgmentRubricPrompt();
 }

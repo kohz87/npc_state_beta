@@ -1,6 +1,6 @@
+import { extensionSettings } from './settings.js';
 import { extension_settings, getContext } from '../../../../extensions.js';
 import {
-    RELATIONSHIP_HISTORY_DEFAULT,
     RELATIONSHIP_HISTORY_MAX,
     RELATIONSHIP_HISTORY_MIN,
     normalizeRelationshipHistoryLimit,
@@ -12,15 +12,7 @@ let started = false;
 let scheduled = false;
 
 function settings() {
-    let root = extension_settings.npc_state_beta;
-    if (!root || typeof root !== 'object' || Array.isArray(root)) {
-        root = {};
-        extension_settings.npc_state_beta = root;
-    }
-    if (!root.v3 || typeof root.v3 !== 'object' || Array.isArray(root.v3)) root.v3 = {};
-    if (root.v3.relationshipHistoryLimit === undefined) root.v3.relationshipHistoryLimit = RELATIONSHIP_HISTORY_DEFAULT;
-    root.v3.relationshipHistoryLimit = normalizeRelationshipHistoryLimit(root.v3.relationshipHistoryLimit);
-    return root.v3;
+    return extensionSettings(extension_settings);
 }
 
 function persistSettings() {

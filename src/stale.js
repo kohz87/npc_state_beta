@@ -1,7 +1,8 @@
+import { NUMERIC_SETTINGS, normalizeNumericSetting } from './settings-contract.js';
 import { normalizeName, normalizeNpc, normalizeState } from './schema.js';
 
-export const DEFAULT_STALE_ARCHIVE_AFTER = 30;
-export const DEFAULT_STALE_DELETE_AFTER = 50;
+export const DEFAULT_STALE_ARCHIVE_AFTER = NUMERIC_SETTINGS.staleArchiveAfter.default;
+export const DEFAULT_STALE_DELETE_AFTER = NUMERIC_SETTINGS.staleDeleteAfter.default;
 
 function integer(value, fallback, min = 0, max = 10000) {
     const number = Math.round(Number(value));
@@ -9,8 +10,8 @@ function integer(value, fallback, min = 0, max = 10000) {
 }
 
 export function normalizeStaleSettings(settings = {}) {
-    const archiveAfter = integer(settings.staleArchiveAfter, DEFAULT_STALE_ARCHIVE_AFTER, 1, 9999);
-    const deleteAfter = integer(settings.staleDeleteAfter, DEFAULT_STALE_DELETE_AFTER, archiveAfter + 1, 10000);
+    const archiveAfter = normalizeNumericSetting('staleArchiveAfter', settings.staleArchiveAfter);
+    const deleteAfter = normalizeNumericSetting('staleDeleteAfter', settings.staleDeleteAfter);
     return {
         enabled: settings.staleManagementEnabled !== false,
         archiveAfter,

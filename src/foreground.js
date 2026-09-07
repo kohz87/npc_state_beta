@@ -15,7 +15,7 @@ function removeTruncatedTail(source) {
     return tidy(source.slice(0, open.index) + (tail ? '\n\n' + tail : ''));
 }
 
-// PHASE74D_FOREGROUND_LIFE_STATE_BOUNDARY: new captures are strict; stored/legacy transport remains replayable.
+// new captures are strict; stored/legacy transport remains replayable.
 export function consumeNpcStateControl(messageText, { requireLifeStateUpdates = false } = {}) {
     const source = String(messageText ?? '');
     const blocks = [...source.matchAll(new RegExp(COMPLETE_BLOCK.source, 'gi'))];

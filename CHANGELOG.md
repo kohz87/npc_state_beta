@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.0
+
+### Consolidation and cleanup
+
+- Centralized settings access, numeric defaults/bounds, and settings-control validation. Existing storage namespace, sidecar pointers, custom criteria, portrait templates, and supported migrations remain intact.
+- Aligned the Injection budget control with the existing 1600-token runtime floor. Preserved an explicit injection depth of zero instead of replacing it with the default.
+- Centralized relationship numeric policy and generated cap/gate instructions from the values used by scoring. Preserved scoring, inertia, milestone and replay behavior.
+- Moved field-scoped structured-evidence permissions into the dossier field registry.
+- Replaced scanner prompt wrappers with focused prompt builders emitting one semantic contract. Removed obsolete age/form revision examples and contradictory collection replacement instructions while retaining legacy response adaptation.
+- Split scanner application, relationship, lifecycle, payload, and shared helper responsibilities; extracted engine state projections.
+- Removed the unused age-progression module and schema override facade. Integrated editor top-layer promotion directly into mounting and moved its layout CSS out of JavaScript.
+- Removed an unused activity-scope helper and obsolete relationship-rubric alias.
+- Package only reachable runtime dependencies plus manifest, LICENSE, and README. Added dependency validation and standard ZIP compression; preserve tests/tooling/history in the repository.
+
+### Verification and compatibility
+
+- Added regression coverage for fresh/upgraded settings and package loading, legacy age payloads, manual locks, policy consistency, short-name lifecycle binding, editor mounting, and complete compressed release contents.
+- Release version is 0.6.0; persisted schema/settings schema stay 1; semantic contract stays 3 and foreground contract stays 4. No dossier rebuild is required.
+
 ## 0.5.10
 
 ### Single dossier semantic pipeline

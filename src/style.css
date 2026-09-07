@@ -22,3 +22,33 @@ html.npc-state-v3-library-open,body.npc-state-v3-library-open{overflow:hidden!im
 
 /* PHASE78_DOSSIER_RENDERING_PERFORMANCE */
 .npc-state-v3-cast-card{contain:layout paint style}
+
+/* Editor layout and top-layer sizing. */
+
+.npc-state-v3-editor-grid{min-height:0}
+.npc-state-v3-editor-overlay[popover]{
+  margin:0!important;
+  border:0!important;
+  width:auto!important;
+  height:auto!important;
+  max-width:none!important;
+  max-height:none!important;
+}
+@media(max-width:1180px),(hover:none) and (pointer:coarse){
+  .npc-state-v3-editor-overlay{
+    align-items:flex-start!important;
+    overflow-y:auto!important;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    padding:12px 2vw 16px!important;
+  }
+  .npc-state-v3-editor-shell{
+    height:auto!important;
+    max-height:none!important;
+    min-height:0;
+  }
+  .npc-state-v3-editor-grid{
+    flex:0 0 auto!important;
+    overflow:visible!important;
+  }
+}

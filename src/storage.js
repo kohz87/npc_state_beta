@@ -258,7 +258,6 @@ export async function writeV3Sidecar({ chatKey, state, pointer = null, fetchFn =
     });
 }
 
-
 function makeRecoveryV3FileName(chatKey) {
     const base = makeV3FileName(chatKey).replace(/\.json$/i, '');
     return base + '-recovery-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8) + '.json';

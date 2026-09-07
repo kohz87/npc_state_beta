@@ -147,8 +147,11 @@ export function semanticUpdatePrompt({ npcs = [], mode = 'scan', allowedSourceId
         'Durable canon/profile fields may establish, refine, replace, or remove only when the narrative supports durable truth. Temporary sleep, unconsciousness, silence while asleep, one-off reactions, poses, moods and forms do not rewrite durable personality/speech/canon. A real later characterization may replace an obsolete temporary placeholder.',
         'Profile fields are personality, behaviorProfile, speech and mannerisms. Mannerisms represent durable recurring tendencies, not isolated gestures. Form-specific traits stay scoped when relevant.',
         'Canon fields are role, species, background, appearance, appearanceForms, age, apparentAge and birthday. Temporary form changes do not rewrite species or ordinary/shared appearance. Established chronological age replacement needs ageKind birthday|elapsed|correction and evidence containing the resulting number. Do not infer chronological age from appearance or invent calendar arithmetic.',
+        'Birthday is passive freeform calendar metadata: preserve fantasy calendars, do not infer a date from age, and never advance age just because that date passes. Revise established birthday only with grounded correction evidence; manual locks remain binding.',
+        'After a grounded birthday/elapsed age update, evaluate apparent age and affected appearance/forms using established species and setting maturation. Unknown fantasy biology stays unknown, ageless beings need not change, and age correction alone never implies physical growth. Apply any supported visual development through targeted semantic updates, preserving unrelated traits and forms. Minor maturation descriptions remain neutral and non-sexual.',
         'Live fields are mood, location, goal, status and currentForm. Reconsider them whenever supplied evidence establishes a newer current truth. Remove an obsolete completed goal/location/status when it conclusively ended and no replacement is supported. Status is current activity/condition, never presence/lifecycle.',
         'Collections are behaviorProfile, mannerisms, keyRelationships and memories. Prefer targeted changes using supplied ref or exact expected value. Replacements/removals happen before additions, so a full collection can still evolve without evicting unrelated entries. Important memories are durable distinct events/facts, not paraphrase logs.',
+        'Physical forms are coherent bodies with materially distinct anatomy, including partial, magical, spectral, or reversible transformations. Outfit, pose, mood, injury, or aura alone is not a form. Use grounded freeform labels; capture distinct demonstrated forms as {name,appearance}. The stored description is durable continuity even when entering that form is temporary. New NPCs may bootstrap direct appearanceForms; existing dossiers use targeted semanticUpdates. Do not rewrite shared appearance merely because currentForm changed, or infer new anatomy from a casual contradiction.',
         'appearanceForms edits target an existing form by scope.form, targetForm, ref or exact form name. Add a new form with establish; replace/remove only the targeted form. currentForm is live state and uses its own scalar semantic update.',
         'keyRelationships contains NON-PLAYER NPC ties only. Player relationship state is handled by relationshipSummary/relationshipChange outside this semantic channel.',
         mode === 'completeness'
@@ -188,8 +191,8 @@ function sourceRows(update) {
 
 function semanticSourceContext(field, options = {}) {
     const parts = [options.semanticEvidenceContext ?? options.profileContext];
-    if (['location', 'status'].includes(field)) parts.push(options.semanticWorldContext);
-    if (['mood', 'goal'].includes(field)) parts.push(options.semanticPrivateContext);
+    const structuredContext = dossierFieldDefinition(field)?.structuredContext;
+    if (structuredContext) parts.push(options[structuredContext]);
     return evidenceKey(parts.filter(Boolean).join('\n'), 50000);
 }
 

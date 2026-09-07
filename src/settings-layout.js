@@ -1,4 +1,4 @@
-/* NPC State v0.4.44 settings hierarchy coordinator.
+/* NPC State settings hierarchy coordinator.
    This module only reorganizes existing settings DOM. It moves live nodes rather
    than recreating controls, so the authoritative listeners owned by ui.js and the
    feature modules stay attached. */
@@ -11,7 +11,7 @@ const RECOVERY_GROUP_ID = 'npc_state_v04_recovery_branch';
 const SCANNER_GROUP_ID = 'npc_state_v3_scanner_rules';
 const ADVANCED_GROUP_ID = 'npc_state_v0414_advanced';
 const ADVANCED_RECOVERY_ID = 'npc_state_v0414_advanced_recovery';
-// PHASE61_SAFE_REBASE_RELATIONSHIP_MODES: force rebase exposes preserve and rollback as separate modes.
+// force rebase exposes preserve and rollback as separate modes.
 const MAINTENANCE_GROUP_ID = 'npc_state_v3_maintenance';
 const CAST_SECTION_ID = 'npc_state_v3_cast_settings';
 
@@ -211,7 +211,7 @@ function ensureParentDetails(drawer, id, title, className, openByDefault = false
     return group;
 }
 
-// PHASE84_SETTINGS_OBSERVER_RECOVERY_HOTPATH: keep coordinator writes idempotent so its child-list observer cannot feed itself.
+// keep coordinator writes idempotent so its child-list observer cannot feed itself.
 export function setTextIfChanged(node, value) {
     if (node && node.textContent !== value) node.textContent = value;
 }

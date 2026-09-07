@@ -208,7 +208,6 @@ export function structuredEvidencePromptRules() {
     ];
 }
 
-
 const STRUCTURED_DOSSIER_TAGS = new Map([
     ['newnpc', 'New_NPC'],
     ['npcupdate', 'NPC_Update'],

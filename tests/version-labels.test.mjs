@@ -14,10 +14,13 @@ test('settings UI derives its release label from NPC_STATE_VERSION', () => {
     assert.equal(ui.includes('0.4.44'), false);
 });
 
-test('scanner and injection facades derive replacement release labels from NPC_STATE_VERSION', () => {
-    for (const file of ['src/scanner.js', 'src/injection.js']) {
-        const source = read(file);
-        assert.ok(source.includes('NPC_STATE_VERSION'));
-        assert.equal(source.includes("replaceAll('v0.4.44', 'v0.5.0')"), false);
+test('release labels have one runtime authority and no replacement facade', () => {
+    const schema = read('src/schema.js');
+    const manifest = JSON.parse(read('manifest.json'));
+    assert.ok(schema.includes(`NPC_STATE_VERSION = '${manifest.version}'`));
+    assert.equal(fs.existsSync(path.join(root, 'src/schema-core.js')), false);
+    assert.doesNotMatch(read('src/scanner.js'), /replaceAll/);
+    for (const file of ['src/scan-prompts.js', 'src/engine.js', 'bootstrap.js']) {
+        assert.doesNotMatch(read(file), /0\.4\.44|0\.5\.10/);
     }
 });

@@ -1,5 +1,6 @@
+import { NUMERIC_SETTINGS, numericSettingAttributes, normalizeNumericSetting } from './settings-contract.js';
 import { castRailHtml, dossierHtml, filterDossierNpcs } from './dossier-view.js';
-import { NPC_STATE_VERSION, normalizeDossierLimits, normalizeScannerResponseTokens } from './schema.js';
+import { NPC_STATE_VERSION, DOSSIER_LIMIT_MAXIMUMS, normalizeNpcAdmissionMode, normalizeBirthdayFillMode, normalizeDossierLimits, normalizeScannerResponseTokens } from './schema.js';
 
 const SETTINGS_ID = 'npc_state_settings';
 const LIBRARY_ID = 'npc_state_v3_library_overlay';
@@ -99,6 +100,24 @@ function messageElement(messageId) {
     return null;
 }
 
+function promoteEditorToTopLayer(doc = globalThis.document) {
+    const overlay = doc?.getElementById?.(EDITOR_ID);
+    if (!overlay) return false;
+    if (typeof overlay.showPopover !== 'function') return false;
+
+    try {
+        if (overlay.matches?.(':popover-open')) return true;
+        overlay.setAttribute('popover', 'manual');
+        overlay.showPopover();
+        overlay.dataset.npcStateTopLayer = 'popover';
+        return true;
+    } catch (error) {
+        overlay.removeAttribute?.('popover');
+        console.warn('[NPC State v0.3] Could not promote dossier editor to the browser top layer.', error);
+        return false;
+    }
+}
+
 export function createNpcStateUi(adapters = {}) {
     const engine = adapters.engine;
     const getContext = adapters.getContext;
@@ -140,28 +159,28 @@ export function createNpcStateUi(adapters = {}) {
               <label class="npc-state-setting-row"><span><b>Enable NPC State</b><small>Disabling stops automatic scanning and injection. Manual dossier tools remain available.</small></span><input id="npc_state_v3_enabled" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Auto Scan</b><small>Uses the same foreground RP generation. If the embedded block is missing, NPC State automatically runs one full separate current-cast scan.</small></span><input id="npc_state_v3_auto" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Malformed capture recovery</b><small>Missing embedded capture always triggers one full scan. Enable this to also run a separate recovery scan when an embedded block is present but malformed. Off by default.</small></span><input id="npc_state_v04_fallback" type="checkbox"></label>
-              <label class="npc-state-setting-row"><span><b>Context depth</b><small>Older messages are profile/memory context only; relationship deltas remain current-exchange-only.</small></span><input id="npc_state_v3_scan_depth" class="text_pole npc-state-number" type="number" min="2" max="30"></label>
+              <label class="npc-state-setting-row"><span><b>Context depth</b><small>Older messages are profile/memory context only; relationship deltas remain current-exchange-only.</small></span><input id="npc_state_v3_scan_depth" class="text_pole npc-state-number" type="number" ${numericSettingAttributes('scanDepth')}></label>
               <label class="npc-state-setting-row"><span><b>Enrich new NPCs from recent history</b><small>Adds a small visible-history capsule to the same foreground generation. Current exchange still decides admission, live state, and relationship changes. No extra model call.</small></span><input id="npc_state_v04_new_npc_history" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>New NPC admission</b><small>Balanced keeps current behavior. Named preferred ignores first-seen unnamed role labels. Manual prevents scanner-created dossiers while existing NPCs still update.</small></span><select id="npc_state_v04_admission" class="text_pole"><option value="balanced">Balanced</option><option value="named_preferred">Named preferred</option><option value="manual">Manual</option></select></label>
-              <label class="npc-state-setting-row"><span><b>Scanner Response Limit</b><small>Output ceiling for separate scans, dossier Refresh, structured imports, and retries. Range: 512-15,000 tokens. Increase for large casts. Does not change RP output or history depth.</small></span><input id="npc_state_v047_response_tokens" class="text_pole npc-state-number" type="number" min="512" max="15000" step="1"></label>
+              <label class="npc-state-setting-row"><span><b>Scanner Response Limit</b><small>Output ceiling for separate scans, dossier Refresh, structured imports, and retries. Range: ${NUMERIC_SETTINGS.scannerResponseTokens.min.toLocaleString('en-US')}-${NUMERIC_SETTINGS.scannerResponseTokens.max.toLocaleString('en-US')} tokens. Increase for large casts. Does not change RP output or history depth.</small></span><input id="npc_state_v047_response_tokens" class="text_pole npc-state-number" type="number" ${numericSettingAttributes('scannerResponseTokens')}></label>
               <label class="npc-state-setting-row"><span><b>NPC scan connection profile</b><small>Current connection preserves existing behavior. A saved supported SillyTavern Connection Profile applies only to separate NPC scans and JSON retries; normal roleplay and embedded NPC output stay on your main connection.</small></span><select id="npc_state_v3_scan_profile" class="text_pole"><option value="">Current connection</option></select></label>
               <label class="npc-state-setting-row"><span><b>Scan after each response</b><small>After a successful embedded update, run one additional dossier-completeness scan through the configured NPC scan connection. Off by default. Usually adds one request per completed response, plus a JSON retry if needed.</small><small id="npc_state_v3_completeness_status" class="npc-state-muted"></small></span><input id="npc_state_v3_scan_after_response" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Birthday fill</b><small>Passive metadata only. Off leaves blanks; Unknown stores Unknown; Random assigns one stable configured-calendar date. It never advances age.</small></span><select id="npc_state_v04_birthday_fill" class="text_pole"><option value="off">Off</option><option value="unknown">Unknown</option><option value="random">Random</option></select></label>
               <label class="npc-state-setting-row"><span><b>Birthday random calendar</b><small>One month/season per line as Name or Name:days. Fantasy names are preserved exactly.</small></span><textarea id="npc_state_v04_birthday_calendar" class="text_pole" rows="5"></textarea></label>
-              <label class="npc-state-setting-row"><span><b>Fallback days per month</b><small>Used only for random-calendar lines without :days.</small></span><input id="npc_state_v04_birthday_days" class="text_pole npc-state-number" type="number" min="1" max="999"></label>
+              <label class="npc-state-setting-row"><span><b>Fallback days per month</b><small>Used only for random-calendar lines without :days.</small></span><input id="npc_state_v04_birthday_days" class="text_pole npc-state-number" type="number" ${numericSettingAttributes('birthdayRandomDaysPerMonth')}></label>
               <div class="npc-state-setting-row"><span><b>Fill existing blanks</b><small>Populate currently blank dossiers locally with the selected policy. No model call.</small></span><button id="npc_state_v04_birthday_fill_now" class="menu_button" type="button">Fill missing birthdays</button></div>
               <label class="npc-state-setting-row"><span><b>Inject in-chat NPCs</b><small>Injects individually relevant in-chat NPCs, not incidental background bodies.</small></span><input id="npc_state_v3_inject" type="checkbox"></label>
-              <label class="npc-state-setting-row"><span><b>Injection budget</b><small>Approximate token budget.</small></span><input id="npc_state_v3_inject_budget" class="text_pole npc-state-number" type="number" min="256" max="8000" step="100"></label>
+              <label class="npc-state-setting-row"><span><b>Injection budget</b><small>Total estimated prompt budget; minimum ${NUMERIC_SETTINGS.injectBudgetTokens.min.toLocaleString('en-US')} tokens includes the fixed instructions.</small></span><input id="npc_state_v3_inject_budget" class="text_pole npc-state-number" type="number" ${numericSettingAttributes('injectBudgetTokens')}></label>
               <label class="npc-state-setting-row"><span><b>Show dossier diagnostics</b><small>Shows life-state rejection and relationship-scoring diagnostics in the Dossier Library. Off by default; hidden diagnostics stay recorded but are not rendered.</small></span><input id="npc_state_v3_show_diagnostics" type="checkbox"></label>
               <label class="npc-state-setting-row"><span><b>Rescan changed branches</b><small>Restores tracked swipes locally from checkpoints/payloads. Edited or untracked branches use the separate recovery scanner when needed.</small></span><input id="npc_state_v3_branch_rescan" type="checkbox"></label>
             </div>
             <details class="npc-state-v3-dossier-evolution"><summary><b>Dossier evolution</b></summary>
               <div class="npc-state-intro">Working caps for living dossier collections. The scanner may merge, rewrite, retire, reorder, or replace entries to keep the strongest current set. Lowering a cap does not immediately delete existing entries; it applies when that collection is next curated or manually saved.</div>
               <div class="npc-state-settings-grid">
-                <label class="npc-state-setting-row"><span><b>Important memories</b><small>Durable events and facts retained for future scenes.</small></span><input id="npc_state_v3_limit_memories" class="text_pole npc-state-number" type="number" min="1" max="20"></label>
-                <label class="npc-state-setting-row"><span><b>Key relationships</b><small>Important non-player relationships retained in the dossier.</small></span><input id="npc_state_v3_limit_key_relationships" class="text_pole npc-state-number" type="number" min="1" max="30"></label>
-                <label class="npc-state-setting-row"><span><b>Mannerisms</b><small>Current recurring gestures, habits, and tells.</small></span><input id="npc_state_v3_limit_mannerisms" class="text_pole npc-state-number" type="number" min="1" max="16"></label>
-                <label class="npc-state-setting-row"><span><b>Behavioral profile</b><small>Current durable behavioral tendencies and patterns.</small></span><input id="npc_state_v3_limit_behavior" class="text_pole npc-state-number" type="number" min="1" max="16"></label>
+                <label class="npc-state-setting-row"><span><b>Important memories</b><small>Durable events and facts retained for future scenes.</small></span><input id="npc_state_v3_limit_memories" class="text_pole npc-state-number" type="number" min="1" max="${DOSSIER_LIMIT_MAXIMUMS.memories}"></label>
+                <label class="npc-state-setting-row"><span><b>Key relationships</b><small>Important non-player relationships retained in the dossier.</small></span><input id="npc_state_v3_limit_key_relationships" class="text_pole npc-state-number" type="number" min="1" max="${DOSSIER_LIMIT_MAXIMUMS.keyRelationships}"></label>
+                <label class="npc-state-setting-row"><span><b>Mannerisms</b><small>Current recurring gestures, habits, and tells.</small></span><input id="npc_state_v3_limit_mannerisms" class="text_pole npc-state-number" type="number" min="1" max="${DOSSIER_LIMIT_MAXIMUMS.mannerisms}"></label>
+                <label class="npc-state-setting-row"><span><b>Behavioral profile</b><small>Current durable behavioral tendencies and patterns.</small></span><input id="npc_state_v3_limit_behavior" class="text_pole npc-state-number" type="number" min="1" max="${DOSSIER_LIMIT_MAXIMUMS.behaviorProfile}"></label>
               </div>
             </details>
             <details><summary><b>Relationship criteria · additive</b></summary><div class="npc-state-intro">Shared relationship judgment, current-exchange evidence, and numeric mechanics always apply. Custom text here adds campaign-specific calibration without replacing those rules.</div><textarea id="npc_state_v3_relationship_criteria" class="text_pole npc-state-rubric-textarea" rows="8"></textarea></details>
@@ -243,7 +262,7 @@ export function createNpcStateUi(adapters = {}) {
         bindCheck('#npc_state_v04_new_npc_history', 'newNpcHistoryEnrichment');
         panel.querySelector('#npc_state_v04_admission')?.addEventListener('change', event => {
             const value = String(event.target.value || 'balanced');
-            getSettings().newNpcAdmissionMode = ['balanced', 'named_preferred', 'manual'].includes(value) ? value : 'balanced';
+            getSettings().newNpcAdmissionMode = normalizeNpcAdmissionMode(value);
             event.target.value = getSettings().newNpcAdmissionMode;
             persistSettings(); onSettingsChanged();
         });
@@ -261,7 +280,7 @@ export function createNpcStateUi(adapters = {}) {
         });
         panel.querySelector('#npc_state_v04_birthday_fill')?.addEventListener('change', event => {
             const value = String(event.target.value || 'off');
-            getSettings().birthdayFillMode = ['off', 'unknown', 'random'].includes(value) ? value : 'off';
+            getSettings().birthdayFillMode = normalizeBirthdayFillMode(value);
             event.target.value = getSettings().birthdayFillMode;
             persistSettings(); onSettingsChanged();
         });
@@ -271,7 +290,7 @@ export function createNpcStateUi(adapters = {}) {
             persistSettings();
         });
         panel.querySelector('#npc_state_v04_birthday_days')?.addEventListener('change', event => {
-            getSettings().birthdayRandomDaysPerMonth = Math.max(1, Math.min(999, Math.round(Number(event.target.value) || 30)));
+            getSettings().birthdayRandomDaysPerMonth = normalizeNumericSetting('birthdayRandomDaysPerMonth', event.target.value);
             event.target.value = getSettings().birthdayRandomDaysPerMonth;
             persistSettings();
         });
@@ -297,10 +316,10 @@ export function createNpcStateUi(adapters = {}) {
         bindLimit('#npc_state_v3_limit_mannerisms', 'mannerisms');
         bindLimit('#npc_state_v3_limit_behavior', 'behaviorProfile');
         panel.querySelector('#npc_state_v3_scan_depth')?.addEventListener('change', event => {
-            getSettings().scanDepth = Math.max(2, Math.min(30, Math.round(Number(event.target.value) || 8))); event.target.value = getSettings().scanDepth; persistSettings();
+            getSettings().scanDepth = normalizeNumericSetting('scanDepth', event.target.value); event.target.value = getSettings().scanDepth; persistSettings();
         });
         panel.querySelector('#npc_state_v3_inject_budget')?.addEventListener('change', event => {
-            getSettings().injectBudgetTokens = Math.max(256, Math.min(8000, Math.round(Number(event.target.value) || 1800))); event.target.value = getSettings().injectBudgetTokens; persistSettings(); onSettingsChanged();
+            getSettings().injectBudgetTokens = normalizeNumericSetting('injectBudgetTokens', event.target.value); event.target.value = getSettings().injectBudgetTokens; persistSettings(); onSettingsChanged();
         });
         for (const [selector, key] of [['#npc_state_v3_relationship_criteria', 'relationshipCriteria'], ['#npc_state_v3_memory_criteria', 'memoryCriteria']]) {
             panel.querySelector(selector)?.addEventListener('change', event => { getSettings()[key] = String(event.target.value || '').slice(0, 12000); persistSettings(); });
@@ -611,6 +630,7 @@ export function createNpcStateUi(adapters = {}) {
         overlay.addEventListener('click', event => { if (event.target === overlay || event.target.closest?.('.npc-state-v3-editor-close, .npc-state-v3-editor-cancel')) closeEditor(); });
         overlay.querySelector('.npc-state-v3-editor-save')?.addEventListener('click', saveEditor);
         document.body.appendChild(overlay);
+        promoteEditorToTopLayer();
         return true;
     }
 

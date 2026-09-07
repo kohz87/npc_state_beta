@@ -9,7 +9,7 @@ export function createCompletenessCoordinator(adapters = {}) {
     const invalidateCompleteness = adapters.invalidateCompleteness || (() => {});
     const logError = adapters.logError || (() => {});
     const runs = new Map();
-    // PHASE88_COMPLETENESS_TOGGLE_GATE: disabled completeness must not create a second post-response mutation.
+    // disabled completeness must not create a second post-response mutation.
     const embeddedOnlyDone = new Map();
 
     function rememberEmbeddedOnly(identity, result) {

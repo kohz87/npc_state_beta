@@ -32,7 +32,6 @@ export function getChatIdentity(ctx = {}) {
     return { key: 'no-chat', kind: 'none', ownerId: '', chatId: '', pending: true };
 }
 
-
 export function parseQualifiedChatKey(value) {
     const match = String(value || '').match(/^(chat|group):([^:]+):(.+)$/);
     if (!match) return null;
@@ -79,7 +78,6 @@ export function resolveRenameLifecycleKeys(dataFiles = {}, eventData = {}) {
     if (!newKey || newKey === oldKey) return null;
     return { kind, ownerId: parsed.ownerId, oldId, newId, oldKey, newKey };
 }
-
 
 export function qualifiedChatKeysForOwner(dataFiles = {}, { kind = 'chat', ownerId = '' } = {}) {
     const type = kind === 'group' ? 'group' : 'chat';

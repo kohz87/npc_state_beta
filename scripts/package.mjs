@@ -1,3 +1,5 @@
+import { deflateRawSync } from 'node:zlib';
+import { runtimeFiles } from './runtime-files.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +9,7 @@ const dist = path.join(root, 'dist');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
 const packageRoot = `npc_state_beta-${manifest.version}`;
 const archivePath = path.join(dist, `${packageRoot}.zip`);
-const roots = ['bootstrap.js', 'manifest.json', 'LICENSE', 'README.md', 'CHANGELOG.md', 'DEVELOPMENT.md', 'src'];
+const roots = ['manifest.json', 'LICENSE', 'README.md', ...runtimeFiles(root)];
 
 function crc32(buffer) {
     let crc = 0xffffffff;
@@ -29,7 +31,7 @@ function collect(relative, out = []) {
     return out;
 }
 
-function zipStored(files) {
+function zipDeflated(files) {
     const locals = [];
     const centrals = [];
     let offset = 0;
@@ -37,30 +39,31 @@ function zipStored(files) {
         const name = Buffer.from(file.name, 'utf8');
         const data = file.data;
         const crc = crc32(data);
+        const compressed = deflateRawSync(data, { level: 9 });
         const local = Buffer.alloc(30);
         local.writeUInt32LE(0x04034b50, 0);
         local.writeUInt16LE(20, 4);
         local.writeUInt16LE(0x0800, 6);
-        local.writeUInt16LE(0, 8);
+        local.writeUInt16LE(8, 8);
         local.writeUInt16LE(0, 10);
         local.writeUInt16LE(33, 12);
         local.writeUInt32LE(crc, 14);
-        local.writeUInt32LE(data.length, 18);
+        local.writeUInt32LE(compressed.length, 18);
         local.writeUInt32LE(data.length, 22);
         local.writeUInt16LE(name.length, 26);
         local.writeUInt16LE(0, 28);
-        locals.push(local, name, data);
+        locals.push(local, name, compressed);
 
         const central = Buffer.alloc(46);
         central.writeUInt32LE(0x02014b50, 0);
         central.writeUInt16LE(20, 4);
         central.writeUInt16LE(20, 6);
         central.writeUInt16LE(0x0800, 8);
-        central.writeUInt16LE(0, 10);
+        central.writeUInt16LE(8, 10);
         central.writeUInt16LE(0, 12);
         central.writeUInt16LE(33, 14);
         central.writeUInt32LE(crc, 16);
-        central.writeUInt32LE(data.length, 20);
+        central.writeUInt32LE(compressed.length, 20);
         central.writeUInt32LE(data.length, 24);
         central.writeUInt16LE(name.length, 28);
         central.writeUInt16LE(0, 30);
@@ -70,7 +73,7 @@ function zipStored(files) {
         central.writeUInt32LE(0, 38);
         central.writeUInt32LE(offset, 42);
         centrals.push(central, name);
-        offset += local.length + name.length + data.length;
+        offset += local.length + name.length + compressed.length;
     }
     const centralBuffer = Buffer.concat(centrals);
     const end = Buffer.alloc(22);
@@ -88,5 +91,5 @@ function zipStored(files) {
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(dist, { recursive: true });
 const files = roots.flatMap(relative => collect(relative));
-fs.writeFileSync(archivePath, zipStored(files));
+fs.writeFileSync(archivePath, zipDeflated(files));
 console.log(`Packaged ${files.length} files to ${path.relative(root, archivePath)}.`);

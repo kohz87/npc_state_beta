@@ -1,3 +1,4 @@
+import { runtimeFiles, sourceFiles as runtimeSourceFiles } from './runtime-files.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -21,6 +22,10 @@ assert.equal(version, manifest.version, 'manifest and runtime release versions d
 assert.match(read('bootstrap.js'), /\.\/src\/index\.js/, 'bootstrap must load authoritative src entrypoint');
 assert.match(read('src/index.js'), /from '\.\.\/\.\.\/\.\.\/\.\.\/extensions\.js'/, 'SillyTavern nested extension import depth changed');
 assert.match(read('src/index.js'), /from '\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/script\.js'/, 'SillyTavern script import depth changed');
+
+const reachable = runtimeFiles(root);
+const unused = runtimeSourceFiles(root).filter(file => !reachable.includes(file));
+assert.deepEqual(unused, [], 'Unused src files must be removed or referenced explicitly');
 
 const sourceFiles = [];
 for (const directory of ['src', 'tests', 'scripts']) {

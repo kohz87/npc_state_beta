@@ -6,15 +6,15 @@
 
 Foreground capture has one pipeline rooted in `src/injection.js`, with `foreground-contract.js`, `foreground-context.js`, and `foreground-budget.js` as focused components. Do not restore an `injection-core.js` plus append-only facade or a second dossier-selection path: fixed instructions, NPC selection, compaction, total budgeting, cache keys, and diagnostics must describe the one prompt actually injected.
 
-The deterministic scan/application implementation remains in `scanner-core.js`; `scanner.js` adds current model-led semantic response handling without duplicating persistence, relationship, lifecycle, or branch mechanics.
+The public `scanner.js` API coordinates response adaptation and application once. `scan-prompts.js` builds scan/Refresh/import/completeness prompts; `scan-application.js` owns identity/admission, bootstrap, activity and graph reconciliation; `scan-relationships.js`, `scan-lifecycle.js`, and `scan-payload.js` own their named responsibilities. Shared evidence/identity helpers live in `scan-helpers.js`. No module rebuilds an older prompt and replaces its release label.
 
 ## Version boundaries
 
 Versions serve different compatibility purposes:
 
-- Release version: `0.5.10` in `manifest.json` and `NPC_STATE_VERSION`.
+- Release version: `0.6.0` in `manifest.json` and `NPC_STATE_VERSION`.
 - Persisted state schema: `1`. Prompt/behavior changes that remain load-compatible do not require a data-schema bump.
-- Settings schema: `1` (unchanged). No new settings keys are required for 0.5.10.
+- Settings schema: `1` (unchanged). No new settings keys are required for 0.6.0.
 - Model semantic update contract: `3` in `src/model/semantic-updates.js`.
 - Foreground embedded-capture contract: `4` in `src/foreground-contract.js`.
 
@@ -32,7 +32,7 @@ Do not rename existing storage keys, sidecar identity, or supported import forma
 6. enforcement of the total budget, with the remaining allowance assigned to dynamic context;
 7. local diagnostics and content-aware prompt caching.
 
-The existing `injectBudgetTokens` key is the complete foreground extension-prompt budget in 0.5.10. Its stored key/default remain compatible (`1800`), while the builder enforces an effective minimum of `1600` estimated tokens so the fixed contract is never silently emitted above a claimed smaller cap. If the fixed contract grows later, diagnostics report the actual floor.
+The existing `injectBudgetTokens` key is the complete foreground extension-prompt budget in 0.6.0. Its stored key/default remain compatible (`1800`), while settings normalization, UI controls, and the builder share a minimum of `1600` estimated tokens so the fixed contract is never silently emitted above a claimed smaller cap. If the fixed contract grows later, diagnostics report the actual floor.
 
 Token counts are explicitly estimates. The foreground send path must not add a remote tokenizer request or an expensive repeated tokenization pass. If SillyTavern later exposes a stable synchronous compatible tokenizer through the extension API, it may replace the estimator behind the same diagnostics contract.
 
@@ -42,7 +42,7 @@ Compaction must preserve valid serialization. Prefer fewer complete entries, sho
 
 `src/model/dossier-fields.js` is the canonical ordinary-dossier field registry. Existing-dossier ordinary mutations have exactly one runtime path: response compatibility is normalized at the boundary, `prepareModelLedPayload()` removes parallel direct/legacy fields, and `applyModelLedSemanticUpdates()` validates/applies the resulting semantic operations once. Do not add a second profile/canon/live application path. Identity/admission, player-relationship mechanics, lifecycle, activity/presence, and graph reconciliation remain deliberately separate because they have different deterministic safety invariants.
 
-Existing-dossier ordinary changes use one `semanticUpdates` pipeline. `scanner-core.js` no longer contains a parallel profile/canon/age/form decision engine; it keeps deterministic identity/admission, one-time new-NPC bootstrap, relationship/lifecycle/family safety, presence, and persistence mechanics.
+Existing-dossier ordinary changes use one `semanticUpdates` pipeline. `scan-application.js` has no parallel profile/canon/age/form decision engine; it keeps deterministic identity/admission, one-time new-NPC bootstrap, relationship/lifecycle/family safety, presence, and persistence mechanics.
 
 Structured evidence authority is field-scoped in the semantic validator: World_State may support live `location`/`status`; NPC_Inner_Chatter may support private `mood`/`goal`; neither may rewrite durable canon/profile/memory/key relationships/current form.
 
@@ -79,7 +79,7 @@ The shared quiet-generation queue serializes hidden extension generations only. 
 
 Diagnostics remain opt-in through the existing `NPCState.debugStatus()` API and local. They may record prompt character/estimated-token sizes, selected NPCs, budgets, construction time, cache hits, configured scan route identifiers, engine/completeness background status, and cache state. Never log credentials, provider secrets, full prompts, or per-token events.
 
-Only report lifecycle phases backed by real hooks. At 0.5.10 NPC State does not have reliable cross-provider hooks for browser dispatch, first provider data, or first visible paint, so those phases are explicitly unavailable. Do not attribute unmeasured delay to SillyTavern, a proxy, a provider, or model reasoning.
+Only report lifecycle phases backed by real hooks. At 0.6.0 NPC State does not have reliable cross-provider hooks for browser dispatch, first provider data, or first visible paint, so those phases are explicitly unavailable. Do not attribute unmeasured delay to SillyTavern, a proxy, a provider, or model reasoning.
 
 ## Context and history safety
 
@@ -116,3 +116,13 @@ Before release, review:
 - package contents and clean-checkout CI.
 
 Synthetic prompt-size fixtures and local construction timings are useful regression measurements, not end-to-end latency measurements. Report them separately from any live provider/browser observation.
+
+## Shared settings, rules, and release contents
+
+`settings.js` is the authoritative settings entrypoint. `settings-contract.js` owns numeric defaults/bounds/UI attributes without browser or schema dependencies. Domain normalizers remain in the schema and portrait modules and are called by the settings entrypoint. `settings-migrations.js` contains only compatibility transforms; exact historical shipped criteria may migrate, but custom user criteria and unknown settings survive. Keep the `npc_state_beta.v3` namespace and pointer object identity.
+
+`relationship-rules.js` supplies scoring caps, axis limits, milestones, and inertia. Generate numeric model instructions from those values. `model/dossier-fields.js` owns field kind/durability/group and structured-evidence context permissions. Release version lives in `schema.js` and must match the manifest; persisted schema and model contracts remain independently versioned.
+
+`runtime-files.mjs` traces manifest JS/CSS, static imports/reexports, literal dynamic imports, URL assets, and CSS dependencies. Validation rejects missing dependencies and unused source files. Keep runtime imports literal; new host imports need explicit review in that script. Release packaging uses that dependency set plus manifest, LICENSE, and README; development/history documents and tests are repository-only. ZIP compression is deterministic DEFLATE with fixed timestamps and UTF-8 names.
+
+See `docs/cleanup-v0.6.0.md` for the deletion inventory, size comparison, and verification scope. The package-install tests use a local SillyTavern host-API stub; they do not replace a live SillyTavern/provider smoke test.

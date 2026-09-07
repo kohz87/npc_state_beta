@@ -1,3 +1,4 @@
+import { numericSettingAttributes } from './settings-contract.js';
 import { normalizeStaleSettings } from './stale.js';
 
 const SECTION_ID = 'npc_state_v3_stale_management';
@@ -39,8 +40,7 @@ export function createStaleManagementUi(adapters = {}) {
         const settings = getSettings();
         const archiveInput = panel.querySelector('#npc_state_v3_stale_archive_after');
         const deleteInput = panel.querySelector('#npc_state_v3_stale_delete_after');
-        const archiveAfter = Math.max(1, Math.min(9999, Math.round(Number(archiveInput?.value) || 30)));
-        const deleteAfter = Math.max(archiveAfter + 1, Math.min(10000, Math.round(Number(deleteInput?.value) || 50)));
+        const { archiveAfter, deleteAfter } = normalizeStaleSettings({ staleArchiveAfter: archiveInput?.value, staleDeleteAfter: deleteInput?.value });
         settings.staleArchiveAfter = archiveAfter;
         settings.staleDeleteAfter = deleteAfter;
         if (archiveInput) archiveInput.value = String(archiveAfter);
@@ -55,8 +55,8 @@ export function createStaleManagementUi(adapters = {}) {
           <div class="npc-state-v3-stale-settings-body">
             <label class="npc-state-setting-row"><span><b>Automatic stale lifecycle</b><small>Tracks narrative inactivity. Off-screen alone is never enough; current interaction, physical presence, world activity, or an explicit name/alias reference resets the timer.</small></span><input id="npc_state_v3_stale_enabled" type="checkbox"></label>
             <div class="npc-state-v3-stale-thresholds">
-              <label><span>Archive after</span><input id="npc_state_v3_stale_archive_after" class="text_pole npc-state-number" type="number" min="1" max="9999"><small>inactive assistant turns</small></label>
-              <label><span>Delete after</span><input id="npc_state_v3_stale_delete_after" class="text_pole npc-state-number" type="number" min="2" max="10000"><small>total inactive assistant turns</small></label>
+              <label><span>Archive after</span><input id="npc_state_v3_stale_archive_after" class="text_pole npc-state-number" type="number" ${numericSettingAttributes('staleArchiveAfter')}><small>inactive assistant turns</small></label>
+              <label><span>Delete after</span><input id="npc_state_v3_stale_delete_after" class="text_pole npc-state-number" type="number" ${numericSettingAttributes('staleDeleteAfter')}><small>total inactive assistant turns</small></label>
             </div>
             <small class="npc-state-muted">Retention-protected dossiers and dossiers with manual profile locks are never auto-archived or auto-deleted. Automatic stale deletion does not create a permanent tombstone.</small>
             <div class="npc-state-actions"><button id="npc_state_v3_stale_review" class="menu_button"><i class="fa-solid fa-box-archive"></i> Review stale NPCs</button></div>
@@ -97,7 +97,7 @@ export function createStaleManagementUi(adapters = {}) {
         const deleteAfter = section.querySelector('#npc_state_v3_stale_delete_after');
         if (enabled) enabled.checked = settings.enabled;
         if (archiveAfter) archiveAfter.value = String(settings.archiveAfter);
-        if (deleteAfter) deleteAfter.value = String(settings.deleteAfter);
+        if (deleteAfter) { deleteAfter.value = String(settings.deleteAfter); deleteAfter.min = String(settings.archiveAfter + 1); }
         const report = engine.getStaleReport?.() || [];
         const stale = report.filter(row => row.status === 'stale-archived' || row.status === 'archive-eligible' || row.status === 'delete-eligible').length;
         const protectedCount = report.filter(row => row.status === 'protected').length;

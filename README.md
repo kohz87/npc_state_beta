@@ -1,10 +1,12 @@
 # NPC State Beta
 
-NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.5.10 consolidates existing-dossier mutation onto one semantic update pipeline, removes active legacy semantic layers from scan prompts, aligns evidence validation with supplied history, and adds explicit dossier-coverage diagnostics.
+NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.6.0 consolidates settings and policy definitions, removes unused code and obsolete prompt channels, and trims the installable package.
 
-## Release 0.5.10
+## Release 0.6.0
 
-0.5.10 is a consolidation release rather than another parallel update path. For an existing NPC, ordinary dossier fields now have one canonical `semanticUpdates` application pipeline. Legacy `profileChanges`, `canonChanges`, `ageChange`, `appearanceFormChanges`, `keyRelationshipChanges`, and direct existing-dossier compatibility values are translated at the response boundary when enough structured evidence exists, then removed before deterministic application. Identity/admission, NPC-to-player relationship mechanics/Current Dynamic, lifecycle, activity/presence, and family-graph safety remain separate deterministic channels.
+Settings defaults, numeric bounds, and normalization now have shared definitions used by the runtime and settings controls. Relationship gate/cap instructions derive from the same policy data used by scoring. Scan, Refresh, and completeness build one semantic contract per request; obsolete age/form and replacement-array instructions have been removed. Legacy responses still translate at the compatibility boundary.
+
+Unused age-progression code, the schema override facade, and the editor click bridge have been retired. Scanner responsibilities are separated into prompt, application, relationship, lifecycle, and payload modules. ZIP releases include only reachable runtime files, the manifest, license, and this guide, with standard DEFLATE compression. Tests, tooling, and development/history documents stay in the repository.
 
 The canonical field registry lives in `src/model/dossier-fields.js` and drives the semantic contract, foreground contract, field kinds/durability, and evaluation groups. `currentForm` is now a first-class live semantic field. Full Scan appends only a compact edit-index containing stable collection/form refs and locks instead of serializing the complete dossier roster a second time.
 
@@ -12,13 +14,13 @@ Full Scan, completeness, and historical recovery now validate semantic source ex
 
 Version boundaries:
 
-- Extension release: `0.5.10`
+- Extension release: `0.6.0`
 - Persisted state schema: `1` (unchanged)
 - Model semantic update contract: `3`
 - Settings schema: `1` (unchanged)
 - Foreground embedded-capture contract: `4`
 
-No dossier rebuild, storage-key migration, or settings migration is required.
+No dossier rebuild or storage-key migration is required. Existing settings are normalized in place; an injection budget below 1600 is upgraded to the existing runtime floor, and an explicit injection depth of zero is preserved.
 
 ## Release 0.5.8
 
@@ -40,7 +42,7 @@ Foreground roleplay now receives one authoritative NPC State contract from `src/
 
 One selection pipeline ranks explicitly referenced, present, recently active, and otherwise salient NPCs, then honors the configured injection limit for every dossier-bearing foreground section. Dossier context is serialized once as complete compact JSON. Collection/form entries keep stable edit refs required by `semanticUpdates`; memories, relationships, forms, and history are bounded by whole-entry selection rather than cutting JSON into fragments.
 
-The existing **Injection budget** (`injectBudgetTokens`) is now the total NPC State foreground budget, covering fixed instructions plus dossier/history context. Its stored key and default (`1800`) are unchanged, so no settings migration is required. The effective valid range is `1600` to `8000` estimated tokens. Older saved values below `1600` are accepted but reported and treated as the effective minimum rather than silently exceeded. If a future fixed contract itself grows beyond that floor, diagnostics report the real effective minimum.
+The existing **Injection budget** (`injectBudgetTokens`) is now the total NPC State foreground budget, covering fixed instructions plus dossier/history context. Its stored key and default (`1800`) are unchanged, so no settings migration is required. The effective valid range is `1600` to `8000` estimated tokens. Older saved values below `1600` normalize to `1600`, and the settings control displays the same effective limit. If a future fixed contract itself grows beyond that floor, diagnostics report the real effective minimum.
 
 NPC State does not make a remote tokenizer request on the send path. Diagnostics therefore label counts as a local conservative estimate (`ASCII/3.5 + non-ASCII*1.1`), not exact provider tokens. Prompt results are cached by relevant state/settings/content and invalidated when dossier content or selection inputs change.
 
@@ -86,8 +88,10 @@ A smaller extension prompt can reduce prompt-processing work, but it does not pr
 - `src/foreground-contract.js` - concise authoritative embedded-capture/model-led update contract
 - `src/foreground-context.js` - one NPC selection and complete-entry dossier compaction pipeline
 - `src/foreground-budget.js` - local estimate and total-budget normalization
-- `src/scanner.js` - model-led scan/Refresh/completeness facade
-- `src/scanner-core.js` - deterministic scan/application mechanics
+- `src/scanner.js` - public scan API and single response-application coordinator
+- `src/scan-*.js` - focused prompt, application, evidence-helper, relationship, lifecycle, and payload modules
+- `src/settings.js` / `src/settings-contract.js` - settings registry and numeric validation/UI metadata
+- `src/relationship-rules.js` - numeric policy shared by scoring and model instructions
 - `tests/` - behavioral and compatibility regressions
 - `scripts/validate.mjs` - clean-checkout source/import validation
 - `scripts/package.mjs` - dependency-free release packaging

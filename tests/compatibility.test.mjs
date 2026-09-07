@@ -71,10 +71,11 @@ test('foreground uses one authoritative contract while deterministic scanner mec
     assert.match(contract, /DOSSIER_EVALUATION_GROUPS/);
     assert.doesNotMatch(injection, /injection-core/);
     assert.equal(fs.existsSync(path.join(root, 'src/injection-core.js')), false);
-    assert.match(scanner, /semanticUpdatePrompt/);
+    assert.match(read('src/scan-prompts.js'), /semanticUpdatePrompt/);
     assert.match(scanner, /core\.applyScanResult/);
     assert.match(scanner, /applyModelLedSemanticUpdates/);
-    assert.equal(fs.existsSync(path.join(root, 'src/scanner-core.js')), true);
+    assert.equal(fs.existsSync(path.join(root, 'src/scanner-core.js')), false);
+    assert.equal(fs.existsSync(path.join(root, 'src/scan-application.js')), true);
 });
 
 test('MESSAGE_SENT refreshes foreground selection after invalidating pending work', () => {

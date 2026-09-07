@@ -254,7 +254,7 @@ export function normalizeRebaseRelationshipMode(value = 'preserve') {
     return mode;
 }
 
-// PHASE61_SAFE_REBASE_RELATIONSHIP_MODES: old message ids/event keys are retained only in original* audit fields.
+// old message ids/event keys are retained only in original* audit fields.
 function quarantineRebasedRelationshipAudit(entry, rebasedAt) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return entry;
     const originalSourceMessageId = Number.isInteger(entry.originalSourceMessageId)
@@ -366,7 +366,7 @@ export function rebaseToCurrentChat(state, chat = [], { relationshipMode = 'pres
     next.socialGraph = (next.socialGraph || []).map(edge => ({ ...edge, sourceMessageId: null }));
     next.lastObservation = { messageId: null, exchangeActiveNpcIds: [], finalPresentNpcIds: [], worldActiveNpcIds: [], targetNpcIds: [] };
     next.lastScannedMessageId = preserveLatestScannedMessage ? source.lastScannedMessageId : null;
-    // PHASE64_REBASE_STATE_BOUNDARIES: preserved relationship state already represents the accepted timeline through this boundary.
+    // preserved relationship state already represents the accepted timeline through this boundary.
     next.relationshipReplayBoundary = mode === 'preserve' && latestAssistantId >= 0
         ? { throughMessageId: latestAssistantId, lineage: chatLineage(chat, latestAssistantId), acceptedAt: rebasedAt }
         : retainValidRelationshipReplayBoundary(source.relationshipReplayBoundary, chat);
@@ -541,7 +541,7 @@ export function reconcileToCurrentBranch(state, chat) {
     const restored = preserveCurrentPresentation(preserveTombstones(normalizeState(checkpoint.snapshot, normalized.chatKey), normalized), normalized);
     restored.checkpoints = structuredClone(normalized.checkpoints || []);
     restored.branchBase = structuredClone(normalized.branchBase || null);
-    // PHASE64_REBASE_STATE_BOUNDARIES: rebase backup is durable recovery metadata, not rollback timeline state.
+    // rebase backup is durable recovery metadata, not rollback timeline state.
     restored.rebaseBackup = structuredClone(normalized.rebaseBackup || null);
     restored.branchHeadLineage = currentLineage;
     restored.branchSafety = { status: 'safe', kind: '', reason: '' };

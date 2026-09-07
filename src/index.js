@@ -8,14 +8,9 @@ import { buildInjection, injectionDiagnostics } from './injection.js';
 import { consumeNpcStateControl } from './foreground.js';
 import { hasRecognizedStructuredBlocks, profileEvidenceText } from './evidence-adapter.js';
 import { createMeguminBlockIntegration } from './megumin.js';
-import {
-    DEFAULT_PORTRAIT_NEGATIVE_PROMPT,
-    DEFAULT_PORTRAIT_POSITIVE_PROMPT,
-    DEFAULT_PORTRAIT_PRESET,
-    normalizePortraitPromptSettings,
-} from './portrait-prompt.js';
 import { createPortraitPromptUi } from './portrait-ui.js';
-import { DEFAULT_BIRTHDAY_RANDOM_CALENDAR, DEFAULT_RELATIONSHIP_CAPS, DOSSIER_LIMIT_DEFAULTS, NPC_STATE_VERSION, normalizeScannerResponseTokens, normalizeBirthdayFillMode, normalizeDossierLimits, normalizeNpcAdmissionMode, normalizeRelationshipCaps } from './schema.js';
+import { NPC_STATE_VERSION, normalizeNpcAdmissionMode } from './schema.js';
+import { extensionSettings } from './settings.js';
 import { runSharedQuietGeneration } from './shared-generation-queue.js';
 import { generateWithScanRoute, resolveScanGenerationRoute, scanConnectionProfileOptions } from './scan-connection.js';
 import { createCompletenessCoordinator } from './completeness-coordinator.js';
@@ -23,9 +18,7 @@ import { checkpointStorageBytes, fingerprintMessage } from './branches.js';
 import { createStaleManagementUi } from './stale-ui.js';
 import { createNpcStateUi } from './ui.js';
 
-const EXTENSION_NAME = 'npc_state_beta';
 const PROMPT_KEY = 'npc_state_v04_beta_foreground';
-const SETTINGS_SCHEMA = 1;
 let initialized = false;
 let eventsRegistered = false;
 let activeChatKey = 'no-chat';
@@ -36,106 +29,8 @@ let portraitUi = null;
 let completionCoordinator = null;
 const completenessUiStatus = new Map();
 
-const PRE_GATE_RELATIONSHIP_CRITERIA = `Relationship deltas measure only changes caused by the current USER+ASSISTANT exchange.
-Trust: confidence in the player's reliability, honesty, competence, safety, or judgment.
-Affection: warmth, fondness, attachment, tenderness, or personal liking toward the player.
-Desire: attraction or intimate interest. Never infer it from friendliness, gratitude, beauty, proximity, or generic affection.
-Tension: interpersonal strain, fear, suspicion, anger, unresolved conflict, pressure, or charged friction.
-Ordinary events should usually change 0-1 points. Meaningful events may change up to 2, major events up to 5, extreme life-defining events up to 10. Zero is correct when evidence is weak or merely repeated from earlier context.`;
-
-const LEGACY_DEFAULT_RELATIONSHIP_CRITERIA_V0421 = `Relationship deltas measure only genuinely NEW changes caused by the current USER+ASSISTANT exchange. Routine continuation, repeated aftermath, greetings, neutral transactions, and already-scored beats are normally zero.
-Trust: confidence in the player's reliability, honesty, competence, safety, or judgment. Trust is not obedience.
-Affection: warmth, fondness, attachment, tenderness, or personal liking toward the player. Affection is not devotion, clinginess, jealousy, or self-erasure.
-Desire: attraction or intimate interest. Positive Desire requires explicit attraction/romantic/intimate/physical evidence. Never infer it from friendliness, gratitude, beauty, rescue, proximity, trust, or generic affection.
-Tension: interpersonal strain, fear, suspicion, anger, unresolved conflict, pressure, or charged friction.
-Ordinary events may change up to 1 point on one supported axis. Meaningful events may change up to 2 per supported axis and at most two axes, major up to 5 and at most three axes, extreme up to 10 and at most four axes. Every moved axis needs its own concrete evidence. Raw deltas are evidence weights: deep established relationships gain further depth progressively more slowly, and accepted fractional evidence is retained behind the integer display. Do not replay the same event or its aftermath; semantically duplicate recent events score zero.
-RELATIONSHIP MILESTONES: outward depth is gated independently by axis and direction at 25, 50, 75, and 90. Ordinary evidence may reach 25 but cannot deepen past a locked gate. Crossing 25 requires meaningful-or-stronger evidence; 50 requires major-or-stronger with at least 3 raw points on that axis; 75 requires extreme with at least 5 raw points; 90 requires an extreme relationship-defining event with at least 8 raw points. Movement back toward neutral is never checkpoint-blocked. Never inflate a tier or delta just to pass a gate.`;
-
-const DEFAULT_RELATIONSHIP_CRITERIA = `The shared relationship-judgment rubric is the default authority. Use this field only for optional campaign-specific calibration; custom criteria are additive and do not replace current-exchange evidence, per-axis meanings, or deterministic score mechanics.`;
-
-const DEFAULT_MEMORY_CRITERIA = `Store only durable NPC memories that can matter in later scenes: consequential promises, betrayals, rescues, injuries, discoveries, relationship-defining exchanges, major gifts/debts, established secrets, lasting changes of circumstance, and other facts the NPC would reasonably remember later. Do not store routine dialogue, transient mood, narration texture, or duplicate paraphrases of an existing memory.`;
-
-const V3_DEFAULTS = Object.freeze({
-    schemaVersion: SETTINGS_SCHEMA,
-    enabled: true,
-    autoScan: true,
-    scanDepth: 8,
-    scannerResponseTokens: 7000,
-    scanConnectionProfileId: '',
-    scanAfterEachResponse: false,
-    inject: true,
-    injectDepth: 1,
-    injectLimit: 6,
-    injectBudgetTokens: 1800,
-    showDossierDiagnostics: false,
-    branchRescan: true,
-    fallbackScan: false,
-    newNpcHistoryEnrichment: true,
-    newNpcAdmissionMode: 'balanced',
-    birthdayFillMode: 'off',
-    birthdayRandomCalendar: DEFAULT_BIRTHDAY_RANDOM_CALENDAR,
-    birthdayRandomDaysPerMonth: 30,
-    staleManagementEnabled: true,
-    staleArchiveAfter: 30,
-    staleDeleteAfter: 50,
-    portraitPromptMode: 'hybrid',
-    portraitPreset: DEFAULT_PORTRAIT_PRESET,
-    portraitPositivePrompt: DEFAULT_PORTRAIT_POSITIVE_PROMPT,
-    portraitNegativePrompt: DEFAULT_PORTRAIT_NEGATIVE_PROMPT,
-    dossierLimits: { ...DOSSIER_LIMIT_DEFAULTS },
-    relationshipCaps: { ...DEFAULT_RELATIONSHIP_CAPS },
-    relationshipCriteria: DEFAULT_RELATIONSHIP_CRITERIA,
-    memoryCriteria: DEFAULT_MEMORY_CRITERIA,
-    dataFiles: {},
-});
-
-function rootSettings() {
-    let root = extension_settings[EXTENSION_NAME];
-    if (!root || typeof root !== 'object' || Array.isArray(root)) {
-        root = {};
-        extension_settings[EXTENSION_NAME] = root;
-    }
-    return root;
-}
-
 function getSettings() {
-    const root = rootSettings();
-    if (!root.v3 || typeof root.v3 !== 'object' || Array.isArray(root.v3)) root.v3 = {};
-    const settings = root.v3;
-    const legacyPositivePrompt = settings.portraitPositivePrompt === undefined ? settings.portraitGenerationPrompt : undefined;
-    for (const [key, value] of Object.entries(V3_DEFAULTS)) {
-        if (settings[key] === undefined) settings[key] = structuredClone(value);
-    }
-    if (legacyPositivePrompt !== undefined) settings.portraitPositivePrompt = legacyPositivePrompt;
-    const relationshipCriteriaText = String(settings.relationshipCriteria || '').trim();
-    if (relationshipCriteriaText === PRE_GATE_RELATIONSHIP_CRITERIA.trim() || relationshipCriteriaText === LEGACY_DEFAULT_RELATIONSHIP_CRITERIA_V0421.trim()) settings.relationshipCriteria = DEFAULT_RELATIONSHIP_CRITERIA;
-    settings.schemaVersion = SETTINGS_SCHEMA;
-    settings.scannerResponseTokens = normalizeScannerResponseTokens(settings.scannerResponseTokens);
-    settings.scanConnectionProfileId = String(settings.scanConnectionProfileId || '').trim().slice(0, 240);
-    settings.scanAfterEachResponse = settings.scanAfterEachResponse === true;
-    settings.scanDepth = Math.max(2, Math.min(30, Math.round(Number(settings.scanDepth) || 8)));
-    settings.newNpcAdmissionMode = normalizeNpcAdmissionMode(settings.newNpcAdmissionMode);
-    settings.birthdayFillMode = normalizeBirthdayFillMode(settings.birthdayFillMode);
-    settings.birthdayRandomCalendar = String(settings.birthdayRandomCalendar ?? DEFAULT_BIRTHDAY_RANDOM_CALENDAR).slice(0, 6000);
-    settings.birthdayRandomDaysPerMonth = Math.max(1, Math.min(999, Math.round(Number(settings.birthdayRandomDaysPerMonth) || 30)));
-    settings.injectDepth = Math.max(0, Math.min(20, Math.round(Number(settings.injectDepth) || 1)));
-    settings.injectLimit = Math.max(1, Math.min(20, Math.round(Number(settings.injectLimit) || 6)));
-    settings.injectBudgetTokens = Math.max(256, Math.min(8000, Math.round(Number(settings.injectBudgetTokens) || 1800)));
-    settings.staleArchiveAfter = Math.max(1, Math.min(9999, Math.round(Number(settings.staleArchiveAfter) || 30)));
-    settings.staleDeleteAfter = Math.max(settings.staleArchiveAfter + 1, Math.min(10000, Math.round(Number(settings.staleDeleteAfter) || 50)));
-    settings.dossierLimits = normalizeDossierLimits(settings.dossierLimits);
-    const portrait = normalizePortraitPromptSettings(settings);
-    settings.portraitPromptMode = portrait.portraitPromptMode;
-    settings.portraitPreset = structuredClone(portrait.portraitPreset);
-    settings.portraitPositivePrompt = portrait.portraitPositivePrompt;
-    settings.portraitNegativePrompt = portrait.portraitNegativePrompt;
-    delete settings.portraitGenerationPrompt;
-    delete settings.portraitPositivePreset;
-    delete settings.portraitNegativePreset;
-    settings.relationshipCaps = normalizeRelationshipCaps(settings.relationshipCaps);
-    settings.showDossierDiagnostics = settings.showDossierDiagnostics === true;
-    if (!settings.dataFiles || typeof settings.dataFiles !== 'object' || Array.isArray(settings.dataFiles)) settings.dataFiles = {};
-    return settings;
+    return extensionSettings(extension_settings);
 }
 
 function persistSettings() {
@@ -390,7 +285,7 @@ function activeCompletionMeta(message) {
     return message.extra?.npc_state_beta_completion_v1 || null;
 }
 
-// PHASE88_RENDERLESS_COMPLETION_METADATA: message.extra bookkeeping must not rebuild peer-rendered message DOM.
+// message.extra bookkeeping must not rebuild peer-rendered message DOM.
 function persistMessageMetadata(ctx) {
     try {
         const save = ctx?.saveChat?.();
@@ -494,7 +389,7 @@ async function maybeForegroundFallback(messageId, reason) {
     return runSeparateRecoveryScan(messageId, 'foreground-' + reason);
 }
 
-// PHASE74D_LIVE_FOREGROUND_LIFE_STATE_CONTRACT: only newly generated embedded payloads require the v0.4.44 lifecycle channel.
+// only newly generated embedded payloads require the lifecycle channel.
 async function processEmbeddedScan(messageId) {
     const ctx = getContext();
     const id = Number(messageId);
@@ -858,7 +753,7 @@ globalThis.NPCState = Object.freeze({
     hydrationStatus: () => engine.hydrationStatus(getChatKey()),
     recoveryStatus: () => engine.recoveryStatus(getChatKey()),
     recoveryRange: options => engine.recoveryRange(options),
-    previewRebase: options => engine.previewRebase(options), // PHASE61_SAFE_REBASE_RELATIONSHIP_MODES
+    previewRebase: options => engine.previewRebase(options),
     isRecoveryRunning: () => engine.isRecoveryRunning(getChatKey()),
     initializeFresh: options => engine.initializeFresh(options),
     rebuildFromChat: options => engine.startHistoricalRecovery(options),
