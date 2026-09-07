@@ -475,16 +475,16 @@ async function settledBranchReconcile({ reason = 'branch-change', messageId = nu
             refreshSurfaces();
             return;
         }
-        const result = await engine.reconcileBranch({ rescan: false });
+        const result = await engine.reconcileBranch({ rescan: false, rollbackDiscardedRelationships: reason === 'message-deleted' });
         if (result?.unsafeDivergence) {
-            notify('warning', 'timeline rebase required. Durable dossiers are intact; open NPC State settings and choose Rebase to current chat to accept the surviving timeline.');
+            notify('warning', result.branchSafety?.reason || 'Timeline recovery required. Open Recovery & Branch Safety in NPC State settings.');
             refreshSurfaces();
             return;
         }
         if (!result?.changed) { refreshSurfaces(); return; }
 
         const ctx = getContext();
-        const requestedId = Number(messageId);
+        const requestedId = messageId == null ? null : Number(messageId);
         const activeId = Number.isInteger(requestedId) && requestedId >= 0 ? requestedId : latestAssistantMessageId(ctx.chat || []);
         const checkpointAlreadyContainsTarget = Number.isInteger(activeId)
             && result?.checkpoint?.messageId === activeId

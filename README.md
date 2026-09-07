@@ -1,6 +1,12 @@
 # NPC State Beta
 
-NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.6.0 consolidates settings and policy definitions, removes unused code and obsolete prompt channels, and trims the installable package.
+NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. Release 0.6.1 fixes relationship rollback when deleting messages beyond the checkpoint window, on top of the 0.6.0 code and package cleanup.
+
+## Release 0.6.1
+
+Deleting messages restores a matching checkpoint when available, including relationship scores, fractional progress, milestones, history, reasons, and Current Dynamic. If deletion crosses the oldest usable checkpoint, the extension now also rolls back discarded relationship events from the remaining relationship ledger and removes their reasons. Manual relationship corrections remain protected. Without sufficient history, exact older scores cannot be reconstructed; the timeline stays blocked for explicit rebase or historical recovery. Other dossier data is retained in that case.
+
+Deletion no longer mistakes an absent message ID for message zero and starts a redundant scan after restoring the surviving response. Explicit preserve/rollback rebase modes remain available; this fallback is specific to message deletion. The fix runs on subsequent deletion events and does not retroactively reconstruct history already lost or accepted by a preserve rebase.
 
 ## Release 0.6.0
 
@@ -14,7 +20,7 @@ Full Scan, completeness, and historical recovery now validate semantic source ex
 
 Version boundaries:
 
-- Extension release: `0.6.0`
+- Extension release: `0.6.1`
 - Persisted state schema: `1` (unchanged)
 - Model semantic update contract: `3`
 - Settings schema: `1` (unchanged)

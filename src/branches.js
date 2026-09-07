@@ -232,7 +232,8 @@ export function rollbackRebasedRelationship(npcInput = {}, divergenceMessageId =
     npc.relationshipHistory = history.filter(event => !discardedRelationshipEvent(event, divergenceMessageId));
     npc.relationshipEvidenceHistory = evidenceHistory.filter(event => !discardedRelationshipEvent(event, divergenceMessageId));
     npc.relationshipDiagnostics = diagnostics.filter(event => !discardedRelationshipEvent(event, divergenceMessageId));
-    if (discardedRelationshipEvent(npc.lastRelationshipChange, divergenceMessageId)) {
+    const discardedLastChange = discardedRelationshipEvent(npc.lastRelationshipChange, divergenceMessageId);
+    if (discardedLastChange) {
         npc.lastRelationshipChange = npc.relationshipHistory.length
             ? structuredClone(npc.relationshipHistory[npc.relationshipHistory.length - 1])
             : emptyRelationshipChange();
@@ -240,7 +241,7 @@ export function rollbackRebasedRelationship(npcInput = {}, divergenceMessageId =
     const discardedNarrativeRelationship = history.some(event => discardedRelationshipEvent(event, divergenceMessageId))
         || evidenceHistory.some(event => discardedRelationshipEvent(event, divergenceMessageId))
         || diagnostics.some(event => discardedRelationshipEvent(event, divergenceMessageId));
-    if (affectedAxes.size || removedMilestones.length || discardedNarrativeRelationship) npc.relationshipSummary = '';
+    if (affectedAxes.size || removedMilestones.length || discardedNarrativeRelationship || discardedLastChange) npc.relationshipSummary = '';
     return npc;
 }
 
@@ -499,9 +500,16 @@ function preserveTombstones(restored, current) {
     return restored;
 }
 
-function failClosedPrebaselineDivergence(state, chat) {
+function failClosedPrebaselineDivergence(state, chat, { rollbackDiscardedRelationships = false } = {}) {
     const next = normalizeState(state, state?.chatKey || '');
     const kind = next.branchSafety?.kind || branchDivergenceKind(next, chat);
+    const divergenceMessageId = branchDivergenceMessageId(next, chat);
+    // A missing full-state checkpoint does not make discarded relationship events
+    // valid. Reuse the bounded relationship rollback ledger, including manual-anchor
+    // protection, while keeping the wider dossier timeline blocked for recovery.
+    if (rollbackDiscardedRelationships) {
+        next.npcs = next.npcs.map(npc => rollbackRebasedRelationship(npc, divergenceMessageId));
+    }
     for (const npc of next.npcs) {
         npc.present = false;
         npc.worldActive = false;
@@ -517,15 +525,13 @@ function failClosedPrebaselineDivergence(state, chat) {
     next.branchSafety = {
         status: 'rebase-required',
         kind,
-        reason: kind === 'prebaseline-truncation'
-            ? 'The chat was truncated before NPC State\'s oldest recoverable checkpoint. Durable dossiers remain intact, but the current timeline must be explicitly rebased before live scanning resumes.'
-            : 'The chat was rewritten before NPC State\'s oldest recoverable checkpoint. Durable dossiers remain intact, but the current timeline must be explicitly rebased before live scanning resumes.',
+        reason: `The chat was ${kind === 'prebaseline-truncation' ? 'truncated' : 'rewritten'} before NPC State's oldest recoverable checkpoint. ${rollbackDiscardedRelationships ? 'Known discarded relationship events were rolled back; other dossier data is retained.' : 'Durable dossiers remain intact.'} Rebase or rebuild the timeline before live scanning resumes.`,
     };
     next.updatedAt = Date.now();
     return next;
 }
 
-export function reconcileToCurrentBranch(state, chat) {
+export function reconcileToCurrentBranch(state, chat, options = {}) {
     const normalized = ensureBranchBase(state, chat);
     const currentLineage = chatLineage(chat);
     if (lineageIsPrefix(normalized.branchHeadLineage || [], currentLineage)) {
@@ -534,7 +540,7 @@ export function reconcileToCurrentBranch(state, chat) {
 
     const checkpoint = bestCheckpoint(normalized, chat);
     if (!checkpoint) {
-        const failed = failClosedPrebaselineDivergence(normalized, chat);
+        const failed = failClosedPrebaselineDivergence(normalized, chat, options);
         return { changed: true, unsafeDivergence: true, state: failed, checkpoint: null };
     }
 

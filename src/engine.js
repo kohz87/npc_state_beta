@@ -1786,7 +1786,7 @@ export function createNpcStateEngine(adapters = {}) {
         return { ok: true, ...previewRelationshipRebase(state, chat, { relationshipMode: mode }) };
     }
 
-    async function reconcileBranch({ rescan = false, rebase = false, relationshipMode = 'preserve' } = {}) {
+    async function reconcileBranch({ rescan = false, rebase = false, relationshipMode = 'preserve', rollbackDiscardedRelationships = false } = {}) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat') return { ok: false, reason: 'no-chat' };
         invalidate(chatKey);
@@ -1839,7 +1839,7 @@ export function createNpcStateEngine(adapters = {}) {
                 };
                 return;
             }
-            const reconciled = reconcileToCurrentBranch(state, chat);
+            const reconciled = reconcileToCurrentBranch(state, chat, { rollbackDiscardedRelationships });
             if (reconciled.unsafeDivergence) {
                 // Publish the blocked state before durable I/O. If persistence fails, every
                 // live consumer still observes rebase-required and scanning remains disabled.

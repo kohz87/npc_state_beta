@@ -12,7 +12,7 @@ The public `scanner.js` API coordinates response adaptation and application once
 
 Versions serve different compatibility purposes:
 
-- Release version: `0.6.0` in `manifest.json` and `NPC_STATE_VERSION`.
+- Release version: `0.6.1` in `manifest.json` and `NPC_STATE_VERSION`.
 - Persisted state schema: `1`. Prompt/behavior changes that remain load-compatible do not require a data-schema bump.
 - Settings schema: `1` (unchanged). No new settings keys are required for 0.6.0.
 - Model semantic update contract: `3` in `src/model/semantic-updates.js`.
@@ -82,6 +82,8 @@ Diagnostics remain opt-in through the existing `NPCState.debugStatus()` API and 
 Only report lifecycle phases backed by real hooks. At 0.6.0 NPC State does not have reliable cross-provider hooks for browser dispatch, first provider data, or first visible paint, so those phases are explicitly unavailable. Do not attribute unmeasured delay to SillyTavern, a proxy, a provider, or model reasoning.
 
 ## Context and history safety
+
+Message deletion passes `rollbackDiscardedRelationships:true` through branch reconciliation. A matching checkpoint still restores the full timeline. When none matches, reuse `rollbackRebasedRelationship()` to retire known discarded relationship events while retaining `rebase-required`; do not invent scores beyond bounded ledger coverage or treat partial relationship rollback as full dossier recovery. General branch reconciliation retains the user's explicit preserve/rollback choice. A missing deletion target must resolve to the latest surviving assistant, never `Number(null)` (message zero), to avoid redundant recovery scans.
 
 Full scan/recovery/Refresh may use their bounded supplied history window but never future messages during historical reconstruction. Foreground embedded semantic sources use `messageId:null` because the assistant response is not committed while generation is in progress; application validates exact excerpts against the committed current exchange.
 

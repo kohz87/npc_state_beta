@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.1
+
+- Fixed message deletion beyond the oldest usable checkpoint leaving known discarded relationship scores, progress, history, evidence, and reasons active. Reused the relationship rollback ledger with manual-anchor protection; incomplete timeline recovery still requires rebase/rebuild.
+- Clear stale Current Dynamic when only a discarded last-change record survives in older data.
+- Fixed the deletion handler treating its absent target as message zero and unnecessarily rescanning an already-restored surviving response.
+- Added seven behavioral regressions covering persisted/reloaded rollback, checkpoint exhaustion, middle/all-message deletion, manual corrections, preserve rebase, the installed deletion handler, and missing older score history. Verified with local host/persistence adapters; no live SillyTavern smoke test was performed.
+
 ## 0.6.0
 
 ### Consolidation and cleanup
