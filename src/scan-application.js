@@ -93,16 +93,20 @@ function identityOwnerForValue(state, value) {
         || (candidate?.aliases || []).some(alias => normalizeName(alias) === key)) || null;
 }
 
-function automaticIdentityPatchConflicts(state, npc, patch, referenceCandidates = []) {
+function automaticIdentityPatchConflict(state, npc, patch, referenceCandidates = []) {
     const values = [
         canonicalPatchName(patch, referenceCandidates),
         ...(Array.isArray(patch?.aliases) ? patch.aliases : []),
     ].map(value => humanIdentityCandidate(value, patch?.role)).filter(Boolean);
     for (const value of values) {
         const owner = identityOwnerForValue(state, value);
-        if (owner && (!npc || owner.id !== npc.id)) return true;
+        if (owner && (!npc || owner.id !== npc.id)) return { value, ownerId: owner.id };
     }
-    return false;
+    return null;
+}
+
+function automaticIdentityPatchConflicts(state, npc, patch, referenceCandidates = []) {
+    return Boolean(automaticIdentityPatchConflict(state, npc, patch, referenceCandidates));
 }
 
 function preflightAutomaticIdentityPatches(state, patches = [], referenceCandidates = []) {
@@ -872,52 +876,89 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     const deletedIds = new Set(state.deletedNpcIds || []);
     const createdNpcIds = new Set();
     const patchByNpcId = new Map();
-    for (const patch of result.npcs) {
+    // Runtime-only handoff. One deterministic identity/admission decision is reused by
+    // every downstream consumer; model transport ids never become stored identity authority.
+    const patchResolutions = [];
+    const setPatchResolution = (patchIndex, status, npcId = '', reason = '') => {
+        patchResolutions[patchIndex] = {
+            patchIndex,
+            status,
+            npcId: String(npcId || '').slice(0, 180),
+            reason: String(reason || '').slice(0, 220),
+        };
+    };
+    const acceptedNpcForPatchIndex = patchIndex => {
+        const resolution = patchResolutions[patchIndex];
+        if (resolution?.status !== 'accepted' || !resolution.npcId) return null;
+        return state.npcs.find(item => item.id === resolution.npcId) || null;
+    };
+    const acceptedNpcForReference = reference => {
+        for (let patchIndex = 0; patchIndex < result.npcs.length; patchIndex += 1) {
+            if (!patchReferenceMatches(result.npcs[patchIndex], reference)) continue;
+            const npc = acceptedNpcForPatchIndex(patchIndex);
+            if (npc) return npc;
+        }
+        return null;
+    };
+
+    for (let patchIndex = 0; patchIndex < result.npcs.length; patchIndex += 1) {
+        const patch = result.npcs[patchIndex];
         const patchId = String(patch?.id || '').trim();
-        if (patchId && deletedIds.has(patchId)) continue;
+        if (patchId && deletedIds.has(patchId)) {
+            setPatchResolution(patchIndex, 'rejected', '', 'deleted-npc-id');
+            continue;
+        }
         const canonicalName = canonicalPatchName(patch, identityRefs);
         let npc = patchId ? state.npcs.find(item => item.id === patchId) || null : null;
         if (!npc && canonicalName) {
-            // Unknown model ids are never authoritative. Resolve through the grounded
-            // human-facing canonical name/alias instead of the model's transport key.
+            // Unknown model ids are transport hints only. Grounded canonical identity may
+            // resolve an existing dossier or be admitted under a locally allocated id.
             npc = findNpcByReference(state, canonicalName);
         }
-        const referenced = targetRefs.some(ref => patchReferenceMatches(patch, ref)) || worldRefs.some(ref => patchReferenceMatches(patch, ref));
-        if (!npc && !automaticIdentityPatchConflicts(state, null, patch, identityRefs) && referenced && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText, result.npcs) && newNpcAdmissionAllows(patch, admissionMode, identityRefs)) {
-            const created = createFromPatch(patch, sourceMessageId, identityRefs);
-            if (created && !deletedIds.has(created.id) && !(state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
-                state.npcs.push(created);
-                createdNpcIds.add(created.id);
-                npc = created;
-            }
+        const conflict = automaticIdentityPatchConflict(state, npc, patch, identityRefs);
+        if (conflict) {
+            setPatchResolution(patchIndex, 'rejected', '', 'identity-conflict:' + conflict.value);
+            continue;
         }
-        if (npc && automaticIdentityPatchConflicts(state, npc, patch, identityRefs)) continue;
-        if (npc) patchByNpcId.set(npc.id, patch);
+        const referenced = targetRefs.some(ref => patchReferenceMatches(patch, ref)) || worldRefs.some(ref => patchReferenceMatches(patch, ref));
+        if (!npc) {
+            if (!referenced) {
+                setPatchResolution(patchIndex, 'unresolved', '', 'not-referenced');
+                continue;
+            }
+            if (!newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText, result.npcs)) {
+                setPatchResolution(patchIndex, 'unresolved', '', 'identity-evidence-unresolved');
+                continue;
+            }
+            if (!newNpcAdmissionAllows(patch, admissionMode, identityRefs)) {
+                setPatchResolution(patchIndex, 'rejected', '', 'admission-policy-rejected');
+                continue;
+            }
+            const created = createFromPatch(patch, sourceMessageId, identityRefs);
+            if (!created) {
+                setPatchResolution(patchIndex, 'unresolved', '', 'invalid-canonical-identity');
+                continue;
+            }
+            if (deletedIds.has(created.id)) {
+                setPatchResolution(patchIndex, 'rejected', '', 'deleted-npc-id');
+                continue;
+            }
+            if ((state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
+                setPatchResolution(patchIndex, 'rejected', '', 'suppressed-identity');
+                continue;
+            }
+            state.npcs.push(created);
+            createdNpcIds.add(created.id);
+            npc = created;
+        }
+        patchByNpcId.set(npc.id, patch);
+        setPatchResolution(patchIndex, 'accepted', npc.id, '');
     }
 
     const resolveRefs = refs => {
         const ids = [];
         for (const ref of refs) {
-            let npc = findNpcByReference(state, ref);
-            if (!npc) {
-                const patch = result.npcs.find(item => patchReferenceMatches(item, ref));
-                if (patch) {
-                    // The first bootstrap pass may already have created this patch under a
-                    // locally allocated id. Resolve by its human-facing canonical name first.
-                    const canonicalName = canonicalPatchName(patch, [...identityRefs, ref]);
-                    npc = canonicalName ? findNpcByReference(state, canonicalName) : null;
-                    if (!npc && !automaticIdentityPatchConflicts(state, null, patch, [...identityRefs, ref]) && newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText, result.npcs) && newNpcAdmissionAllows(patch, admissionMode, [...identityRefs, ref])) {
-                        const created = createFromPatch(patch, sourceMessageId, [...identityRefs, ref]);
-                        if (created && !deletedIds.has(created.id) && !(state.suppressedNames || []).some(name => normalizeName(name) === normalizeName(created.name))) {
-                            state.npcs.push(created);
-                            createdNpcIds.add(created.id);
-                            npc = created;
-                        }
-                    }
-                    if (npc && automaticIdentityPatchConflicts(state, npc, patch, identityRefs)) continue;
-            if (npc) patchByNpcId.set(npc.id, patch);
-                }
-            }
+            const npc = findNpcByReference(state, ref) || acceptedNpcForReference(ref);
             if (npc && !ids.includes(npc.id)) ids.push(npc.id);
         }
         return ids;
@@ -1017,13 +1058,8 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         });
     }
 
-    const resolveReturnedReference = reference => {
-        const direct = findNpcByReference(state, reference);
-        if (direct) return direct;
-        const patch = result.npcs.find(item => patchReferenceMatches(item, reference));
-        const canonicalName = patch ? canonicalPatchName(patch, [...identityRefs, reference]) : '';
-        return canonicalName ? findNpcByReference(state, canonicalName) : null;
-    };
+    const resolveReturnedReference = reference =>
+        findNpcByReference(state, reference) || acceptedNpcForReference(reference);
     const edgeMap = new Map((state.socialGraph || []).map(edge => [socialEdgeKey(edge), edge]));
     for (const raw of result.socialEdges) {
         if (keyRelationshipReferencesPlayer(raw?.from, playerName) || keyRelationshipReferencesPlayer(raw?.to, playerName)) continue;
@@ -1067,5 +1103,12 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         state.lastScannedMessageId = sourceMessageId;
     }
     state.updatedAt = Date.now();
-    return { state: normalizeState(state, state.chatKey), exchangeActiveNpcIds: exchangeIds, finalPresentNpcIds: presentIds, worldActiveNpcIds: worldIds, targetNpcIds: targetIds };
+    return {
+        state: normalizeState(state, state.chatKey),
+        exchangeActiveNpcIds: exchangeIds,
+        finalPresentNpcIds: presentIds,
+        worldActiveNpcIds: worldIds,
+        targetNpcIds: targetIds,
+        patchResolutions: patchResolutions.map(row => row ? structuredClone(row) : null),
+    };
 }

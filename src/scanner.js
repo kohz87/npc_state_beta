@@ -42,13 +42,16 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     const adapted = adaptLegacySemanticPayload(stateInput, parsed, { ...semanticOptions, compatibilityDiagnostics });
     const prepared = prepareModelLedPayload(stateInput, adapted, options.admissionMode);
     const applied = core.applyScanResult(stateInput, prepared, options);
-    const semantic = applyModelLedSemanticUpdates(applied.state, adapted, semanticOptions);
+    const semantic = applyModelLedSemanticUpdates(applied.state, adapted, {
+        ...semanticOptions,
+        patchResolutions: applied.patchResolutions,
+    });
     const family = applyModelLedFamilyFacts(semantic.state, adapted, options);
     const coverageNpcIds = Array.isArray(options.coverageNpcIds)
         ? options.coverageNpcIds
         : (options.requireDossierCoverage === true ? applied.exchangeActiveNpcIds : []);
     const coverageDiagnostics = coverageNpcIds.length
-        ? auditDossierEvaluationCoverage(family.state, adapted, { npcIds: coverageNpcIds })
+        ? auditDossierEvaluationCoverage(family.state, adapted, { npcIds: coverageNpcIds, patchResolutions: applied.patchResolutions })
         : [];
     return {
         ...applied,

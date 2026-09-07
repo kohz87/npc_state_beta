@@ -448,11 +448,62 @@ export function prepareModelLedPayload(stateInput, resultInput, admissionMode = 
     return result;
 }
 
-function restoreNewNpcModelLedRole(state, originalResult) {
-    for (const patch of Array.isArray(originalResult?.npcs) ? originalResult.npcs : []) {
+function patchResolutionAt(options = {}, patchIndex = -1) {
+    if (!Array.isArray(options.patchResolutions)) return null;
+    const row = options.patchResolutions.find(item => Number(item?.patchIndex) === patchIndex);
+    return row || { patchIndex, status: 'unresolved', npcId: '', reason: 'identity-handoff-missing' };
+}
+
+function legacyPatchTarget(state, patch) {
+    const id = String(patch?.id || '').trim();
+    return id ? (state.npcs || []).find(item => item.id === id) || null : findNpcByReference(state, patch?.name || '');
+}
+
+function resolvedPatchTarget(state, patch, patchIndex, options = {}) {
+    const resolution = patchResolutionAt(options, patchIndex);
+    if (!resolution) return { npc: legacyPatchTarget(state, patch), resolution: null };
+    if (resolution.status !== 'accepted' || !resolution.npcId) return { npc: null, resolution };
+    const npc = (state.npcs || []).find(item => item.id === resolution.npcId) || null;
+    return npc
+        ? { npc, resolution }
+        : { npc: null, resolution: { ...resolution, status: 'unresolved', reason: 'accepted-target-missing' } };
+}
+
+function proposedFieldsForPatch(patch = {}) {
+    const fields = [];
+    const add = value => {
+        const field = String(value || '').trim();
+        if (field && !fields.includes(field) && fields.length < 32) fields.push(field);
+    };
+    for (const field of DOSSIER_SEMANTIC_FIELDS) if (Object.prototype.hasOwnProperty.call(patch, field)) add(field);
+    for (const update of Array.isArray(patch?.semanticUpdates) ? patch.semanticUpdates : []) add(update?.field);
+    return fields;
+}
+
+function identityDiagnostic(patch, patchIndex, resolution) {
+    const rejected = String(resolution?.status || '') === 'rejected';
+    return {
+        npcId: String(resolution?.npcId || ''),
+        patchIndex,
+        status: rejected ? 'identity-rejected' : 'identity-unresolved',
+        reason: String(resolution?.reason || (rejected ? 'identity-rejected' : 'identity-unresolved')).slice(0, 220),
+        proposedFields: proposedFieldsForPatch(patch),
+    };
+}
+
+function evaluatedGroupsForPatch(patch = {}) {
+    return [...new Set((Array.isArray(patch?.evaluatedGroups) ? patch.evaluatedGroups : [])
+        .map(value => String(value || '').trim())
+        .filter(value => DOSSIER_EVALUATION_GROUPS.includes(value)))];
+}
+
+function restoreNewNpcModelLedRole(state, originalResult, options = {}) {
+    const patches = Array.isArray(originalResult?.npcs) ? originalResult.npcs : [];
+    for (let patchIndex = 0; patchIndex < patches.length; patchIndex += 1) {
+        const patch = patches[patchIndex];
         const role = compact(patch?._modelLedRole ?? patch?.role, 240);
         if (!role || String(patch?.identityKind || '').trim().toLocaleLowerCase() !== 'named') continue;
-        const npc = String(patch.id || '').trim() ? (state.npcs || []).find(item => item.id === String(patch.id).trim()) : findNpcByReference(state, patch.name || '');
+        const { npc } = resolvedPatchTarget(state, patch, patchIndex, options);
         if (!npc || manualProtected(npc, 'role') || npc.role) continue;
         npc.role = role;
         npc.updatedAt = Math.max(Date.now(), Number(npc.updatedAt || 0) + 1);
@@ -487,14 +538,26 @@ export function applyModelLedSemanticUpdates(stateInput, resultInput, options = 
     const diagnostics = [];
     const seen = new Set();
     const limits = normalizeDossierLimits(options.dossierLimits);
-    restoreNewNpcModelLedRole(state, resultInput);
+    restoreNewNpcModelLedRole(state, resultInput, options);
 
-    for (const patch of Array.isArray(resultInput?.npcs) ? resultInput.npcs : []) {
-        const npc = String(patch?.id || '').trim()
-            ? (state.npcs || []).find(item => item.id === String(patch.id).trim())
-            : findNpcByReference(state, patch?.name || '');
-        if (!npc) continue;
-        for (const raw of Array.isArray(patch.semanticUpdates) ? patch.semanticUpdates : []) {
+    const patches = Array.isArray(resultInput?.npcs) ? resultInput.npcs : [];
+    for (let patchIndex = 0; patchIndex < patches.length; patchIndex += 1) {
+        const patch = patches[patchIndex];
+        const target = resolvedPatchTarget(state, patch, patchIndex, options);
+        const npc = target.npc;
+        if (!npc) {
+            diagnostics.push(identityDiagnostic(patch, patchIndex, target.resolution));
+            continue;
+        }
+        const ordinaryProposalFields = proposedFieldsForPatch(patch);
+        const semanticRows = Array.isArray(patch.semanticUpdates) ? patch.semanticUpdates : [];
+        if (!ordinaryProposalFields.length) {
+            const evaluatedGroups = evaluatedGroupsForPatch(patch);
+            diagnostics.push(evaluatedGroups.length
+                ? { npcId: npc.id, patchIndex, status: 'evaluated-unchanged', evaluatedGroups }
+                : { npcId: npc.id, patchIndex, status: 'no-field-proposal' });
+        }
+        for (const raw of semanticRows) {
             const update = normalizedUpdate(raw);
             if (!update) {
                 diagnostics.push({ npcId: npc.id, field: String(raw?.field || ''), operation: String(raw?.operation || ''), status: 'invalid-structure' });
@@ -539,28 +602,57 @@ export function applyModelLedSemanticUpdates(stateInput, resultInput, options = 
     return { state, diagnostics };
 }
 
-function patchForNpc(resultInput, npc) {
-    return (Array.isArray(resultInput?.npcs) ? resultInput.npcs : []).find(patch => {
-        const id = String(patch?.id || '').trim();
-        if (id) return id === npc.id;
-        const name = normalizeName(patch?.name);
-        return name && [npc.name, ...(npc.aliases || [])].some(label => normalizeName(label) === name);
-    }) || null;
+function patchReferencesNpc(patch, npc) {
+    const id = String(patch?.id || '').trim();
+    if (id && id === npc.id) return true;
+    const labels = [npc?.name, ...(npc?.aliases || [])].map(normalizeName).filter(Boolean);
+    return [patch?.name, ...(Array.isArray(patch?.aliases) ? patch.aliases : [])]
+        .map(normalizeName).filter(Boolean).some(label => labels.includes(label));
 }
 
-export function auditDossierEvaluationCoverage(stateInput, resultInput, { npcIds = [] } = {}) {
+function patchForNpc(resultInput, npc, patchResolutions = null) {
+    const patches = Array.isArray(resultInput?.npcs) ? resultInput.npcs : [];
+    if (Array.isArray(patchResolutions)) {
+        for (let index = patchResolutions.length - 1; index >= 0; index -= 1) {
+            const resolution = patchResolutions[index];
+            if (resolution?.status === 'accepted' && resolution.npcId === npc.id) {
+                return { patch: patches[Number(resolution.patchIndex)] || null, resolution };
+            }
+        }
+        for (const resolution of patchResolutions) {
+            if (!resolution || resolution.status === 'accepted') continue;
+            const patch = patches[Number(resolution.patchIndex)];
+            if (patch && patchReferencesNpc(patch, npc)) return { patch, resolution };
+        }
+        return { patch: null, resolution: null };
+    }
+    const patch = patches.find(candidate => {
+        const id = String(candidate?.id || '').trim();
+        if (id) return id === npc.id;
+        const name = normalizeName(candidate?.name);
+        return name && [npc.name, ...(npc.aliases || [])].some(label => normalizeName(label) === name);
+    }) || null;
+    return { patch, resolution: null };
+}
+
+export function auditDossierEvaluationCoverage(stateInput, resultInput, { npcIds = [], patchResolutions = null } = {}) {
     const state = stateInput || {};
     const diagnostics = [];
     const ids = [...new Set((Array.isArray(npcIds) ? npcIds : []).filter(Boolean))];
     for (const id of ids) {
         const npc = (state.npcs || []).find(item => item.id === id) || findNpcByReference(state, id);
         if (!npc) continue;
-        const patch = patchForNpc(resultInput, npc);
+        const binding = patchForNpc(resultInput, npc, patchResolutions);
+        const patch = binding.patch;
+        if (binding.resolution && binding.resolution.status !== 'accepted') {
+            diagnostics.push({ ...identityDiagnostic(patch || {}, Number(binding.resolution.patchIndex), binding.resolution), npcId: npc.id });
+            continue;
+        }
         if (!patch) {
             diagnostics.push({ npcId: npc.id, status: 'missing-npc-patch', missingGroups: [...DOSSIER_EVALUATION_GROUPS] });
             continue;
         }
-        const groups = new Set((Array.isArray(patch.evaluatedGroups) ? patch.evaluatedGroups : []).map(value => String(value || '').trim()).filter(value => DOSSIER_EVALUATION_GROUPS.includes(value)));
+        const groups = new Set(evaluatedGroupsForPatch(patch));
         const missingGroups = DOSSIER_EVALUATION_GROUPS.filter(group => !groups.has(group));
         if (missingGroups.length) diagnostics.push({ npcId: npc.id, status: 'incomplete-evaluation', missingGroups });
     }
