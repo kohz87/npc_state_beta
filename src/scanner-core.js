@@ -167,7 +167,7 @@ export function recentHistory(chat = [], assistantMessageId = null, depth = 8) {
         }));
 }
 
-function relationshipSummaryRepairCandidateIds(state, exchange) {
+function relationshipSummaryCandidateIds(state, exchange) {
     const visible = [exchange?.user?.mes, exchange?.assistant?.mes]
         .map(value => scannerEvidenceText(value || ''))
         .filter(Boolean)
@@ -213,7 +213,7 @@ function relationshipSummaryRepairContext(npc = {}) {
     return { relationship, progress, milestones, recentEvidence, recentChanges };
 }
 
-function rosterForPrompt(state, { relationshipSummaryRepair = false, relationshipSummaryRepairIds = null } = {}) {
+function rosterForPrompt(state, { relationshipSummaryIds = null, relationshipSummaryRepair = false, relationshipSummaryRepairIds = null } = {}) {
     return (state?.npcs || []).map(npc => {
         const row = {
             id: npc.id,
@@ -240,13 +240,15 @@ function rosterForPrompt(state, { relationshipSummaryRepair = false, relationshi
             lifeStateCertainty: npc.lifeStateCertainty,
             lifeStateReason: npc.lifeStateReason,
             relationship: npc.relationship,
-            relationshipSummary: normalizeRelationshipSummary(npc.relationshipSummary),
             behaviorProfile: npc.behaviorProfile,
             mannerisms: npc.mannerisms,
             memories: npc.memories,
             keyRelationships: npc.keyRelationships,
             manualProfileFields: npc.manualProfileFields,
         };
+        if (relationshipSummaryIds?.has(npc.id)) {
+            row.relationshipSummary = normalizeRelationshipSummary(npc.relationshipSummary);
+        }
         if (relationshipSummaryRepair && relationshipSummaryRepairIds?.has(npc.id)) {
             const repairContext = relationshipSummaryRepairContext(npc);
             if (!row.relationshipSummary && repairContext) row.relationshipSummaryRepairContext = repairContext;
@@ -278,7 +280,8 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
     const history = recentHistory(chat, assistantMessageId, scanDepth);
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
-    const relationshipSummaryRepairIds = relationshipSummaryRepair ? relationshipSummaryRepairCandidateIds(state, exchange) : null;
+    const relationshipSummaryContextIds = relationshipSummaryCandidateIds(state, exchange);
+    const relationshipSummaryRepairIds = relationshipSummaryRepair ? relationshipSummaryContextIds : null;
     const structuredDetected = [exchange.user?.mes, exchange.assistant?.mes, ...nonSystemMessages(chat).slice(-Math.max(2, Math.min(30, Number(scanDepth) || 8))).map(message => message.mes)].some(hasRecognizedStructuredBlocks);
     const contract = {
         exchangeActiveNpcIds: ['existing dossier id OR exact canonical name'],
@@ -321,7 +324,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- A single scan may update MULTIPLE existing NPCs in the same response. Do not stop after the first and do not omit a dossier patch merely because another NPC is more prominent. Return one separate npcs object for EVERY exchange-active existing NPC so relationship evaluation is explicit, plus any other individually relevant existing NPC whose grounded dossier data is established, corrected, or materially changed. Keep exchangeActiveNpcIds, inChatNpcIds, and worldActiveNpcIds complete for their own semantics.',
         '- The PLAYER/current USER persona is not an NPC for this scanner, even when named in narration. Never create the PLAYER as an npcs entry.',
         '- relationship, relationshipSummary, and relationshipChange describe THIS NPC toward the PLAYER. They are the dedicated player-relationship channel.',
-        '- relationshipSummary is the CURRENT NPC-to-PLAYER dynamic, a descriptive projection separate from numeric score mutation. For an existing NPC, compare against the stored relationshipSummary and return a new value only when the CURRENT exchange materially changes or newly clarifies that dynamic, or when explicit repair mode below applies. Do not rewrite it merely for style. A grounded current relationship proposal may update relationshipSummary even if runtime replay protection, inertia, caps, or gates later prevent numeric movement. Never copy schema instructions, field descriptions, placeholders, or labels into it; leave it empty/omit it when unchanged.',
+        '- relationshipSummary is the CURRENT NPC-to-PLAYER dynamic, a descriptive projection separate from numeric score mutation. EXISTING DOSSIERS includes stored relationshipSummary only for NPCs who are already present or explicitly referenced in the CURRENT exchange. For those NPCs, compare against the stored value and return a new value only when the CURRENT exchange materially changes or newly clarifies that dynamic, or when explicit repair mode below applies. If an existing dossier row omits relationshipSummary, do not attempt Current Dynamic reconciliation for that NPC in this scan. Do not rewrite merely for style. A grounded current relationship proposal may update relationshipSummary even if runtime replay protection, inertia, caps, or gates later prevent numeric movement. Never copy schema instructions, field descriptions, placeholders, or labels into it; leave it empty/omit it when unchanged.',
         ...(relationshipSummaryRepair ? [
             '- CURRENT-DYNAMIC REPAIR MODE: this is an explicit Scan current cast reconciliation. For an existing current-cast NPC whose relationshipSummary is blank and whose relationshipSummaryRepairContext is present, reconstruct one concise Current Dynamic from the STORED relationship values, fractional progress, unlocked milestones, and accepted recent relationship evidence supplied there.',
             '- Summary repair is independent of relationship scoring. Do NOT invent or replay a relationshipChange merely to make relationshipSummary eligible. If the current exchange has no genuinely new relationship event, relationshipChange must remain impact none with zero deltas while relationshipSummary may still be repaired from the stored accepted state.',
@@ -361,7 +364,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         relationshipCustomCriteriaPrompt(relationshipCriteria),
         memoryCriteria ? `IMPORTANT MEMORY RUBRIC:\n${compactText(memoryCriteria, 6000)}` : '',
         '',
-        `EXISTING DOSSIERS:\n${JSON.stringify(rosterForPrompt(state, { relationshipSummaryRepair, relationshipSummaryRepairIds }))}`,
+        `EXISTING DOSSIERS:\n${JSON.stringify(rosterForPrompt(state, { relationshipSummaryIds: relationshipSummaryContextIds, relationshipSummaryRepair, relationshipSummaryRepairIds }))}`,
         `OLDER CONTEXT — CONTINUITY ONLY; NOT NEW EVENT EVIDENCE:\n${JSON.stringify(history)}`,
         `CURRENT USER MESSAGE:\n${compactText(scannerEvidenceText(exchange.user?.mes || ''), 10000)}`,
         `CURRENT ASSISTANT MESSAGE:\n${compactText(scannerEvidenceText(exchange.assistant?.mes || ''), 14000)}`,
@@ -450,7 +453,7 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
         'You are NPC State v0.4.44 performing a targeted dossier reconciliation.',
         'Return JSON only using the same object shape shown below.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
-        `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] })[0])}`,
+        `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] }, { relationshipSummaryIds: new Set([npc.id]) })[0])}`,
         'Use the supplied chat window to reconcile grounded stable profile facts, current activity/situation/condition when supported, durable memories, and key relationships for THIS NPC only.',
         'status is the NPC current concrete activity, immediate situation, or condition: what they are doing or undergoing now. Never use active, inactive, in chat, off-screen, present, archived, or equivalent lifecycle labels as status; lifecycle presence is tracked separately.',
         'LIFE-STATE RECONCILIATION: TARGET DOSSIER Status and Life state are continuity together. Every authoritative transition MUST be returned in top-level lifeStateUpdates. If the stored Status itself unambiguously establishes this NPC is dead or terminally/irreversibly dissolved while stored Life state is not dead, return a lifeStateUpdates row with lifeState dead, explicit/strong certainty, and lifeStateReason EXACTLY equal to the stored Status even if no ordinary npcs patch is otherwise needed. Explicitly deceased irreversible dissolution with no continuing living form is death; reversible transformations are not. Stored Status can repair death only; it can never prove livingReturn or resurrection.',

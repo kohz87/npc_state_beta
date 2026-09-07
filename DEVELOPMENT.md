@@ -12,9 +12,9 @@ The deterministic scan/application implementation remains in `scanner-core.js`; 
 
 Versions serve different compatibility purposes:
 
-- Release version: `0.5.7` in `manifest.json` and `NPC_STATE_VERSION`.
+- Release version: `0.5.8` in `manifest.json` and `NPC_STATE_VERSION`.
 - Persisted state schema: `1`. Prompt/behavior changes that remain load-compatible do not require a data-schema bump.
-- Settings schema: `1` (unchanged). No new settings keys are required for 0.5.7.
+- Settings schema: `1` (unchanged). No new settings keys are required for 0.5.8.
 - Model semantic update contract: `2` in `src/model/semantic-updates.js`.
 - Foreground embedded-capture contract: `3` in `src/foreground-contract.js`.
 
@@ -32,7 +32,7 @@ Do not rename existing storage keys, sidecar identity, or supported import forma
 6. enforcement of the total budget, with the remaining allowance assigned to dynamic context;
 7. local diagnostics and content-aware prompt caching.
 
-The existing `injectBudgetTokens` key is the complete foreground extension-prompt budget in 0.5.7. Its stored key/default remain compatible (`1800`), while the builder enforces an effective minimum of `1600` estimated tokens so the fixed contract is never silently emitted above a claimed smaller cap. If the fixed contract grows later, diagnostics report the actual floor.
+The existing `injectBudgetTokens` key is the complete foreground extension-prompt budget in 0.5.8. Its stored key/default remain compatible (`1800`), while the builder enforces an effective minimum of `1600` estimated tokens so the fixed contract is never silently emitted above a claimed smaller cap. If the fixed contract grows later, diagnostics report the actual floor.
 
 Token counts are explicitly estimates. The foreground send path must not add a remote tokenizer request or an expensive repeated tokenization pass. If SillyTavern later exposes a stable synchronous compatible tokenizer through the extension API, it may replace the estimator behind the same diagnostics contract.
 
@@ -53,6 +53,8 @@ Manual `Scan current cast` may enable `relationshipSummaryRepair`. That mode may
 
 Treat `relationshipSummary` as a descriptive projection, not as a side effect of score mutation. Exchange-active scans may update it from a grounded current relationship proposal even when numeric movement is duplicate/replay-protected, capped, gated, or absorbed by inertia. This projection must still pass relationship-depth/milestone wording safety and must not change on `impact:none` or ungrounded turns. Targeted Refresh may opt into explicit summary reconciliation from its bounded supplied history while keeping `applyRelationship:false`.
 
+Full Scan must not serialize or ask the model to reconcile stored `relationshipSummary` for the entire NPC roster. Scope stored Current Dynamic context to NPCs already present or explicitly referenced in the current exchange; keep the remaining roster intact for other continuity duties. Manual current-cast repair and targeted Refresh are explicit exceptions because they deliberately target relationship-summary reconciliation.
+
 Temporary state, newly revealed enduring traits, genuine development, correction, and form-specific traits remain distinct. Omission preserves state. Empty arrays are not destructive authorization.
 
 `src/model/legacy-semantic-adapter.js` remains for older structured scan response shapes. It translates already-structured legacy proposals into model-contract v2 for scan/recovery compatibility; it is not part of the foreground prompt contract.
@@ -71,7 +73,7 @@ The shared quiet-generation queue serializes hidden extension generations only. 
 
 Diagnostics remain opt-in through the existing `NPCState.debugStatus()` API and local. They may record prompt character/estimated-token sizes, selected NPCs, budgets, construction time, cache hits, configured scan route identifiers, engine/completeness background status, and cache state. Never log credentials, provider secrets, full prompts, or per-token events.
 
-Only report lifecycle phases backed by real hooks. At 0.5.7 NPC State does not have reliable cross-provider hooks for browser dispatch, first provider data, or first visible paint, so those phases are explicitly unavailable. Do not attribute unmeasured delay to SillyTavern, a proxy, a provider, or model reasoning.
+Only report lifecycle phases backed by real hooks. At 0.5.8 NPC State does not have reliable cross-provider hooks for browser dispatch, first provider data, or first visible paint, so those phases are explicitly unavailable. Do not attribute unmeasured delay to SillyTavern, a proxy, a provider, or model reasoning.
 
 ## Context and history safety
 

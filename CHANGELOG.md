@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.8
+
+### Scan prompt scaling
+
+- Full Scan now serializes stored `relationshipSummary` only for NPCs who are already present or explicitly referenced in the current exchange, instead of attaching Current Dynamic prose to every stored dossier.
+- Existing dossier rows that are outside that scope remain in the continuity roster but omit `relationshipSummary`, and the prompt explicitly tells the model not to perform Current Dynamic reconciliation for those rows.
+- Targeted Refresh and explicit `Scan current cast` Current Dynamic repair retain their full relationship-summary context.
+- Added large-roster regression coverage proving that Current Dynamic payload count follows relevant NPC count rather than total cast size while the full continuity roster remains available.
+
+### Compatibility
+
+- Persisted state schema remains `1`; settings schema remains `1`; model semantic contract remains `2`; foreground contract remains `3`. No migration or dossier rebuild is required.
+
 ## 0.5.7
 
 ### Current Dynamic evolution
