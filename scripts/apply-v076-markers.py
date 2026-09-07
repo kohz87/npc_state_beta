@@ -46,9 +46,13 @@ s = once(s,
     'live field marker')
 write(p, s)
 
-# Deliberate v5 assertion in the foreground integration test.
+# Deliberate contract-architecture/version assertions for the consolidated path.
+p = 'tests/compatibility.test.mjs'
+s = read(p).replace('assert.match(contract, /dossierSemanticFieldList/);', 'assert.match(contract, /dossierExtractionPromptRules/);')
+write(p, s)
+
 p = 'tests/foreground-injection.test.mjs'
 s = read(p).replace('/FOREGROUND CONTRACT v4/g', '/FOREGROUND CONTRACT v5/g')
 write(p, s)
 
-print('Applied v0.7.6 compatibility markers and lean foreground cleanup.')
+print('Applied v0.7.6 compatibility markers, consolidated authority assertion, and lean foreground cleanup.')
