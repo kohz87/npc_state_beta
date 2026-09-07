@@ -2,14 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNpcStateEngine } from '../src/engine.js';
 import { createEmptyState, normalizeNpc } from '../src/schema.js';
+import { ensurePreUpdateBaseline, recordCheckpoint } from '../src/branches.js';
 import { encodeV3Payload, decodeV3Payload } from '../src/storage.js';
 import { normalizeSettings } from '../src/settings.js';
 
-function harness() {
+function harness({ trustedBoundary = false } = {}) {
     const key = 'v078-manual-api';
     const context = { chat: [{ is_user: true, mes: 'Lucien waits.' }, { mes: 'Nia remains at the desk.' }] };
-    const initial = createEmptyState(key);
+    let initial = createEmptyState(key);
     initial.npcs = [normalizeNpc({ id: 'nia', name: 'Nia', appearance: 'Valid appearance.', birthday: 'May 3', relationshipSummary: 'Professional.', lifeStateReason: 'No concern.' })];
+    if (trustedBoundary) {
+        initial = ensurePreUpdateBaseline(initial, context.chat, 1);
+        initial = recordCheckpoint(initial, context.chat, 1, 'pre-manual-api-review');
+    }
     let pointer = { name: 'state.json', path: '/files/state.json', revision: 1 };
     let saved = encodeV3Payload(key, initial, 1);
     const engine = createNpcStateEngine({
@@ -29,7 +34,7 @@ function harness() {
         },
         recoverySessionId: 'v078-manual-api',
     });
-    return { key, engine, persisted: () => decodeV3Payload(saved, key).state };
+    return { key, context, engine, persisted: () => decodeV3Payload(saved, key).state };
 }
 
 test('public updateNpc rejects malformed manual scalar values without overwriting stored dossier data', async () => {
@@ -79,4 +84,39 @@ test('public addNpc rejects non-string identity instead of creating object-text 
     assert.deepEqual(result, { ok: false, reason: 'invalid-name-type' });
     assert.equal(h.persisted().npcs.length, before);
     assert.equal(h.persisted().npcs.some(npc => npc.name === '[object Object]'), false);
+});
+
+
+test('explicit manualOverrides rejects malformed owned values before a later rollback can reapply object text', async () => {
+    const h = harness({ trustedBoundary: true });
+    await h.engine.loadChat(h.key);
+    const result = await h.engine.updateNpc('nia', { manualOverrides: { appearance: { hair: 'auburn' } } });
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'invalid-value-type:manualOverrides.appearance:expected-string-value');
+    assert.deepEqual(h.persisted().npcs[0].manualOverrides, {});
+    h.context.chat.splice(0);
+    const reconciled = await h.engine.reconcileBranch();
+    assert.equal(reconciled.ok, true);
+    assert.equal(h.persisted().npcs[0].appearance, 'Valid appearance.');
+    assert.equal(JSON.stringify(h.persisted()).includes('[object Object]'), false);
+});
+
+test('empty explicit manualOverrides remains a supported clear operation', async () => {
+    const h = harness();
+    await h.engine.loadChat(h.key);
+    assert.equal((await h.engine.updateNpc('nia', { mood: 'Pinned.' })).ok, true);
+    assert.equal(h.persisted().npcs[0].manualOverrides.mood, 'Pinned.');
+    const cleared = await h.engine.updateNpc('nia', { manualOverrides: {} });
+    assert.equal(cleared.ok, true);
+    assert.deepEqual(h.persisted().npcs[0].manualOverrides, {});
+});
+
+
+test('portrait object updates remain supported outside dossier text validation', async () => {
+    const h = harness();
+    await h.engine.loadChat(h.key);
+    const portrait = { dataUrl: 'data:image/png;base64,TEST', mimeType: 'image/png' };
+    const result = await h.engine.updateNpc('nia', { portrait });
+    assert.equal(result.ok, true);
+    assert.equal(h.persisted().npcs[0].portrait.dataUrl, portrait.dataUrl);
 });

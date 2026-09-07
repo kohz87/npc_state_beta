@@ -1237,31 +1237,40 @@ export function createNpcStateEngine(adapters = {}) {
         catch { return false; }
     }
 
-    function manualNpcPatchValueIssue(patch) {
-        if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return 'expected-object-patch';
-        const has = field => Object.prototype.hasOwnProperty.call(patch, field);
+    function manualOwnedFieldValueIssue(source) {
+        if (!source || typeof source !== 'object' || Array.isArray(source)) return 'expected-object-value';
+        const has = field => Object.prototype.hasOwnProperty.call(source, field);
         for (const field of DOSSIER_SEMANTIC_FIELDS) {
             if (!has(field)) continue;
-            const issue = dossierFieldValueIssue(field, patch[field]);
+            const issue = dossierFieldValueIssue(field, source[field]);
             if (issue) return `${field}:${issue}`;
         }
-        if (has('name') && typeof patch.name !== 'string') return 'name:expected-string-value';
-        if (has('aliases') && (!Array.isArray(patch.aliases) || patch.aliases.some(value => typeof value !== 'string'))) return 'aliases:expected-string-array';
-        for (const field of ['relationshipSummary', 'lifeState', 'lifeStateCertainty', 'lifeStateReason', 'archiveReason', 'birthdayProvenance']) {
-            if (has(field) && typeof patch[field] !== 'string') return `${field}:expected-string-value`;
+        if (has('name') && typeof source.name !== 'string') return 'name:expected-string-value';
+        if (has('aliases') && (!Array.isArray(source.aliases) || source.aliases.some(value => typeof value !== 'string'))) return 'aliases:expected-string-array';
+        for (const field of ['relationshipSummary', 'lifeState', 'lifeStateCertainty', 'lifeStateReason', 'archiveReason']) {
+            if (has(field) && typeof source[field] !== 'string') return `${field}:expected-string-value`;
         }
         for (const field of ['archived', 'retentionProtected', 'minor']) {
-            if (has(field) && typeof patch[field] !== 'boolean') return `${field}:expected-boolean-value`;
+            if (has(field) && typeof source[field] !== 'boolean') return `${field}:expected-boolean-value`;
         }
-        if (has('importance') && !Number.isFinite(Number(patch.importance))) return 'importance:expected-finite-number';
-        if (has('manualProfileFields') && (!Array.isArray(patch.manualProfileFields) || patch.manualProfileFields.some(value => typeof value !== 'string'))) return 'manualProfileFields:expected-string-array';
         if (has('relationship')) {
-            if (!patch.relationship || typeof patch.relationship !== 'object' || Array.isArray(patch.relationship)) return 'relationship:expected-object-value';
+            if (!source.relationship || typeof source.relationship !== 'object' || Array.isArray(source.relationship)) return 'relationship:expected-object-value';
             for (const axis of RELATIONSHIP_AXES) {
-                if (!Object.prototype.hasOwnProperty.call(patch.relationship, axis)) continue;
-                if (!Number.isFinite(Number(patch.relationship[axis]))) return `relationship.${axis}:expected-finite-number`;
+                if (!Object.prototype.hasOwnProperty.call(source.relationship, axis)) continue;
+                if (!Number.isFinite(Number(source.relationship[axis]))) return `relationship.${axis}:expected-finite-number`;
             }
         }
+        return '';
+    }
+
+    function manualNpcPatchValueIssue(patch) {
+        if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return 'expected-object-patch';
+        const issue = manualOwnedFieldValueIssue(patch);
+        if (issue) return issue;
+        const has = field => Object.prototype.hasOwnProperty.call(patch, field);
+        if (has('birthdayProvenance') && typeof patch.birthdayProvenance !== 'string') return 'birthdayProvenance:expected-string-value';
+        if (has('importance') && !Number.isFinite(Number(patch.importance))) return 'importance:expected-finite-number';
+        if (has('manualProfileFields') && (!Array.isArray(patch.manualProfileFields) || patch.manualProfileFields.some(value => typeof value !== 'string'))) return 'manualProfileFields:expected-string-array';
         return '';
     }
 
@@ -1288,6 +1297,10 @@ export function createNpcStateEngine(adapters = {}) {
             const explicitOverridePatch = Object.prototype.hasOwnProperty.call(patch || {}, 'manualOverrides');
             if (explicitOverridePatch && (!patch.manualOverrides || typeof patch.manualOverrides !== 'object' || Array.isArray(patch.manualOverrides))) {
                 return { rejected: 'invalid-manual-overrides' };
+            }
+            if (explicitOverridePatch) {
+                const overrideValueIssue = manualOwnedFieldValueIssue(patch.manualOverrides);
+                if (overrideValueIssue) return { rejected: 'invalid-value-type:manualOverrides.' + overrideValueIssue };
             }
             const clearRelationshipCorrections = clearRelationshipOnly
                 || (explicitOverridePatch && !Object.prototype.hasOwnProperty.call(patch.manualOverrides, 'relationship'));
