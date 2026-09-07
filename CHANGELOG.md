@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.7.8
+- Independent contract/validation review fixed two adjacent coercion/accounting holes: named-preferred role compatibility now preserves the raw proposal until registry validation (so invalid roles cannot become `[object Object]` or be counted twice), and legacy direct-live/form adapters validate raw shapes before compaction. Refresh and structured import share the same canonical semantic validator.
 
 - Bind optional malformed/missing-capture fallback scans to the originating capture attempt and canonical source history. A newer capture now invalidates queued/in-flight fallback work before it can consume the newer first-pass boundary; the existing guarded commit path still blocks saved-but-unowned writes. Manual Scan keeps its established non-capture-bound ownership policy.
 - Validate ordinary dossier input shapes before bootstrap or semantic coercion. Scalar fields reject objects/arrays/booleans instead of storing JavaScript string artifacts, while numeric chronological/apparent ages remain compatible. Invalid values are field-level rejections with concrete bounded diagnostics and do not overwrite valid stored values.

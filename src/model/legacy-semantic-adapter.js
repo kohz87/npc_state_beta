@@ -1,5 +1,5 @@
 import { findNpcByReference, normalizeName } from '../schema.js';
-import { DOSSIER_LIVE_FIELDS, dossierFieldDefinition, dossierFieldGroup } from './dossier-fields.js';
+import { DOSSIER_LIVE_FIELDS, dossierFieldDefinition, dossierFieldGroup, dossierFieldValueIssue } from './dossier-fields.js';
 
 function compact(value, max = 1200) {
     return String(value ?? '').replace(/\u0000/g, '').trim().slice(0, max);
@@ -91,7 +91,9 @@ export function adaptLegacySemanticPayload(stateInput, resultInput, options = {}
         const existing = existingNpc(state, patch);
         const identityKind = String(patch?.identityKind || '').trim().toLocaleLowerCase().replace(/[_ ]+/g, '-');
         if (!existing && admissionMode === 'named_preferred' && ['named', 'proper-name', 'proper'].includes(identityKind)) {
-            patch._modelLedRole = compact(patch.role, 240);
+            // Preserve the raw proposal until the canonical registry validator sees it.
+            // Compacting here would turn an object into '[object Object]' before validation.
+            patch._modelLedRole = structuredClone(patch.role);
             patch.role = '';
         }
         if (!existing) continue;
@@ -128,8 +130,15 @@ export function adaptLegacySemanticPayload(stateInput, resultInput, options = {}
 
         if (!hasUpdate(updates, 'appearanceForms')) {
             for (const change of Array.isArray(patch.appearanceFormChanges) ? patch.appearanceFormChanges : []) {
-                const name = compact(change?.name || change?.form, 80);
-                const appearance = compact(change?.appearance || change?.description, 1800);
+                const rawName = change?.name ?? change?.form;
+                const rawAppearance = change?.appearance ?? change?.description;
+                const formIssue = dossierFieldValueIssue('appearanceForms', [{ name: rawName, appearance: rawAppearance }]);
+                if (formIssue) {
+                    compatibilityDiagnostic(options, { field: 'appearanceForms', operation: 'replace', group: dossierFieldGroup('appearanceForms'), status: 'rejected-proposal', reason: 'invalid-value-type:' + formIssue });
+                    continue;
+                }
+                const name = compact(rawName, 80);
+                const appearance = compact(rawAppearance, 1800);
                 const evidence = compact(change?.evidence || change?.reason, 1000);
                 if (!name || !appearance || !evidence) continue;
                 updates.push({ field: 'appearanceForms', operation: 'replace', value: { name, appearance }, scope: { form: name }, durability: 'durable', sources: source(evidence, options), explanation: compact(change?.mode || 'Legacy form judgment.', 500) });
@@ -152,6 +161,14 @@ export function adaptLegacySemanticPayload(stateInput, resultInput, options = {}
 
         for (const field of DOSSIER_LIVE_FIELDS) {
             if (hasUpdate(updates, field) || !Object.prototype.hasOwnProperty.call(patch, field)) continue;
+            const shapeIssue = dossierFieldValueIssue(field, patch?.[field]);
+            if (shapeIssue) {
+                compatibilityDiagnostic(options, {
+                    npcId: existing.id, field, operation: compact(existing?.[field]) ? 'replace' : 'establish', group: dossierFieldGroup(field),
+                    status: 'rejected-proposal', reason: 'invalid-value-type:' + shapeIssue,
+                });
+                continue;
+            }
             const value = compact(patch?.[field], field === 'currentForm' ? 80 : 1200);
             if (!value || normalizeName(value) === normalizeName(existing?.[field])) continue;
             const fieldSources = directFieldSource(existing, field, value, options);

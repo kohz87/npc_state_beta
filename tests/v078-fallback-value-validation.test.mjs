@@ -133,3 +133,74 @@ test('mixed invalid collection members reject the field atomically and keep vali
         assert.ok(result.semanticDiagnostics.some(row => row.field === 'mannerisms' && row.reason.includes('member-1-expected-string-or-supported-object')));
     }, { state });
 });
+
+test('named-preferred role compatibility validates raw input once and never resurrects object text', () => withHost(async h => {
+    const bad = scanOutputExamples().populated;
+    bad.npcs = [bad.npcs[0]];
+    bad.npcs[0].role = { title: 'clerk' };
+    h.context.chat = chatFor(JSON.stringify(bad));
+    const rejected = await h.entry.processEmbeddedScan(1);
+    assert.equal(rejected.ok, true);
+    assert.equal(h.persisted().npcs[0].role, '');
+    assert.equal(rejected.semanticDiagnostics.filter(row => row.field === 'role' && row.reason === 'invalid-value-type:expected-string-value').length, 1);
+}, { settings: { newNpcAdmissionMode: 'named_preferred' } }));
+
+test('legacy direct live and appearance-form compatibility reject raw object values before compaction', () => {
+    const state = createEmptyState('unused');
+    state.npcs = [normalizeNpc({ id: 'npc-nia', name: 'Nia', location: 'Old room.', appearanceForms: [{ name: 'Human', appearance: 'Brown hair.' }] })];
+    return withHost(async h => {
+        const payload = emptyScanPayload();
+        payload.exchangeActiveNpcIds = ['npc-nia']; payload.inChatNpcIds = ['npc-nia'];
+        payload.npcs = [{
+            id: 'npc-nia', name: 'Nia', location: { room: 'counter' },
+            appearanceFormChanges: [{ name: 'Human', appearance: { hair: 'auburn' }, evidence: visible }],
+            evaluatedGroups: ['canon', 'live'], semanticUpdates: [],
+        }];
+        h.context.chat = chatFor(JSON.stringify(payload));
+        const result = await h.entry.processEmbeddedScan(1);
+        assert.equal(result.ok, true);
+        const npc = h.persisted().npcs[0];
+        assert.equal(npc.location, 'Old room.');
+        assert.deepEqual(npc.appearanceForms, [{ name: 'Human', appearance: 'Brown hair.' }]);
+        assert.equal(JSON.stringify(npc).includes('[object Object]'), false);
+        assert.ok(result.semanticDiagnostics.some(row => row.field === 'location' && row.reason === 'invalid-value-type:expected-string-value'));
+        assert.ok(result.semanticDiagnostics.some(row => row.field === 'appearanceForms' && row.reason.includes('expected-string-appearance')));
+    }, { state });
+});
+
+test('targeted Refresh routes invalid scalar values through the shared semantic validator', () => {
+    const state = createEmptyState('unused');
+    state.npcs = [normalizeNpc({ id: 'npc-nia', name: 'Nia', appearance: 'Brown hair.' })];
+    return withHost(async h => {
+        h.context.chat = [{ is_user: true, name: 'Ari', mes: 'Look.' }, { is_user: false, mes: 'Nia has auburn hair.' }];
+        h.context.generateRaw = async () => {
+            h.metrics.generations += 1;
+            const payload = emptyScanPayload();
+            payload.npcs = [{ id: 'npc-nia', name: 'Nia', evaluatedGroups: ['canon'], semanticUpdates: [{ field: 'appearance', operation: 'replace', value: { hair: 'auburn' }, sources: [{ messageId: null, excerpt: 'Nia has auburn hair.' }], explanation: 'Visible.' }] }];
+            return JSON.stringify(payload);
+        };
+        const result = await h.api.refreshFromChat('npc-nia');
+        assert.equal(result.ok, true);
+        assert.equal(h.persisted().npcs[0].appearance, 'Brown hair.');
+        assert.ok(result.semanticDiagnostics.some(row => row.field === 'appearance' && row.reason === 'invalid-value-type:expected-string-value'));
+    }, { state });
+});
+
+test('structured import rejects invalid scalar shapes without storing object text', () => {
+    const state = createEmptyState('unused');
+    state.npcs = [normalizeNpc({ id: 'npc-nia', name: 'Nia', appearance: 'Brown hair.' })];
+    return withHost(async h => {
+        h.context.chat = [{ is_user: true, name: 'Ari', mes: 'Review record.' }, { is_user: false, mes: '<Blocks><NPC_Update>Nia has auburn hair.</NPC_Update></Blocks>' }];
+        h.context.generateRaw = async () => {
+            h.metrics.generations += 1;
+            const payload = emptyScanPayload();
+            payload.npcs = [{ id: 'npc-nia', name: 'Nia', evaluatedGroups: ['canon'], semanticUpdates: [{ field: 'appearance', operation: 'replace', value: { hair: 'auburn' }, sources: [{ messageId: 1, excerpt: 'Nia has auburn hair.' }], explanation: 'Structured source.' }] }];
+            return JSON.stringify(payload);
+        };
+        const result = await h.api.importStructuredDossier('npc-nia');
+        assert.equal(result.ok, true);
+        assert.equal(h.persisted().npcs[0].appearance, 'Brown hair.');
+        assert.equal(JSON.stringify(h.persisted().npcs[0]).includes('[object Object]'), false);
+        assert.ok(h.api.operationDiagnostics().at(-1).proposals.rejected >= 1);
+    }, { state });
+});

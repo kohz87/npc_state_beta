@@ -605,7 +605,8 @@ function restoreNewNpcModelLedRole(state, originalResult, options = {}, diagnost
     const patches = Array.isArray(originalResult?.npcs) ? originalResult.npcs : [];
     for (let patchIndex = 0; patchIndex < patches.length; patchIndex += 1) {
         const patch = patches[patchIndex];
-        const roleValue = patch?._modelLedRole ?? patch?.role;
+        if (!Object.prototype.hasOwnProperty.call(patch || {}, '_modelLedRole')) continue;
+        const roleValue = patch._modelLedRole;
         const roleIssue = dossierFieldValueIssue('role', roleValue);
         if (roleIssue) {
             if (roleValue !== undefined) diagnostics.push({ npcId: '', patchIndex, field: 'role', group: dossierFieldGroup('role'), channel: 'bootstrap-role', status: 'rejected-proposal', reason: 'invalid-value-type:' + roleIssue });
