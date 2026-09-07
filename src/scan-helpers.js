@@ -53,6 +53,16 @@ export function appendUnique(existing = [], incoming = [], max = 12) {
     return out.slice(0, max);
 }
 
+const DOSSIER_IDENTITY_BOOTSTRAP_RULES = Object.freeze([
+    'IDENTITY HANDOFF: EXISTING NPC patches use the supplied stable id. NEW NPC patches leave id empty, use the canonical human-facing name (or unique readable role label while genuinely unnamed), and reference that exact name/label in activity arrays. NPC State assigns the stored id locally.',
+    'NEW DOSSIER BOOTSTRAP: for a newly admitted relevant NPC, capture every supported fact established by the current exchange, including live state and grounded role/species/appearance/profile/canon/collection facts. Do not invent age, species, personality, relationships, or any other unsupported fact; empty/unknown is correct when evidence is absent.',
+    'NAME-ONLY ENRICHMENT: a dossier that already exists but has only identity remains an EXISTING dossier. Keep its stable id and enrich grounded missing fields through normal semanticUpdates; never create a duplicate just to fill Unknown fields.',
+]);
+
+export function dossierIdentityBootstrapPromptRules() {
+    return [...DOSSIER_IDENTITY_BOOTSTRAP_RULES];
+}
+
 export function nonSystemMessages(chat = []) {
     return chat.map((message, id) => ({ ...message, id })).filter(message => !message?.is_system);
 }

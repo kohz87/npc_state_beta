@@ -43,10 +43,22 @@ export function operationHistoryIdentity(lineage = []) {
 export function summarizeProposalDiagnostics(semanticDiagnostics = [], coverageDiagnostics = []) {
     const summary = { accepted: 0, rejected: 0, unchanged: 0, omitted: 0, reasons: [] };
     const reasons = [];
+    const identityFailures = new Set();
+    const countIdentityFailure = row => {
+        const status = String(row?.status || '');
+        const key = `${Number.isInteger(row?.patchIndex) ? row.patchIndex : ''}|${status}|${clean(row?.reason, 220)}`;
+        if (identityFailures.has(key)) return;
+        identityFailures.add(key);
+        summary.rejected += 1;
+        reasons.push([status, row?.reason].filter(Boolean).join(': '));
+    };
     for (const row of Array.isArray(semanticDiagnostics) ? semanticDiagnostics : []) {
         const status = String(row?.status || '');
         if (status === 'applied') summary.accepted += 1;
         else if (status === 'no-change-proposed') summary.unchanged += 1;
+        else if (status === 'evaluated-unchanged') summary.unchanged += Math.max(1, Array.isArray(row?.evaluatedGroups) ? row.evaluatedGroups.length : 1);
+        else if (status === 'no-field-proposal') reasons.push('no-field-proposal');
+        else if (status === 'identity-rejected' || status === 'identity-unresolved') countIdentityFailure(row);
         else {
             summary.rejected += 1;
             reasons.push([status, row?.reason].filter(Boolean).join(': '));
@@ -58,6 +70,8 @@ export function summarizeProposalDiagnostics(semanticDiagnostics = [], coverageD
             summary.omitted += Math.max(1, Array.isArray(row?.missingGroups) ? row.missingGroups.length : 1);
             const groups = Array.isArray(row?.missingGroups) ? row.missingGroups.join(',') : '';
             reasons.push([status, groups].filter(Boolean).join(': '));
+        } else if (status === 'identity-rejected' || status === 'identity-unresolved') {
+            countIdentityFailure(row);
         } else if (status) {
             summary.rejected += 1;
             reasons.push([status, row?.reason].filter(Boolean).join(': '));

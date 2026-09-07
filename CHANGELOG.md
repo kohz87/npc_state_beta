@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.5
+
+- Carries the deterministic identity/admission decision through first-pass semantic application, role restoration, and coverage diagnostics. A newly admitted patch with an unexpected model transport id now targets the locally allocated stable dossier id, while a rejected id/name conflict cannot mutate either candidate through downstream ordinary fields.
+- Makes identity failure observable instead of silent: bounded diagnostics now distinguish identity rejection/unresolved binding, validation rejection, applied updates, explicit evaluated-unchanged groups, no field proposal, and incomplete or absent dossier coverage.
+- Shares one compact identity/bootstrap instruction between foreground capture and Scan: existing dossiers use stable ids, new dossiers leave id empty and use canonical names in activity references, grounded current-exchange facts should be captured, unsupported facts remain Unknown, and existing name-only dossiers are enriched rather than duplicated. Mandatory foreground rules remain present under budget compaction.
+- Consolidates new-NPC admission to one authoritative pass by removing the duplicate create-on-reference fallback. Persisted state/settings schema remain 1; semantic contract remains 3; foreground contract remains 4. No NPC database rebuild is required.
+
 ## 0.7.4
 
 - Preserves surviving story movement across the legacy-to-modern relationship correction transition. Migrated legacy axes carry a compact provenance identity, so a valid pre-migration checkpoint that already contains the same correction keeps later story gains; checkpoints before the correction still receive its absolute target, and a genuinely newer same-axis edit still supersedes it.

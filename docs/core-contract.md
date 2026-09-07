@@ -80,6 +80,8 @@ Omission is not deletion. Missing output is not proof that a field was evaluated
 
 Ordinary semantic operations are `establish`, `refine`, `replace`, and `remove`. The model decides narrative meaning. The validator owns permitted fields, source provenance, target identity, manual ownership, durability, collection/form targeting, and structural rules. English keyword lists or arbitrary repetition counts must not become general semantic authority.
 
+Identity/admission produces one authoritative per-operation patch-to-NPC outcome before ordinary semantic application. Accepted patches carry the resolved stored NPC id, including a locally allocated id for a newly admitted dossier; rejected or unresolved patches carry a bounded reason. Role restoration, ordinary semantic updates, coverage, and patch-bound reference fallback must consume that same outcome rather than independently resolving the model's original transport id/name. An unknown model id is never accepted as a stored id merely because it was emitted, and a rejected id/name conflict cannot mutate either candidate through downstream ordinary fields. Independent focused channels keep their own established target rules.
+
 Relationship scoring remains deterministic and separate: caps, gates, inertia, fractional progress, milestones, replay protection, evidence history, and descriptive Current Dynamic safeguards are extension-owned.
 
 ## E. Commit and persistence
@@ -129,13 +131,13 @@ The runtime keeps a bounded in-memory operation ledger per chat. Records may con
 
 Diagnostics never store credentials or full prompts/chat content by default. Hashed/fingerprinted history ownership is sufficient for local diagnosis. Normal status remains concise through `NPCState.debugStatus()`. Detailed bounded records are opt-in through `NPCState.operationDiagnostics()`.
 
-`unchanged` is recorded only when an authoritative validator explicitly reports a no-change proposal. Output omission alone is never re-labeled as confirmed evaluation.
+`unchanged` is recorded only when an authoritative validator explicitly reports a no-change proposal or when a patch explicitly records evaluated dossier groups with no field update. Output omission alone is never re-labeled as confirmed evaluation. Bounded proposal diagnostics distinguish: no field proposal emitted, identity unresolved/rejected, field proposal rejected by validation, accepted field update, explicit evaluated-unchanged groups, a genuinely absent NPC patch, and incomplete dossier evaluation. A present patch whose identity was rejected/unresolved is never reported merely as `missing-npc-patch`, and full prompt/chat text is not retained for this accounting.
 
 ## Feature contracts
 
 ### First-pass capture
 
-Uses the embedded payload from the completed roleplay response. No second model request is required. Selected existing NPCs evaluate Mood, Location, Status/activity, and Goal against current evidence. Unsupported or unchanged values remain. Explicit removal requires sufficient evidence. Relationship replay guards and manual ownership remain authoritative.
+Uses the embedded payload from the completed roleplay response. No second model request is required. Existing NPC patches use supplied stable ids. New NPC patches leave id empty, use the canonical human-facing name (or a unique readable role label while genuinely unnamed) in activity references, and receive a locally assigned stored id. A newly admitted relevant NPC should capture every supported current-exchange dossier fact through the established bootstrap/semantic channels, including live state and grounded profile/canon/collections; conversation alone never justifies invented age, species, personality, relationships, or other unsupported facts, so Unknown is correct when evidence is absent. An existing name-only dossier remains existing and is enrichable through normal semanticUpdates rather than duplicate admission. Selected existing NPCs evaluate Mood, Location, Status/activity, and Goal against current evidence. Unsupported or unchanged values remain. Explicit removal requires sufficient evidence. Relationship replay guards and manual ownership remain authoritative.
 
 ### Scan current cast
 

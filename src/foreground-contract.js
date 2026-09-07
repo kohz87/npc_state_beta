@@ -1,6 +1,7 @@
 import { SEMANTIC_UPDATE_OPERATIONS } from './model/semantic-updates.js';
 import { DOSSIER_EVALUATION_GROUPS, dossierFirstPassLiveFieldList, dossierSemanticFieldList } from './model/dossier-fields.js';
 import { NPC_STATE_VERSION, normalizeNpcAdmissionMode } from './schema.js';
+import { dossierIdentityBootstrapPromptRules } from './scan-helpers.js';
 
 export const FOREGROUND_CONTRACT_VERSION = 4;
 
@@ -32,7 +33,8 @@ export function foregroundContract(settings = {}, { capture = true, continuity =
         `[NPC STATE v${NPC_STATE_VERSION} | FOREGROUND CONTRACT v${FOREGROUND_CONTRACT_VERSION}]`,
         'Private bookkeeping. Write visible roleplay first, then exactly one <npc_state_v1>{JSON}</npc_state_v1>; never mention it. Put it immediately before an Inventory machine block when one exists.',
         admissionRule(settings.newNpcAdmissionMode),
-        'ACTIVITY/IDENTITY: inChatNpcIds = individually relevant NPCs participating at the end; exchangeActiveNpcIds = NPCs that spoke/acted/were directly affected now; worldActiveNpcIds = explicitly active off-screen. Existing NPCs use stable ids. New identity/activity claims need short exact current-visible excerpts. Mentions, crowds and incidental bodies are not active.',
+        'ACTIVITY/IDENTITY: inChatNpcIds = individually relevant NPCs participating at the end; exchangeActiveNpcIds = NPCs that spoke/acted/were directly affected now; worldActiveNpcIds = explicitly active off-screen. New identity/activity claims need short exact current-visible excerpts. Mentions, crowds and incidental bodies are not active.',
+        ...dossierIdentityBootstrapPromptRules(),
         `ONE DOSSIER UPDATE PIPELINE: for an EXISTING dossier, ordinary changes use semanticUpdates only for ${fields}. Operations are ${SEMANTIC_UPDATE_OPERATIONS.join('|')}. Do not also emit legacy profileChanges/canonChanges/ageChange/appearanceFormChanges/keyRelationshipChanges or direct replacements for those fields. New NPC bootstrap may still use direct grounded fields.`,
         `COVERAGE: for an exchange-active existing NPC, inspect every dossier group visible in its supplied context and include evaluatedGroups from ${groups}. The live group specifically means every supplied first-pass live value (${firstPassLiveFields}) was checked against the completed response, even when unchanged. Do not claim another group was checked when budget compaction omitted its stored context.`,
         'SEMANTIC UPDATE: {field,operation,value?,changes?,clear?,durability?,scope?,ageKind?,sources:[{messageId:null,excerpt}],explanation}. Omission preserves stored data. remove is explicit; empty arrays never clear unless clear:true is supported. Collection replace/remove should target supplied ref or exact expected value.',
