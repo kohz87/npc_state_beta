@@ -16,6 +16,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Synchronize runtime release label
+        run: sed -i "s/export const NPC_STATE_VERSION = '0.5.30'/export const NPC_STATE_VERSION = '0.5.31'/" src/schema.js
       - name: Apply candidate patch
         run: node scripts/v0531-patch-temp.mjs
       - name: Diff sanity
