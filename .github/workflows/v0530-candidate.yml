@@ -25,6 +25,9 @@ jobs:
           if [ -f .github/scripts/v0530-apply.mjs ]; then
             node .github/scripts/v0530-apply.mjs
           fi
+          if [ -f .github/scripts/v0530-fix-generated-test.mjs ]; then
+            node .github/scripts/v0530-fix-generated-test.mjs
+          fi
       - name: Validate
         run: npm run validate
       - name: Tests
