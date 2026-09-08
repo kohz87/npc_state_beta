@@ -1,0 +1,22 @@
+name: v078 final review export
+on:
+  push:
+    branches: [automation/v078-final-review]
+    paths: ['.github/workflows/v078-final-review-export.yml']
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Archive source
+        run: |
+          tar --exclude=.git --exclude=dist -czf /tmp/npc-state-v078-final-review.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npc-state-v078-final-review
+          path: /tmp/npc-state-v078-final-review.tar.gz
+          retention-days: 1
