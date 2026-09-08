@@ -22,7 +22,9 @@ jobs:
         with:
           node-version: '22'
       - name: Apply candidate patch
-        run: python3 scripts/v0532_stage.py
+        run: |
+          python3 scripts/v0532_stage.py
+          python3 scripts/v0532_fix.py
       - name: Validate
         run: npm run validate
       - name: Test
@@ -33,9 +35,9 @@ jobs:
         run: npm run measure:scan-prompts
       - name: Diff check
         run: git diff --check
-      - name: Commit reviewed candidate tree
+      - name: Commit candidate tree
         run: |
-          rm scripts/v0532_stage.py .github/workflows/v0532-stage.yml
+          rm scripts/v0532_stage.py scripts/v0532_fix.py .github/workflows/v0532-stage.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
