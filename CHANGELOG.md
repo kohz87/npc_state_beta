@@ -2,6 +2,12 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.31
+
+- Tighten shared field accounting so `insufficient` is an evidence conclusion rather than a safe default: directly supported narrow values from already permitted current sources should be proposed, including stated current private mood/goal from NPC_Inner_Chatter. Keep the existing field-scoped structured-evidence firewall; no deterministic mood/goal inference, extra scan, or provider-specific rule is added.
+- Preserve generated birthday fill as a separate user-configurable feature while carrying its `generated` provenance through compact scanner context/cache identity and labeling it in the dossier UI. Synthetic calendar values remain fallback metadata rather than narrative evidence.
+- Add focused prompt/provenance/UI/cache regressions. Preserve first-contact profile observations, identity admission, descriptive-versus-numeric relationship separation, one post-response scan, and continuity-only foreground injection. Persisted schema remains version 1.
+
 ## 0.5.30
 
 - Retain tentative profile observations after successful new-NPC admission using the accepted stable ID, existing source validation, bounded evidence store, and shared persistence/rollback flow. Remove the superseded existing-only gate; observations cannot authorize admission.

@@ -2,9 +2,9 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.30
+## Release 0.5.31
 
-0.5.30 retains source-owned profile observations for newly admitted NPCs through the existing bounded evidence store and commit/checkpoint flow. Initial profile guidance distinguishes several reinforcing actions in one scene from independent later development; apparent-age guidance explicitly includes the current user message. The compact example demonstrates narrow initial personality and behavior while leaving unsupported facts unknown. No extra scan or historical enrichment is introduced.
+0.5.31 tightens first-pass field accounting so directly supported values from each field's already permitted current source are proposed instead of reflexively marked insufficient. Current NPC_Inner_Chatter remains narrowly authoritative for stated private mood/goal context only. Generated birthday fallback values now retain visible provenance through compact scanner context and dossier presentation instead of looking like narrative canon. One post-response scan and continuity-only foreground injection remain unchanged.
 
 Recent 0.5.x refinements retained by this release include:
 
@@ -25,6 +25,8 @@ Recent 0.5.x refinements retained by this release include:
 - **0.5.27:** admit first-seen contextual role labels through their exact validated unique identity anchor in Balanced mode, without weakening identity collisions, structured evidence firewalls, or stricter admission settings.
 - **0.5.28:** unify visible identity anchors with optional current-World_State canonical-name enrichment and retire the older deterministic role-head bridge.
 - **0.5.29:** carry accepted World_State canonical-name enrichment into zero-delta Current Dynamic target binding without weakening other summary-target safeguards.
+- **0.5.30:** retain source-owned profile observations for newly admitted NPCs and clarify first-contact profile establishment without adding another scan.
+- **0.5.31:** re-check permitted current evidence before `insufficient`, and expose synthetic birthday provenance in compact scanner context and dossier UI.
 
 The automatic workflow remains:
 
