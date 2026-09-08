@@ -2,6 +2,15 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.22
+
+- Repair descriptive Current Dynamic target grounding so a small coherent exact-source evidence set can reuse the scanner's already accepted NPC identity/activity resolution from the same owned exchange; canonical NPC name and player address no longer need to appear in one excerpt when that accepted binding proves the interaction. Unrelated passages, ambiguous roles, competing speakers, quoted second-person misattribution, fabricated/wrong-message evidence, and stale/out-of-scope sources remain rejected.
+- Stop applying lexical/token-overlap grounding to the descriptive relationship-summary explanation. It remains a concise model interpretation of source-owned evidence, while nonzero numeric relationship scoring keeps its existing stricter axis-evidence path, replay protection, gates, inertia, fractional progress, milestones, and history rules.
+- Correct the compact fictional examples against explicit synthetic scenes: Nia's appearance/profile claims are actually supported; Ivo is an evaluated non-active existing candidate with honest candidate/field accounting rather than silently participating. Full examples are parser- and application-tested.
+- Add focused regressions for split/contiguous Current Dynamic evidence, natural paraphrases, HTML-wrapped dialogue, competing speakers/ambiguous roles, fabricated/wrong-message excerpts, numeric-scoring separation/replay, example presence/coverage, and diagnostic separation of explicit insufficient evidence, omitted field coverage, and rejected proposals. The single post-implementation review found and fixed one shared-role edge: an activity excerpt claimed by multiple NPC patches is ambiguous and cannot provide contextual summary binding. Mannerism guidance remains unchanged.
+- Keep v0.5.20-v0.5.21 first-pass calibration, Phase 1 observation/source ownership, one automatic post-response scanner request, compact continuity-only foreground injection, schemas/storage identity, and scanner output allowance unchanged. Phase 2 historical enrichment and roleplay-prompt characterization injection remain deferred.
+- Using the same local estimator/system wrapper, stable fixtures measure 6,343 minimal, 6,346 rich first encounter, 7,411 three active plus one mentioned, 6,670 observation development, 8,012 dense collections/locks/forms, 6,548 large DB/one relevant, 7,071 structured/custom, and 4,745 targeted Refresh estimated input tokens. This is +204 to +205 over v0.5.21 routine fixtures and +141 for Refresh; the dense stress fixture is reported honestly above the approximate 7,500 target rather than truncated.
+
 ## 0.5.21
 
 - Fix compact first-pass Background calibration: Role and Background may both be populated from the same grounded employment/workplace evidence when they express current function versus durable affiliation.

@@ -1,5 +1,5 @@
 import { relationshipImpactRank, relationshipMilestoneEventQualifies, relationshipInertiaFactor, relationshipAxisLimit } from './relationship-rules.js';
-import { relationshipEvidenceExcerptMatch, relationshipEvidenceGrounding } from './relationship-evidence.js';
+import { relationshipEvidenceExcerptMatch } from './relationship-evidence.js';
 import { containsNormalizedPhrase, relationshipSummaryRepairContext, shortActivityIdentityCandidates } from './scan-helpers.js';
 import { DEFAULT_RELATIONSHIP_CAPS, RELATIONSHIP_AXES, RELATIONSHIP_MILESTONE_THRESHOLDS, applyRelationshipMilestoneCrossings, normalizeRelationship, normalizeRelationshipAxisEvidence, normalizeRelationshipCaps, normalizeRelationshipDiagnostics, normalizeRelationshipEvidenceHistory, normalizeRelationshipPriority, normalizeRelationshipProgress, normalizeRelationshipSummary, relationshipMilestoneUnlocked } from './schema.js';
 
@@ -181,6 +181,58 @@ function playerMentioned(excerpt, playerName, npcNames = [], { allowNarratorSeco
     return allowNarratorSecondPerson && /\b(?:you|your|yours|yourself)\b/i.test(narrationOutsideQuotedDialogue(excerpt));
 }
 
+function summaryExcerptOverlapsAcceptedActivity(excerpt, acceptedExcerpts = []) {
+    const value = String(excerpt || '').trim();
+    if (!value) return false;
+    return (Array.isArray(acceptedExcerpts) ? acceptedExcerpts : []).some(candidate => {
+        const activity = String(candidate || '').trim();
+        if (!activity) return false;
+        // Mechanical normalized containment only. The accepted activity record already owns
+        // the contextual identity binding; this check merely proves the summary is reusing
+        // that same concrete interaction instead of borrowing an unrelated same-scene quote.
+        return containsNormalizedPhrase(activity, value) || containsNormalizedPhrase(value, activity);
+    });
+}
+
+function relationshipSummaryContextualTargetBound(npc, excerpts, excerptMatches, options = {}) {
+    const binding = options.relationshipSummaryTargetBinding;
+    if (!binding || typeof binding !== 'object' || Array.isArray(binding)) return false;
+    if (String(binding.npcId || '') !== String(npc?.id || '')) return false;
+    if (binding.identityAccepted !== true || binding.exchangeActiveAccepted !== true || binding.activityEvidenceAccepted !== true) return false;
+
+    const subjectNames = [npc?.name, ...(Array.isArray(npc?.aliases) ? npc.aliases : [])].map(value => String(value || '').trim()).filter(Boolean);
+    const playerName = String(options.playerName || '').trim();
+    const otherNpcNames = (Array.isArray(options.otherNpcNames) ? options.otherNpcNames : []).map(value => String(value || '').trim()).filter(Boolean);
+    if (!subjectNames.length || !playerName) return false;
+
+    const identityIndexes = [];
+    const playerInteractionIndexes = [];
+    const acceptedActivityExcerpts = Array.isArray(binding.activityEvidenceExcerpts) ? binding.activityEvidenceExcerpts : [];
+    const acceptedIdentityExcerpts = binding.identityEvidenceAccepted === true && Array.isArray(binding.identityEvidenceExcerpts)
+        ? binding.identityEvidenceExcerpts : [];
+    for (let index = 0; index < excerpts.length; index += 1) {
+        const excerpt = excerpts[index];
+        const reusesAcceptedIdentityContext = summaryExcerptOverlapsAcceptedActivity(excerpt, acceptedIdentityExcerpts)
+            || summaryExcerptOverlapsAcceptedActivity(excerpt, acceptedActivityExcerpts);
+        if (identityMentioned(excerpt, subjectNames, otherNpcNames) && reusesAcceptedIdentityContext) identityIndexes.push(index);
+        const visibleNarration = narrationOutsideQuotedDialogue(excerpt);
+        if (excerptMatches[index]?.kind === 'visible'
+            && !identityMentioned(excerpt, otherNpcNames, subjectNames)
+            && playerMentioned(visibleNarration, playerName, [...subjectNames, ...otherNpcNames], { allowNarratorSecondPerson: true })
+            && summaryExcerptOverlapsAcceptedActivity(excerpt, acceptedActivityExcerpts)) {
+            playerInteractionIndexes.push(index);
+        }
+    }
+    if (!identityIndexes.length || !playerInteractionIndexes.length) return false;
+
+    // Both halves must come from the same permitted source record. This keeps the bridge
+    // bounded to one coherent interaction source instead of combining arbitrary mentions
+    // from different messages/visibility channels in the owned exchange.
+    return playerInteractionIndexes.some(playerIndex => identityIndexes.some(identityIndex =>
+        excerptMatches[playerIndex]?.sourceId
+        && excerptMatches[playerIndex]?.sourceId === excerptMatches[identityIndex]?.sourceId));
+}
+
 function relationshipSummaryEvidenceGrounded(npc, patch, options = {}) {
     const raw = patch?.relationshipSummaryEvidence;
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, reason: 'missing-summary-evidence' };
@@ -197,17 +249,16 @@ function relationshipSummaryEvidenceGrounded(npc, patch, options = {}) {
     const playerName = String(options.playerName || '').trim();
     const otherNpcNames = (Array.isArray(options.otherNpcNames) ? options.otherNpcNames : []).map(value => String(value || '').trim()).filter(Boolean);
     if (!subjectNames.length || !playerName) return { ok: false, reason: 'summary-target-identity-unavailable' };
-    const targetBound = excerpts.some((excerpt, index) => identityMentioned(excerpt, subjectNames, otherNpcNames)
+    const directlyTargetBound = excerpts.some((excerpt, index) => identityMentioned(excerpt, subjectNames, otherNpcNames)
         && playerMentioned(excerpt, playerName, [...subjectNames, ...otherNpcNames], { allowNarratorSecondPerson: excerptMatches[index]?.insideQuotedDialogue !== true }));
-    if (!targetBound) return { ok: false, reason: 'wrong-summary-target' };
+    const contextuallyTargetBound = directlyTargetBound
+        || relationshipSummaryContextualTargetBound(npc, excerpts, excerptMatches, options);
+    if (!contextuallyTargetBound) return { ok: false, reason: 'wrong-summary-target' };
 
-    const grounding = relationshipEvidenceGrounding(explanation, excerpts.join(' '), {
-        subjectNames,
-        objectNames: [playerName],
-        otherSubjectNames: options.otherNpcNames || [],
-        delta: {},
-    });
-    if (grounding) return { ok: false, reason: 'summary-evidence-' + grounding };
+    // The explanation is descriptive model interpretation, not a second quotation. Exact
+    // source ownership and target binding above provide authority; lexical overlap, synonym
+    // dictionaries, or near-verbatim restatement must not decide whether a natural summary
+    // explanation is grounded. Numeric relationship movement keeps its separate safeguards.
     return { ok: true, reason: '' };
 }
 

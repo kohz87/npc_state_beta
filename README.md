@@ -2,9 +2,9 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.21
+## Release 0.5.22
 
-0.5.21 fixes a compact prompt contradiction that caused grounded Background to be marked `insufficient` when Role was already populated. Role is now explicitly the NPC's current function/title, while Background may separately preserve a grounded durable employer, workplace, or affiliation from the same evidence. The parser-tested fictional example now demonstrates that distinction instead of teaching the opposite. The release keeps v0.5.20 first-pass sufficiency, one post-response scanner request, full current-message evidence, existing output limits, and unchanged storage/schema contracts.
+0.5.22 repairs grounded descriptive Current Dynamic updates without weakening numeric relationship scoring. A small coherent exact-source evidence set may now reuse the scanner's already accepted NPC identity/activity binding when the interaction passage and identity passage are separate, and the summary explanation is treated as the model's concise interpretation rather than a second near-verbatim quotation. Compact fictional examples are source-coherent and application-tested, candidate/field coverage remains explicit, and diagnostics distinguish model `insufficient`, omitted coverage, and validator rejection. The release keeps v0.5.21 Background calibration, one post-response scanner request, full current-message evidence, existing output limits, and unchanged storage/schema contracts.
 
 Recent 0.5.x refinements retained by this release include:
 
@@ -17,6 +17,7 @@ Recent 0.5.x refinements retained by this release include:
 - **0.5.19:** correct compact lifecycle property names and restore concise collection/form targeting shapes with parser-to-application regressions.
 - **0.5.20:** rebalance compact first-pass sufficiency for visible life-stage, repeated behavior/mannerism evidence, and exact Current Dynamic target binding without adding another scan pass.
 - **0.5.21:** distinguish current Role from durable Background affiliation/employment and correct the contradictory first-pass example.
+- **0.5.22:** accept coherent source-owned Current Dynamic evidence through already accepted identity/activity binding, remove lexical explanation matching from the descriptive-only path, and make compact examples behaviorally coherent.
 
 The automatic workflow remains:
 
@@ -32,13 +33,13 @@ Routine automatic Scan and manual **Scan current cast** treat the latest complet
 
 **Refresh** reconciles one NPC over bounded history. Historical recovery reconstructs surviving exchanges sequentially from a trustworthy baseline. All story mutations continue through the same guarded commit/checkpoint path.
 
-Scanner input sizing is measured separately from foreground continuity and scanner output allowance. `npm run measure:scan-prompts` uses the existing local conservative estimator (`ASCII/3.5 + non-ASCII*1.1`) and the exact scanner system wrapper. On the 0.5.21 stable matrix, estimated final input is 6,138 tokens for the minimal one-NPC fixture, 6,141 for a rich first encounter, 7,206 for three active plus one mentioned NPC, 6,465 for observation development, 7,807 for dense collections/locks/forms, 6,343 with 1,000 stored NPCs but one relevant NPC, 6,867 for structured blocks plus custom criteria, and 4,604 for targeted Refresh. This is only +37 to +69 estimated tokens over the same 0.5.20 fixtures to clarify Role versus grounded Background and correct the contradictory example. A deliberately long current response remains about 21,095 estimated tokens because the current scene is preserved in full. These are local engineering estimates, not provider-reported usage.
+Scanner input sizing is measured separately from foreground continuity and scanner output allowance. `npm run measure:scan-prompts` uses the existing local conservative estimator (`ASCII/3.5 + non-ASCII*1.1`) and the exact scanner system wrapper. On the 0.5.22 stable matrix, estimated final input is 6,343 tokens for the minimal one-NPC fixture, 6,346 for a rich first encounter, 7,411 for three active plus one mentioned NPC, 6,670 for observation development, 8,012 for dense collections/locks/forms, 6,548 with 1,000 stored NPCs but one relevant NPC, 7,071 for structured blocks plus custom criteria, and 4,745 for targeted Refresh. This is +204 to +205 estimated tokens over the same v0.5.21 routine fixtures and +141 for targeted Refresh, primarily for the coherent Current Dynamic contract and source-coherent compact examples. The dense fixture honestly exceeds the approximate 7,500-token engineering target; no truncation rule is applied. A deliberately long current response remains about 21,299 estimated tokens because the current scene is preserved in full. These are local engineering estimates, not provider-reported usage.
 
 ### Dossier completeness and safety
 
 The scanner contract supports realistically populated new NPCs, compact existing-candidate accounting, explicit insufficient-evidence outcomes, field-level evaluation metadata, observation-only profile evidence, and zero-delta Current Dynamic. Unsupported facts remain unknown. A sparse valid payload may still commit its supported facts, while candidate/field diagnostics report unaccounted work separately from persistence success. Older compatible responses may still apply valid proposals but cannot falsely report complete candidate coverage.
 
-Current Dynamic may establish a neutral professional, transactional, adversarial, supervisory, or other role-defined relationship even when Trust/Affection/Desire/Tension remain zero. For a newly established or materially changed summary, at least one exact evidence excerpt must visibly bind that NPC to the player; dialogue-only quotes without speaker identity are supplementary. Numeric relationship movement is separate and still requires its own validated evidence.
+Current Dynamic may establish a neutral professional, transactional, adversarial, supervisory, or other role-defined relationship even when Trust/Affection/Desire/Tension remain zero. A newly established or materially changed summary uses bounded exact current-source evidence: one excerpt may bind NPC and player directly, or a small coherent set may reuse the already accepted NPC identity/activity binding from the same owned exchange. Unrelated passages, ambiguous role binding, fabricated/wrong-message excerpts, and quoted second-person dialogue without narrator/player binding remain rejected. The explanation is descriptive model interpretation and need not copy the source wording. Numeric relationship movement is separate and still requires its own stricter validated axis evidence.
 
 Apparent Age is visual, not chronological. Direct visible life-stage wording such as child, adolescent, young adult, middle-aged, or elderly is positive evidence even without a number. The model may return `~N` for a specific-looking age or a semantic interval such as `~20-30` for a defensible visible band; the backend uses the NPC's stable identity to choose one reproducible inclusive value and persists only `~N`. No fixed English phrase-to-range dictionary is used. Existing/manual descriptive Apparent Age values remain compatible. Actual Age never derives from Apparent Age.
 
@@ -75,7 +76,7 @@ User-owned portraits, locks, manual corrections, importance, and suppression tom
 
 Current boundaries:
 
-- Release label: **0.5.21**
+- Release label: **0.5.22**
 - Persisted state schema: **1**
 - Settings schema: **1**
 - Model semantic contract: **6**

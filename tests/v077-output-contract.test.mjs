@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { emptyScanPayload, scanOutputContract, scanOutputExamples, SCAN_ARRAY_MEMBERS } from '../src/scan-contract.js';
+import { emptyScanPayload, scanOutputContract, scanOutputExamples, SCAN_ARRAY_MEMBERS, SCAN_OUTPUT_EXAMPLE_SCENES } from '../src/scan-contract.js';
 import { parseScanJson, normalizeScanPayload } from '../src/scan-payload.js';
 import { fingerprintMessage } from '../src/branches.js';
 import { applyScanResult, buildScanPrompt, buildTargetedRefreshPrompt, buildStructuredDossierImportPrompt } from '../src/scanner.js';
@@ -32,7 +32,9 @@ test('every shared literal example and every emitted mode example passes the str
         assert.equal(examples.length, 2);
         for (const example of examples) {
             const raw = JSON.parse(example);
-            assert.deepEqual(Object.keys(raw).sort(), Object.keys(SCAN_ARRAY_MEMBERS).sort());
+            for (const member of Object.keys(SCAN_ARRAY_MEMBERS)) assert.ok(Object.hasOwn(raw, member), member);
+            assert.deepEqual(Object.keys(raw).filter(key => key !== 'candidateAccounting').sort(), Object.keys(SCAN_ARRAY_MEMBERS).sort());
+            if (Object.hasOwn(raw, 'candidateAccounting')) assert.equal(typeof raw.candidateAccounting, 'object');
             const parsed = strict(example);
             assert.ok(Array.isArray(parsed.npcs));
         }
@@ -116,7 +118,7 @@ test('shared populated example applies both identities and descriptive zero-scor
     const state = createEmptyState('chat:apply');
     state.npcs = [normalizeNpc({ id: 'npc-ivo', name: 'Ivo', appearance: 'Brown eyes.' })];
     const example = scanOutputExamples().populated;
-    const text = `${example.npcs[0].relationshipSummaryEvidence.excerpts[0]} Ivo has green eyes. Ivo says, “That line is wrong.”`;
+    const text = `${SCAN_OUTPUT_EXAMPLE_SCENES.nia} ${SCAN_OUTPUT_EXAMPLE_SCENES.ivo}`;
     const result = applyScanResult(state, strict(JSON.stringify(example)), {
         sourceMessageId: 1, turn: 1, playerName: 'Ari', currentAdmissionText: text, profileContext: text, relationshipContext: text, applyReturnedNpcPatches: true,
     });
@@ -131,6 +133,7 @@ test('shared populated example applies both identities and descriptive zero-scor
     assert.equal(ivo.appearance, 'Green eyes.');
     assert.equal(ivo.profileEvolutionEvidence.length, 1);
     assert.equal(ivo.profileEvolutionEvidence[0].concept, 'Brief factual correction replies.');
+    assert.equal(ivo.present, false);
 });
 
 test('a zero-score summary with no independent evidence is rejected without fabricating an event', () => {
