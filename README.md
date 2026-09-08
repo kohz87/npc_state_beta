@@ -13,6 +13,7 @@ The v0.7.7 canonical JSON envelope and `<npc_state_v1>` transport are unchanged.
 Focused social/family/lifecycle rows and relationship text metadata also reject malformed object-valued text before persistence while valid sibling proposals remain independent.
 The supported public manual APIs now enforce the same value-shape boundary: `updateNpc()` rejects malformed dossier/manual scalar values before normalization, and `addNpc()` requires a string identity instead of coercing arbitrary objects.
 Explicit manual-override metadata is validated by the same owned-field rules before storage, preventing a malformed override from resurfacing as object-text during a later rollback; portrait attachment objects remain outside dossier-text validation.
+Malformed legacy manual-override values already present in an older sidecar are also discarded during normalization, while valid override ownership continues to survive rollback.
 
 Release 0.7.8 uses semantic contract 5 and foreground contract 6. Persisted state and settings schemas remain 1, and storage identity remains `npc_state_beta.v3`. No database rebuild or storage-key migration is required. Automated tests do not measure live provider reliability.
 

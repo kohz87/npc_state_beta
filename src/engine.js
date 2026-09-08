@@ -29,6 +29,7 @@ import {
     normalizeBirthdayFillMode,
     normalizeRelationship,
     normalizeManualRelationshipCorrectionUnresolvedAxes,
+    manualOwnedFieldValueIssue,
     normalizeRelationshipMilestones,
     normalizeState,
 } from './schema.js';
@@ -57,7 +58,6 @@ import { clearV3PointerHint, createRecoveryV3Sidecar, deleteV3SidecarFile, readV
 import { estimateForegroundTokens, FOREGROUND_TOKEN_ESTIMATE_METHOD } from './foreground-budget.js';
 import { activeSwipeMetadata, captureSourceMatches, createOperationDiagnostics, operationHistoryIdentity, summarizeProposalDiagnostics } from './operation-diagnostics.js';
 import { resolvePlayerName } from './scan-helpers.js';
-import { DOSSIER_SEMANTIC_FIELDS, dossierFieldValueIssue } from './model/dossier-fields.js';
 
 const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State recovery scanner. Obey the supplied schema and evidence rules exactly.';
 
@@ -1237,31 +1237,6 @@ export function createNpcStateEngine(adapters = {}) {
         catch { return false; }
     }
 
-    function manualOwnedFieldValueIssue(source) {
-        if (!source || typeof source !== 'object' || Array.isArray(source)) return 'expected-object-value';
-        const has = field => Object.prototype.hasOwnProperty.call(source, field);
-        for (const field of DOSSIER_SEMANTIC_FIELDS) {
-            if (!has(field)) continue;
-            const issue = dossierFieldValueIssue(field, source[field]);
-            if (issue) return `${field}:${issue}`;
-        }
-        if (has('name') && typeof source.name !== 'string') return 'name:expected-string-value';
-        if (has('aliases') && (!Array.isArray(source.aliases) || source.aliases.some(value => typeof value !== 'string'))) return 'aliases:expected-string-array';
-        for (const field of ['relationshipSummary', 'lifeState', 'lifeStateCertainty', 'lifeStateReason', 'archiveReason']) {
-            if (has(field) && typeof source[field] !== 'string') return `${field}:expected-string-value`;
-        }
-        for (const field of ['archived', 'retentionProtected', 'minor']) {
-            if (has(field) && typeof source[field] !== 'boolean') return `${field}:expected-boolean-value`;
-        }
-        if (has('relationship')) {
-            if (!source.relationship || typeof source.relationship !== 'object' || Array.isArray(source.relationship)) return 'relationship:expected-object-value';
-            for (const axis of RELATIONSHIP_AXES) {
-                if (!Object.prototype.hasOwnProperty.call(source.relationship, axis)) continue;
-                if (!Number.isFinite(Number(source.relationship[axis]))) return `relationship.${axis}:expected-finite-number`;
-            }
-        }
-        return '';
-    }
 
     function manualNpcPatchValueIssue(patch) {
         if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return 'expected-object-patch';

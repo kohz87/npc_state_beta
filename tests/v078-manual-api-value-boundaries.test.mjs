@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNpcStateEngine } from '../src/engine.js';
-import { createEmptyState, normalizeNpc } from '../src/schema.js';
-import { ensurePreUpdateBaseline, recordCheckpoint } from '../src/branches.js';
+import { createEmptyState, normalizeNpc, normalizeState } from '../src/schema.js';
+import { ensurePreUpdateBaseline, recordCheckpoint, reconcileToCurrentBranch } from '../src/branches.js';
 import { encodeV3Payload, decodeV3Payload } from '../src/storage.js';
 import { normalizeSettings } from '../src/settings.js';
 
@@ -119,4 +119,37 @@ test('portrait object updates remain supported outside dossier text validation',
     const result = await h.engine.updateNpc('nia', { portrait });
     assert.equal(result.ok, true);
     assert.equal(h.persisted().npcs[0].portrait.dataUrl, portrait.dataUrl);
+});
+
+
+test('legacy malformed manualOverrides are dropped during normalization and cannot poison rollback', () => {
+    const chat = [{ is_user: true, mes: 'Lucien waits.' }, { mes: 'Nia works at the desk.' }];
+    let state = createEmptyState('v078-legacy-invalid-override');
+    state.npcs = [normalizeNpc({ id: 'nia', name: 'Nia', appearance: 'Valid appearance.' })];
+    state = ensurePreUpdateBaseline(state, chat, 1);
+    state.npcs[0].appearance = 'Later story appearance.';
+    state.lastScannedMessageId = 1;
+    state.turn = 1;
+    state = recordCheckpoint(state, chat, 1, 'story');
+    state.npcs[0].manualOverrides = { appearance: { hair: 'auburn' } };
+    state.npcs[0].manualOverrideMeta = { appearance: { at: Date.now() + 1000, sourceMessageId: 1 } };
+
+    const normalized = normalizeState(state, state.chatKey);
+    assert.deepEqual(normalized.npcs[0].manualOverrides, {});
+    const rolled = reconcileToCurrentBranch(normalized, []);
+    assert.equal(rolled.state.npcs[0].appearance, 'Valid appearance.');
+    assert.equal(JSON.stringify(rolled.state).includes('[object Object]'), false);
+});
+
+test('legacy valid manualOverrides remain user-owned across rollback normalization', () => {
+    const chat = [{ is_user: true, mes: 'Lucien waits.' }, { mes: 'Nia works at the desk.' }];
+    let state = createEmptyState('v078-legacy-valid-override');
+    state.npcs = [normalizeNpc({ id: 'nia', name: 'Nia', appearance: 'Story appearance.' })];
+    state = ensurePreUpdateBaseline(state, chat, 1);
+    state = recordCheckpoint(state, chat, 1, 'pre-valid-legacy-override');
+    state.npcs[0].manualOverrides = { appearance: 'Player-pinned appearance.' };
+    state.npcs[0].manualOverrideMeta = { appearance: { at: Date.now() + 1000, sourceMessageId: 1 } };
+    const rolled = reconcileToCurrentBranch(normalizeState(state, state.chatKey), []);
+    assert.equal(rolled.state.npcs[0].appearance, 'Player-pinned appearance.');
+    assert.equal(rolled.state.npcs[0].manualOverrides.appearance, 'Player-pinned appearance.');
 });

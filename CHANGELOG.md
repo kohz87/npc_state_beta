@@ -1,6 +1,8 @@
 # Changelog
 
 ## 0.7.8
+
+- Final compatibility review sanitizes malformed legacy `manualOverrides` during state normalization using the same owned-field value rules as current manual writes. Invalid old override values are dropped before rollback can replay them as JavaScript object text; valid manual overrides remain authoritative.
 - Round 6 manual-ownership review closed a latent rollback path: malformed values inside explicit `manualOverrides` are now validated before storage, so a later full-state rollback cannot reapply an object value and turn it into `[object Object]`. Empty override clearing, legacy relationship-override compatibility, portrait objects, and existing user-owned rollback semantics remain supported.
 
 - Independent public-API review applies the same fail-closed value-shape policy to manual `NPCState.updateNpc()` and `addNpc()` entry points. Malformed ordinary/manual scalar values or non-string manual identities are rejected before normalization, preserving valid stored data and manual diagnostics while numeric age/relationship compatibility and supported collection objects remain accepted.

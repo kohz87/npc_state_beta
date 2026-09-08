@@ -1,6 +1,7 @@
 import { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 export { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 import { normalizeNumericSetting } from './settings-contract.js';
+import { dossierFieldValueIssue } from './model/dossier-fields.js';
 export const NPC_STATE_VERSION = '0.7.8';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
@@ -143,11 +144,41 @@ export const MANUAL_OVERRIDE_FIELDS = Object.freeze([
     'archived', 'archiveReason', 'retentionProtected', 'minor',
 ]);
 
+function manualOwnedFieldIssue(field, value) {
+    if (field === 'name') return typeof value === 'string' ? '' : 'expected-string-value';
+    if (field === 'aliases') return Array.isArray(value) && value.every(item => typeof item === 'string') ? '' : 'expected-string-array';
+    if (['relationshipSummary', 'lifeState', 'lifeStateCertainty', 'lifeStateReason', 'archiveReason'].includes(field)) {
+        return typeof value === 'string' ? '' : 'expected-string-value';
+    }
+    if (['archived', 'retentionProtected', 'minor'].includes(field)) return typeof value === 'boolean' ? '' : 'expected-boolean-value';
+    if (field === 'relationship') {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return 'expected-object-value';
+        for (const axis of RELATIONSHIP_AXES) {
+            if (!Object.prototype.hasOwnProperty.call(value, axis)) continue;
+            if (!Number.isFinite(Number(value[axis]))) return `${axis}:expected-finite-number`;
+        }
+        return '';
+    }
+    return dossierFieldValueIssue(field, value);
+}
+
+export function manualOwnedFieldValueIssue(source) {
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return 'expected-object-value';
+    for (const field of MANUAL_OVERRIDE_FIELDS) {
+        if (!Object.prototype.hasOwnProperty.call(source, field)) continue;
+        const issue = manualOwnedFieldIssue(field, source[field]);
+        if (issue) return `${field}:${issue}`;
+    }
+    return '';
+}
+
 function normalizeManualOverrides(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
     const out = {};
     for (const field of MANUAL_OVERRIDE_FIELDS) {
-        if (Object.prototype.hasOwnProperty.call(value, field)) out[field] = structuredClone(value[field]);
+        if (!Object.prototype.hasOwnProperty.call(value, field)) continue;
+        if (manualOwnedFieldIssue(field, value[field])) continue;
+        out[field] = structuredClone(value[field]);
     }
     return out;
 }
