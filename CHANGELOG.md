@@ -1,12 +1,19 @@
 # Changelog
 
-## 0.7.10
+## 0.5.11
 
-- Accept grounded zero-delta Current Dynamic evidence that binds an NPC through an unambiguous short identity and the player through a full/unique short name or narrator-addressed second person outside quoted dialogue; ambiguous names and quoted bare `you` remain rejected.
-- Make field-level completeness diagnostics honest for legacy `evaluatedGroups` payloads: group labels remain compatible but no longer fabricate unchanged-field certainty, and bounded missing field ids drive omitted accounting.
-- Route new-NPC behavior/mannerism bootstrap and persisted collection normalization through the same field-aware collection member rules used by semantic updates, removing the generic cross-field object converter.
-- Strengthen the compact shared first-pass example and same-generation completeness instructions without adding another model request or changing persisted/settings schemas; model contract is 6 and foreground contract is 7.
+- Intentionally reset the public release label from the 0.7.x development line to the next unused 0.5.x patch while retaining the newer codebase. Storage identity remains `npc_state_beta.v3`; persisted/settings schemas remain 1; model contract remains 6; foreground continuity contract advances to 8. No database rebuild or storage migration is required.
+- Replace automatic embedded foreground extraction, malformed-capture fallback, and supplemental completeness with one dedicated post-response scanner. Roleplay generation receives continuity only and emits no NPC JSON. Duplicate completion events share one logical scan job, while revised/swiped/edited/deleted sources invalidate stale work through the existing history/commit ownership guards.
+- Synchronize the next ordinary generation at SillyTavern's awaited generation interceptor so the previous response's scan settles and continuity refreshes before prompt assembly. Scanner quiet generations bypass their own gate; failures/timeouts expose Retry and abort the attempted next generation instead of hanging or silently using stale state.
+- Bound routine scan context to the completed exchange plus at most two antecedent reference messages and compact relevant dossiers. Current-exchange source IDs own new live/profile/memory/relationship/lifecycle evidence; Refresh and historical reconstruction retain their explicit broader scopes.
+- Retain and finish the useful 0.7.10 validation work: field-level omission accounting, field-aware collection normalization, richer scanner examples, and zero-delta Current Dynamic targeting through unambiguous short names/narrator second person while rejecting ambiguous aliases and quoted addressees.
+- Retire obsolete `scanAfterEachResponse`, `fallbackScan`, and `newNpcHistoryEnrichment` settings without changing an explicit `autoScan` choice. The foreground injection budget now supports 256-8000 estimated tokens because extraction schemas are no longer injected.
+- Remove the obsolete capture/completeness coordinators and capture diagnostic storage/matching helpers after migrating their meaningful race, persistence, parser, rollback, and value-boundary tests to the dedicated-scan workflow. Legacy transport stripping remains only in history canonicalization.
+- SillyTavern's third-party updater checks Git repository freshness and pulls the tracked branch, so this lower presentation version does not require uninstalling the extension or deleting user data.
 
+## 0.7.10 (unpublished development candidate)
+
+- Superseded by 0.5.11 before publication. Its useful field-level completeness accounting, collection normalization, scanner examples, and natural Current Dynamic target-resolution fixes were retained in the dedicated post-response architecture.
 
 ## 0.7.9
 

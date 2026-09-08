@@ -38,15 +38,13 @@ test('branch implementation retains explicit preserve and rollback relationship 
     assert.match(branches, /relationshipReplayBoundary/);
 });
 
-test('engine retains stale-operation and supplemental completeness guards', () => {
+test('engine retains generic stale-operation ownership while retired automatic completeness is absent', () => {
     const engine = read('src/engine.js');
-    assert.match(engine, /reason: 'stale-operation'/);
-    assert.match(engine, /reason: 'stale-completeness'/);
-    assert.match(engine, /supplementalPass: true/);
-    assert.match(engine, /applyRelationship: false/);
-    assert.match(engine, /preservePresence: true/);
-    assert.match(engine, /preserveObservation: true/);
+    assert.match(engine, /stale-operation-before-dispatch/);
+    assert.match(engine, /operationOwnershipMatches/);
+    assert.match(engine, /expectedSource/);
     assert.match(engine, /resolveGenerationRoute/);
+    assert.doesNotMatch(engine, /completenessScan|supplementalPass|stale-completeness/);
 });
 
 test('legacy semantic compatibility no longer depends on English phrase gates for application', () => {
@@ -62,26 +60,27 @@ test('legacy semantic compatibility no longer depends on English phrase gates fo
     assert.match(semantics, /out-of-scope-source/);
 });
 
-test('foreground uses one authoritative contract while deterministic scanner mechanics remain separate', () => {
+test('foreground is continuity-only while scanner owns extraction/application contracts', () => {
     const injection = read('src/injection.js');
     const contract = read('src/foreground-contract.js');
     const scanner = read('src/scanner.js');
     assert.match(injection, /foregroundContract/);
-    assert.match(contract, /dossierExtractionPromptRules/);
-    assert.match(contract, /scanOutputContract/);
-    assert.match(read('src/scan-helpers.js'), /DOSSIER_EVALUATION_GROUPS/);
-    assert.doesNotMatch(injection, /injection-core/);
-    assert.equal(fs.existsSync(path.join(root, 'src/injection-core.js')), false);
+    assert.match(contract, /CONTINUITY CONTEXT/);
+    assert.doesNotMatch(contract, /scanOutputContract|dossierExtractionPromptRules|npc_state_v1/);
+    assert.match(read('src/scan-prompts.js'), /scanOutputContract/);
     assert.match(read('src/scan-prompts.js'), /semanticUpdatePrompt/);
     assert.match(scanner, /core\.applyScanResult/);
     assert.match(scanner, /applyModelLedSemanticUpdates/);
-    assert.equal(fs.existsSync(path.join(root, 'src/scanner-core.js')), false);
-    assert.equal(fs.existsSync(path.join(root, 'src/scan-application.js')), true);
+    assert.equal(fs.existsSync(path.join(root, 'src/foreground.js')), false);
+    assert.equal(fs.existsSync(path.join(root, 'src/completeness-coordinator.js')), false);
 });
 
-test('MESSAGE_SENT refreshes foreground selection after invalidating pending work', () => {
+test('MESSAGE_SENT refreshes continuity without cancelling the preceding assistant scan', () => {
     const index = read('src/index.js');
-    assert.match(index, /MESSAGE_SENT[\s\S]{0,500}engine\.invalidate\(key\)[\s\S]{0,500}updateInjection\(\)/);
+    const block = index.match(/MESSAGE_SENT[\s\S]{0,500}updateInjection\(\)/)?.[0] || '';
+    assert.match(block, /updateInjection\(\)/);
+    assert.doesNotMatch(block, /engine\.invalidate/);
+    assert.match(index, /NPCStateGenerationInterceptor/);
 });
 
 test('normal MESSAGE_RECEIVED handling remains nonblocking for post-response work', () => {

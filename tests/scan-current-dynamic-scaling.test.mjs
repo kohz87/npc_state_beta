@@ -30,8 +30,8 @@ function scanPrompt(state, assistantText = 'Person00 answers Lucien.') {
 }
 
 function existingDossiers(prompt) {
-    const marker = 'EXISTING DOSSIERS:\n';
-    const endMarker = '\n\nOLDER CONTEXT';
+    const marker = 'RELEVANT EXISTING DOSSIERS (compact; unrelated roster omitted):\n';
+    const endMarker = '\n\nOLDER REFERENCE CONTEXT';
     const start = prompt.indexOf(marker);
     assert.notEqual(start, -1, 'EXISTING DOSSIERS marker must exist');
     const end = prompt.indexOf(endMarker, start + marker.length);
@@ -40,7 +40,7 @@ function existingDossiers(prompt) {
 }
 
 function rowsWithCurrentDynamic(rows) {
-    return rows.filter(row => Object.prototype.hasOwnProperty.call(row, 'relationshipSummary'));
+    return rows.filter(row => Boolean(row.playerRelationship?.summary));
 }
 
 test('Full Scan Current Dynamic payload scales with relevant NPCs rather than total roster size', () => {
@@ -54,9 +54,8 @@ test('Full Scan Current Dynamic payload scales with relevant NPCs rather than to
     assert.equal(largeDynamicRows.length, 1);
     assert.equal(smallDynamicRows[0].id, 'npc-0');
     assert.equal(largeDynamicRows[0].id, 'npc-0');
-    assert.equal(largeDynamicRows[0].relationshipSummary, summaryFor(0));
-    assert.equal(largeRows.length, 50, 'continuity roster itself must remain complete');
-    assert.ok(!Object.prototype.hasOwnProperty.call(largeRows[49], 'relationshipSummary'));
+    assert.ok(summaryFor(0).startsWith(largeDynamicRows[0].playerRelationship.summary.replace(/…$/, '')));
+    assert.equal(largeRows.length, 1, 'routine Scan must omit unrelated roster entries');
 });
 
 test('an explicitly referenced off-screen NPC receives Current Dynamic context without expanding the whole roster', () => {
@@ -64,9 +63,10 @@ test('an explicitly referenced off-screen NPC receives Current Dynamic context w
     const rows = existingDossiers(scanPrompt(state, 'Person17 sends Lucien a message and speaks about their changing trust.'));
     const dynamicRows = rowsWithCurrentDynamic(rows);
 
-    assert.deepEqual(dynamicRows.map(row => row.id), ['npc-0', 'npc-17']);
-    assert.equal(dynamicRows.find(row => row.id === 'npc-17').relationshipSummary, summaryFor(17));
-    assert.ok(!Object.prototype.hasOwnProperty.call(rows[29], 'relationshipSummary'));
+    assert.deepEqual(new Set(rows.map(row => row.id)), new Set(['npc-0', 'npc-17']));
+    const row17 = rows.find(row => row.id === 'npc-17');
+    assert.ok(summaryFor(17).startsWith(row17.playerRelationship.summary.replace(/…$/, '')));
+    assert.equal(rows.length, 2, 'explicit references may add relevant NPCs without serializing the whole roster');
 });
 
 test('targeted Refresh always receives the target Current Dynamic', () => {

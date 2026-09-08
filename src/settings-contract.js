@@ -4,7 +4,7 @@ export const NUMERIC_SETTINGS = Object.freeze(Object.fromEntries(Object.entries(
     scannerResponseTokens: { default: 7000, min: 512, max: 15000, positive: true },
     injectDepth: { default: 1, min: 0, max: 20 },
     injectLimit: { default: 6, min: 1, max: 20 },
-    injectBudgetTokens: { default: 1800, min: 1600, max: 8000, positive: true },
+    injectBudgetTokens: { default: 1800, min: 256, max: 8000, positive: true },
     birthdayRandomDaysPerMonth: { default: 30, min: 1, max: 999 },
     staleArchiveAfter: { default: 30, min: 1, max: 9999 },
     staleDeleteAfter: { default: 50, min: 2, max: 10000 },

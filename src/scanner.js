@@ -10,7 +10,7 @@ import {
 } from './model/semantic-updates.js';
 
 export { currentExchange } from './scan-helpers.js';
-export { recentHistory, buildScanPrompt, buildCompletenessPrompt, buildTargetedRefreshPrompt, buildStructuredDossierImportPrompt } from './scan-prompts.js';
+export { recentHistory, buildScanPrompt, buildTargetedRefreshPrompt, buildStructuredDossierImportPrompt } from './scan-prompts.js';
 export { parseScanJson };
 export { keyRelationshipReferencesPlayer, reconcileFamilyGraphState } from './scan-application.js';
 

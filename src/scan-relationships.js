@@ -124,16 +124,34 @@ function relationshipSummarySupported(value, relationship, milestones) {
     return true;
 }
 
+function straightSingleQuoteOpens(text, index) {
+    const previous = index > 0 ? text[index - 1] : '';
+    const next = index + 1 < text.length ? text[index + 1] : '';
+    const previousAllowsQuote = !previous || /[\s([{<:;,=-]/u.test(previous);
+    return previousAllowsQuote && /[\p{L}\p{N}]/u.test(next);
+}
+
 function narrationOutsideQuotedDialogue(value) {
     const text = String(value || '');
     let out = '';
-    let straight = false;
-    let curly = false;
-    for (const char of text) {
-        if (char === '"' && !curly) { straight = !straight; out += ' '; continue; }
-        if (char === '“' && !straight) { curly = true; out += ' '; continue; }
-        if (char === '”' && curly && !straight) { curly = false; out += ' '; continue; }
-        out += straight || curly ? ' ' : char;
+    let quote = '';
+    for (let index = 0; index < text.length; index += 1) {
+        const char = text[index];
+        if (quote) {
+            const closes = (quote === 'straight-double' && char === '"')
+                || (quote === 'curly-double' && char === '”')
+                || (quote === 'curly-single' && char === '’')
+                || (quote === 'straight-single' && char === "'");
+            if (closes) quote = '';
+            out += ' ';
+            continue;
+        }
+        if (char === '"') quote = 'straight-double';
+        else if (char === '“') quote = 'curly-double';
+        else if (char === '‘') quote = 'curly-single';
+        else if (char === "'" && straightSingleQuoteOpens(text, index)) quote = 'straight-single';
+        else { out += char; continue; }
+        out += ' ';
     }
     return out;
 }
@@ -150,14 +168,14 @@ function identityShortTokenAmbiguous(candidate, otherNames = []) {
 
 function identityMentioned(excerpt, names = [], otherNames = []) {
     const labels = (Array.isArray(names) ? names : []).map(value => String(value || '').trim()).filter(Boolean);
-    if (labels.some(name => containsNormalizedPhrase(excerpt, name))) return true;
+    if (labels.some(name => containsNormalizedPhrase(excerpt, name) && !identityShortTokenAmbiguous(name, otherNames))) return true;
     const [name = '', ...aliases] = labels;
     return shortActivityIdentityCandidates({ name, aliases }).some(candidate =>
         containsNormalizedPhrase(excerpt, candidate) && !identityShortTokenAmbiguous(candidate, otherNames));
 }
 
 function playerMentioned(excerpt, playerName, npcNames = []) {
-    if (containsNormalizedPhrase(excerpt, playerName)) return true;
+    if (containsNormalizedPhrase(excerpt, playerName) && !identityShortTokenAmbiguous(playerName, npcNames)) return true;
     const short = shortActivityIdentityCandidates({ name: playerName, aliases: [] });
     if (short.some(candidate => containsNormalizedPhrase(excerpt, candidate) && !identityShortTokenAmbiguous(candidate, npcNames))) return true;
     return /\b(?:you|your|yours|yourself)\b/i.test(narrationOutsideQuotedDialogue(excerpt));

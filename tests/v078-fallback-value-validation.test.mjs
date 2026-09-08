@@ -4,13 +4,9 @@ import { withHost } from './helpers/host-harness.mjs';
 import { emptyScanPayload, scanOutputExamples } from '../src/scan-contract.js';
 import { createEmptyState, normalizeNpc } from '../src/schema.js';
 
-const wrap = raw => `<npc_state_v1>${raw}</npc_state_v1>`;
-const visible = 'Nia greets Ari. Nia has auburn hair and hazel eyes. Nia works with Ivo and checks the station ledger.';
-const chatFor = raw => [
-    { is_user: true, name: 'Ari', mes: 'Hello.' },
-    { is_user: false, swipe_id: 0, swipe_info: [{ extra: {} }], mes: visible + '\n' + wrap(raw) },
-];
-function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
+const visible = 'Nia, harbor clerk in blue, tells Ari “Registry first” and taps the form. Nia has auburn hair and hazel eyes. Nia works with Ivo and checks the station ledger.';
+const chatFor = () => [{ is_user: true, name: 'Ari', mes: 'Hello.' }, { is_user: false, swipe_id: 0, mes: visible }];
+async function runAuto(h, payload) { h.context.chat = chatFor(); h.context.generateRaw = async () => { h.metrics.generations += 1; return JSON.stringify(payload); }; return h.entry.processCompletedAssistantResponse(1); }
 
 function existingPayload(update) {
     const payload = emptyScanPayload();
@@ -26,40 +22,11 @@ function existingPayload(update) {
 
 const source = excerpt => [{ messageId: null, excerpt }];
 
-test('superseded malformed-capture fallback cannot consume a newer valid capture boundary', () => withHost(async h => {
-    const entered = deferred();
-    const release = deferred();
-    h.context.generateRaw = async () => { h.metrics.generations += 1; entered.resolve(); return release.promise; };
-    h.context.chat = chatFor('{broken}');
-    const oldFallback = h.entry.processEmbeddedScan(1);
-    await entered.promise;
-
-    const payload = scanOutputExamples().populated;
-    payload.npcs = [payload.npcs[0]];
-    payload.npcs[0].appearance = 'Auburn hair and hazel eyes.';
-    h.context.chat[1].mes = visible + '\n' + wrap(JSON.stringify(payload));
-    const newerCapture = h.entry.processEmbeddedScan(1);
-    await Promise.resolve();
-
-    release.resolve(JSON.stringify(emptyScanPayload()));
-    const oldResult = await oldFallback;
-    const newResult = await newerCapture;
-    assert.equal(oldResult.ok, false);
-    assert.equal(oldResult.discarded, true);
-    assert.equal(newResult.ok, true);
-    assert.notEqual(newResult.skipped, true);
-    assert.equal(h.persisted().npcs.find(npc => npc.name === 'Nia')?.appearance, 'Auburn hair and hazel eyes.');
-    const fallbackOperation = h.api.operationDiagnostics().find(row => row.type === 'automatic-scan');
-    assert.ok(fallbackOperation?.source?.captureId);
-    assert.equal(fallbackOperation.status, 'discarded');
-}, { settings: { fallbackScan: true } }));
-
 test('new bootstrap rejects object scalar input instead of storing [object Object]', () => withHost(async h => {
     const payload = scanOutputExamples().populated;
     payload.npcs = [payload.npcs[0]];
     payload.npcs[0].appearance = { hair: 'auburn', eyes: 'hazel' };
-    h.context.chat = chatFor(JSON.stringify(payload));
-    const result = await h.entry.processEmbeddedScan(1);
+    const result = await runAuto(h, payload);
     assert.equal(result.ok, true);
     assert.equal(h.persisted().npcs[0]?.appearance, '');
     assert.ok(result.semanticDiagnostics.some(row => row.field === 'appearance'
@@ -73,8 +40,7 @@ test('semantic scalar object input is rejected and preserves the established val
     state.npcs = [normalizeNpc({ id: 'npc-nia', name: 'Nia', appearance: 'Brown hair.' })];
     return withHost(async h => {
         const payload = existingPayload({ field: 'appearance', operation: 'replace', value: { hair: 'auburn', eyes: 'hazel' }, sources: source('Nia has auburn hair and hazel eyes.'), explanation: 'Visible appearance.' });
-        h.context.chat = chatFor(JSON.stringify(payload));
-        const result = await h.entry.processEmbeddedScan(1);
+        const result = await runAuto(h, payload);
         assert.equal(result.ok, true);
         assert.equal(h.persisted().npcs[0].appearance, 'Brown hair.');
         assert.ok(result.semanticDiagnostics.some(row => row.field === 'appearance' && row.status === 'rejected-proposal' && row.reason === 'invalid-value-type:expected-string-value'));
@@ -85,8 +51,7 @@ test('numeric age compatibility remains supported while non-age scalar coercion 
     const payload = scanOutputExamples().populated;
     payload.npcs = [payload.npcs[0]];
     Object.assign(payload.npcs[0], { age: 24, apparentAge: 24, role: ['clerk'], speech: true });
-    h.context.chat = chatFor(JSON.stringify(payload));
-    const result = await h.entry.processEmbeddedScan(1);
+    const result = await runAuto(h, payload);
     assert.equal(result.ok, true);
     const npc = h.persisted().npcs[0];
     assert.equal(npc.age, '24');
@@ -109,8 +74,7 @@ test('supported collection object compatibility is retained without object-strin
         const payload = emptyScanPayload();
         payload.exchangeActiveNpcIds = ['npc-nia']; payload.inChatNpcIds = ['npc-nia'];
         payload.npcs = [{ id: 'npc-nia', name: 'Nia', evaluatedGroups: ['profile', 'memory', 'npcRelationships'], relationshipChange: { evaluated: true, impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, axisEvidence: {}, reason: 'No shift.' }, semanticUpdates: updates.map(row => ({ ...row, operation: 'replace', sources: source(visible), explanation: visible })) }];
-        h.context.chat = chatFor(JSON.stringify(payload));
-        const result = await h.entry.processEmbeddedScan(1);
+        const result = await runAuto(h, payload);
         assert.equal(result.ok, true);
         const npc = h.persisted().npcs[0];
         assert.deepEqual(npc.behaviorProfile, ['Checks the station ledger.']);
@@ -126,8 +90,7 @@ test('mixed invalid collection members reject the field atomically and keep vali
     state.npcs = [normalizeNpc({ id: 'npc-nia', name: 'Nia', mannerisms: ['Keeps her hands folded.'] })];
     return withHost(async h => {
         const payload = existingPayload({ field: 'mannerisms', operation: 'replace', value: ['Taps the ledger.', { nested: { gesture: 'shrug' } }], sources: source(visible), explanation: visible });
-        h.context.chat = chatFor(JSON.stringify(payload));
-        const result = await h.entry.processEmbeddedScan(1);
+        const result = await runAuto(h, payload);
         assert.equal(result.ok, true);
         assert.deepEqual(h.persisted().npcs[0].mannerisms, ['Keeps her hands folded.']);
         assert.ok(result.semanticDiagnostics.some(row => row.field === 'mannerisms' && row.reason.includes('member-1-expected-supported-text-property')));
@@ -138,8 +101,7 @@ test('named-preferred role compatibility validates raw input once and never resu
     const bad = scanOutputExamples().populated;
     bad.npcs = [bad.npcs[0]];
     bad.npcs[0].role = { title: 'clerk' };
-    h.context.chat = chatFor(JSON.stringify(bad));
-    const rejected = await h.entry.processEmbeddedScan(1);
+    const rejected = await runAuto(h, bad);
     assert.equal(rejected.ok, true);
     assert.equal(h.persisted().npcs[0].role, '');
     assert.equal(rejected.semanticDiagnostics.filter(row => row.field === 'role' && row.reason === 'invalid-value-type:expected-string-value').length, 1);
@@ -156,8 +118,7 @@ test('legacy direct live and appearance-form compatibility reject raw object val
             appearanceFormChanges: [{ name: 'Human', appearance: { hair: 'auburn' }, evidence: visible }],
             evaluatedGroups: ['canon', 'live'], semanticUpdates: [],
         }];
-        h.context.chat = chatFor(JSON.stringify(payload));
-        const result = await h.entry.processEmbeddedScan(1);
+        const result = await runAuto(h, payload);
         assert.equal(result.ok, true);
         const npc = h.persisted().npcs[0];
         assert.equal(npc.location, 'Old room.');

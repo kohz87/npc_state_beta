@@ -249,10 +249,6 @@ export function compactForegroundNpc(npc, level = 0, limits = {}) {
     return pruneEmpty(out) || { id: npc.id, name: npc.name };
 }
 
-export function completeForegroundHistoryRows(value, maxRows = 6) {
-    return String(value || '').split(/\r?\n/).map(row => row.trim()).filter(Boolean).slice(-maxRows);
-}
-
 function npcContentSignature(npc = {}) {
     const formText = (npc.appearanceForms || []).map(form => `${form?.name || ''}:${form?.appearance || ''}`).join('|');
     const profileEvidence = (npc.profileEvolutionEvidence || []).slice(-6).map(row => `${row?.field || ''}:${row?.mode || ''}:${row?.sourceMessageId ?? ''}:${row?.evidence || ''}`).join('|');

@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { applyScanResult, buildScanPrompt } from '../src/scanner.js';
-import { consumeNpcStateControl } from '../src/foreground.js';
 import { foregroundContract } from '../src/foreground-contract.js';
 import { buildForegroundInjection } from '../src/injection.js';
 import { createNpcStateEngine } from '../src/engine.js';
@@ -100,14 +99,6 @@ function apply(state, result, visible = MIRA_VISIBLE, extra = {}) {
     });
 }
 
-function consume(visible, scanPayload) {
-    const message = `${visible}\n<npc_state_v1>${JSON.stringify(scanPayload)}</npc_state_v1>`;
-    const consumed = consumeNpcStateControl(message, { requireLifeStateUpdates: true });
-    assert.deepEqual(consumed.errors, []);
-    assert.ok(consumed.parsed);
-    return consumed;
-}
-
 function engineHarness({ state, chat, settings = {}, generate = null, deferFirstWrite = false } = {}) {
     const key = state.chatKey;
     let pointer = { name: 'state.json', path: '/files/state.json', revision: 1 };
@@ -118,7 +109,7 @@ function engineHarness({ state, chat, settings = {}, generate = null, deferFirst
     let releaseFirstWrite;
     let firstWriteStartedResolve;
     const firstWriteStarted = new Promise(resolve => { firstWriteStartedResolve = resolve; });
-    const normalizedSettings = normalizeSettings({ scanAfterEachResponse: false, branchRescan: false, ...settings });
+    const normalizedSettings = normalizeSettings({ autoScan: true, branchRescan: false, ...settings });
     const adapters = {
         getContext: () => context,
         getChatKey: () => key,
@@ -129,7 +120,7 @@ function engineHarness({ state, chat, settings = {}, generate = null, deferFirst
         persistSettings: () => {},
         generate: async (...args) => {
             generations += 1;
-            if (!generate) throw new Error('Embedded first pass must not make a model request.');
+            if (!generate) throw new Error('Scanner fixture missing.');
             return generate(...args);
         },
         fetchFn: async (_url, options = {}) => {
@@ -363,66 +354,35 @@ test('unsupported evidence stays rejected and genuinely unsupported new fields r
     assert.equal(result.semanticDiagnostics.some(row => row.field === 'age' && row.status === 'invalid-source-reference'), true);
 });
 
-test('foreground and Scan share mandatory empty-id/bootstrap guidance, including under tight foreground budgets', () => {
-    const foreground = foregroundContract({}, { capture: true });
-    for (const phrase of ['NEW id=""', 'EXISTING/name-only: keep supplied id', '"name":"Nia","identityKind":"named"']) {
-        assert.match(foreground, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-    }
+test('scanner owns empty-id/bootstrap guidance while foreground remains continuity-only', () => {
+    const foreground = foregroundContract();
+    assert.doesNotMatch(foreground, /NEW id=|semanticUpdates|OUTPUT CONTRACT|npc_state_v1/);
     const state = emptySafeState('chat:prompt');
-    const built = buildForegroundInjection(state, {
-        enabled: true, autoScan: true, inject: true, injectBudgetTokens: 1,
-        injectLimit: 1, newNpcAdmissionMode: 'balanced', newNpcHistoryEnrichment: false,
-    });
-    assert.match(built.prompt, /NEW id=""/);
-    assert.ok(built.diagnostics.effectiveBudgetTokens >= built.diagnostics.minimumBudgetTokens);
-
-    const scan = buildScanPrompt({
-        state,
-        chat: [{ is_user: true, mes: 'Lucien asks Mira for a room.' }, { is_user: false, mes: MIRA_VISIBLE }],
-        assistantMessageId: 1,
-    });
+    const built = buildForegroundInjection(state, { enabled: true, autoScan: true, inject: true, injectBudgetTokens: 256, injectLimit: 1, newNpcAdmissionMode: 'balanced' });
+    assert.doesNotMatch(built.prompt, /NEW id=|semanticUpdates|npc_state_v1/);
+    const scan = buildScanPrompt({ state, chat: [{ is_user: true, mes: 'Lucien asks Mira for a room.' }, { is_user: false, mes: MIRA_VISIBLE }], assistantMessageId: 1 });
     assert.match(scan, /NEW id=""/);
     assert.match(scan, /EXISTING\/name-only: keep supplied id/);
 });
 
-test('real foreground parser-engine-persistence path enriches an existing name-only dossier with no extra generate call', async () => {
+test('dedicated Scan enriches an existing name-only dossier through persistence', async () => {
     const key = 'chat:existing-name-only';
-    const state = emptySafeState(key);
-    state.npcs = [normalizeNpc({ id: 'npc-mira-existing', name: 'Mira' })];
+    const state = emptySafeState(key); state.npcs = [normalizeNpc({ id: 'npc-mira-existing', name: 'Mira' })];
     const scan = payload([miraPatch({ id: 'npc-mira-existing', semanticUpdates: miraSemanticUpdates('establish') })]);
-    const consumed = consume(MIRA_VISIBLE, scan);
-    const h = engineHarness({
-        state,
-        chat: [{ is_user: true, mes: 'Lucien asks Mira for a room.' }, { is_user: false, mes: consumed.cleanedText, swipe_id: 0 }],
-    });
-    await h.engine.loadChat();
-    const result = await h.engine.applyEmbeddedScan(1, consumed.parsed, { expectedMessageText: consumed.cleanedText, expectedSwipeId: 0 });
-    assert.equal(result.ok, true);
-    assertMiraPopulated(h.engine.getDossierNpc('npc-mira-existing'));
+    const h = engineHarness({ state, chat: [{ is_user: true, mes: 'Lucien asks Mira for a room.' }, { is_user: false, mes: MIRA_VISIBLE, swipe_id: 0 }], generate: async () => JSON.stringify(scan) });
+    await h.engine.loadChat(); const result = await h.engine.scan(1, { manual: false });
+    assert.equal(result.ok, true); assertMiraPopulated(h.engine.getDossierNpc('npc-mira-existing'));
     assertMiraPopulated(h.persisted().npcs.find(npc => npc.id === 'npc-mira-existing'));
-    const reloaded = await h.reload().loadChat();
-    assertMiraPopulated(reloaded.npcs.find(npc => npc.id === 'npc-mira-existing'));
-    assert.equal(h.generations(), 0);
+    assertMiraPopulated((await h.reload().loadChat()).npcs.find(npc => npc.id === 'npc-mira-existing'));
+    assert.equal(h.generations(), 1);
 });
 
-test('real foreground parser-engine-persistence path retains a complete new dossier when model emitted a nonempty transport id', async () => {
-    const key = 'chat:new-unexpected-id';
-    const state = emptySafeState(key);
-    const scan = payload([miraPatch({ id: 'mira' })]);
-    const consumed = consume(MIRA_VISIBLE, scan);
-    const h = engineHarness({
-        state,
-        chat: [{ is_user: true, mes: 'Lucien asks Mira for a room.' }, { is_user: false, mes: consumed.cleanedText, swipe_id: 0 }],
-    });
-    await h.engine.loadChat();
-    const result = await h.engine.applyEmbeddedScan(1, consumed.parsed, { expectedMessageText: consumed.cleanedText, expectedSwipeId: 0 });
-    assert.equal(result.ok, true);
-    const mira = result.state.npcs.find(npc => npc.name === 'Mira');
-    assertMiraPopulated(mira);
-    assert.notEqual(mira.id, 'mira');
-    assert.equal(result.coverageDiagnostics.some(row => row.status === 'missing-npc-patch'), false);
-    assert.equal(result.semanticDiagnostics.filter(row => row.status === 'applied').length, 8);
-    assert.equal(h.generations(), 0);
+test('dedicated Scan retains a complete new dossier when model emits a nonempty transport id', async () => {
+    const key = 'chat:new-unexpected-id'; const state = emptySafeState(key); const scan = payload([miraPatch({ id: 'mira' })]);
+    const h = engineHarness({ state, chat: [{ is_user: true, mes: 'Lucien asks Mira for a room.' }, { is_user: false, mes: MIRA_VISIBLE, swipe_id: 0 }], generate: async () => JSON.stringify(scan) });
+    await h.engine.loadChat(); const result = await h.engine.scan(1, { manual: false }); assert.equal(result.ok, true);
+    const mira = result.state.npcs.find(npc => npc.name === 'Mira'); assertMiraPopulated(mira); assert.notEqual(mira.id, 'mira');
+    assert.equal(result.coverageDiagnostics.some(row => row.status === 'missing-npc-patch'), false); assert.equal(h.generations(), 1);
 });
 
 test('a follow-up Scan using the assigned stable id enriches the same NPC instead of duplicating it', () => {
@@ -444,49 +404,19 @@ test('a follow-up Scan using the assigned stable id enriches the same NPC instea
     assert.equal(second.patchResolutions[0].npcId, mira.id);
 });
 
-test('deleting the source response removes the populated newly admitted dossier through normal branch reconciliation', async () => {
-    const key = 'chat:identity-delete';
-    const state = emptySafeState(key);
-    const consumed = consume(MIRA_VISIBLE, payload([miraPatch({ id: 'model-mira' })]));
-    const h = engineHarness({
-        state,
-        chat: [{ is_user: true, mes: 'Lucien asks Mira for a room.' }, { is_user: false, mes: consumed.cleanedText, swipe_id: 0 }],
-    });
-    await h.engine.loadChat();
-    const applied = await h.engine.applyEmbeddedScan(1, consumed.parsed, { expectedMessageText: consumed.cleanedText, expectedSwipeId: 0 });
-    assert.equal(applied.ok, true);
-    const mira = applied.state.npcs.find(npc => npc.name === 'Mira');
-    assertMiraPopulated(mira);
-
-    h.context.chat.splice(1, 1);
-    const reconciled = await h.engine.reconcileBranch({ rescan: false });
-    assert.equal(reconciled.ok, true);
-    assert.equal(reconciled.changed, true);
-    assert.equal(reconciled.state.npcs.some(npc => npc.name === 'Mira'), false);
-    assert.equal(h.persisted().npcs.some(npc => npc.name === 'Mira'), false);
+test('deleting the source response removes the scanned newly admitted dossier through branch reconciliation', async () => {
+    const key = 'chat:identity-delete'; const state = emptySafeState(key); const scan = payload([miraPatch({ id: 'model-mira' })]);
+    const h = engineHarness({ state, chat: [{ is_user: true, mes: 'Lucien asks Mira for a room.' }, { is_user: false, mes: MIRA_VISIBLE, swipe_id: 0 }], generate: async () => JSON.stringify(scan) });
+    await h.engine.loadChat(); const applied = await h.engine.scan(1, { manual: false }); assert.equal(applied.ok, true); assertMiraPopulated(applied.state.npcs.find(npc => npc.name === 'Mira'));
+    h.context.chat.splice(1, 1); const reconciled = await h.engine.reconcileBranch({ rescan: false });
+    assert.equal(reconciled.ok, true); assert.equal(reconciled.changed, true); assert.equal(reconciled.state.npcs.some(npc => npc.name === 'Mira'), false); assert.equal(h.persisted().npcs.some(npc => npc.name === 'Mira'), false);
 });
 
-test('history change during first-pass persistence cannot advertise the identity-bound dossier as current', async () => {
-    const key = 'chat:identity-race';
-    const state = emptySafeState(key);
-    const consumed = consume(MIRA_VISIBLE, payload([miraPatch({ id: 'mira' })]));
-    const h = engineHarness({
-        state,
-        chat: [{ is_user: true, mes: 'Lucien asks Mira for a room.' }, { is_user: false, mes: consumed.cleanedText, swipe_id: 0 }],
-        deferFirstWrite: true,
-    });
-    await h.engine.loadChat();
-    const running = h.engine.applyEmbeddedScan(1, consumed.parsed, { expectedMessageText: consumed.cleanedText, expectedSwipeId: 0 });
-    await h.firstWriteStarted;
-    h.context.chat[1].mes = 'A replacement swipe removes Mira from this response.';
-    h.context.chat[1].swipe_id = 1;
-    h.engine.invalidate(key);
-    h.releaseFirstWrite();
-    const result = await running;
-    assert.equal(result.ok, false);
-    assert.equal(result.discarded, true);
-    assert.equal(result.reason, 'history-changed-during-persist');
-    assert.equal(result.state.branchSafety.kind, 'commit-history-changed');
-    assert.equal(h.persisted().branchSafety.kind, 'commit-history-changed');
-    assert.ok(h.postCount() >= 2);
+test('history change during dedicated Scan persistence cannot advertise the dossier as current', async () => {
+    const key = 'chat:identity-race'; const state = emptySafeState(key); const scan = payload([miraPatch({ id: 'mira' })]);
+    const h = engineHarness({ state, chat: [{ is_user: true, mes: 'Lucien asks Mira for a room.' }, { is_user: false, mes: MIRA_VISIBLE, swipe_id: 0 }], generate: async () => JSON.stringify(scan), deferFirstWrite: true });
+    await h.engine.loadChat(); const running = h.engine.scan(1, { manual: false }); await h.firstWriteStarted;
+    h.context.chat[1].mes = 'A replacement swipe removes Mira from this response.'; h.context.chat[1].swipe_id = 1; h.engine.invalidate(key); h.releaseFirstWrite();
+    const result = await running; assert.equal(result.ok, false); assert.equal(result.discarded, true); assert.equal(result.reason, 'history-changed-during-persist');
+    assert.equal(result.state.branchSafety.kind, 'commit-history-changed'); assert.equal(h.persisted().branchSafety.kind, 'commit-history-changed'); assert.ok(h.postCount() >= 2);
 });

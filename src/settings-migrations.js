@@ -15,6 +15,10 @@ RELATIONSHIP MILESTONES: outward depth is gated independently by axis and direct
 
 // Match only known shipped defaults; user-authored criteria must survive upgrades.
 export function migrateSettings(settings, defaultRelationshipCriteria) {
+    // Workflow migration is keyed by the explicit workflow marker/key presence, never
+    // by the public release label (which intentionally resets to 0.5.x in this release).
+    for (const key of ['scanAfterEachResponse', 'fallbackScan', 'newNpcHistoryEnrichment']) delete settings[key];
+    settings.workflowMode = 'post-response-v1';
     if (settings.portraitPositivePrompt === undefined && settings.portraitGenerationPrompt !== undefined) {
         settings.portraitPositivePrompt = settings.portraitGenerationPrompt;
     }

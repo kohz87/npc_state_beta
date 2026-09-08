@@ -1,131 +1,86 @@
 # NPC State Beta
 
-NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model.
+NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.7.10
+## Release 0.5.11
 
-First-pass completeness is stricter without adding another model request. The compact shared contract now demonstrates supported new-NPC live/profile fields, explicit insufficient-evidence outcomes, and a zero-delta Current Dynamic while preserving the existing foreground token budget behavior. Legacy `evaluatedGroups` remain accepted as group metadata, but only proposals or explicit `fieldEvaluations` prove field-level work; unaccounted fields are reported separately from persistence success.
+This release intentionally resets the **public release label** from the 0.7.x development line to the next unused 0.5.x patch. It does **not** restore old source, downgrade the sidecar, or change the persisted/settings schema. Existing `npc_state_beta.v3` data continues in place.
 
-Current Dynamic evidence can bind an NPC through an unambiguous short name and the player through a full/unique short name or narrator-addressed second person outside quoted dialogue. Exact source grounding, ambiguity rejection, wrong-recipient protection, relationship intensity limits, and numeric-score independence remain in force. New-NPC behavior/mannerism bootstrap and persisted collection normalization now share the field-aware collection normalizers used by semantic updates, so foreign sibling properties cannot become an alternate mutation path.
+The automatic workflow is now simpler:
 
-The v0.7.7 canonical envelope and `<npc_state_v1>` transport remain unchanged. Release 0.7.10 uses semantic contract 6, foreground contract 7, persisted/settings schema 1, and storage identity `npc_state_beta.v3`. No database rebuild or migration is required.
+`compact continuity -> visible roleplay response -> one dedicated post-response scan -> validate/apply -> guarded persistence/checkpoint -> refresh continuity/UI`
 
-## Release 0.7.8
+Roleplay generation no longer has to emit `<npc_state_v1>` or any other NPC JSON. Foreground injection is continuity-only. `autoScan=true` means one dedicated scanner request after each completed assistant revision. Duplicate host completion events share the same logical job; edits, swipes, deletion, branch changes, and chat switches invalidate stale work.
 
-Optional foreground fallback scans are now capture-bound: a malformed/missing embedded attempt cannot finish later and consume the scan boundary of a newer valid payload with identical visible narration. Capture attempt/history ownership is checked before queued fallback work dispatches, after generation, and by the existing pre/post-persistence commit guard. Manual Scan remains deliberately independent of embedded capture attempts.
+Before the next ordinary generation, NPC State uses SillyTavern's awaited generation interceptor to settle the preceding response's owning scan and rebuild continuity. Scanner-generated quiet requests carry an internal lease so they do not wait on themselves. A failed or timed-out owning scan exposes an actionable Retry state and aborts the attempted next generation instead of silently using unsynchronized state.
 
-Ordinary dossier field inputs are type-checked before bootstrap or semantic normalization. Text scalars no longer coerce objects, arrays, or booleans into stored strings such as `[object Object]`; invalid proposals are rejected with concrete diagnostics while valid existing values remain. Numeric age/apparent-age compatibility and supported collection/form object compatibility are retained.
+### Scanner scope
 
-The v0.7.7 canonical JSON envelope and `<npc_state_v1>` transport are unchanged. Supported first-pass appearance/profile/live state/memories, neutral Current Dynamic at zero relationship deltas, random birthday filling, relationship scoring/replay protection, correction rollback/recovery, optional completeness, and alternate-model routing remain intact. See [`docs/core-contract.md`](docs/core-contract.md) for the authoritative behavior.
+Routine automatic Scan and manual **Scan current cast** treat the latest completed assistant message and its preceding user message as new-event evidence. At most two earlier non-system messages may be supplied as bounded reference context for antecedents; they are not new-event evidence. Only relevant/mentioned/currently active dossiers are serialized richly, so unrelated roster growth does not expand every routine scan.
 
-Focused social/family/lifecycle rows and relationship text metadata also reject malformed object-valued text before persistence while valid sibling proposals remain independent.
-The supported public manual APIs now enforce the same value-shape boundary: `updateNpc()` rejects malformed dossier/manual scalar values before normalization, and `addNpc()` requires a string identity instead of coercing arbitrary objects.
-Explicit manual-override metadata is validated by the same owned-field rules before storage, preventing a malformed override from resurfacing as object-text during a later rollback; portrait attachment objects remain outside dossier-text validation.
-Malformed legacy manual-override values already present in an older sidecar are also discarded during normalization, while valid override ownership continues to survive rollback.
+**Refresh** still reconciles one NPC over bounded history. Historical recovery still reconstructs surviving exchanges sequentially from a trustworthy baseline. All story mutations continue through the same guarded commit/checkpoint path.
 
-Release 0.7.8 uses semantic contract 5 and foreground contract 6. Persisted state and settings schemas remain 1, and storage identity remains `npc_state_beta.v3`. No database rebuild or storage-key migration is required. Automated tests do not measure live provider reliability.
+### Dossier completeness and safety
 
-## Release 0.6.3
+The scanner contract demonstrates a realistically populated new NPC, explicit insufficient-evidence outcomes, field-level evaluation metadata, and a zero-delta Current Dynamic. Unsupported facts remain unknown. A sparse valid payload may still commit its supported facts, but diagnostics report unaccounted fields separately from persistence success.
 
-For every existing NPC selected into foreground context, the minimum budget representation now retains Mood, Location, Goal, and Status. The model compares those stored values with the completed response and uses the same canonical `semanticUpdates` pipeline to establish, replace, or explicitly remove a live value. Unchanged or insufficiently supported values are preserved rather than rewritten for style.
+Current Dynamic evidence may bind an NPC through an unambiguous short identity and the player through a full/unique short identity or narrator-addressed second person outside quoted dialogue. Quoted `you`, ambiguous aliases, wrong recipients, and unrelated NPC interactions remain rejected. Numeric relationship movement is independent and may remain zero.
 
-Legacy direct live fields remain accepted only as a bounded response-compatibility format. They are normalized once at the scanner boundary when the proposed value and NPC identity occur together in permitted current evidence; otherwise they are rejected with diagnostics before the ordinary direct fields are stripped. Generic presence/activity evidence no longer grants blanket authority over every live field. World_State remains limited to Location/Status and NPC_Inner_Chatter to Mood/Goal.
+New-NPC bootstrap, existing semantic updates, manual/import boundaries, and persisted normalization share field-aware value rules. Malformed nested collection members, form selectors, scalar objects, and coercive manual numeric values are rejected before lossy normalization rather than becoming strings such as `[object Object]`.
 
-Embedded first-pass application now reports dossier coverage gaps, including an omitted live evaluation, without launching a repair request. Optional completeness scanning remains off unless the existing user setting enables it. Swipe identity is also carried through completed-response processing so a stale payload cannot commit to a replacement swipe.
+## Settings
 
+Important settings retained by 0.5.11 include:
 
-## Release 0.6.0
+- **Auto scan**: one dedicated post-response scanner request.
+- **Inject NPC continuity**: independent continuity context for roleplay generation.
+- **NPC scan connection profile**: optional alternate model route for scanner requests. A missing/changed configured profile is an explicit error, not silent fallback to the main roleplay connection.
+- **Scanner output tokens**: adjustable up to 15,000.
+- **Injection budget / NPC limit / depth**: continuity budgeting and selection. The budget now supports values down to 256 because it no longer carries an extraction schema.
+- Admission, birthday generation, dossier limits, relationship criteria/caps, portraits, stale retention, and recovery controls remain supported.
 
-Settings defaults, numeric bounds, and normalization now have shared definitions used by the runtime and settings controls. Relationship gate/cap instructions derive from the same policy data used by scoring. Scan, Refresh, and completeness build one semantic contract per request; obsolete age/form and replacement-array instructions have been removed. Legacy responses still translate at the compatibility boundary.
+Obsolete `scanAfterEachResponse`, `fallbackScan`, and `newNpcHistoryEnrichment` settings are retired during idempotent settings normalization. An explicit `autoScan=false` stays false.
 
-Unused age-progression code, the schema override facade, and the editor click bridge have been retired. Scanner responsibilities are separated into prompt, application, relationship, lifecycle, and payload modules. ZIP releases include only reachable runtime files, the manifest, license, and this guide, with standard DEFLATE compression. Tests, tooling, and development/history documents stay in the repository.
+## Relationship and profile behavior
 
-The canonical field registry lives in `src/model/dossier-fields.js` and drives the semantic contract, foreground contract, field kinds/durability, and evaluation groups. `currentForm` is now a first-class live semantic field. Full Scan appends only a compact edit-index containing stable collection/form refs and locks instead of serializing the complete dossier roster a second time.
+Existing dossiers evolve through the single `semanticUpdates` channel (`establish`, `refine`, `replace`, `remove`). The model judges narrative meaning; deterministic code validates source ownership, target identity, durability, manual locks, collection/form targeting, and permitted fields.
 
-Full Scan, completeness, and historical recovery now validate semantic source excerpts against the same bounded history window supplied to the model. Deliberate Scan/Refresh/recovery also report coverage diagnostics when an expected NPC patch or dossier evaluation group was omitted, while foreground embedded capture stays budget-bounded and best-effort.
+Temporary states such as sleep, unconsciousness, one-off poses, or momentary mood do not automatically become permanent personality/speech. Later grounded evidence may enrich or replace an obsolete placeholder. Collection entries can be edited at capacity through stable refs without evicting unrelated items.
 
-No dossier rebuild or storage-key migration is required. Existing settings are normalized in place; an injection budget below 1600 is upgraded to the existing runtime floor, and an explicit injection depth of zero is preserved.
+Player relationship meters remain deterministic: Trust, Affection, Desire, and Tension use configured caps, gates, inertia, fractional progress, milestones, evidence history, and replay protection. Neutral professional/other Current Dynamic summaries may update at zero scores without fabricating relationship history.
 
-## Release 0.5.8
+## Rollback and persistence
 
-The checked-in `src/` tree is authoritative. A clean checkout is sufficient to validate, test, and package the extension.
+NPC State uses complete story snapshots and canonical history ownership. Tail deletion restores an exact surviving checkpoint when available. Middle-history divergence restores a verified prefix and reconstructs each surviving assistant exchange in order. A missing trustworthy baseline blocks safely instead of pretending a partial relationship rollback is complete.
 
-Version boundaries remain independent:
+User-owned portraits, locks, manual corrections, importance, and suppression tombstones retain their defined rollback behavior. Per-axis manual relationship corrections remain absolute durable ownership records independent of bounded display history. Sidecar writes keep revision/CAS and writer-lock protections.
 
-- Extension release: `0.5.8`
-- Persisted state schema: `1` (unchanged)
-- Model semantic update contract: `2`
-- Settings schema: `1` (unchanged; no new settings keys)
-- Foreground embedded-capture contract: `3`
+## Compatibility
 
-Existing v0.4.x/0.5.x sidecars keep their established storage identity. No dossier rebuild or storage-key migration is required.
+Current boundaries:
 
-## Foreground capture and prompt budgets
+- Release label: **0.5.11**
+- Persisted state schema: **1**
+- Settings schema: **1**
+- Model semantic contract: **6**
+- Foreground continuity contract: **8**
+- Storage identity: **`npc_state_beta.v3`**
 
-Foreground roleplay now receives one authoritative NPC State contract from `src/injection.js`. The previous layered path, where a full legacy foreground contract was built and a second semantic-update contract plus a second dossier serialization was appended, has been removed.
+No database reset, rebuild, or storage-key migration is required. Old `<npc_state_v1>` text is ignored by canonical history fingerprints so historical chats do not diverge merely because transport text remains, but new automatic processing does not consume embedded payloads.
 
-One selection pipeline ranks explicitly referenced, present, recently active, and otherwise salient NPCs, then honors the configured injection limit for every dossier-bearing foreground section. Dossier context is serialized once as complete compact JSON. Collection/form entries keep stable edit refs required by `semanticUpdates`; memories, relationships, forms, and history are bounded by whole-entry selection rather than cutting JSON into fragments.
+SillyTavern's third-party extension updater is Git-based: it checks whether the installed repository is current and pulls the tracked branch when needed. The lower 0.5.11 presentation label therefore does not require uninstall/reinstall or data deletion.
 
-The existing **Injection budget** (`injectBudgetTokens`) is now the total NPC State foreground budget, covering fixed instructions plus dossier/history context. Its stored key and default (`1800`) are unchanged, so no settings migration is required. The effective valid range is `1600` to `8000` estimated tokens. Older saved values below `1600` normalize to `1600`, and the settings control displays the same effective limit. If a future fixed contract itself grows beyond that floor, diagnostics report the real effective minimum.
+## Public APIs and diagnostics
 
-NPC State does not make a remote tokenizer request on the send path. Diagnostics therefore label counts as a local conservative estimate (`ASCII/3.5 + non-ASCII*1.1`), not exact provider tokens. Prompt results are cached by relevant state/settings/content and invalidated when dossier content or selection inputs change.
+Manual `NPCState.scan()`, targeted Refresh/import APIs, dossier editing, branch/recovery actions, and bounded operation diagnostics remain available. `NPCState.scanStatus()` exposes the current automatic job state (`idle`, `queued`, `scanning`, `saving`, `complete`, `partial`, `failed`, or `blocked`) and `NPCState.retryAutoScan()` retries the latest failed automatic job.
 
-## Model-led semantic updates
+Legacy capture/completeness diagnostic entry points return small documented retirement responses rather than keeping the obsolete capture subsystem alive.
 
-For existing dossiers, durable semantic changes use `semanticUpdates` with `establish`, `refine`, `replace`, or `remove`. The model decides whether story evidence establishes a first meaningful personality baseline, enriches compatible characterization, demonstrates genuine development, corrects mistaken canon, or retires obsolete information.
-
-Temporary conditions stay distinct from durable characterization. Sleeping, unconsciousness, silence while asleep, one-off reactions, and poses do not become permanent personality or speech merely because they were observed first. Later grounded evidence can replace a frozen sleep/emergence placeholder. A form-specific habit stays scoped to that form unless evidence changes it, and omission from one response is never deletion evidence.
-
-The runtime remains authoritative for structure, permitted fields, NPC/entry targeting, source provenance, manual locks, deterministic numeric normalization, relationship caps/milestones/inertia/fractional progress, replay protection, lifecycle transitions, stale-result rejection, persistence, branch recovery, and collection limits. It does not reintroduce English keyword or arbitrary repetition gates as semantic approval.
-
-`Scan current cast` also has a narrow Current Dynamic repair mode. When an existing NPC's `relationshipSummary` is blank, the manual scan may reconstruct it from already accepted relationship meters, fractional progress, milestones, evidence history, and recent relationship changes. This repair does not replay relationship scoring and never overwrites an existing non-empty summary merely to rephrase it.
-
-Current Dynamic evolution is no longer gated on a score actually moving. For exchange-active NPCs, a model-proposed `relationshipSummary` may persist when it is supported by the current stored relationship depth and the same grounded current-exchange relationship proposal, even if numeric application is blocked as duplicate/replay, capped, gated, or absorbed by inertia. Ordinary `impact:none` turns cannot stylistically rewrite it. Targeted Refresh can also reconcile a missing or materially stale Current Dynamic from its supplied history without changing relationship scores.
-
-To avoid making Full Scan perform relationship-summary reconciliation across the entire stored cast, the scan roster now includes `relationshipSummary` only for NPCs who are already present or explicitly referenced in the current exchange. The rest of the continuity roster remains available for identity, lifecycle, profile, and other reconciliation, while irrelevant off-screen Current Dynamic prose is omitted. Targeted Refresh and explicit current-cast repair still receive the required relationship-summary context.
-
-## Routing and response lifecycle
-
-Normal roleplay and embedded `<npc_state_v1>` capture remain part of the main roleplay generation. Full scans, Refresh, recovery, historical rebuild, and optional post-response completeness requests may use the configured NPC connection profile. The alternate profile path does not intentionally change or fall back to the active main connection.
-
-Post-response embedded/completeness work is started without awaiting it from the `MESSAGE_RECEIVED` event handler. Completeness remains optional, starts only after the assistant response exists, and receives stale fingerprints/swipe identity so discarded background results cannot overwrite a newer branch or edit.
-
-## Diagnostics and latency interpretation
-
-Opt-in diagnostics are available through the existing `NPCState.debugStatus()` console API and report local extension facts only:
-
-- fixed instruction, dynamic-context, and total character counts
-- estimated tokens and estimate method
-- selected NPC count/ids and configured/effective budgets
-- prompt construction time and cache hit status
-- background scan state/completeness state and configured scan route id without credentials
-
-NPC State does not currently own reliable hooks for browser request dispatch, provider first response data, or first visible token/paint across providers. Those phases are therefore reported as unavailable rather than inferred.
-
-A smaller extension prompt can reduce prompt-processing work, but it does not prove or promise that an observed 15–20 second delay will disappear. If the browser generation request is dispatched immediately, remaining time can include SillyTavern server/proxy processing, provider queueing, prompt ingestion, model reasoning, and streaming/render behavior outside NPC State's measured local construction time.
-
-## Source layout
-
-- `src/` - authoritative runtime source
-- `src/model/` - semantic update contract and compatibility response adaptation
-- `src/injection.js` - single foreground orchestration/cache/diagnostics entrypoint
-- `src/foreground-contract.js` - concise authoritative embedded-capture/model-led update contract
-- `src/foreground-context.js` - one NPC selection and complete-entry dossier compaction pipeline
-- `src/foreground-budget.js` - local estimate and total-budget normalization
-- `src/scanner.js` - public scan API and single response-application coordinator
-- `src/scan-*.js` - focused prompt, application, evidence-helper, relationship, lifecycle, and payload modules
-- `src/settings.js` / `src/settings-contract.js` - settings registry and numeric validation/UI metadata
-- `src/relationship-rules.js` - numeric policy shared by scoring and model instructions
-- `tests/` - behavioral and compatibility regressions
-- `scripts/validate.mjs` - clean-checkout source/import validation
-- `scripts/package.mjs` - dependency-free release packaging
-- `.github/workflows/ci.yml` - validation, tests, package generation, and artifact upload
-
-Historical v0.4 documentation is retained under `docs/history/`.
+`docs/core-contract.md` is the authoritative behavioral specification. `DEVELOPMENT.md` contains repository workflow and responsibility boundaries. Historical release material under `docs/history/` is retained for reference only.
 
 ## Development
 
-Requires Node.js 22 or later for the repository workflow.
+Requires Node.js 22 or later:
 
 ```sh
 npm run validate
@@ -133,11 +88,4 @@ npm test
 npm run package
 ```
 
-See `DEVELOPMENT.md` for architecture and release guidance.
-
-Live model quality varies by provider/model. Deterministic fixtures verify parsing/application behavior; they are not live-provider latency or judgment measurements.
-
-
-### Message-linked rollback
-
-NPC State links story mutations to canonical chat lineage and full-state checkpoints. Tail deletion restores the matching snapshot directly; middle deletion restores a verified prefix and reconstructs the surviving suffix in order. User-owned presentation/locks/manual overrides are preserved, while story-derived memories, live state, canon, relationships, graph state, presence, and bookkeeping roll back with their source history. If retained history is insufficient, the extension blocks normal scanning and requires recovery rather than guessing.
+Packaging includes only reachable runtime files plus manifest/license/README. Tests, scripts, review ledgers, staging material, and history documents are excluded from the installable ZIP.

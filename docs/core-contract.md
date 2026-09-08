@@ -6,11 +6,11 @@ This document is the authoritative maintenance specification for NPC State Beta.
 
 NPC State maintains continuity for one SillyTavern chat sidecar. The language model interprets narrative meaning. The extension owns structure, field permissions, source validation, deterministic mechanics, history ownership, replay protection, persistence, restoration, and failure state.
 
-The normal logical workflow is:
+The normal automatic workflow is:
 
-`identify source history -> select context -> obtain proposals -> validate -> apply to working state -> revalidate ownership -> commit -> refresh consumers`
+`compact continuity -> visible roleplay response -> dedicated scan of completed exchange -> validate/apply -> revalidate ownership -> persist/checkpoint -> refresh continuity/UI`
 
-Foreground capture follows the host generation lifecycle: its proposal is embedded in the completed roleplay response and is applied afterward. It must never add a pre-generation model request. Rollback enters the same commit boundary after a valid restored state has been selected.
+Dedicated post-response scanning is the only automatic extraction mode. Normal roleplay generation receives continuity context only and never has to emit newly generated NPC JSON. Embedded first-pass extraction, automatic embedded fallback, and supplemental completeness requests are retired workflows. Manual Scan, targeted Refresh, and historical reconstruction keep their distinct scopes. Rollback enters the same commit boundary after a valid restored state has been selected.
 
 A durable commit is not successful until persistence succeeds. A proposal whose source history is no longer owned is discarded. If history changes while a save is in flight, the completed write is not accepted as current; the timeline is blocked for reconciliation instead of being reported as successful.
 
@@ -54,29 +54,32 @@ Deletion and renumbering, edits, continuation changes, swipes/regeneration at re
 
 ## C. Context and model contract
 
-All model-facing modes use the shared dossier field definitions and canonical semantic update contract. Compatibility shapes are normalized once at the scanner boundary and cannot bypass validation.
+All model-facing extraction modes use the shared dossier field definitions and canonical semantic update contract. Compatibility shapes are normalized once at the scanner boundary and cannot bypass validation.
 
 Context is purpose-specific:
 
-- foreground first pass receives a budget-bounded selection and always retains the four required first-pass live comparison fields for selected existing NPCs;
-- Scan current cast receives the current exchange plus bounded continuity context;
-- Refresh receives one dossier plus bounded historical evidence;
-- completeness receives supplemental context for the already committed exchange;
+- roleplay foreground injection is continuity only: a budget-bounded selection of relevant saved NPC state, locks, and compact context coverage, with no extraction schema, output tag, repair rubric, or automatic-extraction history duplicate;
+- automatic post-response Scan and manual Scan current cast use the completed assistant response plus its immediately preceding user message when one exists; up to two earlier non-system messages may be supplied only as bounded reference context for antecedents or continuity;
+- targeted Refresh receives one dossier plus bounded historical evidence governed by its explicit history-depth setting;
 - historical reconstruction receives history only through the exchange being reconstructed, never future evidence.
 
-Omission is not deletion. Missing output is not proof that a field was evaluated. Modern payloads account for each applicable ordinary field through a proposal or a compact field-level outcome for explicitly unchanged, insufficient-evidence, or context-unavailable work. Older evaluatedGroups-only payloads remain valid group-level declarations, but group labels never count as field-level unchanged and coverage reports unaccounted field ids honestly. Foreground compact context identifies fields that were unavailable or only partially supplied so compaction cannot masquerade as an empty stored field. Coverage diagnostics distinguish explicitly evaluated, missing, unavailable, insufficient, and incomplete work; persistence success remains separate from semantic completeness.
+Routine Scan evaluates applicable fields of relevant NPCs, not the entire database. Current-exchange evidence owns new live changes, memories, relationship movement, lifecycle events, and development. Earlier raw dialogue is reference context, not new-event evidence. Saved bounded development observations may contribute to a grounded synthesis only under the existing semantic evidence rules and new supporting current evidence.
+
+Omission is not deletion. Missing output is not proof that a field was evaluated. Modern payloads account for each applicable ordinary field through a proposal or compact field-level outcome for explicitly unchanged, insufficient-evidence, or context-unavailable work. Older evaluatedGroups-only payloads remain accepted group metadata, but group labels never count as field-level unchanged and coverage reports bounded unaccounted field ids honestly. Coverage diagnostics distinguish proposed/applied, rejected, unchanged, insufficient, unavailable, and unaccounted work; persistence success remains separate from semantic completeness.
 
 ### Model output structure and rejection
 
-`src/scan-contract.js` owns the shared envelope and canonical identity classifications; ordinary field types/groups continue to derive from `src/model/dossier-fields.js`. Foreground, Scan, Refresh, structured import, and reconstruction use the same compact structural instructions and serialized fictional examples. Every example labeled valid JSON is tested through the production strict parser. Explanatory row notation is explicitly not JSON. Examples demonstrate shape, not facts or identities to copy into the story. New NPCs use an empty `id`, canonical `name`, and `identityKind` `named` or `role-label` with current-visible identity/activity evidence; the extension assigns stored IDs locally. Their ordinary bootstrap fields are flat. Existing, including name-only, dossiers keep supplied IDs and update through `semanticUpdates`.
+`src/scan-contract.js` owns the dedicated scanner envelope, canonical identity classifications, and parser-tested examples; ordinary field types/groups derive from `src/model/dossier-fields.js`. Scan, Refresh, structured import, and reconstruction use this structural contract. Every literal example advertised as valid JSON is tested through the production strict parser. Examples demonstrate shape, not facts to copy into the story.
 
-New live responses must contain all seven arrays, including empty arrays: `exchangeActiveNpcIds`, `inChatNpcIds`, `worldActiveNpcIds`, `npcs`, `socialEdges`, `familyFacts`, and `lifeStateUpdates`. Relationship deltas use only trust/affection/desire/tension; zero values do not require a scoring event. A changed Current Dynamic needs its own bounded evidence as specified below. The v1 transport tag is independent of release/model/foreground contract versions.
+New NPCs use an empty `id`, canonical `name`, and `identityKind` `named` or `role-label` with current-visible identity/activity evidence; the extension assigns stored IDs locally. New-dossier bootstrap fields are flat and should include every supported current-exchange fact actually evidenced. Existing, including name-only, dossiers retain supplied stable IDs and update through `semanticUpdates`. Unsupported age, backstory, habits, relationships, memories, or other facts remain unknown. Intentional birthday generation remains a separate extension feature.
 
-Parsing and compatibility validation occur at the scanner boundary before identity preparation, not in a parallel application path. Retained compatibility is narrow: the older `finalPresentNpcIds` envelope alias must agree with `inChatNpcIds` if both are supplied; existing classification aliases proper-name/proper and role/unnamed normalize to named and role-label without conferring admission. Preserve historical case/whitespace/underscore normalization; an empty legacy classification is unspecified, not a named-identity claim. Older direct callers may omit supplemental arrays under their established non-live parser options; the strict live path requires all seven. A complete surrounding JSON fence remains supported for older separate scanners. Supported legacy semantic shapes still pass through the existing adapter. No canonicalName/activityRefs/nested-live/relationshipToPlayer dialect is added, and no respect/attraction axis conversion is performed.
+Scanner responses contain the required envelope arrays, including empty arrays. Relationship deltas use only trust/affection/desire/tension; zero is valid and does not require a scoring event. A changed Current Dynamic needs its own bounded exact-source evidence and may be descriptive at zero numeric movement when correctly targeted.
 
-Reject incompatible/ambiguous structure as a whole, including conflicting aliases and over-cap arrays, before mutating NPC state. Ordinary per-proposal evidence and permission rejections remain explicit validator outcomes, not structural repair. Syntax errors, missing required members, invalid structures, duplicate transport blocks, unmatched tags, and truncated JSON/blocks have bounded concrete diagnostics. Do not extract an arbitrary brace substring, reconstruct incomplete JSON, or invent missing facts. A rejected capture can retain bounded error codes/messages and hashed source metadata in the host message, but does not write the NPC sidecar. Missing and invalid captures trigger a separate recovery scan only if the existing fallback option is explicitly enabled. Successful first-pass capture never requires a second model call.
+Parsing and compatibility validation occur at the scanner boundary before identity preparation, not in a parallel application path. Retained legacy response aliases normalize once and cannot confer admission or bypass evidence. Legacy `<npc_state_v1>` transport may still be stripped from historical message canonicalization so old chats do not create false divergence, but new roleplay responses neither request nor consume embedded NPC payloads.
 
-Essential shape/examples stay in the mandatory foreground contract. Reserve minimum selected dossier context before optional rubrics, then enrich within the existing budget. A zero-entry compact evidence tier is empty, not an accidental slice of all historical evidence.
+Reject incompatible or ambiguous scanner structure before mutation. Ordinary per-proposal evidence/permission rejections remain validator outcomes, not structural repair. Do not reconstruct truncated JSON, invent facts, flatten arbitrary objects, or silently apply an ambiguous dialect. A failed automatic scan leaves story state unchanged and reports a bounded failure/partial status with Retry available.
+
+The scanner must receive the complete current exchange within its supported context limit. If that limit is exceeded, the operation reports an explicit context limitation rather than silently discarding the relevant scene ending and claiming complete evaluation.
 
 ## D. Update application
 
@@ -100,23 +103,29 @@ Identity/admission produces one authoritative per-operation patch-to-NPC outcome
 
 Relationship scoring remains deterministic and separate: caps, gates, inertia, fractional progress, milestones, replay protection, evidence history, and descriptive Current Dynamic safeguards are extension-owned. Current Dynamic evidence is also separate from numeric scoring eligibility: a source-owned, correctly targeted descriptive relationshipSummary may establish or materially update at zero scores/zero deltas without creating relationship-change history, while intensity/milestone safeguards still reject unsupported depth. Target binding accepts canonical names, unambiguous short identity references, and narrator-addressed second person outside quoted dialogue; a bare quoted “you” or an ambiguous shared short name is never sufficient. Normal current-evidence proposals carry bounded exact summary evidence; explicit repair/reconciliation keeps its established accepted-history authority.
 
-## E. Commit and persistence
+## E. Commit, post-response scheduling, and persistence
 
 Story-derived and explicit user-owned mutation paths share one commit responsibility, parameterized only by ownership policy:
 
-1. capture operation/history ownership before asynchronous work;
-2. apply accepted proposals to working state;
-3. associate the candidate with the correct message/history checkpoint boundary;
-4. revalidate ownership immediately before persistence;
+1. capture immutable chat/source ownership before asynchronous waiting for an automatic post-response scan;
+2. revalidate before model dispatch;
+3. apply accepted proposals to working state;
+4. revalidate after generation and immediately before persistence;
 5. persist through the existing sidecar writer/CAS/lock path;
 6. revalidate ownership after the asynchronous save;
-7. only then report the operation as current and refresh consumers.
+7. only then report the operation as current, checkpoint the owned story boundary, and refresh continuity/UI.
 
-If the source becomes stale before saving, nothing is committed. If history changes during the save, the write is treated as unowned, the timeline is blocked, and ordinary branch reconciliation must select a verified boundary. Cross-writer conflicts and missing/retired sidecars remain hard failures, not blank-state fallbacks.
+Automatic source ownership contains chat identity, source position, canonical fingerprint and lineage through that source, swipe/revision where available, and operation generation. A newly appended user message after the owned assistant source does not by itself invalidate that source because ownership is measured through the source boundary. Edits, deletion/renumbering, changed preceding history, replacement swipes/regeneration, chat switches, and explicit invalidation do invalidate stale work.
 
-An optional foreground fallback scan is owned by the exact failed/missing capture attempt that requested it, including capture id and canonical source history. That ownership is checked before queued work/model dispatch, after generation, and by the same pre/post-persistence commit guard. A newer capture therefore supersedes the older fallback even when visible narration, message position, and swipe are unchanged, and the fallback cannot consume the newer capture's scanned boundary. If supersession happens during persistence, the normal saved-but-unowned block/reconciliation rule applies. Manual Scan is not capture-bound and keeps its established explicit-user ownership policy.
+One completed assistant revision creates one logical post-response scan job. Duplicate completion/render events share its in-flight or completed result. A revised/swiped response has different ownership. Historical recovery and scanner-generated quiet responses never recursively enqueue live scans. Manual Scan keeps its explicit-user ownership/replay policy and may intentionally repair the same exchange.
 
-UI and injected continuity update from the committed cache callback. A UI repaint is never evidence of durable persistence.
+Post-response status is per chat and bounded: `idle`, `queued`, `scanning`, `saving`, `complete`, `partial`, `failed`, or `blocked`. Only the newest owned job may publish status. Partial semantic coverage is distinct from persistence success; a failed save cannot be presented as complete.
+
+Before the user's next normal generation prompt is assembled, the supported awaited generation interceptor settles the preceding assistant response's owning automatic scan when Auto scan is enabled. This wait occurs outside the shared quiet-generation queue used by the scanner itself. Scanner-owned generation bypasses its own interceptor wait through a narrow in-process lease, preventing recursion/deadlock. On bounded wait/scan failure the interceptor aborts the attempted generation cleanly, preserves the user's input, and exposes Retry rather than hanging or silently using stale continuity. `autoScan=false` is an explicit opt-out from this synchronization.
+
+No story checkpoint is created from unpersisted output. If a source becomes stale before saving, nothing is committed. If ownership changes during the save, preserve the established saved-but-unowned block/reconciliation behavior. Cross-writer conflicts and missing/retired sidecars remain hard failures, not blank-state fallbacks.
+
+UI and injected continuity refresh from committed state. A UI repaint or scanner response is never evidence of durable persistence.
 
 ## F. Rollback and reconstruction
 
@@ -134,46 +143,33 @@ Automatic history reconciliation is distinct from explicit user rebase. Explicit
 
 ## G. Diagnostics
 
-Diagnostics observe the authoritative paths and never decide state.
+Diagnostics observe authoritative paths and never decide state.
 
-The runtime keeps a bounded in-memory operation ledger per chat. Records may contain:
+The runtime keeps a bounded in-memory operation ledger per chat. Records may contain operation id/type/status/timestamps; source chat/position/fingerprint/swipe/lineage; selected/target NPC ids; prompt character count/local token estimate/response-token limit; bounded proposal and field-coverage outcomes; persistence result/revision; checkpoint/recovery status; and failure reason. Full prompts/chat content and credentials are not retained by default.
 
-- operation id/type/status and timestamps;
-- chat identity, source position, source fingerprint, swipe id, lineage length/hash;
-- selected/target NPC ids;
-- prompt character count, local token estimate and response-token limit where a prompt exists;
-- counts of explicitly accepted, rejected, unchanged, or omitted proposals with bounded concrete reasons;
-- persistence outcome and committed revision;
-- checkpoint reason/boundary or restored checkpoint;
-- reconstruction status/progress.
+`unchanged` is recorded only by an authoritative validator or explicit field outcome. Legacy evaluatedGroups are group-level compatibility metadata only. Modern field outcomes report unchanged, insufficient, unavailable, and unaccounted field ids separately. Direct bootstrap, semantic, relationship-summary, identity, validation, and coverage outcomes are merged without double-counting one effective update.
 
-Diagnostics never store credentials or full prompts/chat content by default. Hashed/fingerprinted history ownership is sufficient for local diagnosis. Normal status remains concise through `NPCState.debugStatus()`. Detailed bounded records are opt-in through `NPCState.operationDiagnostics()`.
-
-`unchanged` is recorded only when an authoritative field validator or explicit fieldEvaluations outcome reports no change. Legacy evaluatedGroups remain accepted as group-level compatibility metadata but do not create field-level unchanged counts. Modern fieldEvaluations separately report explicit unchanged, insufficient-evidence, and context-unavailable field ids. Output omission alone is unaccounted work, never re-labeled as confirmed evaluation. Bounded proposal diagnostics account for direct new-dossier bootstrap writes, semantic writes, Current Dynamic decisions, identity failures, validation rejection, accepted application, and missing/incomplete field evaluation without double-counting the same effective field update. A present patch whose identity was rejected/unresolved is never reported merely as `missing-npc-patch`, and full prompt/chat text is not retained for this accounting. Capture metadata contains a unique attempt id, bounded transport hash, chat identity, message position/fingerprint, active swipe, and canonical history length/hash. If the host has not populated active swipe metadata yet, only a versioned message copy explicitly owned by that same swipe/fingerprint may be selected, with chat/history validation still required. First-pass operations carry the same attempt id and history identity. Attempt ownership participates in the pre/post-save commit guard, so a newer captured payload invalidates an older pending application even when visible narrative is unchanged. On-demand inspection matches all of these, never position/swipe alone. A failed new attempt cannot borrow an older committed outcome. Edited/replaced content, renumbering, changed preceding history, and chat/swipe switches invalidate ownership; unprocessed replacement transport also prevents an old result from appearing current. Legacy metadata without ownership and operations lost on reload/ledger eviction report application unavailable, not committed. Parsing, application, persistence, rejected/stale state, and unavailable evidence are distinct. Only already-retained successful payloads are inspectable/copyable; failed output retains bounded reasons and a hash, not raw content. There is no second payload archive.
-
-Completion deduplication includes the canonical cleaned history boundary and transport identity, so changing only the embedded payload cannot suppress a new parse failure. Removing a malformed tag does not erase that failure on a duplicate host completion event. Delayed transport cleanup validates the same chat/history/capture and transport hash before stripping, and asynchronous completion bookkeeping may not write to a replaced source. First-pass application captures history ownership before waiting for hydration/exclusive access and revalidates afterward. Optional completeness also validates the original completed-response history before requesting a model result and after queued hydration.
+Automatic scan status is separate from operation history and from durable persistence. A discarded old job cannot overwrite a newer job's status. `NPCState.debugStatus()` remains concise; detailed records are opt-in through `NPCState.operationDiagnostics()`. Embedded-capture inspection APIs are compatibility shims only and report that embedded capture is retired; they do not retain the old capture subsystem or a payload archive.
 
 ## Feature contracts
 
-### First-pass capture
+### Automatic post-response Scan
 
-Uses the embedded payload from the completed roleplay response. No second model request is required. Existing NPC patches use supplied stable ids. New NPC patches leave id empty, use the canonical human-facing name (or a unique readable role label while genuinely unnamed) in activity references, and receive a locally assigned stored id. Foreground and Scan share one compact extraction map derived from the ordinary field registry. Before emitting the payload, the model silently performs a same-generation completeness review without exposing reasoning. A newly admitted relevant NPC should capture every supported current-exchange dossier fact through the established bootstrap/semantic channels, including appearance, live state, grounded profile/canon/collections, important memories, and relationship context; conversation alone never justifies invented age, species, personality, relationships, or other unsupported facts, so Unknown is correct when evidence is absent. An existing name-only dossier remains existing and is enrichable through normal semanticUpdates rather than duplicate admission. Selected existing NPCs compare only context actually supplied; compact unavailable/partial fields are never treated as empty. Unsupported or unchanged values remain. Explicit removal requires sufficient evidence. Relationship replay guards, random birthday fill, and manual ownership remain authoritative.
+After each completed assistant response, when enabled and `autoScan=true`, one dedicated scanner request evaluates that completed exchange. It uses the same scanner/application pipeline as manual current-cast Scan, captures every supported evidenced new-dossier fact in that operation, enriches existing/name-only dossiers through semantic updates, and records honest missing/insufficient/unavailable field coverage. It never requires relationship movement to update profile/live/memory facts and never invents values merely for UI completeness. Relationship replay guards, birthday fill, locks, and user ownership remain authoritative.
+
+The roleplay response itself contains no newly requested NPC JSON. Historical `<npc_state_v1>` blocks are compatibility transport only and are ignored for new automatic extraction.
 
 ### Scan current cast
 
-Evaluates the current exchange and repairs omissions through the same application pipeline. Re-scanning already accepted history must not replay relationship scoring. Its narrow Current Dynamic repair may use already accepted relationship context without fabricating a new relationship event.
+Manual Scan evaluates the same current exchange under explicit-user force/retry semantics. Re-scanning accepted history must not replay relationship scoring or duplicate durable memories. Its narrow Current Dynamic repair may use already accepted relationship context without fabricating a new numeric event.
 
 ### Refresh NPC
 
-Reconciles one dossier against bounded history. It may repair ordinary semantic/canon data and Current Dynamic from supplied evidence, but historical evidence is not a new relationship-scoring event. Presence/observation is preserved unless the operation explicitly owns those domains.
-
-### Optional completeness
-
-Runs only when enabled, after first-pass application. It supplements the same committed exchange, does not replay relationship scoring/presence, and is invalidated by source/history changes. It stays outside the foreground send path.
+Reconciles one dossier against bounded history controlled by the Refresh scope. It may repair ordinary semantic/canon data and Current Dynamic from supplied evidence, but historical evidence is not a new relationship-scoring event. Presence/observation is preserved unless the operation explicitly owns those domains.
 
 ### Historical reconstruction
 
-Starts from a valid baseline and processes surviving assistant exchanges sequentially. Each step has recovery ownership, source-lineage validation, a durable checkpoint, and resumable progress. Completed history may not be silently replayed against a changed past. Recovery completion is not trusted from a stored status flag alone: Resume revalidates the completed prefix and branch safety before reporting success. If finalization loses history ownership while saving, recovery is durably marked stale/restart-required together with the branch block rather than remaining falsely complete.
+Starts from a valid baseline and processes surviving assistant exchanges sequentially. Each step has recovery ownership, source-lineage validation, a durable checkpoint, and resumable progress. Completed history may not be silently replayed against a changed past. Recovery completion is revalidated before success; history loss during final save leaves recovery stale/restart-required and the branch blocked.
 
 ### Manual edit/import
 

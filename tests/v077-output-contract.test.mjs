@@ -3,12 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { emptyScanPayload, scanOutputContract, scanOutputExamples, SCAN_ARRAY_MEMBERS } from '../src/scan-contract.js';
 import { parseScanJson, normalizeScanPayload } from '../src/scan-payload.js';
-import { consumeNpcStateControl } from '../src/foreground.js';
+import { fingerprintMessage } from '../src/branches.js';
 import { applyScanResult, buildScanPrompt, buildTargetedRefreshPrompt, buildStructuredDossierImportPrompt } from '../src/scanner.js';
 import { createEmptyState, normalizeNpc } from '../src/schema.js';
 import { compactForegroundNpc } from '../src/foreground-context.js';
 import { buildForegroundInjection } from '../src/injection.js';
-import { storeCapturedPayload, inspectCapturedPayload, createOperationDiagnostics, captureSourceMatches } from '../src/operation-diagnostics.js';
 
 const strict = raw => parseScanJson(raw, { requireLifeStateUpdates: true });
 const wrap = raw => `<npc_state_v1>${raw}</npc_state_v1>`;
@@ -27,8 +26,7 @@ test('every shared literal example and every emitted mode example passes the str
     const chat = [{ is_user: true, name: 'Ari', mes: 'Hello.' }, { is_user: false, mes: 'Nia greets Ari. Ivo has green eyes.' }];
     const prompts = [scanOutputContract(), buildScanPrompt({ state, chat, assistantMessageId: 1 }),
         buildTargetedRefreshPrompt({ npc: state.npcs[0], chat, assistantMessageId: 1 }),
-        buildStructuredDossierImportPrompt({ npc: state.npcs[0], chat, assistantMessageId: 1 }),
-        buildForegroundInjection(state, { enabled: true, autoScan: true, inject: true, injectBudgetTokens: 1600 }).prompt];
+        buildStructuredDossierImportPrompt({ npc: state.npcs[0], chat, assistantMessageId: 1 })];
     for (const prompt of prompts) {
         const examples = literalExamples(prompt);
         assert.equal(examples.length, 2);
@@ -37,9 +35,11 @@ test('every shared literal example and every emitted mode example passes the str
             assert.deepEqual(Object.keys(raw).sort(), Object.keys(SCAN_ARRAY_MEMBERS).sort());
             const parsed = strict(example);
             assert.ok(Array.isArray(parsed.npcs));
-            assert.deepEqual(consumeNpcStateControl(`Narrative\n${wrap(example)}\n<Inventory>Coin | 1 | Belt</Inventory>`, { requireLifeStateUpdates: true }).parsed, parsed);
         }
     }
+    const foreground = buildForegroundInjection(state, { enabled: true, autoScan: true, inject: true, injectBudgetTokens: 1600 }).prompt;
+    assert.equal(literalExamples(foreground).length, 0);
+    assert.doesNotMatch(foreground, /OUTPUT CONTRACT|semanticUpdates|npc_state_v1/);
 });
 
 test('minimal canonical envelope permits genuinely empty evaluation without invented NPCs', () => {
@@ -105,18 +105,11 @@ test('complete legacy JSON fence remains supported, while prose brace extraction
     assert.throws(() => strict('{"outer":' + raw), /truncated-json/);
 });
 
-test('duplicate, unfinished and orphan transport blocks reject the whole capture and preserve Inventory', () => {
-    const good = wrap(JSON.stringify(emptyScanPayload()));
-    for (const [raw, code] of [[good + good, 'duplicate-blocks'], [good + '<npc_state_v1>{', 'truncated-block'],
-        ['<npc_state_v1', 'truncated-block'], ['<npc_state_v1>{}', 'truncated-block'], ['</npc_state_v1>', 'unmatched-closing-tag'],
-        [good + '</npc_state_v1>', 'unmatched-closing-tag']]) {
-        const consumed = consumeNpcStateControl('Narrative\n' + raw + '\n<Inventory>Knife | 1 | Belt</Inventory>', { requireLifeStateUpdates: true });
-        assert.equal(consumed.found, true);
-        assert.equal(consumed.parsed, null);
-        assert.ok(consumed.errorCodes.includes(code));
-        assert.ok(consumed.cleanedText.startsWith('Narrative'));
-        assert.match(consumed.cleanedText, /<Inventory>Knife/);
-    }
+test('legacy embedded transport is ignored by canonical history ownership', () => {
+    const payload = JSON.stringify(emptyScanPayload());
+    const visible = 'Narrative text.\n<Inventory>Knife | 1 | Belt</Inventory>';
+    const legacy = `Narrative text.\n<npc_state_v1>${payload}</npc_state_v1>\n<Inventory>Knife | 1 | Belt</Inventory>`;
+    assert.equal(fingerprintMessage({ is_user: false, mes: legacy }), fingerprintMessage({ is_user: false, mes: visible }));
 });
 
 test('shared populated example applies both identities and descriptive zero-score summary without numeric history', () => {
@@ -151,73 +144,6 @@ test('minimum context does not accidentally retain all profile evidence at a zer
     assert.equal(compactForegroundNpc(npc, 0).recentProfileEvidence.length, 1);
     assert.equal(compactForegroundNpc(npc, 3).recentProfileEvidence, undefined);
     assert.equal(compactForegroundNpc(npc, 4).recentProfileEvidence, undefined);
-});
-
-function captured() {
-    const chat = [{ is_user: true, mes: 'Hello.' }, { is_user: false, mes: 'Nia greets Ari.', swipe_id: 0, swipe_info: [{ extra: {} }, { extra: {} }] }];
-    const capture = storeCapturedPayload({ chat, chatKey: 'chat:a', messageId: 1, consumed: { parsed: emptyScanPayload(), raw: wrap(JSON.stringify(emptyScanPayload())), errors: [] } });
-    const operation = { id: 'owned', type: 'first-pass', chatKey: 'chat:a', status: 'committed', source: { ...capture.source, captureId: capture.captureId }, application: { status: 'applied' }, persistence: { status: 'committed', revision: 2 } };
-    return { chat, capture, operation, inspect: (options = {}) => inspectCapturedPayload({ chat, chatKey: 'chat:a', messageId: 1, operations: [operation], ...options }) };
-}
-
-test('capture ownership associates the exact attempt and retains separate application/persistence phases', () => {
-    const h = captured();
-    assert.equal(h.inspect().application.status, 'committed');
-    h.operation.status = 'running'; h.operation.persistence = { status: 'saving' };
-    const running = h.inspect();
-    assert.equal(running.parseStatus, 'parsed');
-    assert.equal(running.application.applicationStatus, 'applied');
-    assert.equal(running.application.persistenceStatus, 'saving');
-    h.operation.status = 'failed'; h.operation.persistence.status = 'failed';
-    assert.equal(h.inspect().application.status, 'failed');
-});
-
-for (const [name, alter] of [
-    ['edit', h => { h.chat[1].mes = 'Different text.'; }], ['replacement at same index', h => { h.chat[1] = { ...h.chat[1], mes: 'Replacement.' }; }],
-    ['preceding history', h => { h.chat[0].mes = 'Changed past'; }], ['renumbering', h => { h.chat.shift(); }],
-    ['unprocessed new transport', h => { h.chat[1].mes += '\n<npc_state_v1>{bad}</npc_state_v1>'; }],
-]) test(`capture history ownership refuses older commits after ${name}`, () => {
-    const h = captured(); alter(h);
-    const result = h.inspect({ messageId: h.chat.length - 1 });
-    assert.equal(result.application.status, 'stale');
-    assert.equal(result.application.revision, null);
-});
-
-test('new malformed attempt cannot borrow an older successful operation at the same address', () => {
-    const h = captured();
-    const next = storeCapturedPayload({ chat: h.chat, chatKey: 'chat:a', messageId: 1, consumed: { parsed: null, raw: '{wrong}', errors: ['wrong schema'], errorCodes: ['invalid-structure'] } });
-    assert.notEqual(h.capture.captureId, next.captureId);
-    assert.equal(h.inspect().parseStatus, 'rejected');
-    assert.equal(h.inspect().application.status, 'rejected');
-    assert.equal(h.inspect().application.persistenceStatus, 'not-run');
-    assert.equal(next.payload, null);
-});
-
-test('active swipe, chat switch, reload, legacy metadata, and evicted ledger never imply a current commit', () => {
-    const h = captured();
-    assert.equal(h.inspect({ chatKey: 'chat:b' }).application.status, 'stale');
-    assert.equal(h.inspect({ chat: structuredClone(h.chat), operations: [] }).application.status, 'unavailable');
-    h.chat[1].swipe_id = 1;
-    assert.equal(h.inspect().available, false);
-    h.chat[1].swipe_info[1] = undefined;
-    assert.equal(h.inspect().available, false);
-    h.chat[1].swipe_id = 0;
-    delete h.chat[1].swipe_info[0].extra.npc_state_beta_v1.source;
-    assert.equal(h.inspect().application.status, 'unavailable');
-    const ledger = createOperationDiagnostics({ limit: 8 });
-    for (let i = 0; i < 9; i += 1) { const id = ledger.start({ chatKey: 'chat:a', type: 'first-pass' }); ledger.finish(id, { status: 'committed' }); }
-    assert.equal(ledger.records('chat:a').length, 8);
-    assert.equal(h.inspect({ operations: ledger.records('chat:a') }).application.status, 'unavailable');
-});
-
-test('capture diagnostics retain only bounded failure details and source hashes', () => {
-    const h = captured();
-    const meta = storeCapturedPayload({ chat: h.chat, chatKey: 'chat:a', messageId: 1, consumed: { parsed: null, raw: 'secret narrative'.repeat(2000), errors: Array(100).fill('x'.repeat(2000)), errorCodes: ['json-syntax'] } });
-    assert.equal(meta.payload, null);
-    assert.equal(meta.errors.length, 12);
-    assert.ok(meta.errors.every(text => text.length <= 300));
-    assert.ok(JSON.stringify(meta).length < 5000);
-    assert.equal(captureSourceMatches(meta.source, 'chat:a', h.chat), true);
 });
 
 test('existing identity classification spelling normalization survives the stricter boundary without accepting admitted', () => {

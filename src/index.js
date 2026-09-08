@@ -5,17 +5,15 @@ import { createBundleManagementUi } from './bundle-ui.js';
 import { createNpcStateEngine } from './engine.js';
 import { characterOwnerRenamePairs, getChatIdentity, qualifiedChatKeysForOwner, resolveLifecycleChatKey, resolveRenameLifecycleKeys } from './identity.js';
 import { buildInjection, injectionDiagnostics } from './injection.js';
-import { consumeNpcStateControl } from './foreground.js';
 import { hasRecognizedStructuredBlocks, profileEvidenceText } from './evidence-adapter.js';
 import { createMeguminBlockIntegration } from './megumin.js';
 import { createPortraitPromptUi } from './portrait-ui.js';
-import { inspectCapturedPayload, storeCapturedPayload, captureSourceIdentity, captureSourceMatches, captureTransportHash, activeSwipeMetadata } from './operation-diagnostics.js';
 import { NPC_STATE_VERSION, normalizeNpcAdmissionMode } from './schema.js';
 import { extensionSettings } from './settings.js';
 import { runSharedQuietGeneration } from './shared-generation-queue.js';
 import { generateWithScanRoute, resolveScanGenerationRoute, scanConnectionProfileOptions } from './scan-connection.js';
-import { createCompletenessCoordinator } from './completeness-coordinator.js';
-import { checkpointStorageBytes, fingerprintMessage, latestAssistantMessageId } from './branches.js';
+import { createPostResponseCoordinator } from './post-response-coordinator.js';
+import { chatLineage, checkpointStorageBytes, fingerprintMessage, latestAssistantMessageId } from './branches.js';
 import { createStaleManagementUi } from './stale-ui.js';
 import { createNpcStateUi } from './ui.js';
 
@@ -27,8 +25,8 @@ let ui = null;
 let staleUi = null;
 let bundleUi = null;
 let portraitUi = null;
-let completionCoordinator = null;
-const completenessUiStatus = new Map();
+let postResponseCoordinator = null;
+let scannerGenerationDepth = 0;
 
 function getSettings() {
     return extensionSettings(extension_settings);
@@ -66,9 +64,14 @@ function notify(kind, message) {
 
 async function generateJson({ systemPrompt, prompt, responseLength, route = null, signal = null }) {
     const selectedRoute = route || resolveScanGenerationRoute(getContext, getSettings().scanConnectionProfileId);
-    return runSharedQuietGeneration('npc-state-scan', () => generateWithScanRoute({
-        getContext, route: selectedRoute, systemPrompt, prompt, responseLength, signal,
-    }));
+    scannerGenerationDepth += 1;
+    try {
+        return await runSharedQuietGeneration('npc-state-scan', () => generateWithScanRoute({
+            getContext, route: selectedRoute, systemPrompt, prompt, responseLength, signal,
+        }));
+    } finally {
+        scannerGenerationDepth = Math.max(0, scannerGenerationDepth - 1);
+    }
 }
 
 function resolveNpcScanRoute() {
@@ -79,16 +82,6 @@ function npcScanProfileOptions() {
     return scanConnectionProfileOptions(getContext);
 }
 
-function currentCompletenessStatus(chatKey = getChatKey()) {
-    return structuredClone(completenessUiStatus.get(chatKey) || { status: 'idle', messageId: null, detail: '' });
-}
-
-function setCompletenessStatus(chatKey, status, messageId = null, detail = '') {
-    if (!chatKey || chatKey === 'no-chat') return;
-    completenessUiStatus.set(chatKey, { status, messageId, detail: String(detail || '').slice(0, 400) });
-    ui?.refresh();
-}
-
 function cleanForegroundHistoryText(value) {
     return profileEvidenceText(value)
         .replace(/<npc_state_v1\b[^>]*>[\s\S]*?<\/npc_state_v1\s*>/gi, '')
@@ -97,35 +90,6 @@ function cleanForegroundHistoryText(value) {
         .replace(/<Inventory\b[^>]*>[\s\S]*?<\/Inventory\s*>/gi, '')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
-}
-
-export function buildForegroundNewNpcHistory(chat = [], settings = {}) {
-    if (settings.newNpcHistoryEnrichment === false) return '';
-    const source = Array.isArray(chat) ? chat : [];
-    let end = source.length;
-    while (end > 0 && source[end - 1]?.is_system) end -= 1;
-    // The newest user message is part of the live exchange, not historical enrichment.
-    if (end > 0 && source[end - 1]?.is_user) end -= 1;
-    const depth = Math.max(2, Math.min(6, Math.round(Number(settings.scanDepth) || 6)));
-    const candidates = source.slice(0, end).map((message, id) => ({ ...message, id }))
-        .filter(message => message && !message.is_system)
-        .slice(-depth);
-    const rows = [];
-    let used = 0;
-    const cap = 3500;
-    for (const message of candidates) {
-        const text = cleanForegroundHistoryText(message.mes).slice(0, 1400);
-        if (!text) continue;
-        const row = '[' + (message.is_user ? 'USER' : 'ASSISTANT') + ' #' + message.id + '] ' + text;
-        if (used + row.length > cap) {
-            const remaining = cap - used;
-            if (remaining > 160) rows.push(row.slice(0, remaining));
-            break;
-        }
-        rows.push(row);
-        used += row.length + 1;
-    }
-    return rows.join('\n');
 }
 
 function latestForegroundUserText(chat = []) {
@@ -143,11 +107,9 @@ function updateInjection() {
     const settings = getSettings();
     const key = getChatKey();
     const state = key === 'no-chat' ? null : engine.getInjectionState(key);
-    const structuredEvidenceDetected = (ctx.chat || []).slice(-30).some(message => hasRecognizedStructuredBlocks(message?.mes));
-    const foregroundNewNpcHistory = buildForegroundNewNpcHistory(ctx.chat || [], settings);
     const foregroundCurrentUserText = latestForegroundUserText(ctx.chat || []);
     const recoveryPending = ['running', 'paused', 'failed', 'stale'].includes(String(state?.recovery?.status || ''));
-    const prompt = state && !recoveryPending ? buildInjection(state, { ...settings, structuredEvidenceDetected, foregroundNewNpcHistory, foregroundCurrentUserText }) : '';
+    const prompt = state && !recoveryPending ? buildInjection(state, { ...settings, foregroundCurrentUserText }) : '';
     ctx.setExtensionPrompt?.(
         PROMPT_KEY,
         prompt,
@@ -189,22 +151,18 @@ ui = createNpcStateUi({
     getSettings,
     persistSettings,
     getScanConnectionProfiles: npcScanProfileOptions,
-    getCompletenessStatus: currentCompletenessStatus,
+    getScanStatus: () => postResponseCoordinator?.status(getChatKey()) || { status: 'idle', messageId: null, detail: '' },
+    retryAutoScan: () => postResponseCoordinator?.retryLatest() || Promise.resolve({ ok: false, reason: 'not-initialized' }),
     onSettingsChanged: updateInjection,
 });
 
-completionCoordinator = createCompletenessCoordinator({
+postResponseCoordinator = createPostResponseCoordinator({
     getSource: sourceForCompletedResponse,
+    getLatestSource: latestCompletedSource,
     getSettings,
-    runEmbedded: processEmbeddedScan,
-    runCompleteness: (messageId, options) => engine.completenessScan(messageId, options),
-    readRecord: source => activeCompletionMeta(source.message),
-    writeRecord: (source, value) => {
-        if (sourceForCompletedResponse(source.messageId).identity === source.identity) storeCompletionMeta(source.ctx, source.messageId, value);
-    },
-    setStatus: setCompletenessStatus,
-    invalidateCompleteness: chatKey => engine.invalidateCompleteness(chatKey),
-    logError: error => console.error('[NPC State Beta] automatic completeness scan failed safely', error),
+    runScan: (messageId, { source, signal, onPhase } = {}) => engine.scan(messageId, { manual: false, force: false, expectedSource: source, signal, onPhase }),
+    setStatus: () => ui?.refresh(),
+    logError: error => console.error('[NPC State Beta] automatic post-response scan failed safely', error),
 });
 
 staleUi = createStaleManagementUi({
@@ -268,160 +226,9 @@ async function hydrateActiveChat({ reconcile = true } = {}) {
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 export function completedResponseIdentity(chatKey, messageId, message = {}, chat = [message]) {
-    const control = consumeNpcStateControl(message.mes);
-    // Removal of a malformed/partial transport tag must not change completion identity
-    // between the host's duplicate completion events. Narrative ownership stays strict.
-    const identityChat = chat.slice(0, messageId + 1);
-    identityChat[messageId] = control.found ? { ...message, mes: control.cleanedText } : message;
-    const source = captureSourceIdentity(chatKey, identityChat, messageId);
-    const transportHash = control.found ? captureTransportHash(control.raw) : (activeSwipeMetadata(message).meta?.transportHash || '');
-    return [chatKey, messageId, source.swipeId, source.fingerprint, source.history.length, source.history.hash, transportHash].join('|');
-}
-
-function activeCompletionMeta(message) {
-    if (!message) return null;
-    const swipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
-    const swipe = Array.isArray(message.swipe_info) ? message.swipe_info?.[swipeId] : null;
-    if (Array.isArray(message.swipe_info)) return swipe?.extra?.npc_state_beta_completion_v1 || null;
-    return message.extra?.npc_state_beta_completion_v1 || null;
-}
-
-// message.extra bookkeeping must not rebuild peer-rendered message DOM.
-function persistMessageMetadata(ctx) {
-    try {
-        const save = ctx?.saveChat?.();
-        if (save?.catch) save.catch(() => {});
-    } catch {}
-}
-
-function storeCompletionMeta(ctx, messageId, value) {
-    const message = ctx?.chat?.[messageId];
-    if (!message) return;
-    const meta = { version: 1, ...structuredClone(value), at: Date.now() };
-    message.extra ??= {};
-    message.extra.npc_state_beta_completion_v1 = meta;
-    const swipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
-    const swipe = Array.isArray(message.swipe_info) ? message.swipe_info[swipeId] : null;
-    if (swipe) { swipe.extra ??= {}; swipe.extra.npc_state_beta_completion_v1 = structuredClone(meta); }
-    persistMessageMetadata(ctx);
-}
-
-function persistMessageMutation(ctx, messageId) {
-    const message = ctx.chat?.[messageId];
-    const owner = captureSourceIdentity(getChatIdentity(ctx).key, ctx.chat || [], messageId);
-    setTimeout(() => {
-        if (getContext().chat?.[messageId] !== message || !captureSourceMatches(owner, getChatKey(), getContext().chat || [], messageId)) return;
-        try { ctx.updateMessageBlock?.(messageId, message); } catch {}
-    }, 0);
-    try { const save = ctx.saveChat?.(); if (save?.catch) save.catch(() => {}); } catch {}
-}
-
-function stripNpcTransportOnly(messageId, capture = null) {
-    const ctx = getContext();
-    const id = Number(messageId);
-    const message = ctx?.chat?.[id];
-    if (!Number.isInteger(id) || !message || message.is_user || message.is_system) return false;
-    if (capture && (!captureSourceMatches(capture.source, getChatKey(), ctx.chat, id)
-        || activeSwipeMetadata(message).meta?.captureId !== capture.captureId)) return false;
-    const consumed = consumeNpcStateControl(message.mes);
-    if (!consumed.found || (capture && captureTransportHash(consumed.raw) !== capture.transportHash)) return false;
-    message.mes = consumed.cleanedText;
-    persistMessageMutation(ctx, id);
-    return true;
-}
-
-function scheduleTransportHygiene(messageId, capture) {
-    for (const delay of [50, 250]) setTimeout(() => stripNpcTransportOnly(messageId, capture), delay);
-}
-
-function invalidateEmbeddedMeta(messageId) {
-    const ctx = getContext();
-    const id = Number(messageId);
-    const message = ctx?.chat?.[id];
-    if (!Number.isInteger(id) || !message || message.is_user || message.is_system) return false;
-    if (message.extra) {
-        delete message.extra.npc_state_beta_v1;
-        delete message.extra.npc_state_beta_completion_v1;
-    }
-    const swipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
-    const swipe = Array.isArray(message.swipe_info) ? message.swipe_info[swipeId] : null;
-    if (swipe?.extra) {
-        delete swipe.extra.npc_state_beta_v1;
-        delete swipe.extra.npc_state_beta_completion_v1;
-    }
-    persistMessageMutation(ctx, id);
-    return true;
-}
-
-async function runSeparateRecoveryScan(messageId, reason = 'recovery', capture = null) {
-    const settings = getSettings();
-    const id = Number(messageId);
-    if (!Number.isInteger(id) || id < 0) return { ok: false, reason: 'no-assistant-message' };
-    if (settings.enabled === false || settings.autoScan === false) return { ok: false, reason: 'auto-disabled' };
-    try {
-        const result = await engine.scan(id, { manual: false, force: true, captureId: capture?.captureId || '', expectedSource: capture?.source || null });
-        // A successful commit already refreshed via engine.onStateChanged. Only a stale discarded run needs a local surface catch-up.
-        if (result?.discarded) refreshSurfaces();
-        if (!result?.ok && !result?.discarded) console.warn('[NPC State Beta] Separate recovery scan did not commit:', reason, result?.reason);
-        return result?.ok ? { ...result, coverage: 'full-recovery' } : { ...result, coverage: 'failure' };
-    } catch (error) {
-        console.error('[NPC State Beta] separate recovery scan failed safely', reason, error);
-        notify('error', 'recovery scanner failed without committing partial state. ' + (error?.message || error));
-        return { ok: false, reason: 'recovery-scan-failed', coverage: 'failure', error };
-    }
-}
-
-async function maybeForegroundFallback(messageId, reason, capture = null) {
-    if (getSettings().fallbackScan !== true) return { ok: false, reason, coverage: 'failure' };
-    console.warn('[NPC State Beta] Embedded capture failed; invoking separate recovery scanner:', reason);
-    return runSeparateRecoveryScan(messageId, 'foreground-' + reason, capture);
-}
-
-// only newly generated embedded payloads require the lifecycle channel.
-export async function processEmbeddedScan(messageId, { expectedFingerprint = '', expectedSwipeId = null, expectedSource = null } = {}) {
-    const ctx = getContext();
-    const id = Number(messageId);
-    const message = ctx?.chat?.[id];
-    if (!Number.isInteger(id) || !message || message.is_user || message.is_system) return { ok: false, reason: 'not-assistant-message' };
-    const activeSwipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
-    if ((expectedSource && !captureSourceMatches(expectedSource, getChatKey(), ctx.chat, id))
-        || (expectedFingerprint && fingerprintMessage(message) !== expectedFingerprint)
-        || (Number.isInteger(expectedSwipeId) && expectedSwipeId !== activeSwipeId)) {
-        return { ok: false, discarded: true, reason: 'stale-operation', coverage: 'failure' };
-    }
-    const settings = getSettings();
-    if (settings.enabled === false || settings.autoScan === false) {
-        stripNpcTransportOnly(id);
-        return { ok: false, reason: 'auto-disabled', coverage: 'skipped' };
-    }
-    const consumed = consumeNpcStateControl(message.mes, { requireLifeStateUpdates: true });
-    if (!consumed.found) {
-        consumed.errors = ['NPC State missing-block: response omitted the required <npc_state_v1> block.'];
-        consumed.errorCodes = ['missing-block'];
-    }
-
-    message.mes = consumed.cleanedText;
-    const capture = storeCapturedPayload({ chatKey: getChatKey(), chat: ctx.chat, messageId: id, consumed });
-    persistMessageMutation(ctx, id);
-    scheduleTransportHygiene(id, capture);
-
-    if (consumed.errors.length || !consumed.parsed) {
-        console.warn('[NPC State Beta] Foreground NPC payload rejected.', consumed.errors);
-        const fallback = await maybeForegroundFallback(id, consumed.found ? 'invalid-control' : 'missing-control', capture);
-        if (!fallback.ok && getSettings().fallbackScan !== true) notify('warning', 'embedded NPC scan discarded: ' + consumed.errors.slice(0, 2).join('; ').slice(0, 480) + ' State was left unchanged. Details: NPCState.captureDiagnostics().');
-        return { ...fallback, errors: consumed.errors, errorCodes: consumed.errorCodes };
-    }
-
-    try {
-        const result = await engine.applyEmbeddedScan(id, consumed.parsed, { expectedMessageText: consumed.cleanedText, expectedSwipeId: activeSwipeId, captureId: capture.captureId, captureSource: capture.source });
-        // Ordinary commits already refreshed via persistence. Skips have no persistence callback.
-        if (result?.ok && result?.skipped) refreshSurfaces();
-        return { ...result, coverage: result?.ok && !result?.skipped ? 'embedded' : 'embedded-skipped' };
-    } catch (error) {
-        console.error('[NPC State Beta] embedded scan failed safely', error);
-        notify('error', 'embedded scan failed without committing partial state. ' + (error?.message || error));
-        return { ok: false, reason: 'apply-failed', coverage: 'failure', error };
-    }
+    const lineage = chatLineage(chat, messageId);
+    const swipeId = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
+    return [chatKey, messageId, swipeId, fingerprintMessage(message), lineage.join('>')].join('|');
 }
 
 function sourceForCompletedResponse(messageId) {
@@ -431,22 +238,49 @@ function sourceForCompletedResponse(messageId) {
     if (!Number.isInteger(id) || !message || message.is_user || message.is_system) return { valid: false, reason: 'not-assistant-message' };
     const chatKey = getChatKey();
     return {
-        valid: true, ctx, chatKey, messageId: id, message,
+        valid: true,
+        ctx,
+        chatKey,
+        messageId: id,
+        message,
         identity: completedResponseIdentity(chatKey, id, message, ctx.chat),
-        expectedSource: captureSourceIdentity(chatKey, ctx.chat, id),
-        expectedFingerprint: fingerprintMessage(message),
-        expectedSwipeId: Number.isInteger(message.swipe_id) ? message.swipe_id : 0,
+        fingerprint: fingerprintMessage(message),
+        swipeId: Number.isInteger(message.swipe_id) ? message.swipe_id : 0,
+        lineage: chatLineage(ctx.chat, id),
     };
 }
 
-export function processCompletedAssistantResponse(messageId) {
-    return completionCoordinator.process(messageId);
+function latestCompletedSource() {
+    const chat = getContext().chat || [];
+    const id = latestAssistantMessageId(chat);
+    return id >= 0 ? sourceForCompletedResponse(id) : { valid: false, reason: 'no-assistant-message' };
 }
+
+export function processCompletedAssistantResponse(messageId) {
+    if (scannerGenerationDepth > 0) return Promise.resolve({ ok: false, skipped: true, reason: 'scanner-generation' });
+    return postResponseCoordinator.process(messageId);
+}
+
+export async function npcStateGenerationInterceptor(_chat, _contextSize, abort) {
+    if (scannerGenerationDepth > 0) return;
+    const settings = getSettings();
+    if (settings.enabled === false || settings.autoScan === false) return;
+    const result = await postResponseCoordinator.settleLatest({ timeoutMs: 45000 });
+    if (result?.ok || result?.skipped) {
+        updateInjection();
+        return;
+    }
+    notify('error', `previous NPC scan did not synchronize (${result?.reason || 'scan-failed'}). Retry NPC State scan before generating again.`);
+    abort?.(true);
+}
+
+globalThis.NPCStateGenerationInterceptor = npcStateGenerationInterceptor;
 
 async function settledBranchReconcile({ reason = 'branch-change' } = {}) {
     const key = getChatKey();
     if (!key || key === 'no-chat') return;
     engine.invalidate(key);
+    postResponseCoordinator?.clearChat(key);
     try {
         await sleep(90);
         if (getChatKey() !== key) return;
@@ -557,29 +391,24 @@ function registerEvents() {
     eventsRegistered = true;
 
     if (events.MESSAGE_SENT) source.on(events.MESSAGE_SENT, () => {
-        const key = getChatKey();
-        if (key && key !== 'no-chat') engine.invalidate(key);
-        // MESSAGE_SENT runs after the live user message enters chat. Rebuild the cheap
-        // extension prompt now so explicit NPC references affect this response.
+        // Appending the next user message must not cancel the preceding assistant scan.
+        // The awaited generation interceptor settles that owned source before prompt assembly.
         updateInjection();
     });
 
     if (events.MESSAGE_RECEIVED) source.on(events.MESSAGE_RECEIVED, messageId => {
-        // Background bookkeeping must not hold SillyTavern's awaited event bus open.
-        // This also lets peer post-response processors finish and release any shared
-        // hidden-generation barrier before NPC State reaches generateRaw().
-        void processCompletedAssistantResponse(messageId);
+        // Never await a quiet scanner request from the host completion callback.
+        if (scannerGenerationDepth === 0) void processCompletedAssistantResponse(messageId);
     });
 
     const load = async () => {
-        if (activeChatKey && activeChatKey !== 'no-chat') engine.invalidate(activeChatKey);
+        if (activeChatKey && activeChatKey !== 'no-chat') { engine.invalidate(activeChatKey); postResponseCoordinator?.clearChat(activeChatKey); }
         await hydrateActiveChat({ reconcile: true });
     };
     if (events.CHAT_LOADED) source.on(events.CHAT_LOADED, load);
     if (events.CHAT_CHANGED) source.on(events.CHAT_CHANGED, load);
 
-    if (events.MESSAGE_EDITED) source.on(events.MESSAGE_EDITED, messageId => {
-        invalidateEmbeddedMeta(messageId);
+    if (events.MESSAGE_EDITED) source.on(events.MESSAGE_EDITED, () => {
         void settledBranchReconcile({ reason: 'message-edited' });
     });
     if (events.MESSAGE_SWIPED) source.on(events.MESSAGE_SWIPED, messageId => {
@@ -670,31 +499,19 @@ function npcStateDebugStatus() {
         structuredEvidenceDetected: (getContext().chat || []).slice(-30).some(message => hasRecognizedStructuredBlocks(message?.mes)),
         admissionMode: normalizeNpcAdmissionMode(settings.newNpcAdmissionMode),
         scanConnectionProfileId: settings.scanConnectionProfileId || '',
-        scanAfterEachResponse: settings.scanAfterEachResponse === true,
-        completeness: currentCompletenessStatus(chatKey),
+        autoScan: settings.autoScan !== false,
+        scanStatus: postResponseCoordinator?.status(chatKey) || { status: 'idle', messageId: null, detail: '' },
         injection: state ? injectionDiagnostics(state, { ...settings, foregroundCurrentUserText: latestForegroundUserText(getContext().chat || []) }) : null,
         operations: chatKey && chatKey !== 'no-chat' ? engine.operationDiagnosticsSummary(chatKey) : { count: 0, running: 0, latest: null },
     };
 }
 
-function npcStateCaptureDiagnostics(messageId = null) {
-    const chatKey = getChatKey();
-    const chat = getContext().chat || [];
-    const operations = chatKey && chatKey !== 'no-chat' ? engine.operationDiagnostics(chatKey, { limit: 64 }) : [];
-    return inspectCapturedPayload({ chat, chatKey, messageId, operations });
+function npcStateCaptureDiagnostics() {
+    return { available: false, retired: true, reason: 'embedded-capture-retired', detail: 'Embedded NPC capture was retired. Use NPCState.scanStatus() and operationDiagnostics().' };
 }
 
-async function copyNpcStateCapturedPayload(messageId = null) {
-    const result = npcStateCaptureDiagnostics(messageId);
-    if (!result.available || !result.parsedSuccessfully || !result.payload) return { ...result, copied: false };
-    const clipboard = globalThis.navigator?.clipboard;
-    if (!clipboard || typeof clipboard.writeText !== 'function') return { ...result, copied: false, copyReason: 'clipboard-unavailable' };
-    try {
-        await clipboard.writeText(result.payload);
-        return { ...result, copied: true };
-    } catch (error) {
-        return { ...result, copied: false, copyReason: String(error?.message || error).slice(0, 240) };
-    }
+async function copyNpcStateCapturedPayload() {
+    return { ...npcStateCaptureDiagnostics(), copied: false };
 }
 
 function npcStateScanMetrics() {
@@ -719,7 +536,9 @@ globalThis.NPCState = Object.freeze({
     captureDiagnostics: messageId => npcStateCaptureDiagnostics(messageId),
     copyCapturedPayload: messageId => copyNpcStateCapturedPayload(messageId),
     scanConnectionProfiles: npcScanProfileOptions,
-    completenessStatus: () => currentCompletenessStatus(getChatKey()),
+    scanStatus: () => postResponseCoordinator?.status(getChatKey()) || { status: 'idle', messageId: null, detail: '' },
+    completenessStatus: () => ({ status: 'retired', detail: 'Supplemental completeness was retired; use scanStatus().' }),
+    retryAutoScan: () => postResponseCoordinator?.retryLatest() || Promise.resolve({ ok: false, reason: 'not-initialized' }),
     scan: () => {
         const chat = getContext().chat || [];
         let id = -1;

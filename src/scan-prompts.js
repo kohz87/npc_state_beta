@@ -4,35 +4,39 @@ import { semanticUpdatePrompt } from './model/semantic-updates.js';
 import { relationshipCustomCriteriaPrompt, relationshipJudgmentRubricPrompt, relationshipMechanicsPrompt } from './relationship-policy.js';
 import { dossierExtractionPromptRules, relationshipSummaryRepairContext, compactText, containsNormalizedPhrase, currentExchange, nonSystemMessages, resolvePlayerName } from './scan-helpers.js';
 import { DEFAULT_RELATIONSHIP_CAPS, RELATIONSHIP_AXES, normalizeDossierLimits, normalizeNpcAdmissionMode, normalizeRelationship, normalizeRelationshipEvidenceHistory, normalizeRelationshipProgress, normalizeRelationshipSummary } from './schema.js';
+import { compactForegroundNpc, foregroundNpcCandidates } from './foreground-context.js';
 
-export function recentHistory(chat = [], assistantMessageId = null, depth = 8) {
+export function recentHistory(chat = [], assistantMessageId = null, depth = 2) {
     const exchange = currentExchange(chat, assistantMessageId);
     const cutoff = exchange?.user?.id ?? (Number.isInteger(assistantMessageId) ? assistantMessageId : chat.length);
     return nonSystemMessages(chat)
         .filter(message => message.id < cutoff)
-        .slice(-Math.max(0, Math.min(30, Math.round(Number(depth) || 8))))
+        .slice(-Math.max(0, Math.min(2, Math.round(Number(depth) || 2))))
         .map(message => ({
             id: message.id,
             role: message.is_user ? 'USER' : 'ASSISTANT',
-            text: compactText(scannerEvidenceText(message.mes), 7000),
+            // Reference context resolves antecedents only and is never fresh event evidence.
+            text: compactText(scannerEvidenceText(message.mes), 2400),
         }));
 }
 
-function relationshipSummaryCandidateIds(state, exchange) {
-    const visible = [exchange?.user?.mes, exchange?.assistant?.mes]
-        .map(value => scannerEvidenceText(value || ''))
-        .filter(Boolean)
-        .join('\n');
-    const ids = new Set();
+function relevantNpcsForExchange(state, exchange, limit = 12) {
+    const visible = [exchange?.user?.mes, exchange?.assistant?.mes].map(value => scannerEvidenceText(value || '')).filter(Boolean).join('\n');
+    const active = new Set([
+        ...(state?.lastObservation?.exchangeActiveNpcIds || []),
+        ...(state?.lastObservation?.finalPresentNpcIds || []),
+        ...(state?.lastObservation?.worldActiveNpcIds || []),
+    ]);
+    const mentioned = new Set();
     for (const npc of state?.npcs || []) {
-        if (npc?.present === true) {
-            ids.add(npc.id);
-            continue;
-        }
-        const identities = [npc?.name, ...(Array.isArray(npc?.aliases) ? npc.aliases : [])].filter(Boolean);
-        if (identities.some(identity => containsNormalizedPhrase(visible, identity))) ids.add(npc.id);
+        const labels = [npc?.name, ...(npc?.aliases || [])].filter(Boolean);
+        if (labels.some(label => containsNormalizedPhrase(visible, label))) mentioned.add(npc.id);
+        if (npc?.present || npc?.worldActive) active.add(npc.id);
     }
-    return ids;
+    const ids = new Set([...mentioned, ...active]);
+    return foregroundNpcCandidates(state, { foregroundCurrentUserText: visible })
+        .filter(npc => ids.has(npc.id))
+        .slice(0, Math.max(1, Math.min(20, Number(limit) || 12)));
 }
 
 function rosterForPrompt(state, { relationshipSummaryIds = null, relationshipSummaryRepair = false, relationshipSummaryRepairIds = null } = {}) {
@@ -92,15 +96,23 @@ function dossierCollectionRules(limits) {
     ];
 }
 
-export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8, relationshipCriteria = '', relationshipCaps = DEFAULT_RELATIONSHIP_CAPS, memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced', relationshipSummaryRepair = false, semanticMode = 'scan' }) {
+export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 2, relationshipCriteria = '', relationshipCaps = DEFAULT_RELATIONSHIP_CAPS, memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced', relationshipSummaryRepair = false, semanticMode = 'scan', routine = true }) {
     const exchange = currentExchange(chat, assistantMessageId);
-    if (!exchange) throw new Error('NPC State recovery scanner requires an assistant message and its preceding user exchange.');
-    const history = recentHistory(chat, assistantMessageId, scanDepth);
+    if (!exchange) throw new Error('NPC State scanner requires a completed assistant message.');
+    const history = recentHistory(chat, assistantMessageId, routine ? 2 : scanDepth);
+    const relevantNpcs = relevantNpcsForExchange(state, exchange);
+    const relevantState = { ...state, npcs: relevantNpcs };
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
-    const relationshipSummaryContextIds = relationshipSummaryCandidateIds(state, exchange);
-    const relationshipSummaryRepairIds = relationshipSummaryRepair ? relationshipSummaryContextIds : null;
-    const structuredDetected = [exchange.user?.mes, exchange.assistant?.mes, ...nonSystemMessages(chat).slice(-Math.max(2, Math.min(30, Number(scanDepth) || 8))).map(message => message.mes)].some(hasRecognizedStructuredBlocks);
+    const relevantDossierRows = relevantNpcs.map(npc => {
+        const row = compactForegroundNpc(npc, 1, limits);
+        if (relationshipSummaryRepair) {
+            const repairContext = relationshipSummaryRepairContext(npc);
+            if (repairContext && !normalizeRelationshipSummary(npc.relationshipSummary)) row.relationshipSummaryRepairContext = repairContext;
+        }
+        return row;
+    });
+    const structuredDetected = [exchange.user?.mes, exchange.assistant?.mes, ...history.map(row => row.text)].some(hasRecognizedStructuredBlocks);
     return [
         'You are NPC State, a private structured continuity scanner for a roleplay chat.',
         'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
@@ -142,7 +154,7 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         '- LIFE-STATE SEMANTICS: you are responsible for interpreting attribution, pronouns, indirect reports, negation, hypothetical language, and certainty. The backend validates lifeStateReason against permitted current narrative/World_State source text but does not reinterpret its English wording. Never propose dead from negated, hypothetical, merely dangerous, or uncertain evidence.',
         '- LIFE-STATE UPDATE CHANNEL: every authoritative lifecycle transition MUST also appear in top-level lifeStateUpdates, even when the NPC has no ordinary npcs profile/activity patch. This channel is independent of exchangeActive/inChat/worldActive admission. A terminal condition written into status never substitutes for the lifecycle update.',
         '- Confirmed death: emit lifeStateUpdates with lifeState dead only with grounded current-timeline evidence and lifeStateCertainty explicit or strong. lifeStateReason must quote or closely preserve a concrete permitted source span AND include enough of that span to bind the target NPC by canonical name, established alias, or safe unique short identity. For pronouns, include the nearby antecedent sentence in lifeStateReason. Explicitly deceased terminal dissolution/disintegration/dispersion of body or mortal essence with no continuing living form is death, not a transformation. Reversible spectral, elemental, energy, shapeshift, teleport, or other continuing form is not death. A confirmed death is archived immediately as deceased.',
-        '- STORED TERMINAL-STATUS RECONCILIATION: EXISTING DOSSIERS Status is dossier-scoped continuity. Before finishing the scan, inspect every existing dossier whose Life state is not dead. If its stored Status itself unambiguously says that same NPC is deceased/killed/slain, has a corpse, or has irreversibly lost/dissolved/destroyed its body or mortal essence with no continuing living form, you MUST emit a lifeStateUpdates row for that NPC with lifeState dead, lifeStateCertainty explicit or strong, and lifeStateReason EXACTLY equal to that stored Status string, even when the NPC is not otherwise active or returned in npcs. The ordinary npcs patch may repeat matching lifecycle fields, but lifeStateUpdates is authoritative for this reconciliation. This repairs contradictory stored state rather than inventing a new event. Do not use this for metaphor, exhaustion, sleep, unconsciousness, disappearance, injury, merely missing bodies, uncertain danger, or a reversible/established transformed form.',
+        '- STORED TERMINAL-STATUS RECONCILIATION: each SUPPLIED RELEVANT EXISTING DOSSIER Status is dossier-scoped continuity. Before finishing the scan, inspect every supplied relevant dossier whose Life state is not dead. If its stored Status itself unambiguously says that same NPC is deceased/killed/slain, has a corpse, or has irreversibly lost/dissolved/destroyed its body or mortal essence with no continuing living form, you MUST emit a lifeStateUpdates row for that NPC with lifeState dead, lifeStateCertainty explicit or strong, and lifeStateReason EXACTLY equal to that stored Status string, even when the NPC is not otherwise active or returned in npcs. The ordinary npcs patch may repeat matching lifecycle fields, but lifeStateUpdates is authoritative for this reconciliation. This repairs contradictory stored state rather than inventing a new event. Do not use this for metaphor, exhaustion, sleep, unconsciousness, disappearance, injury, merely missing bodies, uncertain danger, or a reversible/established transformed form.',
         '- A dead or terminally dissolved NPC is never worldActive. If you perform stored terminal-status reconciliation, omit that NPC from worldActiveNpcIds even if the incoming dossier incorrectly says worldActive true.',
         '- livingReturn is true only when a previously archived/dead dossier is explicitly established alive again with lifeStateCertainty explicit or strong. Its grounded lifeStateReason must likewise contain enough source span to bind the target NPC; merely outputting lifeState alive never resurrects a confirmed dead dossier. Stored Status is NEVER sufficient evidence for livingReturn or any dead-to-alive change.',
         '- EXISTING DOSSIER MUTATION: ordinary existing-dossier canon, profile, live-state, memory, NPC-tie, age, and form changes use the single semanticUpdates contract below. Direct ordinary fields and legacy profileChanges/canonChanges/ageChange/appearanceFormChanges/keyRelationshipChanges are compatibility or new-NPC bootstrap only.',
@@ -151,26 +163,13 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 8
         relationshipCustomCriteriaPrompt(relationshipCriteria),
         memoryCriteria ? `IMPORTANT MEMORY RUBRIC:\n${compactText(memoryCriteria, 6000)}` : '',
         '',
-        `EXISTING DOSSIERS:\n${JSON.stringify(rosterForPrompt(state, { relationshipSummaryIds: relationshipSummaryContextIds, relationshipSummaryRepair, relationshipSummaryRepairIds }))}`,
-        `OLDER CONTEXT — CONTINUITY ONLY; NOT NEW EVENT EVIDENCE:\n${JSON.stringify(history)}`,
-        `CURRENT USER MESSAGE:\n${compactText(scannerEvidenceText(exchange.user?.mes || ''), 10000)}`,
-        `CURRENT ASSISTANT MESSAGE:\n${compactText(scannerEvidenceText(exchange.assistant?.mes || ''), 14000)}`,
+        `RELEVANT EXISTING DOSSIERS (compact; unrelated roster omitted):\n${JSON.stringify(relevantDossierRows)}`,
+        `OLDER REFERENCE CONTEXT — antecedent resolution only; NOT new event evidence:\n${JSON.stringify(history)}`,
+        `CURRENT USER MESSAGE (complete event evidence):\n${scannerEvidenceText(exchange.user?.mes || '')}`,
+        `CURRENT ASSISTANT MESSAGE (complete event evidence):\n${scannerEvidenceText(exchange.assistant?.mes || '')}`,
         scanOutputContract(),
-        semanticAppend({ npcs: state?.npcs || [], mode: semanticMode, sourceIds: nonSystemIds(chat, assistantMessageId, Math.max(4, Number(scanDepth) || 8) + 2) }),
+        semanticAppend({ npcs: relevantState.npcs || [], mode: semanticMode, sourceIds: [exchange.user?.id, exchange.assistant?.id].filter(Number.isInteger) }),
     ].filter(Boolean).join('\n\n');
-}
-
-export function buildCompletenessPrompt(args = {}) {
-    const base = buildScanPrompt({ ...args, semanticMode: 'completeness' });
-    return [
-        base,
-        'POST-RESPONSE DOSSIER COMPLETENESS PASS: the normal embedded NPC update for this exact USER+ASSISTANT exchange has already been committed. Review the CURRENT EXCHANGE against the UPDATED EXISTING DOSSIERS and return only grounded omissions or corrections that are still missing.',
-        'This pass supplements, never replaces, the foreground result. Unknown information remains unknown. Do not fill fields merely for completeness and do not invent biography.',
-        'RELATIONSHIP REPLAY LOCK: do not propose a new relationship gain/loss for this already-processed exchange. For every returned NPC use relationshipChange evaluated=true, impact=none, all delta axes zero, empty priority/axisEvidence, and a concise reason that this is a supplemental same-exchange pass.',
-        'Do not repeat a stored memory, milestone, profile-development observation, key relationship, social edge, or known appearance form merely because it is visible again. Return collection arrays only when they add grounded missing information or an explicitly supported correction. Backend supplemental merge semantics preserve omitted valid entries.',
-        'Presence/activity arrays may identify grounded NPC targets, but this pass does not advance narrative turn, seen counters, stale aging, or current observation. Life-state corrections remain allowed through the normal lifeStateUpdates validation contract.',
-        'A newly discovered NPC must still satisfy the normal admission and current-evidence rules. A same-message observation never counts as a second independent observation for gradual progression.',
-    ].join('\n\n');
 }
 
 export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCriteria = '', dossierLimits = {} }) {

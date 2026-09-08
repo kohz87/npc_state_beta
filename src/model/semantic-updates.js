@@ -157,9 +157,6 @@ export function semanticUpdatePrompt({ npcs = [], mode = 'scan', allowedSourceId
         'Physical forms are coherent bodies with materially distinct anatomy, including partial, magical, spectral, or reversible transformations. Outfit, pose, mood, injury, or aura alone is not a form. Use grounded freeform labels; capture distinct demonstrated forms as {name,appearance}. The stored description is durable continuity even when entering that form is temporary. New NPCs may bootstrap direct appearanceForms; existing dossiers use targeted semanticUpdates. Do not rewrite shared appearance merely because currentForm changed, or infer new anatomy from a casual contradiction.',
         'appearanceForms edits target an existing form by scope.form, targetForm, ref or exact form name. Add a new form with establish; replace/remove only the targeted form. currentForm is live state and uses its own scalar semantic update.',
         'keyRelationships contains NON-PLAYER NPC ties only. Player relationship state is handled by relationshipSummary/relationshipChange outside this semantic channel.',
-        mode === 'completeness'
-            ? 'SUPPLEMENTAL SAFETY: this exchange was already committed. Do not replay relationship changes, lifecycle events, age progression, memories, or development merely because they are visible again. Propose only genuinely missing/corrective dossier semantic updates.'
-            : '',
         mode === 'historical'
             ? 'HISTORICAL SAFETY: use only evidence at or before this reconstruction point. Never cite future messages.'
             : '',

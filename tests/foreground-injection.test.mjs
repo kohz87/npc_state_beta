@@ -4,7 +4,6 @@ import { buildForegroundInjection, estimateForegroundTokens, FOREGROUND_MIN_BUDG
 import { applyScanResult } from '../src/scanner.js';
 import { createEmptyState, normalizeNpc, normalizeState } from '../src/schema.js';
 import { semanticEntryRef } from '../src/model/semantic-updates.js';
-import { createCompletenessCoordinator } from '../src/completeness-coordinator.js';
 import { generateWithScanRoute, resolveScanGenerationRoute } from '../src/scan-connection.js';
 import { foregroundNpcCandidates } from '../src/foreground-context.js';
 import { injectionStateProjection } from '../src/engine.js';
@@ -32,22 +31,20 @@ function state(count = 2, large = false) {
     return out;
 }
 function settings(extra = {}) {
-    return { enabled: true, autoScan: true, inject: true, injectLimit: 2, injectBudgetTokens: 1800, newNpcHistoryEnrichment: true,
-        newNpcAdmissionMode: 'balanced', foregroundCurrentUserText: 'NPC 1 and NPC 2 discuss the plan.', foregroundNewNpcHistory: '[ASSISTANT #8] Earlier scene context.',
+    return { enabled: true, autoScan: true, inject: true, injectLimit: 2, injectBudgetTokens: 1800,
+        newNpcAdmissionMode: 'balanced', foregroundCurrentUserText: 'NPC 1 and NPC 2 discuss the plan.',
         dossierLimits: { memories: 8, keyRelationships: 12, mannerisms: 8, behaviorProfile: 8 }, ...extra };
 }
 function context(prompt) {
-    const marker = 'FOREGROUND CONTEXT (selected once; collection refs are edit targets):\n';
+    const marker = 'SAVED NPC CONTINUITY (selected and compacted):\n';
     const at = prompt.indexOf(marker); assert.ok(at >= 0); return JSON.parse(prompt.slice(at + marker.length));
 }
 
-test('foreground emits one authoritative contract without layered legacy instructions', () => {
+test('foreground emits one compact continuity contract with no extraction protocol', () => {
     const { prompt } = buildForegroundInjection(state(), settings());
-    assert.equal((prompt.match(/FOREGROUND CONTRACT v7/g) || []).length, 1);
-    assert.equal((prompt.match(/<npc_state_v1>/g) || []).length, 1);
-    assert.doesNotMatch(prompt, /NPC STATE FOREGROUND FULL SCAN|MODEL-LED UPDATE CONTRACT v2/);
-    assert.equal((prompt.match(/ONE DOSSIER UPDATE PIPELINE/g) || []).length, 1);
-    assert.match(prompt, /ordinary changes use semanticUpdates only/);
+    assert.equal((prompt.match(/NPC STATE CONTINUITY CONTEXT v8/g) || []).length, 1);
+    assert.doesNotMatch(prompt, /<npc_state_v1>|semanticUpdates|relationshipChange|fieldEvaluations|OUTPUT CONTRACT|DOSSIER EXTRACTION/);
+    assert.match(prompt, /saved continuity for characterization/);
 });
 
 test('one selection pipeline honors injection limit even with twelve available NPCs', () => {
@@ -60,7 +57,7 @@ test('one selection pipeline honors injection limit even with twelve available N
 
 test('tight budgets retain a strict prefix of NPC priority instead of lower-priority replacements', () => {
     const fixture = state(6, true);
-    const opts = settings({ injectLimit: 6, injectBudgetTokens: 1800 });
+    const opts = settings({ injectLimit: 6, injectBudgetTokens: 800 });
     const priority = foregroundNpcCandidates(fixture, opts).slice(0, 6).map(row => row.id);
     const result = buildForegroundInjection(fixture, opts);
     assert.ok(result.diagnostics.selectedNpcCount > 0);
@@ -113,13 +110,14 @@ test('compaction keeps valid JSON and stable edit references', () => {
     }
 });
 
-test('capture, continuity, and completeness settings stay independent', () => {
+test('continuity injection is independent from dedicated auto-scan routing', () => {
     const fixture = state();
-    assert.match(buildForegroundInjection(fixture, settings({ autoScan: true, inject: false })).prompt, /<npc_state_v1>/);
-    assert.doesNotMatch(buildForegroundInjection(fixture, settings({ autoScan: false, inject: true })).prompt, /<npc_state_v1>/);
+    assert.equal(buildForegroundInjection(fixture, settings({ autoScan: true, inject: false })).prompt, '');
+    const enabled = buildForegroundInjection(fixture, settings({ autoScan: false, inject: true, scanConnectionProfileId: 'profile-x' }));
+    assert.match(enabled.prompt, /NPC STATE CONTINUITY CONTEXT v8/);
+    assert.doesNotMatch(enabled.prompt, /<npc_state_v1>|profile-x/);
+    assert.equal(enabled.diagnostics.mode, 'continuity-only');
     assert.equal(buildForegroundInjection(fixture, settings({ autoScan: false, inject: false })).prompt, '');
-    const diag = buildForegroundInjection(fixture, settings({ scanAfterEachResponse: true, scanConnectionProfileId: 'profile-x' })).diagnostics;
-    assert.equal(diag.backgroundCompletenessEnabled, true); assert.deepEqual(diag.backgroundRoute, { kind: 'profile', profileId: 'profile-x' });
 });
 
 test('model-led personality, behavior, speech, and mannerism repair persists through reload', () => {
@@ -148,18 +146,6 @@ test('manual locks and temporary-state protection remain authoritative', () => {
     ] }] };
     const applied = applyScanResult(fixture, result, { sourceMessageId: 20, profileContext: evidence, currentAdmissionText: evidence, applyRelationship: false, preservePresence: true, preserveObservation: true, applyReturnedNpcPatches: true });
     assert.equal(applied.state.npcs[0].personality, 'Reserved.'); assert.equal(applied.state.npcs[0].species, 'Human');
-});
-
-test('pending completeness does not synchronously block the caller and stale work stays discarded', async () => {
-    let release; const pending = new Promise(resolve => { release = resolve; }); const records = [];
-    const coordinator = createCompletenessCoordinator({
-        getSource: id => ({ valid: true, chatKey: 'chat:x', messageId: id, message: {}, identity: `chat:x|${id}`, expectedFingerprint: 'fp', expectedSwipeId: 0 }),
-        getSettings: () => ({ enabled: true, autoScan: true, scanAfterEachResponse: true }), runEmbedded: async () => ({ ok: true, coverage: 'embedded' }),
-        runCompleteness: async () => { await pending; return { ok: false, discarded: true, reason: 'stale-completeness' }; },
-        readRecord: () => null, writeRecord: (_s, value) => records.push(value), setStatus: () => {}, invalidateCompleteness: () => {},
-    });
-    const work = coordinator.process(10); assert.equal(coordinator.inFlightCount(), 1); release();
-    const result = await work; assert.equal(result.completeness, 'discarded'); assert.notEqual(records.at(-1).coverage, 'embedded+completeness');
 });
 
 test('alternate profile route never falls back to the main connection when it changes', async () => {

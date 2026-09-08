@@ -88,16 +88,14 @@ function moveControlRows(drawer, group, selectors = []) {
 }
 
 function ensureScanning(drawer) {
-    const group = ensureParentDetails(drawer, TRACKING_GROUP_ID, 'Scanning & Capture', 'npc-state-v3-tracking-group npc-state-v3-scanning-group', true, 'npc-state-v3-control-group-body');
+    const group = ensureParentDetails(drawer, TRACKING_GROUP_ID, 'Scanning', 'npc-state-v3-tracking-group npc-state-v3-scanning-group', true, 'npc-state-v3-control-group-body');
     return moveControlRows(drawer, group, [
         '#npc_state_v3_auto',
+        '#npc_state_v3_retry_auto_scan',
         '#npc_state_v3_scan_depth',
-        '#npc_state_v04_new_npc_history',
         '#npc_state_v04_admission',
         '#npc_state_v047_response_tokens',
         '#npc_state_v3_scan_profile',
-        '#npc_state_v3_scan_after_response',
-        '#npc_state_v04_fallback',
     ]);
 }
 

@@ -14,12 +14,9 @@ const defaults = {
     enabled: true,
     autoScan: true,
     scanConnectionProfileId: '',
-    scanAfterEachResponse: false,
     inject: true,
     showDossierDiagnostics: false,
     branchRescan: true,
-    fallbackScan: false,
-    newNpcHistoryEnrichment: true,
     newNpcAdmissionMode: 'balanced',
     birthdayFillMode: 'off',
     birthdayRandomCalendar: DEFAULT_BIRTHDAY_RANDOM_CALENDAR,
@@ -32,6 +29,7 @@ const defaults = {
     relationshipCaps: { ...DEFAULT_RELATIONSHIP_CAPS },
     relationshipCriteria: DEFAULT_RELATIONSHIP_CRITERIA,
     memoryCriteria: DEFAULT_MEMORY_CRITERIA,
+    workflowMode: 'post-response-v1',
     dataFiles: {},
 };
 
@@ -49,7 +47,6 @@ export function normalizeSettings(settings = {}) {
     settings.schemaVersion = SETTINGS_SCHEMA;
     for (const key of Object.keys(NUMERIC_SETTINGS)) settings[key] = normalizeNumericSetting(key, settings[key]);
     settings.scanConnectionProfileId = String(settings.scanConnectionProfileId || '').trim().slice(0, 240);
-    settings.scanAfterEachResponse = settings.scanAfterEachResponse === true;
     settings.newNpcAdmissionMode = normalizeNpcAdmissionMode(settings.newNpcAdmissionMode);
     settings.birthdayFillMode = normalizeBirthdayFillMode(settings.birthdayFillMode);
     settings.birthdayRandomCalendar = String(settings.birthdayRandomCalendar ?? DEFAULT_BIRTHDAY_RANDOM_CALENDAR).slice(0, 6000);

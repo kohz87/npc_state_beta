@@ -41,7 +41,6 @@ import {
 import {
     applyScanResult,
     buildScanPrompt,
-    buildCompletenessPrompt,
     buildStructuredDossierImportPrompt,
     buildTargetedRefreshPrompt,
     currentExchange,
@@ -57,10 +56,10 @@ import {
 } from './stale.js';
 import { clearV3PointerHint, createRecoveryV3Sidecar, deleteV3SidecarFile, readV3PointerHint, readV3Sidecar, retireV3Sidecar, writeV3Sidecar } from './storage.js';
 import { estimateForegroundTokens, FOREGROUND_TOKEN_ESTIMATE_METHOD } from './foreground-budget.js';
-import { activeSwipeMetadata, captureSourceMatches, createOperationDiagnostics, operationHistoryIdentity, summarizeProposalDiagnostics } from './operation-diagnostics.js';
+import { createOperationDiagnostics, operationHistoryIdentity, summarizeProposalDiagnostics } from './operation-diagnostics.js';
 import { resolvePlayerName } from './scan-helpers.js';
 
-const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State recovery scanner. Obey the supplied schema and evidence rules exactly.';
+const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State scanner. Obey the supplied schema and evidence rules exactly.';
 
 function profileContextForWindow(chat = [], messageId = null, depth = 8) {
     const end = Number.isInteger(messageId) ? Math.min(chat.length - 1, messageId) : chat.length - 1;
@@ -71,6 +70,14 @@ function profileContextForWindow(chat = [], messageId = null, depth = 8) {
         rows.push(profileEvidenceText(message.mes || '').slice(0, 8000));
     }
     return rows.join('\n');
+}
+
+function profileContextForExchange(exchange) {
+    if (!exchange) return '';
+    return [exchange.user?.mes, exchange.assistant?.mes]
+        .map(value => profileEvidenceText(value || '').trim())
+        .filter(Boolean)
+        .join('\n');
 }
 
 function structuredSemanticContextsForWindow(chat = [], messageId = null, depth = 12) {
@@ -215,7 +222,6 @@ export function createNpcStateEngine(adapters = {}) {
     const cache = new Map();
     const hydration = new Map();
     const operationEpoch = new Map();
-    const completenessEpoch = new Map();
     const locks = new Map();
     const recoverySignals = new Map();
     const recoveryRuns = new Map();
@@ -318,49 +324,46 @@ export function createNpcStateEngine(adapters = {}) {
     }
 
     function epoch(chatKey) { return operationEpoch.get(chatKey) || 0; }
-    function completenessGeneration(chatKey) { return completenessEpoch.get(chatKey) || 0; }
-    function invalidateCompleteness(chatKey = getChatKey()) {
-        if (!chatKey || chatKey === 'no-chat') return 0;
-        const next = completenessGeneration(chatKey) + 1;
-        completenessEpoch.set(chatKey, next);
-        return next;
-    }
     function invalidate(chatKey = getChatKey()) {
         if (!chatKey || chatKey === 'no-chat') return 0;
         const next = epoch(chatKey) + 1;
         operationEpoch.set(chatKey, next);
-        invalidateCompleteness(chatKey);
         return next;
     }
 
-
-
-    function captureOperationOwnership(type, chatKey, chat = [], messageId = null, { completeness = false, captureId = '' } = {}) {
+    function captureOperationOwnership(type, chatKey, chat = [], messageId = null) {
         const sourceId = Number.isInteger(messageId) ? messageId : null;
         const source = sourceId !== null ? chat[sourceId] : null;
         return {
             type: String(type || 'operation'),
-            captureId: String(captureId || ''),
             chatKey: String(chatKey || ''),
             messageId: sourceId,
             epoch: epoch(chatKey),
-            completenessGeneration: completeness ? completenessGeneration(chatKey) : null,
             sourceFingerprint: source ? fingerprintMessage(source) : '',
             swipeId: source && Number.isInteger(source.swipe_id) ? source.swipe_id : 0,
             lineage: sourceId !== null ? chatLineage(chat, sourceId) : chatLineage(chat),
         };
     }
 
+
+    function sourceDescriptorMatches(source, chatKey, chat = [], messageId = source?.messageId) {
+        if (!source || source.chatKey !== chatKey || !Number.isInteger(messageId)) return false;
+        const message = chat[messageId];
+        if (!message || message.is_system || message.is_user) return false;
+        if (source.fingerprint && fingerprintMessage(message) !== source.fingerprint) return false;
+        if (Number.isInteger(source.swipeId) && (Number.isInteger(message.swipe_id) ? message.swipe_id : 0) !== source.swipeId) return false;
+        const lineage = chatLineage(chat, messageId);
+        return recoveryLineageEqual(lineage, Array.isArray(source.lineage) ? source.lineage : []);
+    }
+
     function operationOwnershipMatches(token) {
         if (!token || getChatKey() !== token.chatKey || epoch(token.chatKey) !== token.epoch) return false;
-        if (token.completenessGeneration !== null && completenessGeneration(token.chatKey) !== token.completenessGeneration) return false;
         const liveChat = getContext().chat || [];
         const liveLineage = token.messageId !== null ? chatLineage(liveChat, token.messageId) : chatLineage(liveChat);
         if (!recoveryLineageEqual(liveLineage, token.lineage || [])) return false;
         if (token.messageId === null) return true;
         const live = liveChat[token.messageId];
         if (!live || fingerprintMessage(live) !== token.sourceFingerprint) return false;
-        if (token.captureId && activeSwipeMetadata(live).meta?.captureId !== token.captureId) return false;
         const swipeId = Number.isInteger(live.swipe_id) ? live.swipe_id : 0;
         return swipeId === token.swipeId;
     }
@@ -383,7 +386,6 @@ export function createNpcStateEngine(adapters = {}) {
             type: token?.type || 'operation',
             chatKey: token?.chatKey || '',
             source: {
-                ...(token?.captureId ? { captureId: token.captureId } : {}),
                 messageId: token?.messageId ?? null,
                 fingerprint: token?.sourceFingerprint || '',
                 swipeId: token?.messageId !== null ? token?.swipeId ?? 0 : null,
@@ -662,11 +664,11 @@ export function createNpcStateEngine(adapters = {}) {
         }
     }
 
-    async function invokeJson(prompt, label = 'scan') {
+    async function invokeJson(prompt, label = 'scan', signal = null) {
         const responseLength = normalizeScannerResponseTokens(getSettings().scannerResponseTokens);
         // Resolve once so the first request and its JSON retry cannot mix connection/profile configuration.
         const route = await resolveGenerationRoute({ label });
-        let raw = await generate({ systemPrompt: SYSTEM_PROMPT, prompt, responseLength, label, route });
+        let raw = await generate({ systemPrompt: SYSTEM_PROMPT, prompt, responseLength, label, route, signal });
         try { return parseScanJson(raw, { requireLifeStateUpdates: true }); }
         catch (firstError) {
             raw = await generate({
@@ -675,6 +677,7 @@ export function createNpcStateEngine(adapters = {}) {
                 responseLength,
                 label: `${label}-json-retry`,
                 route,
+                signal,
             });
             try { return parseScanJson(raw, { requireLifeStateUpdates: true }); }
             catch (secondError) {
@@ -684,31 +687,34 @@ export function createNpcStateEngine(adapters = {}) {
         }
     }
 
-    async function invokeOperationJson(prompt, label, operationId) {
-        try { return await invokeJson(prompt, label); }
+    async function invokeOperationJson(prompt, label, operationId, signal = null) {
+        try { return await invokeJson(prompt, label, signal); }
         catch (error) {
             operationLog.finish(operationId, { status: 'failed', failure: { stage: 'model', reason: String(error?.message || error).slice(0, 300) } });
             throw error;
         }
     }
 
-    async function scan(messageId, { manual = false, force = false, applyRelationship = null, captureId = '', expectedSource = null } = {}) {
+    async function scan(messageId, { manual = false, force = false, applyRelationship = null, onPhase = null, expectedSource = null, signal = null } = {}) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat' || /-pending:/.test(chatKey)) return { ok: false, reason: 'no-chat' };
         const settings = getSettings();
         if (!manual && settings.enabled === false) return { ok: false, reason: 'disabled' };
         if (!manual && settings.autoScan === false) return { ok: false, reason: 'auto-disabled' };
-        if (manual) invalidateCompleteness(chatKey);
-        const captureBound = !manual && Boolean(captureId || expectedSource);
-        let queuedOwnership = null;
-        if (captureBound) {
-            const queuedChat = getContext().chat || [];
-            if ((expectedSource && !captureSourceMatches(expectedSource, chatKey, queuedChat, messageId))
-                || (captureId && activeSwipeMetadata(queuedChat[messageId]).meta?.captureId !== captureId)) {
-                return { ok: false, discarded: true, reason: 'stale-capture-before-queue', messageId };
-            }
-            queuedOwnership = captureOperationOwnership('automatic-scan', chatKey, queuedChat, messageId, { captureId });
+        if (manual) invalidate(chatKey); // explicit user scan supersedes queued automatic work
+
+        const queuedChat = getContext().chat || [];
+        const queuedMessage = queuedChat[messageId];
+        if (!queuedMessage || queuedMessage.is_system || queuedMessage.is_user) return { ok: false, reason: 'not-assistant-message' };
+        if (signal?.aborted) return { ok: false, discarded: true, reason: 'scan-cancelled', messageId };
+        if (expectedSource && !sourceDescriptorMatches(expectedSource, chatKey, queuedChat, messageId)) {
+            return { ok: false, discarded: true, reason: 'stale-source-before-queue', messageId };
         }
+        // Automatic post-response ownership is captured BEFORE hydration/exclusive waiting.
+        // Appending later chat after this source does not alter lineage through messageId.
+        const queuedOwnership = !manual ? captureOperationOwnership('automatic-scan', chatKey, queuedChat, messageId) : null;
+        onPhase?.('queued');
+
         return exclusive(chatKey, async () => {
             const state = await loadChat(chatKey);
             if (!state) return { ok: false, reason: 'no-state' };
@@ -723,30 +729,37 @@ export function createNpcStateEngine(adapters = {}) {
             const relationshipApplyRequested = applyRelationship === null ? !alreadyScannedMessage : applyRelationship === true;
             const replayProtectedRelationship = relationshipReplayProtected(state, chat, messageId);
             const ownership = queuedOwnership || captureOperationOwnership(manual ? 'scan-current-cast' : 'automatic-scan', chatKey, chat, messageId);
-            if (captureBound && (!operationOwnershipMatches(ownership)
-                || (expectedSource && !captureSourceMatches(expectedSource, getChatKey(), getContext().chat || [], messageId)))) {
-                return { ok: false, discarded: true, reason: 'stale-capture-before-dispatch', messageId };
-            }
+            if (signal?.aborted) return { ok: false, discarded: true, reason: 'scan-cancelled', messageId };
+            if (!operationOwnershipMatches(ownership) || (expectedSource && !sourceDescriptorMatches(expectedSource, chatKey, chat, messageId))) return { ok: false, discarded: true, reason: 'stale-operation-before-dispatch', messageId };
+
             const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(settings.relationshipHistoryLimit);
             const prompt = buildScanPrompt({
                 state,
                 chat,
                 assistantMessageId: messageId,
-                scanDepth: settings.scanDepth,
+                scanDepth: manual ? settings.scanDepth : 2,
                 relationshipCriteria: settings.relationshipCriteria,
                 relationshipCaps: settings.relationshipCaps,
                 memoryCriteria: settings.memoryCriteria,
                 dossierLimits: settings.dossierLimits,
                 admissionMode: settings.newNpcAdmissionMode,
                 relationshipSummaryRepair: manual,
+                routine: true,
             });
             const operationId = beginOperationDiagnostics(ownership, prompt);
-            const parsed = await invokeOperationJson(prompt, manual ? 'manual-current-cast' : 'automatic-current-cast', operationId);
+            onPhase?.('scanning');
+            let parsed;
+            try {
+                parsed = await invokeOperationJson(prompt, manual ? 'manual-current-cast' : 'automatic-current-cast', operationId, signal);
+            } catch (error) {
+                onPhase?.('failed', { reason: String(error?.message || error) });
+                throw error;
+            }
             const liveCtx = getContext();
             const liveChat = liveCtx.chat || [];
-            if (!operationOwnershipMatches(ownership)) {
-                finishDiscardedOperation(operationId, 'stale-operation', 'post-model');
-                return { ok: false, discarded: true, reason: 'stale-operation', messageId };
+            if (signal?.aborted || !operationOwnershipMatches(ownership) || (expectedSource && !sourceDescriptorMatches(expectedSource, chatKey, liveChat, messageId))) {
+                finishDiscardedOperation(operationId, signal?.aborted ? 'scan-cancelled' : 'stale-operation', 'post-model');
+                return { ok: false, discarded: true, reason: signal?.aborted ? 'scan-cancelled' : 'stale-operation', messageId };
             }
             const working = ensurePreUpdateBaseline(normalizeState(state, chatKey), chat, messageId);
             working.turn = Math.max(0, Number(working.turn) || 0) + 1;
@@ -756,7 +769,9 @@ export function createNpcStateEngine(adapters = {}) {
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 playerName: resolvePlayerName('', chat, messageId),
                 relationshipContext: relationshipContextForExchange(exchange),
-                profileContext: profileContextForWindow(chat, messageId, settings.scanDepth),
+                // Routine scan validates new evidence against the owned exchange. Saved
+                // profile-evolution observations remain available through dossier state.
+                profileContext: profileContextForExchange(exchange),
                 evidencePolicy: buildExchangeEvidencePolicy(exchange),
                 currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
                 admissionMode: settings.newNpcAdmissionMode,
@@ -784,6 +799,11 @@ export function createNpcStateEngine(adapters = {}) {
                 referencedNpcIds,
             });
             updateOperationFromApplication(operationId, applied);
+            if (signal?.aborted || !operationOwnershipMatches(ownership) || (expectedSource && !sourceDescriptorMatches(expectedSource, chatKey, liveChat, messageId))) {
+                finishDiscardedOperation(operationId, signal?.aborted ? 'scan-cancelled' : 'stale-operation', 'pre-commit');
+                return { ok: false, discarded: true, reason: signal?.aborted ? 'scan-cancelled' : 'stale-operation', messageId };
+            }
+            onPhase?.('saving');
             const commit = await commitState({ token: ownership, operationId, state: stale.state, chat: liveChat, messageId, checkpointReason: manual ? 'manual-scan' : 'auto-scan', lastScannedMessageId: messageId });
             if (!commit.ok) return { ...commit, messageId, semanticDiagnostics: applied.semanticDiagnostics || [], coverageDiagnostics: applied.coverageDiagnostics || [] };
             const persisted = commit.state;
@@ -810,208 +830,10 @@ export function createNpcStateEngine(adapters = {}) {
         });
     }
 
-    async function applyEmbeddedScan(messageId, parsed, options = {}) {
-        const chatKey = getChatKey();
-        if (!chatKey || chatKey === 'no-chat' || /-pending:/.test(chatKey)) return { ok: false, reason: 'no-chat' };
-        const settings = getSettings();
-        if (settings.enabled === false || settings.autoScan === false) return { ok: false, reason: 'auto-disabled' };
-        const ownership = captureOperationOwnership('first-pass', chatKey, getContext().chat || [], messageId, { captureId: options.captureId });
-        const operationId = beginOperationDiagnostics(ownership);
-        const stop = result => {
-            operationLog.finish(operationId, {
-                status: result.discarded ? 'discarded' : (result.skipped ? 'skipped' : 'rejected'),
-                failure: { stage: 'pre-application', reason: result.reason },
-            });
-            return result;
-        };
-        return exclusive(chatKey, async () => {
-          try {
-            const state = await loadChat(chatKey);
-            if (!operationOwnershipMatches(ownership) || (options.captureSource && !captureSourceMatches(options.captureSource, getChatKey(), getContext().chat || [], messageId))) {
-                return stop({ ok: false, discarded: true, reason: 'stale-operation', messageId });
-            }
-            if (!state) return stop({ ok: false, reason: 'no-state' });
-            if (recoveryBlocksLiveScan(state)) return stop({ ok: false, reason: 'recovery-active', messageId, recovery: structuredClone(state.recovery) });
-            if (state.branchSafety?.status !== 'safe') return stop({ ok: false, reason: 'branch-unsafe', messageId });
-            const ctx = getContext();
-            const chat = ctx.chat || [];
-            const message = chat[messageId];
-            if (!message || message.is_system || message.is_user) return stop({ ok: false, reason: 'not-assistant-message' });
-            const startSwipeId = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
-            if (Number.isInteger(options.expectedSwipeId) && options.expectedSwipeId !== startSwipeId) {
-                return stop({ ok: false, discarded: true, reason: 'stale-operation', messageId });
-            }
-            if (typeof options.expectedMessageText === 'string') {
-                const expectedFingerprint = fingerprintMessage({ ...message, mes: options.expectedMessageText });
-                if (fingerprintMessage(message) !== expectedFingerprint) {
-                    return stop({ ok: false, discarded: true, reason: 'stale-operation', messageId });
-                }
-            }
-            if (Number.isInteger(state.lastScannedMessageId) && messageId <= state.lastScannedMessageId) {
-                const lineage = chatLineage(chat, messageId);
-                const matches = lineage.every((entry, index) => state.branchHeadLineage?.[index] === entry);
-                if (!matches) return stop({ ok: false, reason: 'branch-unreconciled', messageId });
-                return stop({ ok: true, skipped: true, reason: 'already-scanned', messageId, embedded: true, state: structuredClone(state) });
-            }
-            const exchange = currentExchange(chat, messageId) || { assistant: { ...message, id: messageId }, user: null };
-            const working = ensurePreUpdateBaseline(normalizeState(state, chatKey), chat, messageId);
-            working.turn = Math.max(0, Number(working.turn) || 0) + 1;
-            const applied = applyScanResult(working, parsed, {
-                sourceMessageId: messageId,
-                turn: working.turn,
-                relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
-                playerName: resolvePlayerName('', chat, messageId),
-                relationshipContext: relationshipContextForExchange(exchange),
-                profileContext: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
-                evidencePolicy: buildExchangeEvidencePolicy(exchange),
-                currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
-                admissionMode: settings.newNpcAdmissionMode,
-                dossierLimits: settings.dossierLimits,
-                birthdayFill: {
-                    mode: settings.birthdayFillMode,
-                    calendar: settings.birthdayRandomCalendar,
-                    fallbackDays: settings.birthdayRandomDaysPerMonth,
-                },
-                applyReturnedNpcPatches: true,
-                requireDossierCoverage: true,
-                applyRelationship: !relationshipReplayProtected(state, chat, messageId),
-            });
-            const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(settings.relationshipHistoryLimit);
-            applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
-            const retentionExchange = { ...exchange, user: exchange.user ? { ...exchange.user, mes: retentionEvidenceText(exchange.user.mes) } : null, assistant: exchange.assistant ? { ...exchange.assistant, mes: retentionEvidenceText(exchange.assistant.mes) } : null };
-            const referencedNpcIds = referencedNpcIdsFromExchange(applied.state, retentionExchange);
-            const stale = applyStaleLifecycle(applied.state, {
-                settings,
-                currentTurn: narrativeTurnForMessage(chat, messageId),
-                sourceMessageId: messageId,
-                exchangeActiveNpcIds: applied.exchangeActiveNpcIds,
-                finalPresentNpcIds: applied.finalPresentNpcIds,
-                worldActiveNpcIds: applied.worldActiveNpcIds,
-                referencedNpcIds,
-            });
-            const liveCtx = getContext();
-            const liveChat = liveCtx.chat || [];
-            if (!operationOwnershipMatches(ownership)) {
-                finishDiscardedOperation(operationId, 'stale-operation', 'pre-commit');
-                return { ok: false, discarded: true, reason: 'stale-operation', messageId };
-            }
-            updateOperationFromApplication(operationId, applied);
-            const commit = await commitState({ token: ownership, operationId, state: stale.state, chat: liveChat, messageId, checkpointReason: 'embedded-foreground', lastScannedMessageId: messageId });
-            if (!commit.ok) return { ...commit, messageId, embedded: true, semanticDiagnostics: applied.semanticDiagnostics || [], coverageDiagnostics: applied.coverageDiagnostics || [] };
-            const persisted = commit.state;
-            const notice = lifecycleNotice(stale);
-            if (notice) notify('info', 'Stale management ' + notice + '.');
-            return {
-                ok: true, messageId, embedded: true,
-                exchangeActiveNpcIds: applied.exchangeActiveNpcIds,
-                finalPresentNpcIds: applied.finalPresentNpcIds,
-                worldActiveNpcIds: applied.worldActiveNpcIds,
-                referencedNpcIds, targetNpcIds: applied.targetNpcIds,
-                semanticDiagnostics: applied.semanticDiagnostics || [],
-                coverageDiagnostics: applied.coverageDiagnostics || [],
-                state: structuredClone(persisted),
-            };
-          } catch (error) {
-            // commitState already closes persistence failures; finish is a no-op for
-            // completed records, while parse/application failures cannot stay running.
-            operationLog.finish(operationId, { status: 'failed', failure: { stage: 'application', reason: String(error?.message || error).slice(0, 300) } });
-            throw error;
-          }
-        });
-    }
-
-    async function completenessScan(messageId, { expectedFingerprint = '', expectedSwipeId = null, expectedSource = null } = {}) {
-        const chatKey = getChatKey();
-        if (!chatKey || chatKey === 'no-chat' || /-pending:/.test(chatKey)) return { ok: false, reason: 'no-chat', kind: 'completeness' };
-        const settings = getSettings();
-        if (settings.enabled === false || settings.autoScan === false || settings.scanAfterEachResponse !== true) {
-            return { ok: false, skipped: true, reason: 'completeness-disabled', kind: 'completeness', messageId };
-        }
-        const ownership = captureOperationOwnership('completeness', chatKey, getContext().chat || [], messageId, { completeness: true });
-        return exclusive(chatKey, async () => {
-            const state = await loadChat(chatKey);
-            if (!operationOwnershipMatches(ownership) || (expectedSource && !captureSourceMatches(expectedSource, getChatKey(), getContext().chat || [], messageId))) {
-                return { ok: false, discarded: true, reason: 'source-changed-before-completeness', kind: 'completeness', messageId };
-            }
-            if (!state) return { ok: false, reason: 'no-state', kind: 'completeness', messageId };
-            if (recoveryBlocksLiveScan(state)) return { ok: false, skipped: true, reason: 'recovery-active', kind: 'completeness', messageId, recovery: structuredClone(state.recovery) };
-            if (state.branchSafety?.status !== 'safe') return { ok: false, skipped: true, reason: 'branch-unsafe', kind: 'completeness', messageId };
-            if (state.lastScannedMessageId !== messageId) return { ok: false, skipped: true, reason: 'source-not-committed', kind: 'completeness', messageId };
-            const context = getContext();
-            const chat = context.chat || [];
-            const exchange = currentExchange(chat, messageId);
-            if (!exchange) return { ok: false, reason: 'not-assistant-message', kind: 'completeness', messageId };
-            const sourceMessage = chat[messageId] || {};
-            const startFingerprint = fingerprintMessage(sourceMessage);
-            const startSwipeId = Number.isInteger(sourceMessage?.swipe_id) ? sourceMessage.swipe_id : 0;
-            if (expectedFingerprint && expectedFingerprint !== startFingerprint) return { ok: false, discarded: true, reason: 'source-changed-before-completeness', kind: 'completeness', messageId };
-            if (Number.isInteger(expectedSwipeId) && expectedSwipeId !== startSwipeId) return { ok: false, discarded: true, reason: 'swipe-changed-before-completeness', kind: 'completeness', messageId };
-            const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(settings.relationshipHistoryLimit);
-            const prompt = buildCompletenessPrompt({
-                state,
-                chat,
-                assistantMessageId: messageId,
-                scanDepth: settings.scanDepth,
-                relationshipCriteria: settings.relationshipCriteria,
-                relationshipCaps: settings.relationshipCaps,
-                memoryCriteria: settings.memoryCriteria,
-                dossierLimits: settings.dossierLimits,
-                admissionMode: settings.newNpcAdmissionMode,
-            });
-            const operationId = beginOperationDiagnostics(ownership, prompt);
-            const parsed = await invokeOperationJson(prompt, 'automatic-completeness', operationId);
-            const liveContext = getContext();
-            const liveChat = liveContext.chat || [];
-            if (!operationOwnershipMatches(ownership)) {
-                finishDiscardedOperation(operationId, 'stale-completeness', 'post-model');
-                return { ok: false, discarded: true, reason: 'stale-completeness', kind: 'completeness', messageId };
-            }
-            const working = normalizeState(state, chatKey);
-            const currentEvidence = [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n');
-            const applied = applyScanResult(working, parsed, {
-                sourceMessageId: messageId,
-                turn: working.turn,
-                relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
-                playerName: resolvePlayerName('', liveChat, messageId),
-                relationshipContext: '',
-                profileContext: profileContextForWindow(liveChat, messageId, settings.scanDepth),
-                evidencePolicy: buildExchangeEvidencePolicy(exchange),
-                currentAdmissionText: currentEvidence,
-                admissionMode: settings.newNpcAdmissionMode,
-                dossierLimits: settings.dossierLimits,
-                birthdayFill: {
-                    mode: settings.birthdayFillMode,
-                    calendar: settings.birthdayRandomCalendar,
-                    fallbackDays: settings.birthdayRandomDaysPerMonth,
-                },
-                applyReturnedNpcPatches: true,
-                applyRelationship: false,
-                preservePresence: true,
-                preserveObservation: true,
-                supplementalPass: true,
-            });
-            applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
-            updateOperationFromApplication(operationId, applied);
-            const commit = await commitState({ token: ownership, operationId, state: applied.state, chat: liveChat, messageId, checkpointReason: 'completeness-pass', lastScannedMessageId: messageId });
-            if (!commit.ok) return { ...commit, kind: 'completeness', messageId, semanticDiagnostics: applied.semanticDiagnostics || [], coverageDiagnostics: applied.coverageDiagnostics || [] };
-            const persisted = commit.state;
-            return {
-                ok: true, kind: 'completeness', messageId,
-                exchangeActiveNpcIds: applied.exchangeActiveNpcIds,
-                finalPresentNpcIds: applied.finalPresentNpcIds,
-                worldActiveNpcIds: applied.worldActiveNpcIds,
-                targetNpcIds: applied.targetNpcIds,
-                semanticDiagnostics: applied.semanticDiagnostics || [],
-                coverageDiagnostics: applied.coverageDiagnostics || [],
-                state: structuredClone(persisted),
-            };
-        });
-    }
-
     async function importStructuredDossier(reference) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat') return { ok: false, reason: 'no-chat' };
-        invalidateCompleteness(chatKey);
+        invalidate(chatKey);
         return exclusive(chatKey, async () => {
             const state = await loadChat(chatKey);
             if (recoveryBlocksLiveScan(state)) return { ok: false, reason: 'recovery-active', recovery: structuredClone(state?.recovery) };
@@ -1083,7 +905,7 @@ export function createNpcStateEngine(adapters = {}) {
     async function refreshDossier(reference) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat') return { ok: false, reason: 'no-chat' };
-        invalidateCompleteness(chatKey);
+        invalidate(chatKey);
         return exclusive(chatKey, async () => {
             const state = await loadChat(chatKey);
             if (recoveryBlocksLiveScan(state)) return { ok: false, reason: 'recovery-active', recovery: structuredClone(state?.recovery) };
@@ -1169,8 +991,8 @@ export function createNpcStateEngine(adapters = {}) {
     async function mutate(label, mutator, { checkpointReason = 'manual', allowUnsafeKind = '', checkpoint = true } = {}) {
         const chatKey = getChatKey();
         if (!chatKey || chatKey === 'no-chat' || /-pending:/.test(chatKey)) return { ok: false, reason: 'no-chat' };
-        // A user/editor mutation requested while a completeness model call is running wins.
-        invalidateCompleteness(chatKey);
+        // A user/editor mutation requested while automatic scanning is running wins.
+        invalidate(chatKey);
         const chatChanged = stage => ({ ok: false, discarded: true, reason: 'chat-changed', stage });
         return exclusive(chatKey, async () => {
             if (getChatKey() !== chatKey) return chatChanged('mutation-after-queue');
@@ -2453,8 +2275,6 @@ export function createNpcStateEngine(adapters = {}) {
     return Object.freeze({
         loadChat,
         scan,
-        completenessScan,
-        applyEmbeddedScan,
         refreshDossier,
         importStructuredDossier,
         addNpc,
@@ -2479,7 +2299,6 @@ export function createNpcStateEngine(adapters = {}) {
         renameChatKey,
         deleteChatKey,
         invalidate,
-        invalidateCompleteness,
         branchSafetyStatus,
         getInjectionState,
         getDossierIndex,

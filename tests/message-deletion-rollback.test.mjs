@@ -149,7 +149,7 @@ test('the deletion handler restores an exact surviving checkpoint without runnin
     h.context.chat.splice(2);
     const handler = runInNewContext(`(${handlerSource})`, {
         getChatKey: () => state.chatKey, engine: h.engine, sleep: async () => {},
-        refreshSurfaces: () => {}, notify: () => {}, console,
+        refreshSurfaces: () => {}, notify: () => {}, postResponseCoordinator: { clearChat: () => {} }, console,
     });
     await handler({ reason: 'message-deleted' });
     assert.deepEqual(h.persisted().npcs[0].relationship, before.relationship);

@@ -4,14 +4,14 @@ The authoritative behavior and ownership specification is [`docs/core-contract.m
 
 ## Current boundaries
 
-- Extension release: `0.7.10`
+- Extension release: `0.5.11`
 - Persisted state schema: `1`
 - Settings schema: `1`
 - Model semantic update contract: `6`
-- Foreground embedded-capture contract: `7`
+- Foreground continuity contract: `8`
 - Sidecar/settings storage identity remains `npc_state_beta.v3`
 
-A release bump does not require a persisted schema bump. Change a persisted schema only for an actual incompatible storage contract.
+The 0.5.11 public label is an intentional renumbering over newer code, not a source/data downgrade. A release bump does not require a persisted schema bump. Change a persisted schema only for an actual incompatible storage contract.
 
 ## Responsibility map
 
@@ -20,7 +20,8 @@ A release bump does not require a persisted schema bump. Change a persisted sche
 - `src/model/semantic-updates.js`: ordinary semantic validation/application and coverage diagnostics.
 - `src/scan-contract.js`: shared response envelope, identity classifications, and literal parser-tested examples.
 - `src/scanner.js` plus `src/scan-*.js`: model response boundary and focused identity/relationship/lifecycle/graph handlers.
-- `src/foreground-*.js` and `src/injection.js`: foreground contract, selection, compaction and local prompt diagnostics.
+- `src/foreground-contract.js`, `src/foreground-context.js` and `src/injection.js`: continuity-only foreground selection, compaction and local prompt diagnostics.
+- `src/post-response-coordinator.js`: one logical automatic scan job per completed assistant revision and next-turn settlement status.
 - `src/engine.js`: operation ownership, shared story commit boundary, persistence orchestration and recovery sequencing.
 - `src/branches.js`: canonical history identity, full-state checkpoints, restoration and explicit rebase behavior.
 - `src/storage.js`: sidecar persistence, revision/CAS validation and writer locks.

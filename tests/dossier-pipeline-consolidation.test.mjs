@@ -75,9 +75,9 @@ function apply(state, result, context, extra = {}) {
     });
 }
 
-test('0.5.10 uses one canonical semantic field registry', () => {
+test('0.5.11 uses one canonical semantic field registry', () => {
     assert.equal(NPC_STATE_MODEL_CONTRACT_VERSION, 6);
-    assert.equal(FOREGROUND_CONTRACT_VERSION, 7);
+    assert.equal(FOREGROUND_CONTRACT_VERSION, 8);
     for (const field of [
         'role', 'species', 'background', 'age', 'apparentAge', 'birthday', 'appearance', 'appearanceForms',
         'personality', 'behaviorProfile', 'speech', 'mannerisms',
@@ -195,18 +195,20 @@ test('Full Scan semantic appendix uses a compact edit index instead of serializi
     assert.match(prompt, /evaluatedGroups/);
 });
 
-test('foreground contract exposes the same registry and one-pipeline rule', () => {
-    const prompt = foregroundContract({}, { capture: true });
-    assert.match(prompt, /ONE DOSSIER UPDATE PIPELINE/);
-    assert.match(prompt, /currentForm/);
-    assert.match(prompt, /evaluatedGroups/);
-    assert.doesNotMatch(prompt, /profileChanges\/canonChanges\/ageChange\/appearanceFormChanges\/keyRelationshipChanges or direct replacements[^.]*authoritative/);
+test('foreground contract is continuity-only while scanner retains the one-pipeline rule', () => {
+    const foreground = foregroundContract();
+    assert.match(foreground, /CONTINUITY CONTEXT/);
+    assert.doesNotMatch(foreground, /semanticUpdates|evaluatedGroups|OUTPUT CONTRACT/);
+    const scan = buildScanPrompt({ state: stateWithNpc(), chat: [{ is_user: true, mes: 'Sora?' }, { is_user: false, mes: 'Sora answers.' }], assistantMessageId: 1 });
+    assert.match(scan, /SINGLE-PIPELINE INVARIANT/);
+    assert.match(scan, /evaluatedGroups/);
 });
 
-test('Full Scan validates semantic evidence against the same bounded history window it supplies', () => {
+test('routine Scan validates new profile evidence against the exact exchange while explicit modes keep window helpers', () => {
     const engine = fs.readFileSync(path.join(root, 'src/engine.js'), 'utf8');
-    const scanWindowUses = engine.match(/profileContext:\s*profileContextForWindow\(/g) || [];
-    assert.ok(scanWindowUses.length >= 3, `expected scan/completeness/history to use bounded profile windows, got ${scanWindowUses.length}`);
+    assert.match(engine, /profileContext:\s*profileContextForExchange\(exchange\)/);
+    assert.match(engine, /profileContextForWindow/);
+    assert.doesNotMatch(engine, /buildCompletenessPrompt|completenessScan/);
 });
 
 test('compact semantic prompt does not duplicate stored scalar prose', () => {

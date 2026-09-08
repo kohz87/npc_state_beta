@@ -13,7 +13,7 @@ import { normalizeForegroundBudgetTokens } from '../src/foreground-budget.js';
 import { normalizeStaleSettings } from '../src/stale.js';
 import { relationshipMechanicsPrompt } from '../src/relationship-policy.js';
 import { RELATIONSHIP_AXIS_LIMITS, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW, relationshipMilestoneEventQualifies, relationshipInertiaFactor } from '../src/relationship-rules.js';
-import { applyScanResult, buildScanPrompt, buildCompletenessPrompt, buildTargetedRefreshPrompt, buildStructuredDossierImportPrompt } from '../src/scanner.js';
+import { applyScanResult, buildScanPrompt, buildTargetedRefreshPrompt, buildStructuredDossierImportPrompt } from '../src/scanner.js';
 import { createNpcStateUi } from '../src/ui.js';
 import { runtimeFiles, sourceFiles } from '../scripts/runtime-files.mjs';
 
@@ -27,7 +27,8 @@ const payload = patch => ({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldAct
     assert.equal(host.npc_state_beta.v3, settings);
     assert.equal(settings.schemaVersion, 1);
     assert.equal(settings.scannerResponseTokens, 7000);
-    assert.equal(settings.scanAfterEachResponse, false);
+    assert.equal(settings.workflowMode, 'post-response-v1');
+    assert.equal('scanAfterEachResponse' in settings, false);
     assert.equal(settings.injectBudgetTokens, 1800);
     assert.equal(settings.relationshipHistoryLimit, 8);
     settings.dataFiles.example = { name: 'example.json' };
@@ -53,7 +54,9 @@ test('upgrade preserves custom criteria, portrait templates, routing, pointers a
     assert.equal(actual.portraitPositivePrompt, 'Paint {{character}}');
     assert.equal(actual.scanConnectionProfileId, 'secondary');
     assert.equal(actual.scannerResponseTokens, 15000);
-    assert.equal(actual.scanAfterEachResponse, true);
+    assert.equal(actual.autoScan, true);
+    assert.equal(actual.workflowMode, 'post-response-v1');
+    assert.equal('scanAfterEachResponse' in actual, false);
     assert.equal(actual.injectDepth, 0);
     assert.deepEqual(actual.extensionPrivateOption, { retain: true });
     const snapshot = structuredClone(actual);
@@ -70,7 +73,7 @@ test('UI bounds and runtime agree for budgets, scanner limits and retention thre
     for (const value of [256, 1600, 1800, 8000, 9000, NaN, Infinity, '', null]) {
         assert.equal(normalizeSettings({ injectBudgetTokens: value }).injectBudgetTokens, normalizeForegroundBudgetTokens(value));
     }
-    assert.match(numericSettingAttributes('injectBudgetTokens'), /min="1600" max="8000"/);
+    assert.match(numericSettingAttributes('injectBudgetTokens'), /min="256" max="8000"/);
     for (const value of [0, 1, 512, 7000, 15000, 15001, NaN, Infinity]) {
         assert.equal(normalizeScannerResponseTokens(value), normalizeNumericSetting('scannerResponseTokens', value));
     }
@@ -108,7 +111,7 @@ test('all separate generation modes emit one semantic contract without legacy ou
     state.npcs = [npc];
     const chat = [{ is_user: true, mes: 'Happy birthday Mira.' }, { is_user: false, mes: 'Mira turned 7 today.' }];
     const args = { state, npc, chat, assistantMessageId: 1, blocks: [{ messageId: 1, body: 'Mira is seven.' }] };
-    for (const build of [buildScanPrompt, buildCompletenessPrompt, buildTargetedRefreshPrompt, buildStructuredDossierImportPrompt]) {
+    for (const build of [buildScanPrompt, buildTargetedRefreshPrompt, buildStructuredDossierImportPrompt]) {
         const prompt = build(args);
         assert.equal(prompt.split('NPC STATE DOSSIER UPDATE CONTRACT v').length - 1, 1, build.name);
         assert.doesNotMatch(prompt, /ageChange is the only|Use ageChange instead|COMPLETE authoritative replacement set/);
