@@ -1,0 +1,45 @@
+name: v0.5.29 review correction
+
+on:
+  push:
+    branches:
+      - fix/v0529-current-dynamic-reuse
+    paths:
+      - .github/workflows/v0529-review.yml
+      - scripts/v0529-review-fix.py
+
+permissions:
+  contents: write
+
+jobs:
+  review-fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out reviewed candidate
+        uses: actions/checkout@v4
+        with:
+          ref: fix/v0529-current-dynamic-reuse
+          fetch-depth: 0
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply review correction
+        run: python3 scripts/v0529-review-fix.py
+      - name: Validate authoritative source
+        run: npm run validate
+      - name: Run regression tests
+        run: npm test
+      - name: Package extension
+        run: npm run package
+      - name: Measure scanner prompts
+        run: npm run measure:scan-prompts
+      - name: Inspect whitespace
+        run: git diff --check
+      - name: Commit exact reviewed runtime tree
+        run: |
+          git config user.name "kohz87"
+          git config user.email "83744063+kohz87@users.noreply.github.com"
+          git add src/scan-application.js
+          git commit -m "candidate: capture v0.5.29 reviewed context plumbing"
+          git push origin HEAD:fix/v0529-current-dynamic-reuse
