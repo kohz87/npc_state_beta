@@ -274,7 +274,8 @@ function relationshipSummaryContextualTargetBound(npc, excerpts, excerptMatches,
             playerInteractionIndexes.push(index);
         }
     }
-    if (!identityIndexes.length) return false;
+    const worldStateCanonicalEnrichmentAccepted = binding.worldStateCanonicalEnrichmentAccepted === true;
+    if (!identityIndexes.length && !worldStateCanonicalEnrichmentAccepted) return false;
 
     // Both halves must come from the same permitted source record. This keeps the bridge
     // bounded to one coherent interaction source instead of combining arbitrary mentions
@@ -307,9 +308,11 @@ function relationshipSummaryContextualTargetBound(npc, excerpts, excerptMatches,
             sourceRole: row.sourceRole || '',
         }))
         .map(row => row.sourceId));
-    const identityActivitySources = new Set([...activityBindings, ...identityBindings]
-        .filter(row => identityMentioned(row.excerpt, subjectNames, otherNpcNames))
-        .map(row => row.sourceId));
+    const identityActivitySources = new Set([
+        ...activityBindings.filter(row => identityMentioned(row.excerpt, subjectNames, otherNpcNames)),
+        ...identityBindings.filter(row => worldStateCanonicalEnrichmentAccepted
+            || identityMentioned(row.excerpt, subjectNames, otherNpcNames)),
+    ].map(row => row.sourceId));
     const bridgedSources = new Set([...playerActivitySources].filter(sourceId => identityActivitySources.has(sourceId)));
     const summarySourceSafe = sourceId => excerpts.every((excerpt, index) =>
         excerptMatches[index]?.sourceId === sourceId
@@ -323,6 +326,13 @@ function relationshipSummaryContextualTargetBound(npc, excerpts, excerptMatches,
             acceptedIdentityExcerpts,
             excerptMatches[index]?.sourceRole || '',
         ));
+
+    // When the canonical proper name was accepted specifically through the current
+    // World_State enrichment path, the exact visible identity anchor remains identity
+    // authority. Exact summary quotes in that same safely bound source therefore need not
+    // repeat the anchor or structured-only name. Other identity paths keep the older
+    // summary-linked requirement below.
+    if (worldStateCanonicalEnrichmentAccepted && [...bridgedSources].some(summarySourceSafe)) return true;
 
     const linkedSummarySources = new Set(identityIndexes
         .map(index => excerptMatches[index]?.sourceId)

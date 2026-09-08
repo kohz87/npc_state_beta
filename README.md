@@ -2,9 +2,9 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.28
+## Release 0.5.29
 
-0.5.28 unifies first-seen identity grounding: a visible proper/short name or unique role/description is the sole `identityEvidence.anchor`, and current World_State may enrich that already grounded individual with one compatible canonical proper name. The superseded deterministic role-head fallback is removed; structured-only names, fabricated/disconnected excerpts, ambiguous anchors, and policy/collision bypasses remain rejected.
+0.5.29 completes zero-delta Current Dynamic reuse for the v0.5.28 case where a first-seen NPC is grounded by exact visible identity evidence but receives its canonical proper name from current World_State. For that accepted enrichment path, exact same-source relationship-summary quotations may reuse the already accepted visible identity plus player-facing activity without repeating the visible anchor or structured-only name. Other identity paths retain their existing summary-link safeguards; wrong addressees, isolated quoted `you`, fabricated/out-of-scope evidence, and numeric relationship scoring remain separately guarded.
 
 Recent 0.5.x refinements retained by this release include:
 
@@ -24,6 +24,7 @@ Recent 0.5.x refinements retained by this release include:
 - **0.5.26:** make Current Dynamic target binding POV-independent by combining source-role-aware direct PC references with same-source accepted exchange activity reuse, while preserving wrong-addressee and unowned-evidence rejection.
 - **0.5.27:** admit first-seen contextual role labels through their exact validated unique identity anchor in Balanced mode, without weakening identity collisions, structured evidence firewalls, or stricter admission settings.
 - **0.5.28:** unify visible identity anchors with optional current-World_State canonical-name enrichment and retire the older deterministic role-head bridge.
+- **0.5.29:** carry accepted World_State canonical-name enrichment into zero-delta Current Dynamic target binding without weakening other summary-target safeguards.
 
 The automatic workflow remains:
 
@@ -39,7 +40,7 @@ Routine automatic Scan and manual **Scan current cast** treat the latest complet
 
 **Refresh** reconciles one NPC over bounded history. Historical recovery reconstructs surviving exchanges sequentially from a trustworthy baseline. All story mutations continue through the same guarded commit/checkpoint path.
 
-Scanner input sizing is measured separately from foreground continuity and scanner output allowance. npm run measure:scan-prompts uses the existing local conservative estimator (ASCII/3.5 + non-ASCII*1.1) and the exact scanner system wrapper. 0.5.26 changes only the compact Current Dynamic target-binding wording; the stable matrix is 6,388 tokens for the minimal one-NPC fixture, 6,391 for a rich first encounter, 7,456 for three active plus one mentioned NPC, 6,715 for observation development, 8,057 for dense collections/locks/forms, 6,593 with 1,000 stored NPCs but one relevant NPC, 7,117 for structured blocks plus custom criteria, and 4,790 for targeted Refresh. The dense fixture is reported honestly against the approximate 7,500-token engineering target; no current-evidence truncation rule is introduced. A deliberately long current response remains about 21,345 estimated tokens because the current scene is preserved in full. These are local engineering estimates, not provider-reported usage.
+Scanner input sizing is measured separately from foreground continuity and scanner output allowance. npm run measure:scan-prompts uses the existing local conservative estimator (ASCII/3.5 + non-ASCII*1.1) and the exact scanner system wrapper. 0.5.29 does not change scanner prompt text; the current stable matrix is 6,386 tokens for the minimal one-NPC fixture, 6,389 for a rich first encounter, 7,453 for three active plus one mentioned NPC, 6,713 for observation development, 8,055 for dense collections/locks/forms, 6,591 with 1,000 stored NPCs but one relevant NPC, 7,118 for structured blocks plus custom criteria, and 4,794 for targeted Refresh. The dense fixture is reported honestly against the approximate 7,500-token engineering target; no current-evidence truncation rule is introduced. A deliberately long current response remains about 21,342 estimated tokens because the current scene is preserved in full. These are local engineering estimates, not provider-reported usage.
 
 ### Dossier completeness and safety
 

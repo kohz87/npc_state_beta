@@ -4,7 +4,7 @@ The authoritative behavior and ownership specification is [`docs/core-contract.m
 
 ## Current boundaries
 
-- Extension release: `0.5.28`
+- Extension release: `0.5.29`
 - Persisted state schema: `1`
 - Settings schema: `1`
 - Model semantic update contract: `6`
