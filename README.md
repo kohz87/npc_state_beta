@@ -2,9 +2,9 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.19
+## Release 0.5.20
 
-0.5.19 corrects two compact scanner-contract shapes introduced by the 0.5.18 compaction while preserving its reduced request size and the 0.5.17 Phase 1 ownership fixes. Lifecycle rows now advertise the canonical validator/application keys, and collection/form semantic updates again expose their supported nested targeting shapes. The release keeps one post-response scanner request, full current-message evidence, existing output limits, and unchanged storage/schema contracts.
+0.5.20 strengthens compact first-pass semantic calibration after a real provider scan exposed conservative misses. Direct visible life-stage wording is positive Apparent Age evidence for a model-led numeric range; one first scene may establish narrow Behavioral Profile or Mannerisms when it contains explicit recurrence or multiple reinforcing instances; and newly established/changed Current Dynamic evidence now explicitly requires at least one exact excerpt that visibly binds the NPC to the player. The release keeps the v0.5.18-v0.5.19 compact contract, one post-response scanner request, full current-message evidence, existing output limits, and unchanged storage/schema contracts.
 
 Recent 0.5.x refinements retained by this release include:
 
@@ -15,6 +15,7 @@ Recent 0.5.x refinements retained by this release include:
 - **0.5.17:** correct `profileObservations` array examples, source-first observation/application dedupe, and exact claimed-message excerpt validation.
 - **0.5.18:** compact shared scanner/domain rules, response examples, relationship/lifecycle instructions, and semantic-update guidance; add a reproducible final-request measurement matrix.
 - **0.5.19:** correct compact lifecycle property names and restore concise collection/form targeting shapes with parser-to-application regressions.
+- **0.5.20:** rebalance compact first-pass sufficiency for visible life-stage, repeated behavior/mannerism evidence, and exact Current Dynamic target binding without adding another scan pass.
 
 The automatic workflow remains:
 
@@ -30,15 +31,15 @@ Routine automatic Scan and manual **Scan current cast** treat the latest complet
 
 **Refresh** reconciles one NPC over bounded history. Historical recovery reconstructs surviving exchanges sequentially from a trustworthy baseline. All story mutations continue through the same guarded commit/checkpoint path.
 
-Scanner input sizing is measured separately from foreground continuity and scanner output allowance. `npm run measure:scan-prompts` uses the existing local conservative estimator (`ASCII/3.5 + non-ASCII*1.1`) and the exact scanner system wrapper. On the 0.5.19 stable matrix, estimated final input is 5,831 tokens for the minimal one-NPC fixture, 5,834 for a rich first encounter, 6,898 for three active plus one mentioned NPC, 6,157 for observation development, 7,500 for dense collections/locks/forms, 6,036 with 1,000 stored NPCs but one relevant NPC, 6,559 for structured blocks plus custom criteria, and 4,307 for targeted Refresh. This is a fixed increase of about 140-141 estimated tokens over the same 0.5.18 fixtures to restore the exact lifecycle and nested collection/form shapes. A deliberately long current response remains about 20,787 estimated tokens because the current scene is preserved in full. These are local engineering estimates, not provider-reported usage.
+Scanner input sizing is measured separately from foreground continuity and scanner output allowance. `npm run measure:scan-prompts` uses the existing local conservative estimator (`ASCII/3.5 + non-ASCII*1.1`) and the exact scanner system wrapper. On the 0.5.20 stable matrix, estimated final input is 6,070 tokens for the minimal one-NPC fixture, 6,073 for a rich first encounter, 7,137 for three active plus one mentioned NPC, 6,397 for observation development, 7,739 for dense collections/locks/forms, 6,275 with 1,000 stored NPCs but one relevant NPC, 6,798 for structured blocks plus custom criteria, and 4,567 for targeted Refresh. This is about +239 to +260 estimated tokens over the same 0.5.19 fixtures to restore positive first-pass sufficiency and explicit Current Dynamic evidence binding. A deliberately long current response remains about 21,026 estimated tokens because the current scene is preserved in full. These are local engineering estimates, not provider-reported usage.
 
 ### Dossier completeness and safety
 
 The scanner contract supports realistically populated new NPCs, compact existing-candidate accounting, explicit insufficient-evidence outcomes, field-level evaluation metadata, observation-only profile evidence, and zero-delta Current Dynamic. Unsupported facts remain unknown. A sparse valid payload may still commit its supported facts, while candidate/field diagnostics report unaccounted work separately from persistence success. Older compatible responses may still apply valid proposals but cannot falsely report complete candidate coverage.
 
-Current Dynamic may establish a neutral professional, transactional, adversarial, supervisory, or other role-defined relationship even when Trust/Affection/Desire/Tension remain zero. Numeric relationship movement is separate and still requires its own validated evidence.
+Current Dynamic may establish a neutral professional, transactional, adversarial, supervisory, or other role-defined relationship even when Trust/Affection/Desire/Tension remain zero. For a newly established or materially changed summary, at least one exact evidence excerpt must visibly bind that NPC to the player; dialogue-only quotes without speaker identity are supplementary. Numeric relationship movement is separate and still requires its own validated evidence.
 
-Apparent Age is visual, not chronological. When the story supports a specific-looking age, the model may return `~N`. When it supports only a visible age band, the model may return a semantic interval such as `~20-30`; the backend uses the NPC's stable identity to choose one reproducible inclusive value and persists only `~N`. No fixed English phrase-to-range dictionary is used. Existing/manual descriptive Apparent Age values remain compatible. Actual Age never derives from Apparent Age.
+Apparent Age is visual, not chronological. Direct visible life-stage wording such as child, adolescent, young adult, middle-aged, or elderly is positive evidence even without a number. The model may return `~N` for a specific-looking age or a semantic interval such as `~20-30` for a defensible visible band; the backend uses the NPC's stable identity to choose one reproducible inclusive value and persists only `~N`. No fixed English phrase-to-range dictionary is used. Existing/manual descriptive Apparent Age values remain compatible. Actual Age never derives from Apparent Age.
 
 New-NPC bootstrap, existing semantic updates, manual/import boundaries, and persisted normalization share field-aware value rules. Malformed nested collection members, form selectors, scalar objects, and coercive manual numeric values are rejected before lossy normalization rather than becoming strings such as `[object Object]`.
 
@@ -73,7 +74,7 @@ User-owned portraits, locks, manual corrections, importance, and suppression tom
 
 Current boundaries:
 
-- Release label: **0.5.19**
+- Release label: **0.5.20**
 - Persisted state schema: **1**
 - Settings schema: **1**
 - Model semantic contract: **6**

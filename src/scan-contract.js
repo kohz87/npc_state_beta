@@ -1,6 +1,8 @@
 import { DOSSIER_EVALUATION_GROUPS, DOSSIER_FIELD_DEFINITIONS, DOSSIER_SEMANTIC_FIELDS } from './model/dossier-fields.js';
 import { RELATIONSHIP_AXES } from './schema.js';
 
+const CURRENT_DYNAMIC_EVIDENCE_RULE = 'CURRENT DYNAMIC EVIDENCE: new/changed relationshipSummary needs relationshipSummaryEvidence with 1-3 exact permitted excerpts plus a target-bound explanation. At least one excerpt must itself visibly bind THIS NPC to the PLAYER: NPC name/unique identity + player name, or NPC identity + narrator you/your outside quoted dialogue. Dialogue-only quotes without speaker identity are supplementary and cannot supply this binding.';
+
 // One envelope definition for prompt examples and the production response boundary.
 export const SCAN_ARRAY_MEMBERS = Object.freeze({
     exchangeActiveNpcIds: 'reference', inChatNpcIds: 'reference', worldActiveNpcIds: 'reference',
@@ -77,8 +79,8 @@ export function scanOutputContract(options = {}) {
             ? 'VALID FICTIONAL EXAMPLE: populated NEW live/profile + zero-delta Current Dynamic + insufficient fields. Never copy facts/ids.\n'
             : 'VALID JSON EXAMPLE, fictional, never copy facts/ids: Nia shows a narrowly evidenced first-scene personality plus live/profile facts and a zero-delta Current Dynamic; unsupported fields remain explicitly insufficient. Ivo shows existing semantic update and field outcomes.\n') + JSON.stringify(examples.populated),
         options.includeRelationship === false ? '' : (compact
-            ? 'Relationship: impact=none|ordinary|meaningful|major|extreme; axes=trust|affection|desire|tension. Nonzero axes need axisEvidence. For each exchange-active NPC, relationshipSummary must be present: grounded text when a Current Dynamic is supported, or "" when evaluated but insufficient; changed text needs exact evidence. Never invent intimacy.'
-            : 'Exchange-active NPCs evaluate relationshipChange: impact=none|ordinary|meaningful|major|extreme; axes=' + RELATIONSHIP_AXES.join('|') + '. Nonzero axes need axisEvidence:{axis:{excerpts,explanation}}; optional priority:[axes]. For every exchange-active NPC, include relationshipSummary: use grounded descriptive text when the Current Dynamic is established/changed, preserve an already established unchanged dynamic by returning the same text or use an empty string when current evidence is insufficient to establish one. Changed relationshipSummary needs relationshipSummaryEvidence even at zero delta. Never invent scores/intimacy.'),
+            ? 'Relationship: impact=none|ordinary|meaningful|major|extreme; axes=trust|affection|desire|tension. Nonzero axes need axisEvidence. For each exchange-active NPC, relationshipSummary must be present: grounded text when supported, or "" when insufficient. Never invent intimacy. ' + CURRENT_DYNAMIC_EVIDENCE_RULE
+            : 'Exchange-active NPCs evaluate relationshipChange: impact=none|ordinary|meaningful|major|extreme; axes=' + RELATIONSHIP_AXES.join('|') + '. Nonzero axes need axisEvidence:{axis:{excerpts,explanation}}; optional priority:[axes]. For every exchange-active NPC, include relationshipSummary: use grounded descriptive text when the Current Dynamic is established/changed, preserve already established unchanged text or use an empty string when insufficient. Never invent scores/intimacy. ' + CURRENT_DYNAMIC_EVIDENCE_RULE),
         'Rows (shape notation): socialEdges{from,to,relation,summary,provenance}; familyFacts{owner,relation,members,count,descriptor,evidence}; lifeStateUpdates{id|name,lifeState,lifeStateCertainty,lifeStateReason,livingReturn?}. lifeState alive|dead|unknown; certainty explicit|strong|uncertain; dead->alive needs livingReturn:true + grounded target-bound reason.',
         'Life row example: ' + JSON.stringify(SCAN_LIFECYCLE_EXAMPLE_ROW),
     ].filter(Boolean).join('\n');
