@@ -1076,6 +1076,11 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                     const identityEvidenceExcerpts = identityEvidenceAccepted && Array.isArray(identityRecord?.excerpts)
                         ? identityRecord.excerpts.map(value => String(value || '').trim()).filter(Boolean).slice(0, 3)
                         : [];
+                    const canonicalIdentity = canonicalPatchName(patch, []);
+                    const worldStateCanonicalEnrichmentAccepted = Boolean(identityEvidenceAccepted
+                        && canonicalIdentity
+                        && !containsNormalizedPhrase(currentVisibleText, canonicalIdentity)
+                        && worldStateCanonicalIdentityMention(patch, evidencePolicy));
                     return {
                         npcId: npc.id,
                         identityAccepted: acceptedPatchNpcIds.has(npc.id),
@@ -1088,6 +1093,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                             ? unambiguousActivityBindingsForNpc(npc.id)
                             : [],
                         identityEvidenceAccepted,
+                        worldStateCanonicalEnrichmentAccepted,
                         identityEvidenceExcerpts,
                         identityEvidenceBindings: identityEvidenceExcerpts.map(uniquelyOwnedRelationshipExcerptBinding).filter(Boolean),
                     };
