@@ -2,9 +2,9 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.20
+## Release 0.5.21
 
-0.5.20 strengthens compact first-pass semantic calibration after a real provider scan exposed conservative misses. Direct visible life-stage wording is positive Apparent Age evidence for a model-led numeric range; one first scene may establish narrow Behavioral Profile or Mannerisms when it contains explicit recurrence or multiple reinforcing instances; and newly established/changed Current Dynamic evidence now explicitly requires at least one exact excerpt that visibly binds the NPC to the player. The release keeps the v0.5.18-v0.5.19 compact contract, one post-response scanner request, full current-message evidence, existing output limits, and unchanged storage/schema contracts.
+0.5.21 fixes a compact prompt contradiction that caused grounded Background to be marked `insufficient` when Role was already populated. Role is now explicitly the NPC's current function/title, while Background may separately preserve a grounded durable employer, workplace, or affiliation from the same evidence. The parser-tested fictional example now demonstrates that distinction instead of teaching the opposite. The release keeps v0.5.20 first-pass sufficiency, one post-response scanner request, full current-message evidence, existing output limits, and unchanged storage/schema contracts.
 
 Recent 0.5.x refinements retained by this release include:
 
@@ -16,6 +16,7 @@ Recent 0.5.x refinements retained by this release include:
 - **0.5.18:** compact shared scanner/domain rules, response examples, relationship/lifecycle instructions, and semantic-update guidance; add a reproducible final-request measurement matrix.
 - **0.5.19:** correct compact lifecycle property names and restore concise collection/form targeting shapes with parser-to-application regressions.
 - **0.5.20:** rebalance compact first-pass sufficiency for visible life-stage, repeated behavior/mannerism evidence, and exact Current Dynamic target binding without adding another scan pass.
+- **0.5.21:** distinguish current Role from durable Background affiliation/employment and correct the contradictory first-pass example.
 
 The automatic workflow remains:
 
@@ -31,7 +32,7 @@ Routine automatic Scan and manual **Scan current cast** treat the latest complet
 
 **Refresh** reconciles one NPC over bounded history. Historical recovery reconstructs surviving exchanges sequentially from a trustworthy baseline. All story mutations continue through the same guarded commit/checkpoint path.
 
-Scanner input sizing is measured separately from foreground continuity and scanner output allowance. `npm run measure:scan-prompts` uses the existing local conservative estimator (`ASCII/3.5 + non-ASCII*1.1`) and the exact scanner system wrapper. On the 0.5.20 stable matrix, estimated final input is 6,070 tokens for the minimal one-NPC fixture, 6,073 for a rich first encounter, 7,137 for three active plus one mentioned NPC, 6,397 for observation development, 7,739 for dense collections/locks/forms, 6,275 with 1,000 stored NPCs but one relevant NPC, 6,798 for structured blocks plus custom criteria, and 4,567 for targeted Refresh. This is about +239 to +260 estimated tokens over the same 0.5.19 fixtures to restore positive first-pass sufficiency and explicit Current Dynamic evidence binding. A deliberately long current response remains about 21,026 estimated tokens because the current scene is preserved in full. These are local engineering estimates, not provider-reported usage.
+Scanner input sizing is measured separately from foreground continuity and scanner output allowance. `npm run measure:scan-prompts` uses the existing local conservative estimator (`ASCII/3.5 + non-ASCII*1.1`) and the exact scanner system wrapper. On the 0.5.21 stable matrix, estimated final input is 6,138 tokens for the minimal one-NPC fixture, 6,141 for a rich first encounter, 7,206 for three active plus one mentioned NPC, 6,465 for observation development, 7,807 for dense collections/locks/forms, 6,343 with 1,000 stored NPCs but one relevant NPC, 6,867 for structured blocks plus custom criteria, and 4,604 for targeted Refresh. This is only +37 to +69 estimated tokens over the same 0.5.20 fixtures to clarify Role versus grounded Background and correct the contradictory example. A deliberately long current response remains about 21,095 estimated tokens because the current scene is preserved in full. These are local engineering estimates, not provider-reported usage.
 
 ### Dossier completeness and safety
 
@@ -74,7 +75,7 @@ User-owned portraits, locks, manual corrections, importance, and suppression tom
 
 Current boundaries:
 
-- Release label: **0.5.20**
+- Release label: **0.5.21**
 - Persisted state schema: **1**
 - Settings schema: **1**
 - Model semantic contract: **6**

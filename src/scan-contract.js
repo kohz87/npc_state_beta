@@ -28,14 +28,14 @@ export function scanOutputExamples({ includeNew = true, includeExisting = true }
     const populated = emptyScanPayload();
     const zero = () => ({ evaluated: true, impact: 'none', delta: Object.fromEntries(RELATIONSHIP_AXES.map(axis => [axis, 0])), axisEvidence: {}, reason: 'No relationship shift.' });
     if (includeNew) {
-        const excerpt = 'Nia, harbor clerk in blue, tells Ari “Registry first,” and taps the signature box.';
+        const excerpt = 'Nia, harbor clerk of the South Quay Registry, tells Ari “Registry first,” and taps the signature box.';
         const evidence = { excerpts: [excerpt], explanation: 'Nia directs Ari through registry.' };
         populated.exchangeActiveNpcIds.push('Nia');
         populated.inChatNpcIds.push('Nia');
         const nia = {
             id: '', name: 'Nia', identityKind: 'named', evaluatedGroups: [...DOSSIER_EVALUATION_GROUPS],
             identityEvidence: { anchor: 'Nia', ...evidence }, activityEvidence: { exchangeActive: evidence, inChat: evidence },
-            role: 'Harbor clerk', appearance: 'Blue coat.', personality: 'Brisk and impatiently task-focused during professional intake.', speech: 'Brief practical instructions.', status: 'Processing registry.',
+            role: 'Harbor clerk', background: 'Clerk of the South Quay Registry.', appearance: 'Blue coat.', personality: 'Brisk and impatiently task-focused during professional intake.', speech: 'Brief practical instructions.', status: 'Processing registry.',
             relationshipChange: zero(), relationshipSummary: 'Professional clerk-applicant interaction.', relationshipSummaryEvidence: evidence,
         };
         const proposed = new Set(Object.keys(nia));
