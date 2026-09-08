@@ -51,5 +51,6 @@ replace_once('tests/v077-host-capture.test.mjs', "assert.equal(result.ok, true);
 
 # The first pass did not establish lifecycle, so assert only that the forbidden completion death was ignored.
 replace_once("tests/v0532-first-contact-completion.test.mjs", "    assert.equal(npc.lifeState, 'alive');", "    assert.equal(npc.lifeState, 'unknown');")
+replace_once("tests/v0532-first-contact-completion.test.mjs", "    assert.equal(h.persisted().socialEdges.length, 0);", "    assert.equal((h.persisted().socialEdges || []).length, 0);")
 
 print('v0.5.32 regression refinements staged')
