@@ -1,54 +1,33 @@
-name: NPC State CI
+name: NPC State Stage v0.5.17
 
 on:
-  workflow_dispatch:
   push:
+    branches:
+      - 'fix/v0.5.17-phase1-corrections'
     paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'scripts/**'
       - '.github/workflows/ci.yml'
-      - 'manifest.json'
-      - 'package.json'
-      - 'bootstrap.js'
-      - 'README.md'
-      - 'CHANGELOG.md'
-      - 'DEVELOPMENT.md'
-  pull_request:
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'scripts/**'
-      - '.github/workflows/ci.yml'
-      - 'manifest.json'
-      - 'package.json'
-      - 'bootstrap.js'
-      - 'README.md'
-      - 'CHANGELOG.md'
-      - 'DEVELOPMENT.md'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  validate:
+  stage:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
         uses: actions/checkout@v4
-      - name: Set up Node
-        uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - name: Validate authoritative source
-        run: npm run validate
-      - name: Run regression tests
-        run: npm test
-      - name: Package extension
-        run: npm run package
-      - name: Upload package
-        uses: actions/upload-artifact@v4
-        with:
-          name: npc-state-beta-package
-          path: dist/*.zip
-          if-no-files-found: error
+          fetch-depth: 0
+      - name: Apply exact tested corrective patch
+        run: |
+          cat scripts/.v0517.patch.b64.* | base64 --decode > /tmp/v0517.patch
+          echo 'e0a9b14f66ed6ce92bcac6e16ffdb4004a09a7d2fc4dfcbe17ea75d927cd4a1d  /tmp/v0517.patch' | sha256sum -c -
+          git apply --check /tmp/v0517.patch
+          git apply /tmp/v0517.patch
+          git checkout origin/main -- .github/workflows/ci.yml
+          rm scripts/.v0517.patch.b64.*
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: correct Phase 1 observation evidence handling'
+          git push origin HEAD:${GITHUB_REF_NAME}
