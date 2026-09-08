@@ -187,7 +187,7 @@ export function identityPresencePromptRules() {
     return [
         'IDENTITY / ACTIVITY: judge the WHOLE CURRENT exchange. Pronouns, descriptions, scene continuity, and a name established elsewhere in the exchange may bind the same character.',
         'exchangeActive=spoke/acted/was directly acted upon/directly perceived a story-relevant event; inChat=individually relevant in the active scene at END; worldActive=explicit ongoing OFF-SCREEN activity. Mention/topic/history alone is not activity. inChat and worldActive are mutually exclusive final states.',
-        'NEW identity needing contextual binding uses identityEvidence:{anchor,excerpts,explanation}; anchor is an actual current-visible proper name or unique role, excerpts are 1-3 exact current-visible quotes, and missing name/title parts are never invented.',
+        'NEW contextual identity uses identityEvidence:{anchor,excerpts,explanation}; anchor is the exact current-visible proper/short name or unique role/description; excerpts are 1-3 exact current-visible quotes; never invent missing name/title parts.',
         'For claimed exchangeActive/inChat/worldActive channels, provide activityEvidence with 1-3 exact CURRENT VISIBLE quotes plus a brief explanation when practical. Visible narrative alone is sufficient; structured/reference blocks are optional corroboration.',
     ];
 }
@@ -195,7 +195,7 @@ export function identityPresencePromptRules() {
 export function structuredEvidencePromptRules() {
     return [
         'STRUCTURED BLOCK FIREWALL: visible narrative outside <Blocks> is full event evidence. <World_State> may corroborate location/status/scene placement only; NPCs Present does not prove inChat, while Off-Screen may corroborate worldActive. It never proves exchange action/speech/perception or independently introduces an NPC.',
-        'A visible unique short-name anchor may be enriched by one compatible canonical full name in the same current World_State; without the visible anchor, structured/reference blocks cannot manufacture identity.',
+        'A grounded visible anchor may use one compatible canonical name from current World_State; keep identityEvidence.anchor visible and put structured-only canonical wording in name. World_State alone cannot introduce an NPC.',
         '<NPC_Inner_Chatter> may ground private mood/goal/attitude/relationship context only; it never proves presence, action, speech, gesture, or visible reaction. Other <Blocks> children are not ordinary current-event evidence. Never convert private thought into visible behavior without independent visible support.',
     ];
 }

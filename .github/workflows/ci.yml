@@ -28,7 +28,7 @@ on:
       - 'DEVELOPMENT.md'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
@@ -36,84 +36,16 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Apply v0.5.28 candidate on release branch
-        if: github.ref == 'refs/heads/release/v0.5.28' && hashFiles('scripts/v0528-release.tmp.mjs') != ''
-        run: |
-          node <<'NODE'
-          const fs = require('node:fs');
-          const p = 'scripts/v0528-release.tmp.mjs';
-          let s = fs.readFileSync(p, 'utf8');
-          s = s.replace(/\n  s = replaceOnce\(s,\n    "import \{ evidenceReferenceScope \} from '\.\/evidence-adapter\.js';",[\s\S]*?s = s\.replace\("import \{ \} from '\.\/evidence-adapter\.js';\\n", ''\);\n/, '\n');
-          s = s.replace(", 'restrictedEvidenceScope', 'evidenceReferenceScope']", ", 'restrictedEvidenceScope']");
-          fs.writeFileSync(p, s);
-          NODE
-          node scripts/v0528-release.tmp.mjs
-          node <<'NODE'
-          const fs = require('node:fs');
-          const replaceOnce = (path, before, after, label) => {
-            let source = fs.readFileSync(path, 'utf8');
-            const count = source.split(before).length - 1;
-            if (count !== 1) throw new Error(`${label}: expected one match, found ${count}`);
-            source = source.replace(before, after);
-            fs.writeFileSync(path, source);
-          };
-
-          replaceOnce(
-            'src/evidence-adapter.js',
-            "'NEW identity needing contextual binding uses identityEvidence:{anchor,excerpts,explanation}; anchor is the actual current-visible proper/short name or unique role/description that identifies the individual, excerpts are 1-3 exact current-visible quotes, and missing name/title parts are never invented.',",
-            "'NEW contextual identity uses identityEvidence:{anchor,excerpts,explanation}; anchor is the exact current-visible proper/short name or unique role/description; excerpts are 1-3 exact current-visible quotes; never invent missing name/title parts.',",
-            'compact identity prompt'
-          );
-          replaceOnce(
-            'src/evidence-adapter.js',
-            "'A unique current-visible identity anchor (proper/short name or unique role/description) may be linked to one compatible canonical full name in the same current World_State. Keep identityEvidence.anchor as the visible wording; a structured-only canonical name belongs in name, never anchor. Without grounded visible identity evidence, structured/reference blocks cannot introduce the NPC.',",
-            "'A grounded visible anchor may use one compatible canonical name from current World_State; keep identityEvidence.anchor visible and put structured-only canonical wording in name. World_State alone cannot introduce an NPC.',",
-            'compact structured identity prompt'
-          );
-          replaceOnce(
-            'tests/v0528-world-identity-enrichment.test.mjs',
-            "  assert.match(structured, /Keep identityEvidence\\.anchor as the visible wording/);\n  assert.match(structured, /structured-only canonical name belongs in name, never anchor/);",
-            "  assert.match(structured, /keep identityEvidence\\.anchor visible/);\n  assert.match(structured, /structured-only canonical wording in name/);",
-            'prompt assertions'
-          );
-
-          replaceOnce(
-            'src/scan-application.js',
-            "    const targetRefs = [...new Set([...exchangeRefs, ...presentRefs, ...bootstrapRefs])];",
-            "    const targetRefs = [...new Set([...exchangeRefs, ...presentRefs, ...bootstrapRefs])];\n    const rawTargetRefs = uniqueStrings([...(result.exchangeActiveNpcIds || []), ...(result.finalPresentNpcIds || []), ...(result.worldActiveNpcIds || [])]);",
-            'raw target refs'
-          );
-          replaceOnce(
-            'src/scan-application.js',
-            "        const referenced = targetRefs.some(ref => patchReferenceMatches(patch, ref)) || worldRefs.some(ref => patchReferenceMatches(patch, ref));\n        if (!npc) {\n            if (!referenced) {\n                setPatchResolution(patchIndex, 'unresolved', '', 'not-referenced');\n                continue;\n            }\n            if (!newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText, result.npcs)) {\n                setPatchResolution(patchIndex, 'unresolved', '', 'identity-evidence-unresolved');\n                continue;\n            }",
-            "        const referenced = targetRefs.some(ref => patchReferenceMatches(patch, ref)) || worldRefs.some(ref => patchReferenceMatches(patch, ref));\n        if (!npc) {\n            const rawReferenced = rawTargetRefs.some(ref => patchReferenceMatches(patch, ref));\n            const identityAllowed = newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText, result.npcs);\n            if (!referenced) {\n                setPatchResolution(patchIndex, 'unresolved', '', rawReferenced && !identityAllowed ? 'identity-evidence-unresolved' : 'not-referenced');\n                continue;\n            }\n            if (!identityAllowed) {\n                setPatchResolution(patchIndex, 'unresolved', '', 'identity-evidence-unresolved');\n                continue;\n            }",
-            'identity diagnostic mapping'
-          );
-          NODE
-          git checkout 0cc427cac920db0e332bb1b9b23f96f381affcaf -- .github/workflows/ci.yml
       - name: Validate authoritative source
         run: npm run validate
       - name: Run regression tests
         run: npm test
       - name: Package extension
         run: npm run package
-      - name: Measure scanner prompts
-        run: npm run measure:scan-prompts
-      - name: Commit verified candidate and restore ordinary CI
-        if: github.ref == 'refs/heads/release/v0.5.28' && hashFiles('scripts/v0528-release.tmp.mjs') != ''
-        run: |
-          rm -f .github/workflows/v0528-release.tmp.yml scripts/v0528-release.tmp.mjs tests/release-prompt-measure.tmp.test.mjs
-          git config user.name "kohz87"
-          git config user.email "83744063+kohz87@users.noreply.github.com"
-          git add -A
-          git commit -m "fix: unify new npc identity enrichment"
-          git push origin HEAD:release/v0.5.28
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:

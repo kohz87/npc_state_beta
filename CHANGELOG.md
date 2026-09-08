@@ -2,6 +2,12 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.28
+
+- Unify first-seen identity admission around one validated current-visible identity anchor. A proper/short name or unique role/description must appear inside exact current-visible identity evidence; a compatible proper canonical name may be enriched from the same current World_State placement without turning that structured-only name into the anchor.
+- Remove the superseded deterministic role-head/intro-word World_State fallback instead of keeping two competing identity authorities. Preserve identity collision checks, unique-anchor ownership, structured/private firewalls, Balanced/Named preferred/Manual admission semantics, and existing activity/relationship separation.
+- Add Maren-style production regressions for role-to-canonical enrichment, structured-only-anchor rejection, fabricated/disconnected evidence, ambiguous shared roles, short-name enrichment, admission policies, private/excluded rejection, prompt consistency, and retired-code absence. Persisted schema remains version 1.
+
 ## 0.5.27
 
 - Fix intermittent first-seen NPC creation when the scanner emits a contextual canonical role label such as `Guild Receptionist` while the visible narrative grounds the same person through a shorter identity anchor such as `receptionist`.

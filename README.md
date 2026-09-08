@@ -2,9 +2,9 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.27
+## Release 0.5.28
 
-0.5.27 fixes intermittent first-seen NPC creation when the scanner returns a contextual role label whose canonical dossier name is richer than the literal visible anchor. A current-visible, exact-validated, uniquely owned `identityEvidence.anchor` can now satisfy new-NPC admission in Balanced mode; fabricated excerpts, anchors absent from their own identity evidence, ambiguous shared anchors, structured-only introductions, and Named preferred/Manual policy bypasses remain rejected.
+0.5.28 unifies first-seen identity grounding: a visible proper/short name or unique role/description is the sole `identityEvidence.anchor`, and current World_State may enrich that already grounded individual with one compatible canonical proper name. The superseded deterministic role-head fallback is removed; structured-only names, fabricated/disconnected excerpts, ambiguous anchors, and policy/collision bypasses remain rejected.
 
 Recent 0.5.x refinements retained by this release include:
 
@@ -23,6 +23,7 @@ Recent 0.5.x refinements retained by this release include:
 - **0.5.25:** accept exact verbatim slices from within one longer quoted-dialogue segment even when the model adds outer quote delimiters, without allowing cross-segment or narration bridging.
 - **0.5.26:** make Current Dynamic target binding POV-independent by combining source-role-aware direct PC references with same-source accepted exchange activity reuse, while preserving wrong-addressee and unowned-evidence rejection.
 - **0.5.27:** admit first-seen contextual role labels through their exact validated unique identity anchor in Balanced mode, without weakening identity collisions, structured evidence firewalls, or stricter admission settings.
+- **0.5.28:** unify visible identity anchors with optional current-World_State canonical-name enrichment and retire the older deterministic role-head bridge.
 
 The automatic workflow remains:
 
