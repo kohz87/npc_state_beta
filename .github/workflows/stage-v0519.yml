@@ -1,0 +1,37 @@
+name: NPC State Stage v0.5.19
+
+on:
+  push:
+    branches:
+      - fix/v0.5.19-compact-contract-fixes
+    paths:
+      - '.github/workflows/stage-v0519.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          ref: fix/v0.5.19-compact-contract-fixes
+          fetch-depth: 0
+      - name: Apply exact reviewed v0.5.19 patch
+        shell: bash
+        run: |
+          cat .npc-state-v0519.part-00 .npc-state-v0519.part-01 .npc-state-v0519.part-02 .npc-state-v0519.part-03 .npc-state-v0519.part-04 > /tmp/v0519.patch.gz.b64
+          echo "a25e732ac883663c3852096c7e5f14798b800bb82a8c126a9290a436453fb7b1  /tmp/v0519.patch.gz.b64" | sha256sum -c -
+          base64 -d /tmp/v0519.patch.gz.b64 | gzip -d > /tmp/v0519.patch
+          echo "db946e2b4e5ded913f14f1b4c222c9f61a9c345612aab676b2a9a44559e8a6ea  /tmp/v0519.patch" | sha256sum -c -
+          git apply --check /tmp/v0519.patch
+          git apply /tmp/v0519.patch
+          rm -f .npc-state-v0519.part-00 .npc-state-v0519.part-01 .npc-state-v0519.part-02 .npc-state-v0519.part-03 .npc-state-v0519.part-04
+          rm .github/workflows/stage-v0519.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: restore compact scanner contract shapes for v0.5.19"
+          git push origin HEAD:fix/v0.5.19-compact-contract-fixes
