@@ -55,3 +55,8 @@ test('release-facing documentation stays synchronized with the active release', 
     assert.match(read('DEVELOPMENT.md'), new RegExp('^- Extension release: `' + version + '`\\s*$', 'm'));
     assert.match(read('CHANGELOG.md'), new RegExp(`^## ${version}\\s*$`, 'm'));
 });
+
+test('active runtime diagnostics do not advertise retired numeric release labels', () => {
+    assert.doesNotMatch(read('src/megumin.js'), /\[NPC State v0\./);
+    assert.doesNotMatch(read('src/storage.js'), /NPC State v0\.\d/);
+});
