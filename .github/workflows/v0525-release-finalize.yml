@@ -1,0 +1,227 @@
+name: v0.5.25 release finalize
+
+on:
+  push:
+    branches:
+      - fix/v0525-quoted-dialogue-slices
+    paths:
+      - '.github/workflows/v0525-release-finalize.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/v0525-quoted-dialogue-slices
+      - name: Synchronize release files and regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import json
+
+          manifest_path = Path('manifest.json')
+          manifest = json.loads(manifest_path.read_text())
+          if manifest.get('version') != '0.5.24':
+              raise SystemExit(f"expected manifest 0.5.24, found {manifest.get('version')}")
+          manifest['version'] = '0.5.25'
+          manifest_path.write_text(json.dumps(manifest, indent=4) + '\n')
+
+          dev = Path('DEVELOPMENT.md')
+          text = dev.read_text()
+          old = '- Extension release: `0.5.24`'
+          if text.count(old) != 1:
+              raise SystemExit('DEVELOPMENT release marker mismatch')
+          dev.write_text(text.replace(old, '- Extension release: `0.5.25`', 1))
+
+          readme = Path('README.md')
+          text = readme.read_text()
+          heading = '## Release 0.5.24'
+          if text.count(heading) != 1:
+              raise SystemExit('README release heading mismatch')
+          text = text.replace(heading, '## Release 0.5.25', 1)
+          old_intro = "0.5.24 fixes exact evidence matching across SillyTavern presentation markup. Identity, activity, and Current Dynamic quotations may cross supported formatting wrappers such as `<font>` into adjacent narration without copying those tags into the model excerpt. Only presentation-only markup is normalized symmetrically; structural/custom tags remain intact, wholly quoted excerpts remain classified as dialogue while mixed dialogue-to-narration excerpts do not, fabricated/wrong-source evidence stays rejected, and numeric relationship scoring is unchanged. No scanner-prompt text or output allowance changed in this patch."
+          new_intro = "0.5.25 generalizes exact relationship evidence matching for quoted dialogue slices. A model may return a verbatim prefix, middle, or suffix of one longer spoken line and surround that slice with its own outer quote delimiters; the matcher now ignores only those outer delimiters after proving the interior is an exact substring of one quoted-dialogue segment in the same permitted source. It still rejects fabricated text, wrong-source evidence, stitching across separate dialogue segments, dialogue-to-narration bridging, and structural/custom-tag bridging. Identity, activity, and Current Dynamic all use the same matcher, and numeric relationship scoring is unchanged. No scanner-prompt text or output allowance changed in this patch."
+          if text.count(old_intro) != 1:
+              raise SystemExit('README intro marker mismatch')
+          text = text.replace(old_intro, new_intro, 1)
+          bullet = '- **0.5.24:** normalize supported presentation-only markup for exact evidence matching so real cross-tag identity/activity/Current Dynamic excerpts survive without weakening source or dialogue boundaries.'
+          if text.count(bullet) != 1:
+              raise SystemExit('README v0.5.24 bullet mismatch')
+          text = text.replace(bullet, bullet + '\n- **0.5.25:** accept exact verbatim slices from within one longer quoted-dialogue segment even when the model adds outer quote delimiters, without allowing cross-segment or narration bridging.', 1)
+          text = text.replace('0.5.24 does not change scanner prompt text, so the stable matrix remains', '0.5.25 does not change scanner prompt text or output allowance, so the stable matrix remains', 1)
+          readme.write_text(text)
+
+          changelog = Path('CHANGELOG.md')
+          text = changelog.read_text()
+          marker = '## 0.5.24\n'
+          if text.count(marker) != 1:
+              raise SystemExit('CHANGELOG v0.5.24 marker mismatch')
+          entry = '''## 0.5.25\n\n- Generalize exact relationship evidence matching for wholly quoted model excerpts that are verbatim slices of a longer source dialogue. Outer quote delimiters may be ignored only when the unwrapped interior matches exactly inside one quoted-dialogue segment of the same permitted source.\n- Keep the relaxation deliberately narrow: fabricated text, wrong-source evidence, mixed dialogue-to-narration excerpts, stitching across separate dialogue segments, and structural/custom-tag bridging remain rejected. Presentation-only markup normalization from v0.5.24 remains unchanged.\n- Identity, activity, and Current Dynamic continue to share the same matcher. Neutral descriptive Current Dynamic can therefore persist at zero numeric relationship movement when its bounded evidence uses a shortened exact dialogue slice.\n- Add generalized matcher and production-path regressions covering prefix/middle dialogue slices plus the fail-closed boundary cases. No database migration, scanner-prompt change, output allowance change, extra scan, or provider-specific branch is introduced.\n\n'''
+          changelog.write_text(text.replace(marker, entry + marker, 1))
+
+          contract = Path('docs/core-contract.md')
+          text = contract.read_text()
+          old_contract = "Exact quotation matching normalizes only supported presentation markup symmetrically, so a real excerpt may cross a `<font>`/similar formatting boundary into adjacent narration without copying markup; structural/custom tags remain intact as evidence boundaries, and quote marks still preserve dialogue-versus-narration classification."
+          new_contract = "Exact quotation matching normalizes only supported presentation markup symmetrically, so a real excerpt may cross a `<font>`/similar formatting boundary into adjacent narration without copying markup. A model may also surround a verbatim prefix, middle, or suffix of one longer quoted-dialogue segment with its own outer quote delimiters; those delimiters may be ignored only after the unwrapped interior matches exactly inside one quoted-dialogue segment of the same permitted source. This rule cannot stitch separate dialogue segments, bridge dialogue into narration, or cross structural/custom tags; quote classification remains dialogue for the accepted quoted slice."
+          if text.count(old_contract) != 1:
+              raise SystemExit('core-contract evidence sentence mismatch')
+          contract.write_text(text.replace(old_contract, new_contract, 1))
+          PY
+
+          cat > tests/v0525-quoted-dialogue-slices.test.mjs <<'EOF'
+          import test from 'node:test';
+          import assert from 'node:assert/strict';
+
+          import { buildExchangeEvidencePolicy, profileEvidenceText, relationshipEvidenceText } from '../src/evidence-adapter.js';
+          import { relationshipEvidenceExcerptMatch } from '../src/relationship-evidence.js';
+          import { applyScanResult } from '../src/scanner.js';
+          import { createEmptyState } from '../src/schema.js';
+
+          const PLAYER = 'Lucien Noctis';
+          const DIRECT = 'Maren Cole caught your sleeve and steered you to the guild counter before releasing you beside the open ledger.';
+          const FULL_DIALOGUE = '"Name goes on the line. First name, clan name, whatever you answer to when the watch calls the gate. Then pick the paper you want. The turnip farmers are screaming at the bailiff every morning. Those tusks need clearing before nightfall."';
+          const SHORT_PREFIX = '"Name goes on the line. First name, clan name, whatever you answer to when the watch calls the gate. Then pick the paper you want."';
+          const SHORT_MIDDLE = '"First name, clan name, whatever you answer to when the watch calls the gate."';
+          const ASSISTANT = [DIRECT, `<font color="#ff9933">${FULL_DIALOGUE}</font>`, 'Maren tapped the pen against the desk.'].join('\n\n');
+
+          function source(text = ASSISTANT) {
+              return [{ id: 'assistant-visible', kind: 'visible', text }];
+          }
+
+          function exchangeFor(assistantText = ASSISTANT) {
+              return {
+                  user: { id: 0, is_user: true, name: PLAYER, mes: 'I glance at the clerk and ask, "What now?"' },
+                  assistant: { id: 1, is_user: false, name: 'Narrator', swipe_id: 0, mes: assistantText },
+              };
+          }
+
+          function optionsFor(exchange) {
+              const visible = [profileEvidenceText(exchange.user.mes), profileEvidenceText(exchange.assistant.mes)].filter(Boolean).join('\n');
+              const relationship = [relationshipEvidenceText(exchange.user.mes), relationshipEvidenceText(exchange.assistant.mes)].filter(Boolean).join('\n');
+              return {
+                  sourceMessageId: 1,
+                  turn: 1,
+                  playerName: PLAYER,
+                  relationshipContext: relationship,
+                  profileContext: visible,
+                  semanticEvidenceContext: visible,
+                  evidencePolicy: buildExchangeEvidencePolicy(exchange),
+                  currentAdmissionText: visible,
+                  applyReturnedNpcPatches: true,
+                  applyRelationship: true,
+                  preservePresence: false,
+                  preserveObservation: true,
+                  requireDossierCoverage: false,
+              };
+          }
+
+          function payload(summaryDialogue = SHORT_PREFIX) {
+              return {
+                  exchangeActiveNpcIds: ['Maren Cole'],
+                  inChatNpcIds: ['Maren Cole'],
+                  worldActiveNpcIds: [],
+                  candidateAccounting: {},
+                  npcs: [{
+                      id: '',
+                      name: 'Maren Cole',
+                      identityKind: 'named',
+                      identityEvidence: {
+                          anchor: 'Maren Cole',
+                          excerpts: [DIRECT],
+                          explanation: 'Narration directly identifies Maren while she handles Lucien at the counter.',
+                      },
+                      activityEvidence: {
+                          exchangeActive: {
+                              excerpts: [DIRECT, summaryDialogue],
+                              explanation: 'Maren physically handles Lucien and gives him the registration instructions.',
+                          },
+                          inChat: {
+                              excerpts: [DIRECT],
+                              explanation: 'Maren remains the clerk directly interacting with Lucien.',
+                          },
+                      },
+                      role: 'Guild intake clerk',
+                      relationshipChange: {
+                          evaluated: true,
+                          impact: 'none',
+                          delta: { trust: 0, affection: 0, desire: 0, tension: 0 },
+                          axisEvidence: {},
+                          reason: 'Initial procedural intake does not warrant numeric movement.',
+                      },
+                      relationshipSummary: 'Strictly transactional and authoritative guild intake: Maren treats Lucien as an applicant who must be registered and put to work.',
+                      relationshipSummaryEvidence: {
+                          excerpts: [DIRECT, summaryDialogue],
+                          explanation: 'Maren handles Lucien directly in a brisk clerk-to-applicant exchange.',
+                      },
+                  }],
+                  socialEdges: [],
+                  familyFacts: [],
+                  lifeStateUpdates: [],
+              };
+          }
+
+          test('wholly quoted verbatim slices of one longer dialogue segment match generically', () => {
+              for (const excerpt of [SHORT_PREFIX, SHORT_MIDDLE]) {
+                  const match = relationshipEvidenceExcerptMatch(excerpt, source());
+                  assert.ok(match, excerpt);
+                  assert.equal(match.sourceId, 'assistant-visible');
+                  assert.equal(match.insideQuotedDialogue, true);
+              }
+          });
+
+          test('quoted-slice matching stays exact and bounded to one dialogue segment', () => {
+              assert.equal(relationshipEvidenceExcerptMatch('"Name goes on the line. Then take the silver badge."', source()), null);
+
+              const splitSource = '"Alpha beta." She checked the ledger. "Gamma delta."';
+              assert.equal(relationshipEvidenceExcerptMatch('"Alpha beta. Gamma delta."', source(splitSource)), null);
+              assert.equal(relationshipEvidenceExcerptMatch('"Alpha beta. She checked the ledger."', source(splitSource)), null);
+
+              const structuralSource = '"Alpha <Blocks><World_State>Beta</World_State></Blocks> Gamma"';
+              assert.equal(relationshipEvidenceExcerptMatch('"Alpha Beta Gamma"', source(structuralSource)), null);
+          });
+
+          test('production application accepts shortened dialogue evidence for activity and neutral Current Dynamic', () => {
+              const exchange = exchangeFor();
+              const state = createEmptyState('chat:v0525-dialogue-slice');
+              state.branchSafety = { status: 'safe' };
+              const result = applyScanResult(state, payload(), optionsFor(exchange));
+              const maren = result.state.npcs.find(npc => npc.name === 'Maren Cole');
+
+              assert.ok(maren);
+              assert.equal(maren.relationshipSummary, 'Strictly transactional and authoritative guild intake: Maren treats Lucien as an applicant who must be registered and put to work.');
+              assert.deepEqual(maren.relationship, { trust: 0, affection: 0, desire: 0, tension: 0 });
+              assert.equal(maren.relationshipHistory.length, 0);
+              assert.equal(maren.relationshipEvidenceHistory.length, 0);
+              assert.ok(result.state.activeNpcIds.includes(maren.id));
+              const diagnostic = result.semanticDiagnostics.find(row => row.field === 'relationshipSummary');
+              assert.equal(diagnostic?.status, 'applied');
+          });
+
+          test('production application rejects a fabricated shortened dialogue proposal without mutating Current Dynamic', () => {
+              const exchange = exchangeFor();
+              const state = createEmptyState('chat:v0525-dialogue-fabricated');
+              state.branchSafety = { status: 'safe' };
+              const result = applyScanResult(state, payload('"Name goes on the line. Then take the silver badge."'), optionsFor(exchange));
+              const maren = result.state.npcs.find(npc => npc.name === 'Maren Cole');
+
+              assert.ok(maren);
+              assert.equal(maren.relationshipSummary, '');
+              assert.deepEqual(maren.relationship, { trust: 0, affection: 0, desire: 0, tension: 0 });
+              const diagnostic = result.semanticDiagnostics.find(row => row.field === 'relationshipSummary');
+              assert.equal(diagnostic?.status, 'rejected-proposal');
+          });
+          EOF
+
+          rm .github/workflows/v0525-release-finalize.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add manifest.json DEVELOPMENT.md README.md CHANGELOG.md docs/core-contract.md tests/v0525-quoted-dialogue-slices.test.mjs .github/workflows/v0525-release-finalize.yml
+          git commit -m "test: cover generalized quoted dialogue slices for v0.5.25"
+          git push origin HEAD:fix/v0525-quoted-dialogue-slices
