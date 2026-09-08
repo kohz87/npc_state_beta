@@ -8,6 +8,13 @@ export const SCAN_ARRAY_MEMBERS = Object.freeze({
 });
 export const SCAN_IDENTITY_KINDS = Object.freeze(['named', 'role-label']);
 
+export const SCAN_LIFECYCLE_EXAMPLE_ROW = Object.freeze({
+    id: 'npc-ivo',
+    lifeState: 'dead',
+    lifeStateCertainty: 'explicit',
+    lifeStateReason: 'Ivo died.',
+});
+
 export function emptyScanPayload() {
     return Object.fromEntries(Object.keys(SCAN_ARRAY_MEMBERS).map(key => [key, []]));
 }
@@ -72,8 +79,7 @@ export function scanOutputContract(options = {}) {
         options.includeRelationship === false ? '' : (compact
             ? 'Relationship: impact=none|ordinary|meaningful|major|extreme; axes=trust|affection|desire|tension. Nonzero axes need axisEvidence. For each exchange-active NPC, relationshipSummary must be present: grounded text when a Current Dynamic is supported, or "" when evaluated but insufficient; changed text needs exact evidence. Never invent intimacy.'
             : 'Exchange-active NPCs evaluate relationshipChange: impact=none|ordinary|meaningful|major|extreme; axes=' + RELATIONSHIP_AXES.join('|') + '. Nonzero axes need axisEvidence:{axis:{excerpts,explanation}}; optional priority:[axes]. For every exchange-active NPC, include relationshipSummary: use grounded descriptive text when the Current Dynamic is established/changed, preserve an already established unchanged dynamic by returning the same text or use an empty string when current evidence is insufficient to establish one. Changed relationshipSummary needs relationshipSummaryEvidence even at zero delta. Never invent scores/intimacy.'),
-        compact
-            ? 'Graph/life rows (not JSON examples): socialEdges from,to,relation,summary,provenance; familyFacts owner,relation,members,count,descriptor,evidence; lifeStateUpdates id/name,state,certainty,reason,livingReturn. dead->alive needs livingReturn:true.'
-            : 'Row notation (NOT JSON): socialEdges:{from,to,relation,summary,provenance}; familyFacts:{owner,relation,members:[],count,descriptor,evidence}; lifeStateUpdates:{id,name,lifeState,lifeStateCertainty,lifeStateReason,livingReturn}. State=alive|dead|unknown; certainty=explicit|strong|uncertain; target-bound reason; dead-to-alive requires livingReturn:true.',
+        'Rows (shape notation): socialEdges{from,to,relation,summary,provenance}; familyFacts{owner,relation,members,count,descriptor,evidence}; lifeStateUpdates{id|name,lifeState,lifeStateCertainty,lifeStateReason,livingReturn?}. lifeState alive|dead|unknown; certainty explicit|strong|uncertain; dead->alive needs livingReturn:true + grounded target-bound reason.',
+        'Life row example: ' + JSON.stringify(SCAN_LIFECYCLE_EXAMPLE_ROW),
     ].filter(Boolean).join('\n');
 }

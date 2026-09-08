@@ -38,6 +38,25 @@ const DURABLE_FIELDS = new Set(DOSSIER_DURABLE_FIELDS);
 const AGE_KINDS = new Set(['birthday', 'elapsed', 'correction']);
 const PROFILE_EVOLUTION_FIELDS = new Set(['personality', 'behaviorProfile', 'speech', 'mannerisms']);
 
+export const SEMANTIC_COLLECTION_CHANGE_EXAMPLE = Object.freeze({
+    field: 'mannerisms',
+    operation: 'refine',
+    changes: Object.freeze([
+        Object.freeze({ action: 'replace', expected: 'Taps twice.', value: 'Taps once.' }),
+        Object.freeze({ action: 'remove', expected: 'Rings bell.' }),
+        Object.freeze({ action: 'add', value: 'Squares pages.' }),
+    ]),
+    sources: Object.freeze([Object.freeze({ messageId: null, excerpt: 'Ivo now taps once, skips the bell, and squares pages.' })]),
+});
+
+export const SEMANTIC_FORM_UPDATE_EXAMPLE = Object.freeze({
+    field: 'appearanceForms',
+    operation: 'replace',
+    scope: Object.freeze({ form: 'Human' }),
+    value: 'Human form with auburn hair.',
+    sources: Object.freeze([Object.freeze({ messageId: null, excerpt: 'Human form: auburn hair.' })]),
+});
+
 function compact(value, max = 2000) {
     return String(value ?? '').replace(/\u0000/g, '').trim().slice(0, max);
 }
@@ -147,15 +166,15 @@ export function semanticUpdatePrompt({ npcs = [], mode = 'scan', allowedSourceId
         `NPC STATE DOSSIER UPDATE CONTRACT v${NPC_STATE_MODEL_CONTRACT_VERSION}:`,
         `Mode: ${mode}. EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates; do not also emit legacy/direct ordinary replacements. Semantic fields: ${dossierSemanticFieldList()}. Operations: ${DOSSIER_SEMANTIC_OPERATIONS.join('|')}.`,
         `Coverage: every exchange-active EXISTING NPC inspects groups [${groups}]; targeted Refresh inspects all supplied groups. Proposed fields use semanticUpdates; otherwise list fieldEvaluations unchanged|insufficient|unavailable. Group labels alone are not field coverage.`,
-        'Update shape: {field,operation,value?,changes?,clear?,durability?,scope?,ageKind?,sources:[{messageId,excerpt}],explanation}. Omission preserves state; remove is explicit; empty arrays clear only with supported clear:true. Established chronological age replacement uses ageKind birthday|elapsed|correction.',
-        'Sources must be concrete exact text from the permitted source message they claim; saved dossier text is context, not independent proof. The validator enforces source/target identity, manual locks, value shape, limits, and persistence; the model decides narrative meaning.',
-        'Structured authority: visible narrative may support any semantic field; World_State only live location/status; NPC_Inner_Chatter only private mood/goal. Structured blocks never independently rewrite durable canon/profile/memory/keyRelationships/currentForm.',
+        'Update:{field,operation,value?,changes?,clear?,durability?,scope?,ageKind?,sources:[{messageId,excerpt}],explanation?}. Shape notation is explanatory. Omission preserves; remove is explicit; clear:true authorizes an empty collection. Age replacement needs ageKind birthday|elapsed|correction.',
+        'Sources: exact text from the permitted claimed message; saved dossier is context, not proof. Validator enforces source/target identity, locks, value shape, limits, persistence; model decides narrative meaning.',
+        'Structured authority: visible narrative may support any field; World_State only live location/status; NPC_Inner_Chatter only private mood/goal. Structured blocks never independently rewrite durable canon/profile/memory/keyRelationships/currentForm.',
         'Durable canon/profile needs durable evidence. Temporary sleep, silence, mood, injury, one-off action/pose, or temporary form does not become durable characterization; later grounded characterization may replace an obsolete temporary placeholder.',
         'Actual age is chronological: established replacement needs ageKind birthday|elapsed|correction plus evidence for the resulting number; never derive it from apparent age or invented calendar arithmetic. Birthday is passive freeform calendar metadata: preserve fantasy calendars, do not infer it from age, and do not auto-advance age merely because the date passes.',
         'After grounded birthday/elapsed aging, update apparentAge/appearance/forms only when established species/setting maturation supports it; unknown biology remains unknown, correction alone does not imply growth, and minor maturation stays neutral/non-sexual.',
-        'A physical form is a coherent body with materially distinct anatomy, including partial/magical/spectral/reversible forms; outfit, pose, mood, injury, or aura alone is not a form. Temporary currentForm does not rewrite species/shared appearance. appearanceForms targets one named/ref form; currentForm is a separate live scalar.',
+        'Physical form = distinct anatomy; outfit/pose/mood/injury/aura alone is not. appearanceForms establish/replace: scope:{form:"name"}+value:"appearance"|{name,appearance}; remove uses scope; ref may target it. currentForm is separate. Example: ' + JSON.stringify(SEMANTIC_FORM_UPDATE_EXAMPLE),
         'Live mood/location/goal/status/currentForm use the newest grounded truth; conclusively ended live values may be removed. Status is current activity/condition, never presence/lifecycle.',
-        'Collections behaviorProfile/mannerisms/keyRelationships/memories use supplied refs or exact expected values for targeted changes; replace/remove before add so full collections can evolve without evicting unrelated entries. appearanceForms likewise targets one named/ref form; currentForm is a separate live scalar.',
+        'Collections behaviorProfile/mannerisms/keyRelationships/memories: changes:[{action:add|replace|remove,ref?,expected?,value?}]. add=>value; replace=>value+(ref|expected); remove=>ref|expected. ref=supplied edit ref; expected=exact entry. replace/remove run before add; unrelated entries survive. Example: ' + JSON.stringify(SEMANTIC_COLLECTION_CHANGE_EXAMPLE),
         mode === 'historical' ? 'HISTORICAL SAFETY: cite only evidence at or before this reconstruction point; never future messages.' : '',
         sources.length ? `PERMITTED SOURCE MESSAGE IDS: ${JSON.stringify(sources)}` : 'PERMITTED SOURCE MESSAGE IDS: only IDs present in the supplied prompt/window.',
         compactContext ? 'SEMANTIC EDIT INDEX (refs/locks/recent evidence; stored values are in the main dossier context):' : 'CURRENT DOSSIER CONTEXT:',
