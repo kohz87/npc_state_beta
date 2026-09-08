@@ -2,6 +2,14 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.17
+
+- Correct the Phase 1 observation contract so every prompt and parser-tested literal example advertises `profileObservations` as an array; an object container now fails at the structural boundary instead of reaching the per-observation validator.
+- Use one source-owned profile-evidence identity rule: exact normalized concept distinguishes independent observations within one owned source, while applying a related profile change over an already observed source excerpt does not create a second evidence record.
+- Validate every semantic/observation excerpt against the specific claimed permitted message before deriving source-event ownership; `messageId:null` means the owned current message when per-message source contexts are available.
+- Preserve distinct facts that share one excerpt, independent support from later exchanges, candidate accounting, manual locks, one automatic post-response scanner request, guarded persistence/checkpoints, and existing rollback/recovery behavior.
+- Keep historical enrichment/backfill deferred and unnumbered. Persisted/settings schema, model semantic contract, foreground contract, storage identity, and database format remain unchanged.
+
 ## 0.5.16
 
 - Audit the same bounded existing-NPC candidate set supplied to routine Scan independently of model-returned activity arrays; candidate accounting is model-judged and remains separate from physical presence and ordinary field completeness.

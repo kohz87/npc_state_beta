@@ -45,7 +45,7 @@ function npcIssues(npc, index, issues) {
         issues.push(`${path}.identityKind: expected ${SCAN_IDENTITY_KINDS.join('|')}, not ${String(npc.identityKind).slice(0, 40)}`);
     }
     for (const [field, canonical] of Object.entries(DRIFT_KEYS)) if (has(npc, field)) issues.push(`${path}.${field}: unsupported; use ${canonical}`);
-    for (const field of ['semanticUpdates', 'evaluatedGroups']) if (has(npc, field) && !Array.isArray(npc[field])) issues.push(`${path}.${field}: expected array`);
+    for (const field of ['semanticUpdates', 'evaluatedGroups', 'profileObservations']) if (has(npc, field) && !Array.isArray(npc[field])) issues.push(`${path}.${field}: expected array`);
     for (const field of ['identityEvidence', 'activityEvidence', 'fieldEvaluations', 'relationshipSummaryEvidence', 'relationshipChange']) {
         if (has(npc, field) && !object(npc[field])) issues.push(`${path}.${field}: expected object`);
     }

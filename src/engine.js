@@ -373,11 +373,21 @@ export function createNpcStateEngine(adapters = {}) {
             ? profileEvidenceSourceEventKey(captureOperationOwnership('profile-evidence-source', chatKey, chat, sourceMessageId))
             : '';
         const sourceEventKeys = {};
-        for (const id of [...new Set((Array.isArray(sourceIds) ? sourceIds : []).filter(Number.isInteger))]) {
+        const semanticSourceContextsByMessageId = {};
+        const ids = [...new Set([sourceMessageId, ...(Array.isArray(sourceIds) ? sourceIds : [])].filter(Number.isInteger))];
+        for (const id of ids) {
+            const message = chat[id];
+            if (!message || message.is_system) continue;
             const key = profileEvidenceSourceEventKey(captureOperationOwnership('profile-evidence-source', chatKey, chat, id));
             if (key) sourceEventKeys[id] = key;
+            const view = analyzeStructuredEvidence(message.mes || '');
+            semanticSourceContextsByMessageId[id] = {
+                profileContext: profileEvidenceText(message.mes || ''),
+                semanticWorldContext: view.worldStateText,
+                semanticPrivateContext: view.innerChatterText,
+            };
         }
-        return { sourceEventKey: current, sourceEventKeys };
+        return { sourceEventKey: current, sourceEventKeys, semanticSourceContextsByMessageId };
     }
 
 

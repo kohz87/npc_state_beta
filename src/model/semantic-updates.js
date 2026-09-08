@@ -194,22 +194,34 @@ function sourceRows(update) {
     })).filter(row => row.excerpt);
 }
 
-function semanticSourceContext(field, options = {}) {
-    const parts = [options.semanticEvidenceContext ?? options.profileContext];
+function semanticSourceContext(field, options = {}, messageId = null) {
+    const byMessage = options?.semanticSourceContextsByMessageId;
+    let source = options;
+    if (Number.isInteger(messageId) && byMessage && typeof byMessage === 'object' && !Array.isArray(byMessage)) {
+        const scoped = byMessage[messageId];
+        if (!scoped || typeof scoped !== 'object' || Array.isArray(scoped)) return '';
+        source = scoped;
+    }
+    const parts = [source.semanticEvidenceContext ?? source.profileContext];
     const structuredContext = dossierFieldDefinition(field)?.structuredContext;
-    if (structuredContext) parts.push(options[structuredContext]);
+    if (structuredContext) parts.push(source[structuredContext]);
     return evidenceKey(parts.filter(Boolean).join('\n'), 50000);
 }
 
 function sourceValidation(update, options = {}) {
     const rows = sourceRows(update);
     if (!rows.length) return { ok: false, reason: 'missing-source' };
-    const context = semanticSourceContext(update.field, options);
-    if (!context) return { ok: false, reason: 'no-permitted-context' };
     const currentMessageId = Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null;
+    const hasPerMessageContexts = Boolean(options?.semanticSourceContextsByMessageId
+        && typeof options.semanticSourceContextsByMessageId === 'object'
+        && !Array.isArray(options.semanticSourceContextsByMessageId));
     for (const row of rows) {
         if (row.messageId !== null && row.messageId < 0) return { ok: false, reason: 'invalid-source-reference' };
         if (currentMessageId !== null && row.messageId !== null && row.messageId > currentMessageId) return { ok: false, reason: 'future-source-reference' };
+        const claimedMessageId = row.messageId !== null ? row.messageId : currentMessageId;
+        if (hasPerMessageContexts && !Number.isInteger(claimedMessageId)) return { ok: false, reason: 'invalid-source-reference' };
+        const context = semanticSourceContext(update.field, options, hasPerMessageContexts ? claimedMessageId : null);
+        if (!context) return { ok: false, reason: hasPerMessageContexts ? 'invalid-source-reference' : 'no-permitted-context' };
         const excerpt = evidenceKey(row.excerpt, 1600);
         if (!excerpt || !context.includes(excerpt)) return { ok: false, reason: 'out-of-scope-source' };
     }
@@ -230,6 +242,46 @@ export function semanticSourceEventKey(rows = [], options = {}) {
     }).filter(Boolean))].sort();
     if (keys.length) return keys.join('+').slice(0, 240);
     return String(options.sourceEventKey || '').trim().slice(0, 240);
+}
+
+function profileEvidenceParts(value) {
+    return String(value || '').split(/\s+\|\s+/).map(part => evidenceKey(part, 1600)).filter(Boolean);
+}
+
+function profileEvidenceSourceMatches(entry = {}, candidate = {}) {
+    if (entry.field !== candidate.field) return false;
+    if (candidate.sourceEventKey) return Boolean(entry.sourceEventKey) && entry.sourceEventKey === candidate.sourceEventKey;
+    if (candidate.sourceMessageId !== null) return !entry.sourceEventKey && entry.sourceMessageId === candidate.sourceMessageId;
+    return candidate.turn !== null && !entry.sourceEventKey && entry.sourceMessageId == null && entry.turn === candidate.turn;
+}
+
+function profileEvidenceOverlaps(left, right) {
+    const a = new Set(profileEvidenceParts(left));
+    return profileEvidenceParts(right).some(part => a.has(part));
+}
+
+export function profileEvolutionEvidenceDuplicate(existingInput = [], candidateInput = {}) {
+    const existing = normalizeProfileEvolutionEvidence(existingInput);
+    const candidate = {
+        field: String(candidateInput.field || '').trim(),
+        kind: String(candidateInput.kind || '').trim().toLocaleLowerCase() === 'observation' ? 'observation' : 'applied',
+        concept: compact(candidateInput.concept, 180),
+        evidence: compact(candidateInput.evidence, 600),
+        sourceEventKey: compact(candidateInput.sourceEventKey, 240),
+        sourceMessageId: Number.isInteger(candidateInput.sourceMessageId) ? candidateInput.sourceMessageId : null,
+        turn: Number.isInteger(candidateInput.turn) ? candidateInput.turn : null,
+    };
+    if (!candidate.field || !candidate.concept || !candidate.evidence) return false;
+    const conceptKey = evidenceKey(candidate.concept, 600);
+    return existing.some(entry => {
+        if (!profileEvidenceSourceMatches(entry, candidate)) return false;
+        if (candidate.kind === 'applied' && entry.kind === 'observation') {
+            // Applying a profile change does not create a second independent observation
+            // when a source-owned observation already carries the same concrete excerpt.
+            return profileEvidenceOverlaps(entry.evidence, candidate.evidence);
+        }
+        return entry.kind === candidate.kind && evidenceKey(entry.concept, 600) === conceptKey;
+    });
 }
 
 function manualProtected(npc, field) {
@@ -275,13 +327,7 @@ function appendProfileEvolutionEvidence(npc, update, provenanceRows, options = {
     const sourceEventKey = semanticSourceEventKey(rows, options);
     const turn = Number.isInteger(options.turn) ? options.turn : null;
     const existing = normalizeProfileEvolutionEvidence(npc.profileEvolutionEvidence);
-    const duplicate = existing.some(entry => entry.field === update.field
-        && normalizeName(entry.concept) === normalizeName(concept)
-        && (sourceEventKey
-            ? Boolean(entry.sourceEventKey) && entry.sourceEventKey === sourceEventKey
-            : (sourceMessageId !== null ? entry.sourceMessageId === sourceMessageId : (turn !== null && entry.sourceMessageId == null && entry.turn === turn))));
-    if (duplicate) return;
-    npc.profileEvolutionEvidence = normalizeProfileEvolutionEvidence([...existing, {
+    const candidate = {
         field: update.field,
         kind: 'applied',
         mode: profileEvolutionMode(update),
@@ -291,7 +337,9 @@ function appendProfileEvolutionEvidence(npc, update, provenanceRows, options = {
         sourceMessageId,
         turn,
         at: Date.now(),
-    }]);
+    };
+    if (profileEvolutionEvidenceDuplicate(existing, candidate)) return;
+    npc.profileEvolutionEvidence = normalizeProfileEvolutionEvidence([...existing, candidate]);
 }
 
 function sameValue(left, right) {

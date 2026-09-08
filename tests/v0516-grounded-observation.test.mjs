@@ -124,7 +124,7 @@ test('independent later observation accumulates but same-source retry does not d
     let state = stateWith({ id: 'vrena', name: 'Vrena Tolk', speech: 'Formal and concise.' });
     const first = 'Vrena Tolk answers with a clipped instruction.';
     state = apply(state, { ...EMPTY, npcs: [completePatch('vrena', 'Vrena Tolk', { observations: [observation('speech', first, 'Clipped practical instruction.', 1)] })] }, first, { sourceMessageId: 1, turn: 1 }).state;
-    const replay = apply(state, { ...EMPTY, npcs: [completePatch('vrena', 'Vrena Tolk', { observations: [observation('speech', first, 'Same wording retried.', 1)] })] }, first, { sourceMessageId: 1, turn: 2 });
+    const replay = apply(state, { ...EMPTY, npcs: [completePatch('vrena', 'Vrena Tolk', { observations: [observation('speech', first, 'Clipped practical instruction.', 1)] })] }, first, { sourceMessageId: 1, turn: 2 });
     assert.equal(replay.state.npcs[0].profileEvolutionEvidence.length, 1);
     const second = 'Vrena Tolk again keeps her answer to two blunt practical sentences.';
     const independent = apply(replay.state, { ...EMPTY, npcs: [completePatch('vrena', 'Vrena Tolk', { observations: [observation('speech', second, 'Clipped practical instruction.', 3)] })] }, second, { sourceMessageId: 3, turn: 3 });
@@ -153,7 +153,7 @@ test('an observation and related applied refinement using the same source fact c
     })] }, text);
     assert.equal(result.state.npcs[0].speech, 'Clipped, formal, and practical.');
     assert.equal(result.state.npcs[0].profileEvolutionEvidence.length, 1);
-    assert.equal(result.semanticDiagnostics.some(row => row.reason === 'duplicate-owned-observation'), true);
+    assert.equal(result.semanticDiagnostics.some(row => row.channel === 'profile-observation' && row.status === 'observation-recorded'), true);
 });
 
 test('distinct facts in one owned source are not collapsed merely because their message id matches', () => {
