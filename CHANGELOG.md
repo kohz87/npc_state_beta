@@ -2,6 +2,14 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.20
+
+- Strengthen compact first-pass sufficiency after a real provider scan under-filled Apparent Age, Behavioral Profile, and Mannerisms despite direct life-stage wording, explicit recurrence, and repeated same-scene behavior. One scene may contain multiple independent observations; supported narrow values are preferred over reflexive `insufficient`, while isolated gestures/actions remain insufficient for broad habitual claims.
+- Treat direct visible life-stage wording as positive Apparent Age evidence for a model-led `~N-M` range without adding a phrase-to-range dictionary or weakening chronological Actual Age.
+- Make the existing Current Dynamic target-binding requirement explicit in the compact output contract: a new/changed summary needs at least one exact excerpt that visibly binds the NPC to the player; dialogue-only quotes without speaker identity are supplementary rather than sufficient. Backend target validation remains strict.
+- Add a Vrena-style first-encounter regression proving the intended output can persist Apparent Age, narrow Behavioral Profile, narrow Mannerisms, and a zero-score transactional Current Dynamic together.
+- Keep one automatic post-response scanner request, Phase 1 ownership/observation semantics, v0.5.19 lifecycle/collection/form corrections, schemas/storage identity, and scanner output allowance unchanged. Using the same local estimator/system wrapper, stable fixtures are 6,070 minimal, 6,073 rich first encounter, 7,137 three active plus one mentioned, 6,397 observation development, 7,739 dense collections/locks/forms, 6,275 large DB/one relevant, 6,798 structured/custom, and 4,567 targeted Refresh estimated input tokens; this is +239 to +260 versus v0.5.19 and does not truncate current narrative.
+
 ## 0.5.19
 
 - Correct the compact lifecycle contract to advertise the canonical `lifeState`, `lifeStateCertainty`, and `lifeStateReason` keys. Abbreviated `state`/`certainty`/`reason` lifecycle rows are rejected at the focused proposal boundary with bounded diagnostics instead of silently becoming no-ops; valid sibling proposals still apply.
