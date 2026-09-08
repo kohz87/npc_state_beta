@@ -1,0 +1,27 @@
+name: v0.5.31 temporary verification
+
+on:
+  push:
+    branches:
+      - fix/v0531-live-evidence-birthday-provenance
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate
+        run: npm run validate
+      - name: Tests
+        run: npm test
+      - name: Package
+        run: npm run package
+      - name: Measure scanner prompts
+        run: npm run measure:scan-prompts
