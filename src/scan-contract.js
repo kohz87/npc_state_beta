@@ -39,6 +39,10 @@ export function scanOutputExamples({ includeNew = true, includeExisting = true }
     if (includeExisting) populated.npcs.push({
         id: 'npc-ivo', name: 'Ivo', evaluatedGroups: ['canon'], fieldEvaluations: { unchanged: ['age'], insufficient: ['background'], unavailable: ['personality'] },
         semanticUpdates: [{ field: 'appearance', operation: 'replace', value: 'Green eyes.', sources: [{ messageId: null, excerpt: 'Ivo has green eyes.' }], explanation: 'Ivo has green eyes.' }],
+        profileObservations: [{
+            field: 'speech', observation: 'Uses brief factual corrections during registry work.', concept: 'Brief factual correction replies.',
+            sources: [{ messageId: null, excerpt: 'Ivo says, “That line is wrong.”' }], explanation: 'A grounded speech observation that does not itself force a Speech update.',
+        }],
     });
     return { minimal, populated };
 }
@@ -52,8 +56,8 @@ export function scanOutputContract(options = {}) {
             : 'JSON: all seven arrays required, even empty. References=ids/names. NEW id="", name=canonical name, identityKind=' + SCAN_IDENTITY_KINDS.join('|') + '. EXISTING/name-only: keep supplied id. No canonicalName/activityRefs/live/relationshipToPlayer.',
         compact ? 'NEW ordinary fields are flat; []=string arrays; appearanceForms:[{name,appearance}].' : 'NEW: flat strings; map [] means string arrays; appearanceForms:[{name,appearance}].',
         compact
-            ? 'candidateAccounting maps supplied stable existing NPC ids to evaluated|mentioned|inactive|unresolved; coverage only, never presence. Existing patches may add evidence-only profileObservations for personality|behaviorProfile|speech|mannerisms.'
-            : 'Routine candidateAccounting maps each supplied stable existing NPC id to evaluated|mentioned|inactive|unresolved; it is separate from activity and fieldEvaluations. Existing patches may add evidence-only profileObservations:{field,observation,concept?,sources:[{messageId,excerpt}],explanation?} for personality|behaviorProfile|speech|mannerisms.',
+            ? 'candidateAccounting maps supplied stable existing NPC ids to evaluated|mentioned|inactive|unresolved; coverage only, never presence. Existing patches may add evidence-only profileObservations:[{field,observation,concept?,sources:[{messageId,excerpt}],explanation?}] for personality|behaviorProfile|speech|mannerisms.'
+            : 'Routine candidateAccounting maps each supplied stable existing NPC id to evaluated|mentioned|inactive|unresolved; it is separate from activity and fieldEvaluations. Existing patches may add evidence-only profileObservations:[{field,observation,concept?,sources:[{messageId,excerpt}],explanation?}] for personality|behaviorProfile|speech|mannerisms.',
         compact
             ? 'Evidence={excerpts:[exact quotes],explanation}; identity adds anchor; activity keys=exchangeActive/inChat/worldActive; messageId:null=current.'
             : 'Evidence:{excerpts:[1-3 exact quotes],explanation}; identityEvidence adds anchor. activityEvidence keys:exchangeActive/inChat/worldActive. Identity/activity=current visible. Semantic/observation messageId:null=current, number=history.',

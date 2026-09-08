@@ -1,5 +1,5 @@
 import { normalizeNpc, normalizeProfileEvolutionEvidence } from './schema.js';
-import { semanticSourceEventKey, validateSemanticSourceReference } from './model/semantic-updates.js';
+import { profileEvolutionEvidenceDuplicate, semanticSourceEventKey, validateSemanticSourceReference } from './model/semantic-updates.js';
 
 const PROFILE_FIELDS = new Set(['personality', 'behaviorProfile', 'speech', 'mannerisms']);
 
@@ -7,36 +7,11 @@ function text(value, max = 600) {
     return typeof value === 'string' ? value.replace(/\u0000/g, '').replace(/\s+/g, ' ').trim().slice(0, max) : '';
 }
 
-function evidenceKey(value) {
-    return String(value ?? '')
-        .normalize('NFKC')
-        .toLocaleLowerCase()
-        .replace(/[\s\p{P}\p{S}]+/gu, ' ')
-        .trim()
-        .slice(0, 1600);
-}
-
-function evidenceParts(value) {
-    return String(value || '').split(/\s+\|\s+/).map(evidenceKey).filter(Boolean);
-}
-
 function validSources(value) {
     if (!Array.isArray(value) || !value.length) return false;
     return value.slice(0, 6).every(raw => raw && typeof raw === 'object' && !Array.isArray(raw)
         && (raw.messageId == null || Number.isInteger(raw.messageId))
         && typeof raw.excerpt === 'string' && Boolean(raw.excerpt.trim()));
-}
-
-function duplicatesOwnedFact(existing, field, sourceEventKey, sourceMessageId, rows) {
-    const incoming = new Set(rows.map(row => evidenceKey(row.excerpt)).filter(Boolean));
-    if (!incoming.size) return false;
-    return normalizeProfileEvolutionEvidence(existing).some(entry => {
-        if (entry.field !== field) return false;
-        if (sourceEventKey) {
-            if (!entry.sourceEventKey || entry.sourceEventKey !== sourceEventKey) return false;
-        } else if (entry.sourceMessageId !== sourceMessageId) return false;
-        return evidenceParts(entry.evidence).some(fragment => incoming.has(fragment));
-    });
 }
 
 function diagnostic(patchIndex, observationIndex, field, status, reason = '') {
@@ -106,12 +81,8 @@ export function applyProfileObservations(stateInput, result = {}, options = {}) 
             const rows = validation.rows || [];
             const sourceMessageId = Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null;
             const sourceEventKey = semanticSourceEventKey(rows, options);
-            if (duplicatesOwnedFact(npc.profileEvolutionEvidence, field, sourceEventKey, sourceMessageId, rows)) {
-                diagnostics.push(diagnostic(patchIndex, observationIndex, field, 'no-change-proposed', 'duplicate-owned-observation'));
-                continue;
-            }
             const evidence = rows.map(row => text(row.excerpt, 1000)).filter(Boolean).join(' | ').slice(0, 600);
-            const nextEvidence = normalizeProfileEvolutionEvidence([...(npc.profileEvolutionEvidence || []), {
+            const candidate = {
                 field,
                 kind: 'observation',
                 mode: 'gradual',
@@ -121,7 +92,12 @@ export function applyProfileObservations(stateInput, result = {}, options = {}) 
                 sourceMessageId,
                 turn: Number.isInteger(options.turn) ? options.turn : null,
                 at: Date.now(),
-            }]);
+            };
+            if (profileEvolutionEvidenceDuplicate(npc.profileEvolutionEvidence, candidate)) {
+                diagnostics.push(diagnostic(patchIndex, observationIndex, field, 'no-change-proposed', 'duplicate-owned-observation'));
+                continue;
+            }
+            const nextEvidence = normalizeProfileEvolutionEvidence([...(npc.profileEvolutionEvidence || []), candidate]);
             if (nextEvidence.length === normalizeProfileEvolutionEvidence(npc.profileEvolutionEvidence).length
                 && JSON.stringify(nextEvidence) === JSON.stringify(normalizeProfileEvolutionEvidence(npc.profileEvolutionEvidence))) {
                 diagnostics.push(diagnostic(patchIndex, observationIndex, field, 'no-change-proposed', 'observation-not-retained'));

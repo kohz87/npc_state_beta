@@ -2,9 +2,9 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.16
+## Release 0.5.17
 
-0.5.16 improves grounded observation and dossier completeness without adding another automatic model request or changing the persisted/settings schema, storage identity, relationship mechanics, or recovery model.
+0.5.17 is a focused Phase 1 corrective release. It fixes observation shape, source-owned evidence deduplication, and per-message excerpt ownership without adding another automatic model request or changing the persisted/settings schema, storage identity, relationship mechanics, or recovery model.
 
 Recent 0.5.x refinements retained by this release include:
 
@@ -12,6 +12,7 @@ Recent 0.5.x refinements retained by this release include:
 - **0.5.14:** model-led apparent-age ranges such as `~20-30`, resolved deterministically to one stable per-NPC value such as `~24` without converting Apparent Age into chronological Actual Age.
 - **0.5.15:** repository/runtime hygiene and portrait-ready overall appearance synthesis.
 - **0.5.16:** independent bounded candidate accounting, observation-only profile evidence, and model-led profile consolidation/refinement semantics while retaining one post-response scanner request.
+- **0.5.17:** correct `profileObservations` array examples, source-first observation/application dedupe, and exact claimed-message excerpt validation.
 
 The automatic workflow remains:
 
@@ -52,7 +53,7 @@ Obsolete `scanAfterEachResponse`, `fallbackScan`, and `newNpcHistoryEnrichment` 
 
 ## Relationship and profile behavior
 
-Existing dossiers evolve through the single `semanticUpdates` channel (`establish`, `refine`, `replace`, `remove`). The model judges narrative meaning; deterministic code validates source ownership, target identity, durability, manual locks, collection/form targeting, and permitted fields. Personality, behavioral profile, speech, and mannerisms may also record bounded grounded observations without forcing an immediate dossier mutation. Observation-only and applied-change evidence share the existing `profileEvolutionEvidence` store and commit through the same guarded transaction/checkpoint; same-source retries and an observation that also supports an applied update do not manufacture independent evidence.
+Existing dossiers evolve through the single `semanticUpdates` channel (`establish`, `refine`, `replace`, `remove`). The model judges narrative meaning; deterministic code validates source ownership, target identity, durability, manual locks, collection/form targeting, and permitted fields. Personality, behavioral profile, speech, and mannerisms may also record bounded grounded observations without forcing an immediate dossier mutation. Observation-only and applied-change evidence share the existing `profileEvolutionEvidence` store and commit through the same guarded transaction/checkpoint. Mechanical observation identity uses the owned source event plus field and normalized concept, so distinct concepts can share one excerpt; an applied update that reuses an already observed source excerpt does not manufacture another evidence record. Every cited excerpt is validated against its claimed permitted message before source ownership is derived.
 
 Temporary states such as sleep, unconsciousness, one-off poses, injury, stress, or momentary mood do not automatically become permanent personality/speech. Later grounded evidence may enrich or replace an obsolete placeholder. Behavioral Profile and Mannerisms may consolidate substantially overlapping established entries through targeted collection refs while preserving distinct facts and unrelated entries. Semantic overlap remains model-led rather than hardcoded in English dictionaries.
 
@@ -68,7 +69,7 @@ User-owned portraits, locks, manual corrections, importance, and suppression tom
 
 Current boundaries:
 
-- Release label: **0.5.16**
+- Release label: **0.5.17**
 - Persisted state schema: **1**
 - Settings schema: **1**
 - Model semantic contract: **6**

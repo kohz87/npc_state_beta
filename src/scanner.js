@@ -109,16 +109,16 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     const adapted = adaptLegacySemanticPayload(stateInput, focused.result, { ...semanticOptions, compatibilityDiagnostics });
     const prepared = prepareModelLedPayload(stateInput, adapted, options.admissionMode);
     const applied = core.applyScanResult(stateInput, prepared, options);
-    const semantic = applyModelLedSemanticUpdates(applied.state, adapted, {
-        ...semanticOptions,
-        patchResolutions: applied.patchResolutions,
-    });
-    const observations = applyProfileObservations(semantic.state, adapted, {
+    const observations = applyProfileObservations(applied.state, adapted, {
         ...semanticOptions,
         patchResolutions: applied.patchResolutions,
         existingNpcIds: new Set((stateInput?.npcs || []).map(npc => npc.id)),
     });
-    const family = applyModelLedFamilyFacts(observations.state, adapted, options);
+    const semantic = applyModelLedSemanticUpdates(observations.state, adapted, {
+        ...semanticOptions,
+        patchResolutions: applied.patchResolutions,
+    });
+    const family = applyModelLedFamilyFacts(semantic.state, adapted, options);
     const coverageNpcIds = Array.isArray(options.coverageNpcIds)
         ? options.coverageNpcIds
         : (options.requireDossierCoverage === true ? applied.exchangeActiveNpcIds : []);
@@ -143,7 +143,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     return {
         ...applied,
         state: family.state,
-        semanticDiagnostics: [...compatibilityDiagnostics, ...(applied.applicationDiagnostics || []), ...semantic.diagnostics, ...observations.diagnostics, ...family.diagnostics],
+        semanticDiagnostics: [...compatibilityDiagnostics, ...(applied.applicationDiagnostics || []), ...observations.diagnostics, ...semantic.diagnostics, ...family.diagnostics],
         coverageDiagnostics,
     };
 }

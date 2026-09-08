@@ -116,7 +116,7 @@ test('shared populated example applies both identities and descriptive zero-scor
     const state = createEmptyState('chat:apply');
     state.npcs = [normalizeNpc({ id: 'npc-ivo', name: 'Ivo', appearance: 'Brown eyes.' })];
     const example = scanOutputExamples().populated;
-    const text = `${example.npcs[0].relationshipSummaryEvidence.excerpts[0]} Ivo has green eyes.`;
+    const text = `${example.npcs[0].relationshipSummaryEvidence.excerpts[0]} Ivo has green eyes. Ivo says, “That line is wrong.”`;
     const result = applyScanResult(state, strict(JSON.stringify(example)), {
         sourceMessageId: 1, turn: 1, playerName: 'Ari', currentAdmissionText: text, profileContext: text, relationshipContext: text, applyReturnedNpcPatches: true,
     });
@@ -127,7 +127,10 @@ test('shared populated example applies both identities and descriptive zero-scor
     assert.equal(nia.relationshipSummary, 'Professional clerk-applicant interaction.');
     assert.deepEqual(nia.relationship, { trust: 0, affection: 0, desire: 0, tension: 0 });
     assert.equal(nia.relationshipHistory.length, 0);
-    assert.equal(result.state.npcs.find(npc => npc.id === 'npc-ivo').appearance, 'Green eyes.');
+    const ivo = result.state.npcs.find(npc => npc.id === 'npc-ivo');
+    assert.equal(ivo.appearance, 'Green eyes.');
+    assert.equal(ivo.profileEvolutionEvidence.length, 1);
+    assert.equal(ivo.profileEvolutionEvidence[0].concept, 'Brief factual correction replies.');
 });
 
 test('a zero-score summary with no independent evidence is rejected without fabricating an event', () => {
