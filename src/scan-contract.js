@@ -1,7 +1,7 @@
 import { DOSSIER_EVALUATION_GROUPS, DOSSIER_FIELD_DEFINITIONS, DOSSIER_SEMANTIC_FIELDS } from './model/dossier-fields.js';
 import { RELATIONSHIP_AXES } from './schema.js';
 
-const CURRENT_DYNAMIC_EVIDENCE_RULE = 'CURRENT DYNAMIC EVIDENCE: new/changed relationshipSummary needs relationshipSummaryEvidence:{excerpts:[1-3 exact permitted quotes],explanation}. One excerpt may directly bind THIS NPC to the PLAYER, or a small coherent set may jointly bind the player-facing interaction when it reuses accepted identity/activity evidence from the same owned exchange. Do not combine unrelated passages; quoted you without narrator/player binding is insufficient. The explanation interprets the evidence and need not copy its wording.';
+const CURRENT_DYNAMIC_EVIDENCE_RULE = 'CURRENT DYNAMIC EVIDENCE: new/changed relationshipSummary needs relationshipSummaryEvidence:{excerpts:[1-3 exact permitted quotes],explanation}. Ground it in THIS NPC\'s player-facing interaction. One excerpt may directly bind NPC->PLAYER, or a small coherent set may use connected accepted identity/activity evidence from the same permitted source to supply source/target binding, so the summary need not repeat an already accepted narrator quote. Include narrator context when dialogue leaves the addressee ambiguous; quoted you alone is insufficient. Descriptive context may be established at zero numeric movement. The explanation interprets the evidence and need not copy its wording.';
 
 export const SCAN_OUTPUT_EXAMPLE_SCENES = Object.freeze({
     nia: 'Nia, harbor clerk of the South Quay Registry, wears a blue coat as she tells Ari “Registry first.” She slides the form toward Ari and points to the signature box.',

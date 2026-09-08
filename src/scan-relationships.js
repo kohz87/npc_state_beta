@@ -194,6 +194,44 @@ function summaryExcerptOverlapsAcceptedActivity(excerpt, acceptedExcerpts = []) 
     });
 }
 
+function verifiedTransientEvidenceBindings(rows = [], fallbackExcerpts = [], sources = []) {
+    const candidates = Array.isArray(rows) && rows.length
+        ? rows.map(row => ({ excerpt: String(row?.excerpt || '').trim(), sourceId: String(row?.sourceId || '').trim() }))
+        : (Array.isArray(fallbackExcerpts) ? fallbackExcerpts : []).map(excerpt => ({ excerpt: String(excerpt || '').trim(), sourceId: '' }));
+    const out = [];
+    for (const candidate of candidates.slice(0, 3)) {
+        if (!candidate.excerpt) continue;
+        const matches = (Array.isArray(sources) ? sources.slice(0, 8) : [])
+            .map(source => relationshipEvidenceExcerptMatch(candidate.excerpt, [source]))
+            .filter(Boolean);
+        if (matches.length !== 1) continue;
+        const match = matches[0];
+        if (candidate.sourceId && candidate.sourceId !== match.sourceId) continue;
+        out.push({ excerpt: candidate.excerpt, ...match });
+    }
+    return out;
+}
+
+function explicitOtherNpcTarget(excerpt, subjectNames, playerName, otherNpcNames, match) {
+    if (!identityMentioned(excerpt, otherNpcNames, subjectNames)) return false;
+    return !playerMentioned(excerpt, playerName, [...subjectNames, ...otherNpcNames], {
+        allowNarratorSecondPerson: match?.insideQuotedDialogue !== true,
+    });
+}
+
+function contextualDialogueNarrationAmbiguous(excerpt, subjectNames, playerName, otherNpcNames, acceptedActivityExcerpts, acceptedIdentityExcerpts) {
+    const value = String(excerpt || '').trim();
+    if (!/["“”‘’]/u.test(value)) return false;
+    const narration = narrationOutsideQuotedDialogue(value)
+        .replace(/<[^>]*>/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (!narration) return false;
+    if (summaryExcerptOverlapsAcceptedActivity(value, acceptedActivityExcerpts)
+        || summaryExcerptOverlapsAcceptedActivity(value, acceptedIdentityExcerpts)) return false;
+    return !playerMentioned(narration, playerName, [...subjectNames, ...otherNpcNames], { allowNarratorSecondPerson: true });
+}
+
 function relationshipSummaryContextualTargetBound(npc, excerpts, excerptMatches, options = {}) {
     const binding = options.relationshipSummaryTargetBinding;
     if (!binding || typeof binding !== 'object' || Array.isArray(binding)) return false;
@@ -223,14 +261,61 @@ function relationshipSummaryContextualTargetBound(npc, excerpts, excerptMatches,
             playerInteractionIndexes.push(index);
         }
     }
-    if (!identityIndexes.length || !playerInteractionIndexes.length) return false;
+    if (!identityIndexes.length) return false;
 
     // Both halves must come from the same permitted source record. This keeps the bridge
     // bounded to one coherent interaction source instead of combining arbitrary mentions
     // from different messages/visibility channels in the owned exchange.
-    return playerInteractionIndexes.some(playerIndex => identityIndexes.some(identityIndex =>
+    if (playerInteractionIndexes.some(playerIndex => identityIndexes.some(identityIndex =>
         excerptMatches[playerIndex]?.sourceId
-        && excerptMatches[playerIndex]?.sourceId === excerptMatches[identityIndex]?.sourceId));
+        && excerptMatches[playerIndex]?.sourceId === excerptMatches[identityIndex]?.sourceId))) return true;
+
+    // The summary need not repeat narrator text that the application already accepted as
+    // this NPC's exchange activity. Reuse that transient evidence only when the accepted
+    // activity/identity set itself proves the NPC and player interaction in one visible
+    // permitted source record, and the summary's identity quote links back to that same set.
+    const sources = relationshipEvidenceSourcesForOptions(options);
+    const activityBindings = verifiedTransientEvidenceBindings(
+        binding.activityEvidenceBindings,
+        acceptedActivityExcerpts,
+        sources,
+    );
+    const identityBindings = verifiedTransientEvidenceBindings(
+        binding.identityEvidenceBindings,
+        acceptedIdentityExcerpts,
+        sources,
+    );
+    if (!activityBindings.length) return false;
+
+    const playerActivitySources = new Set(activityBindings.filter(row => row.kind === 'visible'
+        && !identityMentioned(row.excerpt, otherNpcNames, subjectNames)
+        && playerMentioned(narrationOutsideQuotedDialogue(row.excerpt), playerName, [...subjectNames, ...otherNpcNames], { allowNarratorSecondPerson: true }))
+        .map(row => row.sourceId));
+    const identityActivitySources = new Set([...activityBindings, ...identityBindings]
+        .filter(row => identityMentioned(row.excerpt, subjectNames, otherNpcNames))
+        .map(row => row.sourceId));
+    const bridgedSources = new Set([...playerActivitySources].filter(sourceId => identityActivitySources.has(sourceId)));
+    if (!bridgedSources.size) return false;
+
+    const linkedSummarySources = new Set(identityIndexes
+        .map(index => excerptMatches[index]?.sourceId)
+        .filter(sourceId => sourceId && bridgedSources.has(sourceId)));
+    if (!linkedSummarySources.size) return false;
+
+    // Contextual reuse is deliberately one-source. Additional summary quotes may enrich the
+    // model's description, but they may not switch visibility/message records or explicitly
+    // target another known NPC and borrow this player's accepted interaction.
+    return [...linkedSummarySources].some(sourceId => excerpts.every((excerpt, index) =>
+        excerptMatches[index]?.sourceId === sourceId
+        && !explicitOtherNpcTarget(excerpt, subjectNames, playerName, otherNpcNames, excerptMatches[index])
+        && !contextualDialogueNarrationAmbiguous(
+            excerpt,
+            subjectNames,
+            playerName,
+            otherNpcNames,
+            acceptedActivityExcerpts,
+            acceptedIdentityExcerpts,
+        )));
 }
 
 function relationshipSummaryEvidenceGrounded(npc, patch, options = {}) {

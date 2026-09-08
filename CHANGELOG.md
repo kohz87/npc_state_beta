@@ -2,6 +2,14 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.23
+
+- Finish Current Dynamic evidence reuse: `relationshipSummaryEvidence` no longer has to repeat a narrator quote already accepted as the same resolved NPC's player-facing exchange activity. The bridge is transient, revalidates exact evidence against one permitted source record, and reuses only unambiguous application-validated activity/identity evidence.
+- Preserve target safety: another customer/known NPC interaction cannot borrow the player's accepted activity; shared role-only activity remains ambiguous; narrated dialogue whose surrounding narration does not bind the player remains ambiguous unless that exact excerpt was already accepted for this NPC; quoted second person without an accepted player-facing narrator binding remains insufficient; fabricated/out-of-scope evidence still rejects normally. The single post-implementation review reproduced and closed the unnamed-other-customer variant of this edge.
+- Keep descriptive and numeric relationships separate. A neutral summary can persist at zero trust/affection/desire/tension without fractional progress, milestones, evidence history, or relationship-change history; nonzero scoring continues through the unchanged axis-evidence path.
+- Add Nelda production-path regressions for the captured two-dialogue evidence variation, direct binding, same-message wrong addressee, quoted `you`, established-summary preservation, storage reload, checkpoint rollback, and shared Scan/Refresh contract wording. Existing Vrena, stale-save, edit/swipe/deletion, lifecycle, profile-observation, and numeric relationship regressions remain green.
+- Prompt measurements with the same estimator/system wrapper are 6,392 minimal, 6,395 rich first encounter, 7,460 three active plus one mentioned, 6,719 observation development, 8,061 dense collections/locks/forms, 6,597 large DB/one relevant, 7,121 structured/custom, and 4,794 targeted Refresh estimated input tokens, roughly +49 to +50 versus v0.5.22. No current narrative or scanner output allowance is reduced. Phase 2 remains deferred.
+
 ## 0.5.22
 
 - Repair descriptive Current Dynamic target grounding so a small coherent exact-source evidence set can reuse the scanner's already accepted NPC identity/activity resolution from the same owned exchange; canonical NPC name and player address no longer need to appear in one excerpt when that accepted binding proves the interaction. Unrelated passages, ambiguous roles, competing speakers, quoted second-person misattribution, fabricated/wrong-message evidence, and stale/out-of-scope sources remain rejected.

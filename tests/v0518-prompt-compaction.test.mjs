@@ -10,20 +10,20 @@ import { scanPromptMeasurementMatrix } from '../scripts/measure-scan-prompts.mjs
 
 const matrix = () => new Map(scanPromptMeasurementMatrix().map(row => [row.name, row]));
 
-test('v0.5.22 Current Dynamic repair retains compact routine budgets', () => {
+test('v0.5.23 Current Dynamic evidence reuse retains compact routine budgets', () => {
     const rows = matrix();
-    // v0.5.22 spends bounded prompt budget on coherent Current Dynamic evidence and
-    // source-coherent fictional examples without restoring the pre-compaction prompt or
-    // truncating current narrative. The dense fixture is an honest stress-case overage.
+    // v0.5.23 spends a small bounded prompt increment to explain that already accepted
+    // player-facing activity may supply Current Dynamic target binding without making the
+    // model repeat the same narrator quote. The dense fixture remains an honest overage.
     const ceilings = {
-        'minimal-one-npc': 6350,
-        'rich-first-encounter': 6350,
-        'three-active-plus-mentioned': 7425,
-        'observation-development': 6680,
-        'dense-collections-locks-forms': 8025,
-        'large-db-one-relevant': 6560,
-        'structured-plus-custom': 7085,
-        'targeted-refresh': 4750,
+        'minimal-one-npc': 6400,
+        'rich-first-encounter': 6400,
+        'three-active-plus-mentioned': 7470,
+        'observation-development': 6730,
+        'dense-collections-locks-forms': 8075,
+        'large-db-one-relevant': 6610,
+        'structured-plus-custom': 7135,
+        'targeted-refresh': 4800,
     };
     for (const [name, ceiling] of Object.entries(ceilings)) {
         assert.ok(rows.has(name), name);
@@ -31,23 +31,22 @@ test('v0.5.22 Current Dynamic repair retains compact routine budgets', () => {
     }
 });
 
-test('v0.5.22 Current Dynamic repair adds only bounded overhead to v0.5.21 fixtures', () => {
+test('v0.5.23 evidence-reuse contract adds only bounded overhead to v0.5.22 fixtures', () => {
     const rows = matrix();
-    const v0521 = {
-        'minimal-one-npc': 6138,
-        'rich-first-encounter': 6141,
-        'three-active-plus-mentioned': 7206,
-        'observation-development': 6465,
-        'dense-collections-locks-forms': 7807,
-        'large-db-one-relevant': 6343,
-        'structured-plus-custom': 6867,
-        'targeted-refresh': 4604,
+    const v0522 = {
+        'minimal-one-npc': 6343,
+        'rich-first-encounter': 6346,
+        'three-active-plus-mentioned': 7411,
+        'observation-development': 6670,
+        'dense-collections-locks-forms': 8012,
+        'large-db-one-relevant': 6548,
+        'structured-plus-custom': 7071,
+        'targeted-refresh': 4745,
     };
-    for (const [name, before] of Object.entries(v0521)) {
+    for (const [name, before] of Object.entries(v0522)) {
         assert.ok(rows.has(name), name);
         const increase = rows.get(name).estTokens - before;
-        const ceiling = name === 'targeted-refresh' ? 150 : 210;
-        assert.ok(increase >= 0 && increase <= ceiling, `${name}: Current Dynamic/example overhead +${increase} tokens`);
+        assert.ok(increase >= 0 && increase <= 60, `${name}: evidence-reuse contract overhead +${increase} tokens`);
     }
 });
 
