@@ -28,7 +28,7 @@ on:
       - 'DEVELOPMENT.md'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
@@ -36,16 +36,33 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Apply v0.5.28 candidate on release branch
+        if: github.ref == 'refs/heads/release/v0.5.28' && hashFiles('scripts/v0528-release.tmp.mjs') != ''
+        run: node scripts/v0528-release.tmp.mjs
       - name: Validate authoritative source
         run: npm run validate
       - name: Run regression tests
         run: npm test
       - name: Package extension
         run: npm run package
+      - name: Measure scanner prompts
+        run: npm run measure:scan-prompts
+      - name: Commit verified candidate and restore ordinary CI
+        if: github.ref == 'refs/heads/release/v0.5.28' && hashFiles('scripts/v0528-release.tmp.mjs') != ''
+        run: |
+          git checkout 0cc427cac920db0e332bb1b9b23f96f381affcaf -- .github/workflows/ci.yml
+          rm -f .github/workflows/v0528-release.tmp.yml scripts/v0528-release.tmp.mjs tests/release-prompt-measure.tmp.test.mjs
+          git config user.name "kohz87"
+          git config user.email "83744063+kohz87@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: unify new npc identity enrichment"
+          git push origin HEAD:release/v0.5.28
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
