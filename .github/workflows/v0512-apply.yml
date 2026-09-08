@@ -1,0 +1,40 @@
+name: Apply v0.5.12 gap fixes
+
+on:
+  push:
+    branches:
+      - automation/v0512-gap-fixes
+    paths:
+      - scripts/apply-v0512.py
+      - .github/workflows/v0512-apply.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply focused fixes
+        run: python3 scripts/apply-v0512.py
+      - name: Validate
+        run: npm run validate
+      - name: Test
+        run: npm test
+      - name: Diff check
+        run: git diff --check
+      - name: Commit reviewed source candidate
+        run: |
+          rm scripts/apply-v0512.py .github/workflows/v0512-apply.yml
+          git add -A
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "fix: close 0.5.11 post-response gaps"
+          git push origin HEAD:automation/v0512-gap-fixes
