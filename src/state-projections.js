@@ -56,7 +56,8 @@ function injectionNpcProjection(npc = {}) {
         manualProfileFields: projectedStringArray(npc?.manualProfileFields),
         profileEvolutionEvidence: Array.isArray(npc?.profileEvolutionEvidence) ? npc.profileEvolutionEvidence.slice(-6).map(row => ({
             field: String(row?.field || ''),
-            mode: String(row?.mode || ''),
+            kind: row?.kind === 'observation' ? 'observation' : 'applied',
+            ...(row?.kind === 'observation' ? {} : { mode: String(row?.mode || '') }),
             concept: String(row?.concept || ''),
             sourceMessageId: Number.isInteger(row?.sourceMessageId) ? row.sourceMessageId : null,
             evidence: String(row?.evidence || ''),

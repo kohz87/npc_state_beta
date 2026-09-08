@@ -104,7 +104,8 @@ export function semanticDossierContext(npc = {}) {
         profileEvolutionEvidence: Array.isArray(npc.profileEvolutionEvidence)
             ? npc.profileEvolutionEvidence.slice(-6).map(row => ({
                 field: row.field,
-                mode: row.mode,
+                kind: row.kind,
+                ...(row.kind === 'observation' ? {} : { mode: row.mode }),
                 concept: row.concept,
                 sourceMessageId: row.sourceMessageId,
                 evidence: row.evidence,
@@ -125,6 +126,7 @@ export function semanticEditIndex(npc = {}) {
         recentProfileEvidence: Array.isArray(npc.profileEvolutionEvidence)
             ? npc.profileEvolutionEvidence.slice(-4).map(row => ({
                 field: row.field,
+                kind: row.kind,
                 sourceMessageId: row.sourceMessageId,
                 evidence: compact(row.evidence, 260),
             }))
@@ -214,6 +216,22 @@ function sourceValidation(update, options = {}) {
     return { ok: true, rows };
 }
 
+export function validateSemanticSourceReference(update, options = {}) {
+    return sourceValidation(update, options);
+}
+
+export function semanticSourceEventKey(rows = [], options = {}) {
+    const eventKeys = options?.sourceEventKeys && typeof options.sourceEventKeys === 'object' && !Array.isArray(options.sourceEventKeys)
+        ? options.sourceEventKeys
+        : {};
+    const keys = [...new Set((Array.isArray(rows) ? rows : []).map(row => {
+        if (Number.isInteger(row?.messageId)) return String(eventKeys[row.messageId] || '').trim();
+        return String(options.sourceEventKey || '').trim();
+    }).filter(Boolean))].sort();
+    if (keys.length) return keys.join('+').slice(0, 240);
+    return String(options.sourceEventKey || '').trim().slice(0, 240);
+}
+
 function manualProtected(npc, field) {
     return dossierFieldManualProtected(npc, field);
 }
@@ -254,17 +272,22 @@ function appendProfileEvolutionEvidence(npc, update, provenanceRows, options = {
     const evidence = compact(rows.map(row => row.excerpt).filter(Boolean).join(' | '), 600);
     if (!concept || !evidence) return;
     const sourceMessageId = Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null;
+    const sourceEventKey = semanticSourceEventKey(rows, options);
     const turn = Number.isInteger(options.turn) ? options.turn : null;
     const existing = normalizeProfileEvolutionEvidence(npc.profileEvolutionEvidence);
     const duplicate = existing.some(entry => entry.field === update.field
         && normalizeName(entry.concept) === normalizeName(concept)
-        && (sourceMessageId !== null ? entry.sourceMessageId === sourceMessageId : (turn !== null && entry.sourceMessageId == null && entry.turn === turn)));
+        && (sourceEventKey
+            ? Boolean(entry.sourceEventKey) && entry.sourceEventKey === sourceEventKey
+            : (sourceMessageId !== null ? entry.sourceMessageId === sourceMessageId : (turn !== null && entry.sourceMessageId == null && entry.turn === turn))));
     if (duplicate) return;
     npc.profileEvolutionEvidence = normalizeProfileEvolutionEvidence([...existing, {
         field: update.field,
+        kind: 'applied',
         mode: profileEvolutionMode(update),
         concept,
         evidence,
+        sourceEventKey,
         sourceMessageId,
         turn,
         at: Date.now(),

@@ -4,7 +4,7 @@ The authoritative behavior and ownership specification is [`docs/core-contract.m
 
 ## Current boundaries
 
-- Extension release: `0.5.15`
+- Extension release: `0.5.16`
 - Persisted state schema: `1`
 - Settings schema: `1`
 - Model semantic update contract: `6`
@@ -18,6 +18,7 @@ The 0.5.x release line intentionally keeps the newer consolidated architecture u
 - `src/schema.js`: persisted state normalization, ownership metadata and snapshot shape.
 - `src/model/dossier-fields.js`: ordinary semantic field registry.
 - `src/model/semantic-updates.js`: ordinary semantic validation/application and coverage diagnostics.
+- `src/profile-observations.js`: bounded evidence-only profile observations using accepted patch identity and semantic source validation.
 - `src/scan-contract.js`: shared response envelope, identity classifications, and literal parser-tested examples.
 - `src/scanner.js` plus `src/scan-*.js`: model response boundary and focused identity/relationship/lifecycle/graph handlers.
 - `src/foreground-contract.js`, `src/foreground-context.js` and `src/injection.js`: continuity-only foreground selection, compaction and local prompt diagnostics.

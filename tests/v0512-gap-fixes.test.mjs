@@ -100,7 +100,7 @@ test('retry of a partial automatic scan forces a same-boundary semantic rescan i
     assert.equal(first.ok, true);
     assert.equal(h.api.scanStatus().status, 'partial');
     const id = h.persisted().npcs[0].id;
-    const secondPayload = { ...EMPTY, exchangeActiveNpcIds: [id], inChatNpcIds: [id], npcs: [semanticPatch(id, [{
+    const secondPayload = { ...EMPTY, candidateAccounting: { [id]: 'evaluated' }, exchangeActiveNpcIds: [id], inChatNpcIds: [id], npcs: [semanticPatch(id, [{
         field: 'mood', operation: 'establish', value: 'Focused and mildly concerned.',
         sources: [{ messageId: 1, excerpt: 'Her brow furrows as she studies the form.' }], explanation: 'Current visible expression establishes mood.'
     }])] };

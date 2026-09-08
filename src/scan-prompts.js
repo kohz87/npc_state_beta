@@ -51,7 +51,7 @@ function explicitlyMentionedNpcIds(state, visible) {
     return mentioned;
 }
 
-function relevantNpcsForExchange(state, exchange, limit = 12) {
+export function relevantNpcsForExchange(state, exchange, limit = 12, playerName = '') {
     const visible = [exchange?.user?.mes, exchange?.assistant?.mes].map(value => scannerEvidenceText(value || '')).filter(Boolean).join('\n');
     const active = new Set([
         ...(state?.lastObservation?.exchangeActiveNpcIds || []),
@@ -61,6 +61,7 @@ function relevantNpcsForExchange(state, exchange, limit = 12) {
     const mentioned = explicitlyMentionedNpcIds(state, visible);
     for (const npc of state?.npcs || []) if (npc?.present || npc?.worldActive) active.add(npc.id);
     const limitValue = Math.max(1, Math.min(20, Number(limit) || 12));
+    const playerKey = normalizeName(playerName);
     const explicit = (state?.npcs || []).filter(npc => mentioned.has(npc.id))
         .sort((a, b) => runtimeNpcSalience(b) - runtimeNpcSalience(a) || String(a.name || '').localeCompare(String(b.name || '')));
     const ordinary = foregroundNpcCandidates(state, { foregroundCurrentUserText: visible })
@@ -69,6 +70,7 @@ function relevantNpcsForExchange(state, exchange, limit = 12) {
     const seen = new Set();
     for (const npc of [...explicit, ...ordinary]) {
         if (!npc?.id || seen.has(npc.id)) continue;
+        if (playerKey && [npc.name, ...(Array.isArray(npc.aliases) ? npc.aliases : [])].some(label => normalizeName(label) === playerKey)) continue;
         seen.add(npc.id);
         out.push(npc);
         if (out.length >= limitValue) break;
@@ -133,13 +135,15 @@ function dossierCollectionRules(limits) {
     ];
 }
 
-export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 2, relationshipCriteria = '', relationshipCaps = DEFAULT_RELATIONSHIP_CAPS, memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced', relationshipSummaryRepair = false, semanticMode = 'scan', routine = true }) {
+export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 2, relationshipCriteria = '', relationshipCaps = DEFAULT_RELATIONSHIP_CAPS, memoryCriteria = '', playerName = '', dossierLimits = {}, admissionMode = 'balanced', relationshipSummaryRepair = false, semanticMode = 'scan', routine = true, candidateNpcIds = null }) {
     const exchange = currentExchange(chat, assistantMessageId);
     if (!exchange) throw new Error('NPC State scanner requires a completed assistant message.');
     const history = recentHistory(chat, assistantMessageId, routine ? 2 : scanDepth);
-    const relevantNpcs = relevantNpcsForExchange(state, exchange);
-    const relevantState = { ...state, npcs: relevantNpcs };
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
+    const candidateOrder = Array.isArray(candidateNpcIds) ? candidateNpcIds.map(value => String(value || '').trim()).filter(Boolean) : null;
+    const npcById = new Map((state?.npcs || []).map(npc => [npc.id, npc]));
+    const relevantNpcs = candidateOrder ? candidateOrder.map(id => npcById.get(id)).filter(Boolean).slice(0, 20) : relevantNpcsForExchange(state, exchange, 12, activePlayerName);
+    const relevantState = { ...state, npcs: relevantNpcs };
     const limits = normalizeDossierLimits(dossierLimits);
     const relevantDossierRows = relevantNpcs.map(npc => {
         const row = compactForegroundNpc(npc, 1, limits);
@@ -169,6 +173,8 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 2
         '- For NEW NPC identity: if a proper/personal name is established anywhere in the current exchange, npcs.name MUST be that canonical name and nothing else. npcs.name is human-facing display text and MUST NEVER be an npc-* identifier, slug, key, or machine label, and MUST NEVER begin with npc-. Put occupation/function such as Clerk, Guard, Innkeeper, or Receptionist in role, not in name. Use a human-readable unique role label as name only while the NPC is genuinely unnamed.',
         '- A single scan may introduce MULTIPLE new individually relevant NPCs. Do not stop after the first. Return one separate npcs object for every such NPC. Do not add new npcs entries for named-only mentions, crowds, background workers, incidental guards, or other non-individually-relevant characters.',
         '- A single scan may update MULTIPLE existing NPCs in the same response. Do not stop after the first and do not omit a dossier patch merely because another NPC is more prominent. Return one separate npcs object for EVERY exchange-active existing NPC so relationship evaluation is explicit, plus any other individually relevant existing NPC whose grounded dossier data is established, corrected, or materially changed. Keep exchangeActiveNpcIds, inChatNpcIds, and worldActiveNpcIds complete for their own semantics.',
+        '- CANDIDATE ACCOUNTING: for every RELEVANT EXISTING DOSSIER below return candidateAccounting[stableNpcId]=evaluated|mentioned|inactive|unresolved. evaluated=actually evaluated; mentioned=topic/reference only; inactive=supplied for continuity but no current dossier work; unresolved=genuinely unclear. This is coverage only and never sets presence/activity.',
+        '- Candidate accounting is separate from field completeness: evaluated still needs applicable semanticUpdates/fieldEvaluations. Other statuses never authorize dummy updates, deletion, presence changes, or invented facts.',
         '- The PLAYER/current USER persona is not an NPC for this scanner, even when named in narration. Never create the PLAYER as an npcs entry.',
         '- relationship, relationshipSummary, and relationshipChange describe THIS NPC toward the PLAYER. They are the dedicated player-relationship channel.',
         '- relationshipSummary is the CURRENT NPC-to-PLAYER dynamic, a descriptive projection separate from numeric score mutation. EXISTING DOSSIERS includes stored relationshipSummary only for NPCs already present or explicitly referenced in the CURRENT exchange. Return a new value when CURRENT evidence materially establishes/changes that dynamic, or explicit repair mode below applies. A first direct interaction may establish a neutral professional, transactional, adversarial, supervisory, or other role-defined dynamic even when every relationship score remains zero; do not leave it blank merely because no trust/affection/desire/tension delta occurred. A normal current proposal includes relationshipSummaryEvidence with 1-3 exact permitted excerpts plus a brief evidence-grounded explanation binding this NPC to the PLAYER; mere name co-occurrence is insufficient. Zero deltas and impact none are correct when descriptive context changes without score-worthy movement. Never copy schema instructions, field descriptions, placeholders, or labels into the summary. Do not rewrite for style or invent numeric movement just to qualify a summary.',

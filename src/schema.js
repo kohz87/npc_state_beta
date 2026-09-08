@@ -2,7 +2,7 @@ import { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILE
 export { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 import { normalizeNumericSetting } from './settings-contract.js';
 import { dossierCollectionMemberText, dossierFieldValueIssue, normalizeDossierTextCollection } from './model/dossier-fields.js';
-export const NPC_STATE_VERSION = '0.5.15';
+export const NPC_STATE_VERSION = '0.5.16';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     return normalizeNumericSetting('scannerResponseTokens', value);
@@ -874,14 +874,17 @@ export function normalizeProfileEvolutionEvidence(value = []) {
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
         const field = String(raw.field || '').trim();
         const mode = allowedModes.has(String(raw.mode || '').trim()) ? String(raw.mode).trim() : 'gradual';
+        const kind = String(raw.kind || '').trim().toLocaleLowerCase() === 'observation' ? 'observation' : 'applied';
         const concept = text(raw.concept, 180);
         const evidence = text(raw.evidence, 600);
         if (!allowedFields.has(field) || !concept || !evidence) continue;
         out.push({
             field,
+            kind,
             mode,
             concept,
             evidence,
+            sourceEventKey: text(raw.sourceEventKey, 240),
             sourceMessageId: Number.isInteger(raw.sourceMessageId) ? raw.sourceMessageId : null,
             turn: Number.isInteger(raw.turn) ? raw.turn : null,
             at: Number(raw.at) || null,
