@@ -1,0 +1,80 @@
+    const a = 'Vrena Tolk answers in two short sentences.';
+    const b = 'She drums the iron nib twice against the ledger before difficult answers.';
+    const context = `${a} ${b}`;
+    const result = apply(state, { ...EMPTY, npcs: [completePatch('vrena', 'Vrena Tolk', { observations: [
+        observation('speech', a, 'Short professional answers.'),
+        observation('mannerisms', b, 'Observed nib tapping before difficult answers.'),
+    ] })] }, context);
+    assert.equal(result.state.npcs[0].profileEvolutionEvidence.length, 2);
+    assert.deepEqual(new Set(result.state.npcs[0].profileEvolutionEvidence.map(row => row.field)), new Set(['speech', 'mannerisms']));
+});
+
+test('malformed observation siblings do not block a valid ordinary semantic update and rejected identity cannot write observations', () => {
+    const state = stateWith({ id: 'vrena', name: 'Vrena Tolk', mood: 'Neutral.' });
+    const text = 'Vrena Tolk frowns at the damaged ledger.';
+    const update = { field: 'mood', operation: 'replace', value: 'Annoyed.', durability: 'temporary', sources: [{ messageId: 1, excerpt: text }], explanation: 'Visible current mood.' };
+    const malformed = apply(state, { ...EMPTY, npcs: [completePatch('vrena', 'Vrena Tolk', { updates: [update], observations: [{ field: 'speech', observation: { nope: true }, sources: [{ messageId: 1, excerpt: text }] }] })] }, text);
+    assert.equal(malformed.state.npcs[0].mood, 'Annoyed.');
+    assert.equal(malformed.state.npcs[0].profileEvolutionEvidence.length, 0);
+    assert.equal(malformed.semanticDiagnostics.some(row => row.channel === 'profile-observation' && row.status === 'rejected-proposal'), true);
+
+    const conflictedState = stateWith({ id: 'vrena', name: 'Vrena Tolk' }, { id: 'maren', name: 'Maren Holt' });
+    const rejected = apply(conflictedState, { ...EMPTY, npcs: [{ ...completePatch('vrena', 'Maren Holt', { observations: [observation('speech', text)] }) }] }, text);
+    assert.equal(rejected.state.npcs.every(npc => npc.profileEvolutionEvidence.length === 0), true);
+    assert.equal(rejected.semanticDiagnostics.some(row => row.reason === 'observation-target-not-accepted'), true);
+});
+
+test('normal automatic scan uses one provider request, reports omitted candidate coverage as partial, and still commits valid sibling work', () => {
+    const initial = stateWith(
+        { id: 'vrena', name: 'Vrena Tolk', present: true, mood: 'Neutral.' },
+        { id: 'maren', name: 'Maren Holt', present: true },
+    );
+    return withHost(async h => {
+        const text = 'Vrena Tolk frowns at the ledger while Maren Holt checks the seal.';
+        h.context.chat = [{ is_user: true, name: 'Ari', mes: 'I wait at the desk.' }, { is_user: false, name: 'Narrator', swipe_id: 0, mes: text }];
+        const update = { field: 'mood', operation: 'replace', value: 'Annoyed.', durability: 'temporary', sources: [{ messageId: 1, excerpt: text }], explanation: 'Visible current mood.' };
+        h.context.generateRaw = async () => {
+            h.metrics.generations += 1;
+            return JSON.stringify({ ...EMPTY, candidateAccounting: { vrena: 'evaluated' }, npcs: [completePatch('vrena', 'Vrena Tolk', { updates: [update] })] });
+        };
+        const result = await h.entry.processCompletedAssistantResponse(1);
+        assert.equal(result.ok, true);
+        assert.equal(h.metrics.generations, 1);
+        assert.equal(h.persisted().npcs.find(npc => npc.id === 'vrena').mood, 'Annoyed.');
+        assert.equal(h.api.scanStatus().status, 'partial');
+        assert.equal(result.coverageDiagnostics.some(row => row.npcId === 'maren' && row.status === 'missing-candidate-accounting'), true);
+    }, { state: initial });
+});
+
+test('failed save cannot expose an observation-only update as committed', () => {
+    const initial = stateWith({ id: 'vrena', name: 'Vrena Tolk', present: true, speech: 'Formal.' });
+    return withHost(async h => {
+        const text = 'Vrena Tolk gives a clipped practical instruction.';
+        h.context.chat = [{ is_user: true, name: 'Ari', mes: 'I ask what to sign.' }, { is_user: false, name: 'Narrator', swipe_id: 0, mes: text }];
+        h.context.generateRaw = async () => {
+            h.metrics.generations += 1;
+            return JSON.stringify({ ...EMPTY, candidateAccounting: { vrena: 'evaluated' }, npcs: [completePatch('vrena', 'Vrena Tolk', { observations: [observation('speech', text, 'Clipped practical instruction.')] })] });
+        };
+        h.beforeWrite = () => ({ ok: false, status: 409, text: async () => 'fixture write conflict' });
+        const result = await h.entry.processCompletedAssistantResponse(1);
+        assert.equal(result.ok, false);
+        assert.equal(h.api.scanStatus().status, 'failed');
+        assert.equal(h.persisted().npcs[0].profileEvolutionEvidence.length, 0);
+    }, { state: initial });
+});
+
+test('deleting or switching the source swipe restores profile evidence and derived profile state from exact checkpoints', () => {
+    const chatA = [{ is_user: true, mes: 'Ask for directions.' }, { is_user: false, swipe_id: 0, mes: 'Vrena Tolk answers with clipped practical instructions.' }];
+    let state = stateWith({ id: 'vrena', name: 'Vrena Tolk', speech: 'Formal.' });
+    state = ensurePreUpdateBaseline(state, chatA, 1);
+    const update = { field: 'speech', operation: 'replace', value: 'Clipped and practical.', sources: [{ messageId: 1, excerpt: chatA[1].mes }], explanation: 'Grounded speech refinement.' };
+    state = apply(state, { ...EMPTY, npcs: [completePatch('vrena', 'Vrena Tolk', { updates: [update], observations: [observation('speech', chatA[1].mes, 'Clipped practical instruction.')] })] }, chatA[1].mes).state;
+    state.lastScannedMessageId = 1;
+    state.turn = 1;
+    state = recordCheckpoint(state, chatA, 1, 'scan');
+    assert.equal(state.npcs[0].speech, 'Clipped and practical.');
+    assert.equal(state.npcs[0].profileEvolutionEvidence.length, 1);
+
+    const deleted = reconcileToCurrentBranch(state, []);
+    assert.equal(deleted.unsafeDivergence, false);
+    assert.equal(deleted.state.npcs[0].speech, 'Formal.');
