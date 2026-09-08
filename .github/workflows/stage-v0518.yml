@@ -22,11 +22,13 @@ jobs:
       - name: Apply exact tested v0.5.18 patch
         shell: bash
         run: |
-          base64 -d .npc-state-v0518.patch.gz.b64 | gzip -d > /tmp/v0518.patch
+          cat .npc-state-v0518.part-00 .npc-state-v0518.part-01 .npc-state-v0518.part-02 .npc-state-v0518.part-03 .npc-state-v0518.part-04 .npc-state-v0518.part-05 > /tmp/v0518.patch.gz.b64
+          echo "94923c289f5091f810742cae950b7436f421f17cf1ab91cf7afbb844814cc332  /tmp/v0518.patch.gz.b64" | sha256sum -c -
+          base64 -d /tmp/v0518.patch.gz.b64 | gzip -d > /tmp/v0518.patch
           echo "10a18245a0fb6ae0d3d04669a4fc2e7c93d9a437a642cf43dcadbfe2faa2752d  /tmp/v0518.patch" | sha256sum -c -
           git apply --check /tmp/v0518.patch
           git apply /tmp/v0518.patch
-          rm .npc-state-v0518.patch.gz.b64
+          rm -f .npc-state-v0518.patch.gz.b64 .npc-state-v0518.part-00 .npc-state-v0518.part-01 .npc-state-v0518.part-02 .npc-state-v0518.part-03 .npc-state-v0518.part-04 .npc-state-v0518.part-05
           rm .github/workflows/stage-v0518.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
