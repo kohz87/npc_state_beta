@@ -52,6 +52,6 @@ test('release-facing documentation stays synchronized with the active release', 
     const manifest = JSON.parse(read('manifest.json'));
     const version = manifest.version.replace(/\./g, '\\.');
     assert.match(read('README.md'), new RegExp(`^## Release ${version}\\s*$`, 'm'));
-    assert.match(read('DEVELOPMENT.md'), new RegExp(`^- Extension release: \\`${version}\\`\\s*$`, 'm'));
+    assert.match(read('DEVELOPMENT.md'), new RegExp('^- Extension release: `' + version + '`\\s*$', 'm'));
     assert.match(read('CHANGELOG.md'), new RegExp(`^## ${version}\\s*$`, 'm'));
 });
