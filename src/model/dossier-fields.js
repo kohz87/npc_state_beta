@@ -78,10 +78,6 @@ function collectionObjectIssue(field, value) {
     return supportedText ? '' : 'expected-supported-text-property';
 }
 
-function supportedCollectionObject(field, value) {
-    return !collectionObjectIssue(field, value);
-}
-
 export function dossierCollectionMemberText(field, value, max = 700) {
     if (typeof value === 'string') return value.replace(/\u0000/g, '').trim().slice(0, max);
     if (!plainObject(value) || field === 'keyRelationships') return '';
