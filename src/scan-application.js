@@ -1048,22 +1048,41 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         .filter(row => row?.status === 'accepted' && row.npcId)
         .map(row => row.npcId));
     const currentVisibleText = currentVisibleEvidenceText(evidencePolicy, currentAdmissionText);
+    const currentRelationshipSources = Array.isArray(options.evidencePolicy?.relationshipSources)
+        ? options.evidencePolicy.relationshipSources.slice(0, 8)
+        : [];
+    const uniquelyOwnedRelationshipExcerptBinding = excerpt => {
+        const value = String(excerpt || '').trim();
+        if (!value || !currentRelationshipSources.length) return null;
+        const matches = currentRelationshipSources
+            .map(source => relationshipEvidenceExcerptMatch(value, [source]))
+            .filter(Boolean);
+        if (matches.length !== 1) return null;
+        return { excerpt: value, ...matches[0] };
+    };
     const acceptedExchangeActivityEvidence = [...patchByNpcId.entries()].map(([npcId, candidatePatch]) => {
         const record = candidatePatch?.activityEvidence?.exchangeActive;
         const accepted = acceptedPatchNpcIds.has(npcId)
             && exchangeSet.has(npcId)
             && activityEvidenceVerified(candidatePatch, 'exchangeActive', currentVisibleText);
+        const excerpts = accepted && Array.isArray(record?.excerpts)
+            ? record.excerpts.map(value => String(value || '').trim()).filter(Boolean).slice(0, 3)
+            : [];
         return {
             npcId,
-            excerpts: accepted && Array.isArray(record?.excerpts)
-                ? record.excerpts.map(value => String(value || '').trim()).filter(Boolean).slice(0, 3)
-                : [],
+            excerpts,
+            bindings: excerpts.map(uniquelyOwnedRelationshipExcerptBinding).filter(Boolean),
         };
     }).filter(row => row.excerpts.length);
     const unambiguousActivityExcerptsForNpc = npcId => {
         const own = acceptedExchangeActivityEvidence.find(row => row.npcId === npcId)?.excerpts || [];
         return own.filter(excerpt => !acceptedExchangeActivityEvidence.some(row => row.npcId !== npcId
             && row.excerpts.some(other => containsNormalizedPhrase(excerpt, other) || containsNormalizedPhrase(other, excerpt))));
+    };
+    const unambiguousActivityBindingsForNpc = npcId => {
+        const permitted = new Set(unambiguousActivityExcerptsForNpc(npcId));
+        const own = acceptedExchangeActivityEvidence.find(row => row.npcId === npcId)?.bindings || [];
+        return own.filter(row => permitted.has(row.excerpt));
     };
 
     for (let i = 0; i < state.npcs.length; i += 1) {
@@ -1087,6 +1106,9 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                         && activityEvidenceVerified(patch, 'exchangeActive', currentVisibleText));
                     const identityRecord = identityEvidenceRecord(patch);
                     const identityEvidenceAccepted = Boolean(identityEvidenceVerified(patch, evidencePolicy, currentAdmissionText));
+                    const identityEvidenceExcerpts = identityEvidenceAccepted && Array.isArray(identityRecord?.excerpts)
+                        ? identityRecord.excerpts.map(value => String(value || '').trim()).filter(Boolean).slice(0, 3)
+                        : [];
                     return {
                         npcId: npc.id,
                         identityAccepted: acceptedPatchNpcIds.has(npc.id),
@@ -1095,10 +1117,12 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                         activityEvidenceExcerpts: activityEvidenceAccepted
                             ? unambiguousActivityExcerptsForNpc(npc.id)
                             : [],
-                        identityEvidenceAccepted,
-                        identityEvidenceExcerpts: identityEvidenceAccepted && Array.isArray(identityRecord?.excerpts)
-                            ? identityRecord.excerpts.map(value => String(value || '').trim()).filter(Boolean).slice(0, 3)
+                        activityEvidenceBindings: activityEvidenceAccepted
+                            ? unambiguousActivityBindingsForNpc(npc.id)
                             : [],
+                        identityEvidenceAccepted,
+                        identityEvidenceExcerpts,
+                        identityEvidenceBindings: identityEvidenceExcerpts.map(uniquelyOwnedRelationshipExcerptBinding).filter(Boolean),
                     };
                 })(),
                 // Automatic relationship movement is always current-exchange evidence.

@@ -123,8 +123,9 @@ test('Scan and Refresh advertise positive first-pass sufficiency and exact Curre
         assert.match(prompt, /explicit recurrence\/generalization or multiple reinforcing actions/);
         assert.match(prompt, /multiple related instances may consolidate into one narrow mannerism/);
         assert.match(prompt, /CURRENT DYNAMIC EVIDENCE:/);
-        assert.match(prompt, /small coherent set may jointly bind the player-facing interaction/);
-        assert.match(prompt, /accepted identity\/activity evidence from the same owned exchange/);
-        assert.match(prompt, /quoted you without narrator\/player binding is insufficient/);
+        assert.match(prompt, /small coherent set may use connected accepted identity\/activity evidence from the same permitted source/);
+        assert.match(prompt, /need not repeat an already accepted narrator quote/);
+        assert.match(prompt, /quoted you alone is insufficient/);
+        assert.match(prompt, /zero numeric movement/);
     }
 });
