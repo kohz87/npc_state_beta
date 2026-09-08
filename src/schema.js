@@ -144,7 +144,7 @@ export const MANUAL_OVERRIDE_FIELDS = Object.freeze([
     'archived', 'archiveReason', 'retentionProtected', 'minor',
 ]);
 
-function finiteManualNumericInput(value) {
+export function finiteManualNumericInput(value) {
     if (typeof value === 'number') return Number.isFinite(value);
     if (typeof value !== 'string' || !value.trim()) return false;
     return Number.isFinite(Number(value));

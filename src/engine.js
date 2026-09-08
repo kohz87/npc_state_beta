@@ -30,6 +30,7 @@ import {
     normalizeRelationship,
     normalizeManualRelationshipCorrectionUnresolvedAxes,
     manualOwnedFieldValueIssue,
+    finiteManualNumericInput,
     normalizeRelationshipMilestones,
     normalizeState,
 } from './schema.js';
@@ -1244,7 +1245,7 @@ export function createNpcStateEngine(adapters = {}) {
         if (issue) return issue;
         const has = field => Object.prototype.hasOwnProperty.call(patch, field);
         if (has('birthdayProvenance') && typeof patch.birthdayProvenance !== 'string') return 'birthdayProvenance:expected-string-value';
-        if (has('importance') && !Number.isFinite(Number(patch.importance))) return 'importance:expected-finite-number';
+        if (has('importance') && !finiteManualNumericInput(patch.importance)) return 'importance:expected-finite-number-or-numeric-string';
         if (has('manualProfileFields') && (!Array.isArray(patch.manualProfileFields) || patch.manualProfileFields.some(value => typeof value !== 'string'))) return 'manualProfileFields:expected-string-array';
         return '';
     }

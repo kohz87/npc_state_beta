@@ -165,3 +165,19 @@ test('manual relationship scores preserve finite numbers and nonempty finite num
     assert.equal((await h.engine.updateNpc('nia', { relationship: { trust: '12.4' } })).ok, true);
     assert.equal(h.persisted().npcs[0].relationship.trust, 12);
 });
+
+
+test('manual importance rejects coercive values and preserves finite numeric compatibility', async () => {
+    const h = manualHarness();
+    await h.engine.loadChat('v079-manual');
+    assert.equal((await h.engine.updateNpc('nia', { importance: 50 })).ok, true);
+    for (const invalid of [null, false, [], [7], {}, '', '   ', Infinity, 'Infinity']) {
+        const before = h.persisted().npcs[0];
+        const result = await h.engine.updateNpc('nia', { importance: invalid });
+        assert.equal(result.ok, false, `accepted importance ${JSON.stringify(invalid)}`);
+        assert.equal(result.reason, 'invalid-value-type:importance:expected-finite-number-or-numeric-string');
+        assert.equal(h.persisted().npcs[0].importance, before.importance);
+    }
+    assert.equal((await h.engine.updateNpc('nia', { importance: '42' })).ok, true);
+    assert.equal(h.persisted().npcs[0].importance, 42);
+});
