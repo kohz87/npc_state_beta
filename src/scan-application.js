@@ -625,12 +625,6 @@ function visibleShortActivityIdentityMention(state, npc, visibleText = '') {
     }
     return false;
 }
-function restrictedEvidenceScope(state, patch, policy) {
-    if (!policy?.detected) return 'unrestricted';
-    const patchId = String(patch?.id || '').trim();
-    const existing = patchId ? state.npcs.find(npc => npc.id === patchId) : findNpcByReference(state, patch?.name || '');
-    return evidenceReferenceScope(policy, npcEvidenceVariants(existing, patch));
-}
 function referenceAllowedForActivity(state, reference, policy, channel = 'exchangeActive', patches = [], currentAdmissionText = '') {
     const npc = findNpcByReference(state, reference);
     const patch = activityPatchForReference(state, reference, patches);
@@ -701,14 +695,17 @@ function verifiedCurrentVisibleExcerpts(record, visibleText = '') {
 function identityEvidenceVerified(patch, policy, currentAdmissionText = '') {
     const record = identityEvidenceRecord(patch);
     if (!record) return null;
-    const anchor = humanIdentityCandidate(record.anchor, patch?.role);
+    const anchor = humanIdentityCandidate(record.anchor);
     const explanation = String(record.explanation || '').trim();
     const canonicalName = canonicalPatchName(patch, []);
     const visible = currentVisibleEvidenceText(policy, currentAdmissionText);
     if (!anchor || !explanation || !canonicalName || !visible) return null;
-    if (!containsNormalizedPhrase(canonicalName, anchor) && normalizeName(canonicalName) !== normalizeName(anchor)) return null;
     if (!containsNormalizedPhrase(visible, anchor)) return null;
     if (!verifiedCurrentVisibleExcerpts(record, visible)) return null;
+    const excerpts = Array.isArray(record?.excerpts)
+        ? record.excerpts.map(value => String(value || '').trim()).filter(Boolean)
+        : [];
+    if (!excerpts.some(excerpt => containsNormalizedPhrase(excerpt, anchor))) return null;
     return { anchor, explanation };
 }
 function activityEvidenceVerified(patch, channel, visibleText = '') {
@@ -751,12 +748,16 @@ function identityAnchorUnique(state, patch, anchor, patches = []) {
             if (containsNormalizedPhrase(label, anchor)) owners.add('npc:' + npc.id);
         }
     }
-    for (const candidate of Array.isArray(patches) ? patches : []) {
+    for (let index = 0; index < (Array.isArray(patches) ? patches.length : 0); index += 1) {
+        const candidate = patches[index];
         const name = canonicalPatchName(candidate, []);
-        if (!name || !containsNormalizedPhrase(name, anchor)) continue;
-        owners.add('patch:' + normalizeName(name));
+        const claimedAnchor = humanIdentityCandidate(identityEvidenceRecord(candidate)?.anchor);
+        if (!name) continue;
+        if (containsNormalizedPhrase(name, anchor) || normalizeName(claimedAnchor) === key) owners.add('patch:' + index);
     }
-    const target = 'patch:' + normalizeName(canonicalPatchName(patch, []));
+    const targetIndex = (Array.isArray(patches) ? patches : []).indexOf(patch);
+    if (targetIndex < 0) return false;
+    const target = 'patch:' + targetIndex;
     return owners.size === 1 && owners.has(target);
 }
 function newPatchMentionedInCurrentExchange(patch, currentAdmissionText = '') {
@@ -769,74 +770,22 @@ function newPatchMentionedInCurrentExchange(patch, currentAdmissionText = '') {
     ].map(value => String(value || '').trim()).filter(value => value && !isTechnicalNpcIdentity(value) && !GENERIC_REFERENCES.has(normalizeName(value))))];
     return variants.some(value => containsNormalizedPhrase(source, value));
 }
-function verifiedIdentityAnchorIntroducesPatch(state, patch, policy, currentAdmissionText = '', patches = []) {
-    const identity = identityEvidenceVerified(patch, policy, currentAdmissionText);
-    if (!identity || !identityAnchorUnique(state, patch, identity.anchor, patches)) return false;
-    const record = identityEvidenceRecord(patch);
-    const excerpts = Array.isArray(record?.excerpts)
-        ? record.excerpts.map(value => String(value || '').trim()).filter(Boolean)
-        : [];
-    // identityEvidence may connect several exact excerpts, but admission through a shorter
-    // contextual anchor requires that the anchor itself occur inside one validated excerpt.
-    // This prevents an unrelated visible role word elsewhere in the exchange from licensing
-    // a canonical label that the evidence record never actually identifies.
-    return excerpts.some(excerpt => containsNormalizedPhrase(excerpt, identity.anchor));
-}
-
-const WORLD_IDENTITY_GENERIC_ROLE_HEADS = new Set([
-    'person', 'people', 'someone', 'somebody', 'stranger', 'figure', 'individual',
-    'man', 'woman', 'boy', 'girl', 'child', 'adult', 'youth', 'elder',
-]);
-const WORLD_IDENTITY_INTRO_WORDS = new Set([
-    'a', 'an', 'the', 'this', 'that', 'young', 'old', 'older', 'elderly', 'female', 'male', 'another', 'same',
-]);
-function roleIdentityCues(role = '') {
-    const out = [];
-    const seen = new Set();
-    for (const raw of String(role || '').split(/[\/|;,()[\]{}]+/)) {
-        const phrase = evidenceTextKey(raw, 240);
-        if (!phrase) continue;
-        if (!seen.has(phrase)) { seen.add(phrase); out.push(phrase); }
-        const words = phrase.split(/\s+/).filter(Boolean);
-        const head = words.at(-1) || '';
-        if (head.length >= 4 && !WORLD_IDENTITY_GENERIC_ROLE_HEADS.has(head) && !seen.has(head)) {
-            seen.add(head);
-            out.push(head);
-        }
-    }
-    return out;
-}
-function visibleRoleIntroductionForPatch(patch, visibleText = '') {
-    const source = evidenceTextKey(visibleText, 50000);
-    if (!source) return false;
-    const words = source.split(/\s+/).filter(Boolean);
-    for (const cue of roleIdentityCues(patch?.role)) {
-        if (cue.includes(' ')) {
-            if (containsNormalizedPhrase(source, cue)) return true;
-            continue;
-        }
-        for (let index = 0; index < words.length; index += 1) {
-            if (words[index] !== cue) continue;
-            const prefix = words.slice(Math.max(0, index - 4), index);
-            if (prefix.some(word => WORLD_IDENTITY_INTRO_WORDS.has(word))) return true;
-        }
-    }
-    return false;
-}
-function worldStateIdentityBridgesVisibleIntroduction(state, patch, policy, currentAdmissionText = '', patches = []) {
+function worldStateCanonicalIdentityMention(patch, policy) {
     if (!policy?.detected) return false;
     const canonicalName = canonicalPatchName(patch, []);
     if (!canonicalName || looksLikeRoleLabel(canonicalName, patch?.role)) return false;
-    const structuredCanonical = containsNormalizedPhrase(policy.worldPresentText || '', canonicalName)
+    return containsNormalizedPhrase(policy.worldPresentText || '', canonicalName)
         || containsNormalizedPhrase(policy.worldOffscreenText || '', canonicalName);
-    if (!structuredCanonical) return false;
-    const visible = currentVisibleEvidenceText(policy, currentAdmissionText);
-    const identity = identityEvidenceVerified(patch, policy, currentAdmissionText);
-    if (identity && identityAnchorUnique(state, patch, identity.anchor, patches)) return true;
-    // Preserve the older role bridge as a compatibility fallback, but only for explicit
-    // Present/Off-Screen sections rather than any arbitrary World_State occurrence.
-    return visibleRoleIntroductionForPatch(patch, visible);
 }
+function verifiedIdentityAnchorIntroducesPatch(state, patch, policy, currentAdmissionText = '', patches = []) {
+    const identity = identityEvidenceVerified(patch, policy, currentAdmissionText);
+    if (!identity || !identityAnchorUnique(state, patch, identity.anchor, patches)) return false;
+    const canonicalName = canonicalPatchName(patch, []);
+    const anchorNamesCanonical = containsNormalizedPhrase(canonicalName, identity.anchor)
+        || normalizeName(canonicalName) === normalizeName(identity.anchor);
+    return anchorNamesCanonical || worldStateCanonicalIdentityMention(patch, policy);
+}
+
 function newPatchAllowedByEvidence(state, patch, policy, currentAdmissionText = '', patches = []) {
     if (findNpcByReference(state, patch?.name || '')) return true;
     const visible = currentVisibleEvidenceText(policy, currentAdmissionText);
@@ -847,9 +796,6 @@ function newPatchAllowedByEvidence(state, patch, policy, currentAdmissionText = 
     // excerpt is current-visible and uniquely owned by this patch. Canonical display wording
     // may therefore be richer than the literal anchor without weakening source validation.
     if (verifiedIdentityAnchorIntroducesPatch(state, patch, policy, currentAdmissionText, patches)) return true;
-    const scope = restrictedEvidenceScope(state, patch, policy);
-    if (scope === 'inner' || scope === 'excluded') return false;
-    if (scope === 'world') return worldStateIdentityBridgesVisibleIntroduction(state, patch, policy, visible, patches);
     return false;
 }
 function newReferenceAllowedByWorldIdentityBridge(state, reference, patches, policy, currentAdmissionText = '', channel = 'exchangeActive') {
@@ -863,8 +809,8 @@ function newReferenceAllowedByWorldIdentityBridge(state, reference, patches, pol
     const visible = currentVisibleEvidenceText(policy, currentAdmissionText);
     if (activityEvidenceVerified(patch, channel, visible)) return true;
     if (containsNormalizedPhrase(visible, canonicalName)) return true;
-    if (identityEvidenceVerified(patch, policy, currentAdmissionText)) return true;
-    return visibleRoleIntroductionForPatch(patch, visible);
+    if (verifiedIdentityAnchorIntroducesPatch(state, patch, policy, currentAdmissionText, patches)) return true;
+    return false;
 }
 
 const ROLE_LABEL_MODIFIERS = new Set([
@@ -939,6 +885,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         })
         .map(patch => canonicalPatchName(patch, identityRefs)));
     const targetRefs = [...new Set([...exchangeRefs, ...presentRefs, ...bootstrapRefs])];
+    const rawTargetRefs = uniqueStrings([...(result.exchangeActiveNpcIds || []), ...(result.finalPresentNpcIds || []), ...(result.worldActiveNpcIds || [])]);
 
     const deletedIds = new Set(state.deletedNpcIds || []);
     const createdNpcIds = new Set();
@@ -990,11 +937,13 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         }
         const referenced = targetRefs.some(ref => patchReferenceMatches(patch, ref)) || worldRefs.some(ref => patchReferenceMatches(patch, ref));
         if (!npc) {
+            const rawReferenced = rawTargetRefs.some(ref => patchReferenceMatches(patch, ref));
+            const identityAllowed = newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText, result.npcs);
             if (!referenced) {
-                setPatchResolution(patchIndex, 'unresolved', '', 'not-referenced');
+                setPatchResolution(patchIndex, 'unresolved', '', rawReferenced && !identityAllowed ? 'identity-evidence-unresolved' : 'not-referenced');
                 continue;
             }
-            if (!newPatchAllowedByEvidence(state, patch, evidencePolicy, currentAdmissionText, result.npcs)) {
+            if (!identityAllowed) {
                 setPatchResolution(patchIndex, 'unresolved', '', 'identity-evidence-unresolved');
                 continue;
             }
