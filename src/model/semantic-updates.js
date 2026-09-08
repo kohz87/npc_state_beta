@@ -19,15 +19,15 @@ import {
     DOSSIER_SCALAR_FIELDS,
     DOSSIER_SEMANTIC_FIELDS,
     DOSSIER_SEMANTIC_OPERATIONS,
-    dossierCollectionMemberText,
     dossierFieldDefinition,
     dossierFieldGroup,
     dossierFieldValueIssue,
     dossierFieldManualProtected,
     dossierSemanticFieldList,
+    normalizeDossierTextCollection,
 } from './dossier-fields.js';
 
-export const NPC_STATE_MODEL_CONTRACT_VERSION = 5;
+export const NPC_STATE_MODEL_CONTRACT_VERSION = 6;
 
 const FIELD_SET = new Set(DOSSIER_SEMANTIC_FIELDS);
 const SCALAR_FIELDS = new Set(DOSSIER_SCALAR_FIELDS);
@@ -261,17 +261,7 @@ function collectionValues(npc, field, limits, playerName = '') {
     }
     if (field === 'memories') return normalizeMemoryEntries(npc?.[field], limits.memories, 700);
     const cap = field === 'behaviorProfile' ? limits.behaviorProfile : limits.mannerisms;
-    const out = [];
-    const seen = new Set();
-    for (const raw of Array.isArray(npc?.[field]) ? npc[field] : []) {
-        const value = dossierCollectionMemberText(field, raw, 700);
-        const key = evidenceKey(value, 1400);
-        if (!value || !key || seen.has(key)) continue;
-        seen.add(key);
-        out.push(value);
-        if (out.length >= cap) break;
-    }
-    return out;
+    return normalizeDossierTextCollection(field, npc?.[field], cap, 700);
 }
 
 function normalizeCollection(field, values, limits, playerName = '') {
@@ -281,17 +271,7 @@ function normalizeCollection(field, values, limits, playerName = '') {
     }
     if (field === 'memories') return normalizeMemoryEntries(values, limits.memories, 700);
     const cap = field === 'behaviorProfile' ? limits.behaviorProfile : limits.mannerisms;
-    const out = [];
-    const seen = new Set();
-    for (const raw of Array.isArray(values) ? values : []) {
-        const value = dossierCollectionMemberText(field, raw, 700);
-        const key = evidenceKey(value, 1400);
-        if (!value || !key || seen.has(key)) continue;
-        seen.add(key);
-        out.push(value);
-        if (out.length >= cap) break;
-    }
-    return out;
+    return normalizeDossierTextCollection(field, values, cap, 700);
 }
 
 function targetIndex(field, current, change) {
@@ -681,7 +661,7 @@ export function applyModelLedSemanticUpdates(stateInput, resultInput, options = 
         if (!ordinaryProposalFields.length && !fieldEvaluation.present) {
             const evaluatedGroups = evaluatedGroupsForPatch(patch);
             diagnostics.push(evaluatedGroups.length
-                ? { npcId: npc.id, patchIndex, status: 'evaluated-unchanged', evaluatedGroups }
+                ? { npcId: npc.id, patchIndex, status: 'evaluated-groups', evaluatedGroups }
                 : { npcId: npc.id, patchIndex, status: 'no-field-proposal' });
         }
         for (const raw of semanticRows) {
@@ -787,16 +767,16 @@ export function auditDossierEvaluationCoverage(stateInput, resultInput, { npcIds
         const groups = new Set(evaluatedGroupsForPatch(patch));
         const missingGroups = DOSSIER_EVALUATION_GROUPS.filter(group => !groups.has(group));
         const fieldEvaluation = fieldEvaluationsForPatch(patch);
-        if (fieldEvaluation.present) {
-            const accounted = new Set([...proposedFieldsForPatch(patch), ...fieldEvaluation.byField.keys()]);
-            const missingFields = DOSSIER_SEMANTIC_FIELDS.filter(field => !accounted.has(field));
-            if (missingFields.length || missingGroups.length) diagnostics.push({
-                npcId: npc.id, status: 'incomplete-evaluation', missingGroups,
-                missingFields: missingFields.slice(0, 32),
-            });
-        } else if (missingGroups.length) {
-            diagnostics.push({ npcId: npc.id, status: 'incomplete-evaluation', missingGroups });
-        }
+        const accounted = new Set([
+            ...proposedFieldsForPatch(patch),
+            ...(fieldEvaluation.present ? fieldEvaluation.byField.keys() : []),
+        ]);
+        const missingFields = DOSSIER_SEMANTIC_FIELDS.filter(field => !accounted.has(field));
+        if (missingFields.length || missingGroups.length) diagnostics.push({
+            npcId: npc.id, status: 'incomplete-evaluation', missingGroups,
+            missingFields: missingFields.slice(0, 32),
+            coverageKind: fieldEvaluation.present ? 'field-level' : 'group-only',
+        });
     }
     return diagnostics;
 }

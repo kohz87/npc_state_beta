@@ -122,15 +122,16 @@ test('duplicate, unfinished and orphan transport blocks reject the whole capture
 test('shared populated example applies both identities and descriptive zero-score summary without numeric history', () => {
     const state = createEmptyState('chat:apply');
     state.npcs = [normalizeNpc({ id: 'npc-ivo', name: 'Ivo', appearance: 'Brown eyes.' })];
-    const text = 'Nia wears a blue coat. Nia greets Ari. Ivo has green eyes.';
-    const result = applyScanResult(state, strict(JSON.stringify(scanOutputExamples().populated)), {
+    const example = scanOutputExamples().populated;
+    const text = `${example.npcs[0].relationshipSummaryEvidence.excerpts[0]} Ivo has green eyes.`;
+    const result = applyScanResult(state, strict(JSON.stringify(example)), {
         sourceMessageId: 1, turn: 1, playerName: 'Ari', currentAdmissionText: text, profileContext: text, relationshipContext: text, applyReturnedNpcPatches: true,
     });
     assert.equal(result.state.npcs.length, 2);
     const nia = result.state.npcs.find(npc => npc.name === 'Nia');
     assert.ok(nia.id && nia.id !== 'Nia');
     assert.equal(nia.appearance, 'Blue coat.');
-    assert.equal(nia.relationshipSummary, 'A new acquaintance of Ari.');
+    assert.equal(nia.relationshipSummary, 'Professional clerk-applicant interaction.');
     assert.deepEqual(nia.relationship, { trust: 0, affection: 0, desire: 0, tension: 0 });
     assert.equal(nia.relationshipHistory.length, 0);
     assert.equal(result.state.npcs.find(npc => npc.id === 'npc-ivo').appearance, 'Green eyes.');

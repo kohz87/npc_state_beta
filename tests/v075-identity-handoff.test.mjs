@@ -184,7 +184,9 @@ test('new NPC with empty id applies complete semantic bootstrap through one acce
     assert.equal(result.patchResolutions[0].status, 'accepted');
     assert.equal(result.patchResolutions[0].npcId, mira.id);
     assert.equal(result.semanticDiagnostics.filter(row => row.status === 'applied').length, 8);
-    assert.equal(result.coverageDiagnostics.length, 0);
+    const coverage = result.coverageDiagnostics.find(row => row.status === 'incomplete-evaluation');
+    assert.equal(coverage?.coverageKind, 'group-only');
+    assert.ok(coverage?.missingFields?.includes('personality'));
 });
 
 test('unexpected nonempty model id is a transport hint and semantic updates follow the locally allocated id', () => {
@@ -328,8 +330,10 @@ test('diagnostics distinguish absent, unresolved, validation-rejected, applied, 
     assert.equal(invalid.semanticDiagnostics.some(row => row.field === 'mood' && row.status === 'invalid-source-reference'), true);
 
     const checked = apply(state, payload([{ id: 'mira', name: 'Mira', evaluatedGroups: ALL_GROUPS, semanticUpdates: [] }], ['mira'], ['mira']), visible);
-    assert.equal(checked.semanticDiagnostics.some(row => row.status === 'evaluated-unchanged' && row.evaluatedGroups.length === ALL_GROUPS.length), true);
-    assert.equal(checked.coverageDiagnostics.length, 0);
+    assert.equal(checked.semanticDiagnostics.some(row => row.status === 'evaluated-groups' && row.evaluatedGroups.length === ALL_GROUPS.length), true);
+    assert.equal(checked.semanticDiagnostics.some(row => row.status === 'evaluated-unchanged' && Array.isArray(row.evaluatedGroups)), false);
+    assert.equal(checked.coverageDiagnostics[0]?.status, 'incomplete-evaluation');
+    assert.equal(checked.coverageDiagnostics[0]?.coverageKind, 'group-only');
 
     const noProposal = apply(state, payload([{ id: 'mira', name: 'Mira', semanticUpdates: [] }], ['mira'], ['mira']), visible);
     assert.equal(noProposal.semanticDiagnostics.some(row => row.status === 'no-field-proposal'), true);

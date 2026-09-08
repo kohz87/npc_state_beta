@@ -60,7 +60,8 @@ export function summarizeProposalDiagnostics(semanticDiagnostics = [], coverageD
         const status = String(row?.status || '');
         if (status === 'applied') summary.accepted += 1;
         else if (status === 'no-change-proposed') summary.unchanged += 1;
-        else if (status === 'evaluated-unchanged') summary.unchanged += Math.max(1, Array.isArray(row?.evaluatedGroups) ? row.evaluatedGroups.length : 1);
+        else if (status === 'evaluated-unchanged') summary.unchanged += 1;
+        else if (status === 'evaluated-groups') { /* group-level compatibility marker; not field-level unchanged */ }
         else if (status === 'insufficient-evidence') insufficient += 1;
         else if (status === 'context-unavailable') unavailable += 1;
         else if (status === 'no-field-proposal') reasons.push('no-field-proposal');
@@ -73,9 +74,11 @@ export function summarizeProposalDiagnostics(semanticDiagnostics = [], coverageD
     for (const row of Array.isArray(coverageDiagnostics) ? coverageDiagnostics : []) {
         const status = String(row?.status || '');
         if (status === 'missing-npc-patch' || status === 'incomplete-evaluation') {
-            summary.omitted += Math.max(1, Array.isArray(row?.missingGroups) ? row.missingGroups.length : 1);
-            const groups = Array.isArray(row?.missingGroups) ? row.missingGroups.join(',') : '';
-            reasons.push([status, groups].filter(Boolean).join(': '));
+            const fields = Array.isArray(row?.missingFields) ? row.missingFields.filter(Boolean) : [];
+            const groups = Array.isArray(row?.missingGroups) ? row.missingGroups.filter(Boolean) : [];
+            summary.omitted += Math.max(1, fields.length || groups.length);
+            const detail = fields.length ? `fields=${fields.slice(0, 12).join(',')}` : (groups.length ? `groups=${groups.join(',')}` : '');
+            reasons.push([status, detail].filter(Boolean).join(': '));
         } else if (status === 'identity-rejected' || status === 'identity-unresolved') {
             countIdentityFailure(row);
         } else if (status) {

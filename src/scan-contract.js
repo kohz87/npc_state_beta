@@ -1,3 +1,4 @@
+import { DOSSIER_EVALUATION_GROUPS, DOSSIER_SEMANTIC_FIELDS } from './model/dossier-fields.js';
 import { RELATIONSHIP_AXES } from './schema.js';
 
 // One envelope definition for prompt examples and the production response boundary.
@@ -13,26 +14,29 @@ export function emptyScanPayload() {
 
 // Fictional examples are data, not templates with enum alternatives posing as values.
 // The tests parse the exact serialized examples through the production parser.
-export function scanOutputExamples({ includeNew = true } = {}) {
+export function scanOutputExamples({ includeNew = true, includeExisting = true } = {}) {
     const minimal = emptyScanPayload();
     const populated = emptyScanPayload();
-    const proof = text => ({ excerpts: [text], explanation: text });
-    const zero = () => ({ evaluated: true, impact: 'none', delta: Object.fromEntries(RELATIONSHIP_AXES.map(axis => [axis, 0])), axisEvidence: {}, reason: 'No new relationship shift.' });
+    const proof = text => ({ excerpts: [text], explanation: 'Nia tells Ari to register.' });
+    const zero = () => ({ evaluated: true, impact: 'none', delta: Object.fromEntries(RELATIONSHIP_AXES.map(axis => [axis, 0])), axisEvidence: {}, reason: 'No relationship shift.' });
     if (includeNew) {
+        const evidence = 'Nia, harbor clerk in blue, tells Ari “Registry first” and taps the form.';
         populated.exchangeActiveNpcIds.push('Nia');
         populated.inChatNpcIds.push('Nia');
-        populated.npcs.push({
-            id: '', name: 'Nia', identityKind: 'named',
-            identityEvidence: { anchor: 'Nia', ...proof('Nia greets Ari.') },
-            activityEvidence: { exchangeActive: proof('Nia greets Ari.'), inChat: proof('Nia greets Ari.') },
-            appearance: 'Blue coat.', status: 'Greeting Ari.',
-            relationshipChange: zero(), relationshipSummary: 'A new acquaintance of Ari.',
-            relationshipSummaryEvidence: proof('Nia greets Ari.'),
-        });
+        const nia = {
+            id: '', name: 'Nia', identityKind: 'named', evaluatedGroups: [...DOSSIER_EVALUATION_GROUPS],
+            identityEvidence: { anchor: 'Nia', ...proof(evidence) },
+            activityEvidence: { exchangeActive: proof(evidence), inChat: proof(evidence) },
+            role: 'Harbor clerk', appearance: 'Blue coat.', behaviorProfile: ['Task-focused intake.'], speech: 'Brief practical instructions.',
+            mannerisms: ['Observed tapping the form.'], mood: 'Businesslike.', location: 'Harbor desk.', goal: 'Register Ari.', status: 'Processing registry.',
+            relationshipChange: zero(), relationshipSummary: 'Professional clerk-applicant interaction.', relationshipSummaryEvidence: proof(evidence),
+        };
+        const proposed = new Set(Object.keys(nia));
+        nia.fieldEvaluations = { unchanged: [], insufficient: DOSSIER_SEMANTIC_FIELDS.filter(field => !proposed.has(field)), unavailable: [] };
+        populated.npcs.push(nia);
     }
-    populated.npcs.push({
-        id: 'npc-ivo', name: 'Ivo', evaluatedGroups: ['canon'],
-        fieldEvaluations: { unchanged: ['age'], insufficient: ['background'], unavailable: ['personality'] },
+    if (includeExisting) populated.npcs.push({
+        id: 'npc-ivo', name: 'Ivo', evaluatedGroups: ['canon'], fieldEvaluations: { unchanged: ['age'], insufficient: ['background'], unavailable: ['personality'] },
         semanticUpdates: [{ field: 'appearance', operation: 'replace', value: 'Green eyes.', sources: [{ messageId: null, excerpt: 'Ivo has green eyes.' }], explanation: 'Ivo has green eyes.' }],
     });
     return { minimal, populated };
@@ -40,14 +44,25 @@ export function scanOutputExamples({ includeNew = true } = {}) {
 
 export function scanOutputContract(options = {}) {
     const examples = scanOutputExamples(options);
+    const compact = options.compact === true;
     return [
-        'JSON: all seven arrays required, even empty. References=ids/names. NEW id="", name=canonical name, identityKind=' + SCAN_IDENTITY_KINDS.join('|') + '. EXISTING/name-only: keep supplied id. No canonicalName/activityRefs/live/relationshipToPlayer.',
-        'NEW: flat strings; map [] means string arrays; appearanceForms:[{name,appearance}].',
-        'Evidence:{excerpts:[1-3 exact quotes],explanation}; identityEvidence adds anchor. activityEvidence keys:exchangeActive/inChat/worldActive. Identity/activity=current visible. Semantic messageId:null=current, number=history.',
-        'evaluatedGroups=map groups; fieldEvaluations=field ids.',
+        compact
+            ? 'JSON: seven arrays required. NEW id="", canonical name, identityKind=named|role-label; EXISTING/name-only: keep supplied id. No alternate dialects.'
+            : 'JSON: all seven arrays required, even empty. References=ids/names. NEW id="", name=canonical name, identityKind=' + SCAN_IDENTITY_KINDS.join('|') + '. EXISTING/name-only: keep supplied id. No canonicalName/activityRefs/live/relationshipToPlayer.',
+        compact ? 'NEW ordinary fields are flat; []=string arrays; appearanceForms:[{name,appearance}].' : 'NEW: flat strings; map [] means string arrays; appearanceForms:[{name,appearance}].',
+        compact
+            ? 'Evidence={excerpts:[exact quotes],explanation}; identity adds anchor; activity keys=exchangeActive/inChat/worldActive; messageId:null=current.'
+            : 'Evidence:{excerpts:[1-3 exact quotes],explanation}; identityEvidence adds anchor. activityEvidence keys:exchangeActive/inChat/worldActive. Identity/activity=current visible. Semantic messageId:null=current, number=history.',
+        compact ? '' : 'evaluatedGroups=map groups only. Modern coverage: each applicable ordinary field is proposed or listed once in fieldEvaluations unchanged|insufficient|unavailable; group labels never prove field evaluation.',
         'OUTPUT CONTRACT:\n' + JSON.stringify(examples.minimal),
-        'VALID JSON EXAMPLE, fictional, never copy facts/ids: Nia in blue greets Ari. Ivo has green eyes, known age, no background evidence or personality context.\n' + JSON.stringify(examples.populated),
-        options.includeRelationship === false ? '' : 'Exchange-active NPCs evaluate relationshipChange: impact=none|ordinary|meaningful|major|extreme; axes=' + RELATIONSHIP_AXES.join('|') + '. Nonzero axes need axisEvidence:{axis:{excerpts,explanation}}; optional priority:[axes]. Changed relationshipSummary needs relationshipSummaryEvidence even at zero delta. Never invent scores/intimacy.',
-        'Row notation (NOT JSON): socialEdges:{from,to,relation,summary,provenance}; familyFacts:{owner,relation,members:[],count,descriptor,evidence}; lifeStateUpdates:{id,name,lifeState,lifeStateCertainty,lifeStateReason,livingReturn}. State=alive|dead|unknown; certainty=explicit|strong|uncertain; target-bound reason; dead-to-alive requires livingReturn:true.',
+        (compact
+            ? 'VALID FICTIONAL EXAMPLE: populated NEW live/profile + zero-delta Current Dynamic + insufficient fields. Never copy facts/ids.\n'
+            : 'VALID JSON EXAMPLE, fictional, never copy facts/ids: Nia shows supported new-NPC live/profile facts plus zero-delta Current Dynamic and explicit insufficient fields; Ivo shows existing semantic update and field outcomes.\n') + JSON.stringify(examples.populated),
+        options.includeRelationship === false ? '' : (compact
+            ? 'Relationship: impact=none|ordinary|meaningful|major|extreme; axes=trust|affection|desire|tension. Nonzero axes need axisEvidence. Changed Current Dynamic needs its own exact evidence, including at zero delta; never invent intimacy.'
+            : 'Exchange-active NPCs evaluate relationshipChange: impact=none|ordinary|meaningful|major|extreme; axes=' + RELATIONSHIP_AXES.join('|') + '. Nonzero axes need axisEvidence:{axis:{excerpts,explanation}}; optional priority:[axes]. Changed relationshipSummary needs relationshipSummaryEvidence even at zero delta. Never invent scores/intimacy.'),
+        compact
+            ? 'Graph/life rows (not JSON examples): socialEdges from,to,relation,summary,provenance; familyFacts owner,relation,members,count,descriptor,evidence; lifeStateUpdates id/name,state,certainty,reason,livingReturn. dead->alive needs livingReturn:true.'
+            : 'Row notation (NOT JSON): socialEdges:{from,to,relation,summary,provenance}; familyFacts:{owner,relation,members:[],count,descriptor,evidence}; lifeStateUpdates:{id,name,lifeState,lifeStateCertainty,lifeStateReason,livingReturn}. State=alive|dead|unknown; certainty=explicit|strong|uncertain; target-bound reason; dead-to-alive requires livingReturn:true.',
     ].filter(Boolean).join('\n');
 }

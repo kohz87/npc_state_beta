@@ -2,11 +2,13 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model.
 
-## Release 0.7.9
+## Release 0.7.10
 
-Semantic form targeting and manual/collection input validation are stricter before lossy normalization. Malformed `appearanceForms` selectors are rejected rather than becoming form names such as `[object Object]`. Supported collection objects now require every recognized consumed text property to be textual, so one valid alias cannot conceal another malformed alias. Manual relationship scores and manual importance accept finite numbers and nonempty finite numeric strings only; rejected values do not create correction/history records or persist a coerced score. Persisted per-axis correction records use the same rule before rollback can treat them as durable ownership.
+First-pass completeness is stricter without adding another model request. The compact shared contract now demonstrates supported new-NPC live/profile fields, explicit insufficient-evidence outcomes, and a zero-delta Current Dynamic while preserving the existing foreground token budget behavior. Legacy `evaluatedGroups` remain accepted as group metadata, but only proposals or explicit `fieldEvaluations` prove field-level work; unaccounted fields are reported separately from persistence success.
 
-The v0.7.7 canonical envelope and `<npc_state_v1>` transport remain unchanged. Release 0.7.9 continues semantic contract 5, foreground contract 6, persisted/settings schema 1, and storage identity `npc_state_beta.v3`. No database rebuild or migration is required.
+Current Dynamic evidence can bind an NPC through an unambiguous short name and the player through a full/unique short name or narrator-addressed second person outside quoted dialogue. Exact source grounding, ambiguity rejection, wrong-recipient protection, relationship intensity limits, and numeric-score independence remain in force. New-NPC behavior/mannerism bootstrap and persisted collection normalization now share the field-aware collection normalizers used by semantic updates, so foreign sibling properties cannot become an alternate mutation path.
+
+The v0.7.7 canonical envelope and `<npc_state_v1>` transport remain unchanged. Release 0.7.10 uses semantic contract 6, foreground contract 7, persisted/settings schema 1, and storage identity `npc_state_beta.v3`. No database rebuild or migration is required.
 
 ## Release 0.7.8
 

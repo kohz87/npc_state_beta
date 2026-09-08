@@ -28,23 +28,12 @@ export function uniqueStrings(values = [], max = 100) {
     return out;
 }
 
-function collectionPatchEntry(value) {
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-        for (const candidate of [value.text, value.value, value.summary, value.description, value.name, value.label, value.memory, value.mannerism, value.behavior, value.trait, value.alias]) {
-            const clean = String(candidate ?? '').trim();
-            if (clean && clean !== '[object Object]') return clean;
-        }
-        return '';
-    }
-    const clean = String(value ?? '').trim();
-    return clean === '[object Object]' ? '' : clean;
-}
-
 export function appendUnique(existing = [], incoming = [], max = 12) {
     const out = [...existing];
     const seen = new Set(existing.map(item => normalizeName(item)));
     for (const item of incoming || []) {
-        const clean = collectionPatchEntry(item);
+        if (typeof item !== 'string') continue;
+        const clean = item.trim();
         const key = normalizeName(clean);
         if (!clean || !key || seen.has(key)) continue;
         seen.add(key);
@@ -67,8 +56,8 @@ export function dossierExtractionPromptRules({ includeNew = true, includeExistin
     if (includeExisting) modes.push('EXISTING: compare supplied context; semanticUpdates only');
     return [
         `DOSSIER EXTRACTION MAP: ${dossierExtractionGroupSummary()}. ${modes.join('. ')}.`,
-        'FIELD EVALUATION DETAIL: contextCoverage.unavailable/partial is hidden/truncated, NOT empty. Omission is not evaluation.',
-        'PRIVATE COMPLETENESS CHECK: silently check all supported dossier facts and Current Dynamic before payload; no reasoning output.',
+        'FIELD EVALUATION DETAIL: propose each applicable field or list it in fieldEvaluations unchanged|insufficient|unavailable. evaluatedGroups are group labels only; omission=unaccounted. contextCoverage.unavailable/partial != empty.',
+        'PRIVATE COMPLETENESS CHECK: same generation; silently check all dossier fields + Current Dynamic before payload. One-off gestures may be observed mannerisms, never recurring/lifelong traits. No reasoning.',
     ];
 }
 

@@ -1,8 +1,8 @@
 import { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 export { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 import { normalizeNumericSetting } from './settings-contract.js';
-import { dossierFieldValueIssue } from './model/dossier-fields.js';
-export const NPC_STATE_VERSION = '0.7.9';
+import { dossierCollectionMemberText, dossierFieldValueIssue, normalizeDossierTextCollection } from './model/dossier-fields.js';
+export const NPC_STATE_VERSION = '0.7.10';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     return normalizeNumericSetting('scannerResponseTokens', value);
@@ -405,7 +405,7 @@ export function normalizeMemoryEntries(value, max = MEMORY_LIMIT, itemMax = 700)
     const input = Array.isArray(value) ? value : (value == null ? [] : [value]);
     const out = [];
     for (const raw of input) {
-        const clean = collectionEntry(raw, itemMax);
+        const clean = dossierCollectionMemberText('memories', raw, itemMax);
         if (!clean) continue;
         const duplicateIndex = out.findIndex(existing => memoriesSemanticallyDuplicate(existing, clean));
         if (duplicateIndex >= 0) {
@@ -981,9 +981,9 @@ export function normalizeNpc(input = {}, options = {}) {
         appearanceForms,
         currentForm,
         personality: text(input.personality, 1200),
-        behaviorProfile: list(input.behaviorProfile, DOSSIER_LIMIT_MAXIMUMS.behaviorProfile, 360),
+        behaviorProfile: normalizeDossierTextCollection('behaviorProfile', input.behaviorProfile, DOSSIER_LIMIT_MAXIMUMS.behaviorProfile, 360),
         speech: text(input.speech, 900),
-        mannerisms: list(input.mannerisms, DOSSIER_LIMIT_MAXIMUMS.mannerisms, 280),
+        mannerisms: normalizeDossierTextCollection('mannerisms', input.mannerisms, DOSSIER_LIMIT_MAXIMUMS.mannerisms, 280),
         profileEvolutionEvidence,
         background: text(input.background, 1600),
         keyRelationships: normalizeKeyRelationshipEntries(input.keyRelationships, DOSSIER_LIMIT_MAXIMUMS.keyRelationships, 500),

@@ -76,8 +76,8 @@ function apply(state, result, context, extra = {}) {
 }
 
 test('0.5.10 uses one canonical semantic field registry', () => {
-    assert.equal(NPC_STATE_MODEL_CONTRACT_VERSION, 5);
-    assert.equal(FOREGROUND_CONTRACT_VERSION, 6);
+    assert.equal(NPC_STATE_MODEL_CONTRACT_VERSION, 6);
+    assert.equal(FOREGROUND_CONTRACT_VERSION, 7);
     for (const field of [
         'role', 'species', 'background', 'age', 'apparentAge', 'birthday', 'appearance', 'appearanceForms',
         'personality', 'behaviorProfile', 'speech', 'mannerisms',
@@ -138,7 +138,9 @@ test('one semantic update list applies durable, live, and current-form changes t
     assert.equal(npc.goal, 'Study the guild noticeboard.');
     assert.equal(npc.status, 'Reading the guild noticeboard.');
     assert.equal(npc.currentForm, 'Thunderbird');
-    assert.equal(result.coverageDiagnostics.length, 0);
+    const coverage = result.coverageDiagnostics.find(row => row.status === 'incomplete-evaluation');
+    assert.equal(coverage?.coverageKind, 'group-only');
+    assert.ok(coverage?.missingFields?.includes('speech'));
     assert.equal(result.semanticDiagnostics.filter(row => row.status === 'applied').length, 6);
 });
 
@@ -165,7 +167,10 @@ test('coverage diagnostics distinguish a missing NPC patch from a checked unchan
         evaluatedGroups: [...DOSSIER_EVALUATION_GROUPS],
         relationshipChange: { evaluated: true, impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, priority: [], axisEvidence: {}, evidence: '', reason: 'No player-relationship shift.' },
     }), 'Sora answers Lucien.', { requireDossierCoverage: true });
-    assert.deepEqual(checked.coverageDiagnostics, []);
+    assert.equal(checked.coverageDiagnostics[0]?.status, 'incomplete-evaluation');
+    assert.equal(checked.coverageDiagnostics[0]?.coverageKind, 'group-only');
+    assert.ok(checked.coverageDiagnostics[0]?.missingFields?.includes('mood'));
+    assert.equal(checked.semanticDiagnostics.some(row => row.status === 'evaluated-groups'), true);
 });
 
 test('coverage diagnostics report exactly which dossier groups were not evaluated', () => {

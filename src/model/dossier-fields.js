@@ -90,6 +90,22 @@ export function dossierCollectionMemberText(field, value, max = 700) {
     return '';
 }
 
+export function normalizeDossierTextCollection(field, values, max = 12, itemMax = 700) {
+    const definition = dossierFieldDefinition(field);
+    if (definition?.kind !== 'collection' || field === 'keyRelationships') return [];
+    const out = [];
+    const seen = new Set();
+    for (const raw of Array.isArray(values) ? values : []) {
+        const clean = dossierCollectionMemberText(field, raw, itemMax);
+        const key = clean.normalize('NFKC').toLocaleLowerCase();
+        if (!clean || !key || seen.has(key)) continue;
+        seen.add(key);
+        out.push(clean);
+        if (out.length >= max) break;
+    }
+    return out;
+}
+
 function appearanceFormsIssue(value) {
     const rows = Array.isArray(value)
         ? value

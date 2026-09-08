@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.10
+
+- Accept grounded zero-delta Current Dynamic evidence that binds an NPC through an unambiguous short identity and the player through a full/unique short name or narrator-addressed second person outside quoted dialogue; ambiguous names and quoted bare `you` remain rejected.
+- Make field-level completeness diagnostics honest for legacy `evaluatedGroups` payloads: group labels remain compatible but no longer fabricate unchanged-field certainty, and bounded missing field ids drive omitted accounting.
+- Route new-NPC behavior/mannerism bootstrap and persisted collection normalization through the same field-aware collection member rules used by semantic updates, removing the generic cross-field object converter.
+- Strengthen the compact shared first-pass example and same-generation completeness instructions without adding another model request or changing persisted/settings schemas; model contract is 6 and foreground contract is 7.
+
+
 ## 0.7.9
 
 - Reject malformed `appearanceForms` selectors before semantic dedupe/normalization. `scope.form`, `targetForm`, `expected`, and `ref` must be textual when supplied; valid string selectors and documented `{name,appearance}` form values remain supported.

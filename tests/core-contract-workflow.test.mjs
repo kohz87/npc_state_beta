@@ -102,7 +102,7 @@ test('operation diagnostic ledger is bounded, hashes history, and never invents 
     log.finish(id, { status: 'committed', persistence: { status: 'committed', revision: 7 } });
     const rows = log.records('chat');
     assert.equal(rows.length, 1);
-    assert.deepEqual(rows[0].proposals, { accepted: 1, rejected: 1, unchanged: 1, omitted: 2, reasons: ['invalid-source-reference: out-of-scope-source', 'incomplete-evaluation: live,memory'] });
+    assert.deepEqual(rows[0].proposals, { accepted: 1, rejected: 1, unchanged: 1, omitted: 2, reasons: ['invalid-source-reference: out-of-scope-source', 'incomplete-evaluation: groups=live,memory'] });
     assert.equal(rows[0].source.history.hash.length > 0, true);
     assert.equal(log.summary('chat').latest.revision, 7);
 

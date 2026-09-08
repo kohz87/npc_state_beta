@@ -1,5 +1,5 @@
 import { evidenceReferenceScope } from './evidence-adapter.js';
-import { DOSSIER_SEMANTIC_FIELDS, dossierFieldGroup, dossierFieldValueIssue } from './model/dossier-fields.js';
+import { DOSSIER_SEMANTIC_FIELDS, dossierFieldGroup, dossierFieldValueIssue, normalizeDossierTextCollection } from './model/dossier-fields.js';
 import { relationshipEvidenceExcerptMatch } from './relationship-evidence.js';
 import { GENERIC_REFERENCES, appendUnique, containsNormalizedPhrase, evidenceTextKey, identityTokenMention, resolvePlayerName, shortActivityIdentityCandidates, shortActivityIdentityUnique, uniqueStrings } from './scan-helpers.js';
 import { applyLifeState } from './scan-lifecycle.js';
@@ -598,8 +598,8 @@ function applyIdentityAndBootstrapPatch(npc, patch, options = {}) {
         if (status) next.status = status;
     }
 
-    if (validBootstrapField('behaviorProfile')) next.behaviorProfile = appendUnique([], patch.behaviorProfile, limits.behaviorProfile);
-    if (validBootstrapField('mannerisms')) next.mannerisms = appendUnique([], patch.mannerisms, limits.mannerisms);
+    if (validBootstrapField('behaviorProfile')) next.behaviorProfile = normalizeDossierTextCollection('behaviorProfile', patch.behaviorProfile, limits.behaviorProfile, 360);
+    if (validBootstrapField('mannerisms')) next.mannerisms = normalizeDossierTextCollection('mannerisms', patch.mannerisms, limits.mannerisms, 280);
     if (validBootstrapField('memories')) next.memories = normalizeMemoryEntries(patch.memories, limits.memories, 700);
     if (validBootstrapField('keyRelationships')) {
         next.keyRelationships = normalizeKeyRelationshipEntries(patch.keyRelationships, limits.keyRelationships, 500)

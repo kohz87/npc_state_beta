@@ -1,6 +1,6 @@
 import { relationshipImpactRank, relationshipMilestoneEventQualifies, relationshipInertiaFactor, relationshipAxisLimit } from './relationship-rules.js';
 import { relationshipEvidenceExcerptMatch, relationshipEvidenceGrounding } from './relationship-evidence.js';
-import { containsNormalizedPhrase, relationshipSummaryRepairContext } from './scan-helpers.js';
+import { containsNormalizedPhrase, relationshipSummaryRepairContext, shortActivityIdentityCandidates } from './scan-helpers.js';
 import { DEFAULT_RELATIONSHIP_CAPS, RELATIONSHIP_AXES, RELATIONSHIP_MILESTONE_THRESHOLDS, applyRelationshipMilestoneCrossings, normalizeRelationship, normalizeRelationshipAxisEvidence, normalizeRelationshipCaps, normalizeRelationshipDiagnostics, normalizeRelationshipEvidenceHistory, normalizeRelationshipPriority, normalizeRelationshipProgress, normalizeRelationshipSummary, relationshipMilestoneUnlocked } from './schema.js';
 
 const IMPACTS = new Set(['none', 'ordinary', 'meaningful', 'major', 'extreme']);
@@ -124,6 +124,45 @@ function relationshipSummarySupported(value, relationship, milestones) {
     return true;
 }
 
+function narrationOutsideQuotedDialogue(value) {
+    const text = String(value || '');
+    let out = '';
+    let straight = false;
+    let curly = false;
+    for (const char of text) {
+        if (char === '"' && !curly) { straight = !straight; out += ' '; continue; }
+        if (char === '“' && !straight) { curly = true; out += ' '; continue; }
+        if (char === '”' && curly && !straight) { curly = false; out += ' '; continue; }
+        out += straight || curly ? ' ' : char;
+    }
+    return out;
+}
+
+function identityShortTokenAmbiguous(candidate, otherNames = []) {
+    const needle = String(candidate || '').trim();
+    if (!needle) return true;
+    return (Array.isArray(otherNames) ? otherNames : []).some(name => {
+        if (containsNormalizedPhrase(name, needle)) return true;
+        return shortActivityIdentityCandidates({ name, aliases: [] })
+            .some(token => containsNormalizedPhrase(token, needle));
+    });
+}
+
+function identityMentioned(excerpt, names = [], otherNames = []) {
+    const labels = (Array.isArray(names) ? names : []).map(value => String(value || '').trim()).filter(Boolean);
+    if (labels.some(name => containsNormalizedPhrase(excerpt, name))) return true;
+    const [name = '', ...aliases] = labels;
+    return shortActivityIdentityCandidates({ name, aliases }).some(candidate =>
+        containsNormalizedPhrase(excerpt, candidate) && !identityShortTokenAmbiguous(candidate, otherNames));
+}
+
+function playerMentioned(excerpt, playerName, npcNames = []) {
+    if (containsNormalizedPhrase(excerpt, playerName)) return true;
+    const short = shortActivityIdentityCandidates({ name: playerName, aliases: [] });
+    if (short.some(candidate => containsNormalizedPhrase(excerpt, candidate) && !identityShortTokenAmbiguous(candidate, npcNames))) return true;
+    return /\b(?:you|your|yours|yourself)\b/i.test(narrationOutsideQuotedDialogue(excerpt));
+}
+
 function relationshipSummaryEvidenceGrounded(npc, patch, options = {}) {
     const raw = patch?.relationshipSummaryEvidence;
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, reason: 'missing-summary-evidence' };
@@ -137,8 +176,10 @@ function relationshipSummaryEvidenceGrounded(npc, patch, options = {}) {
 
     const subjectNames = [npc?.name, ...(Array.isArray(npc?.aliases) ? npc.aliases : [])].map(value => String(value || '').trim()).filter(Boolean);
     const playerName = String(options.playerName || '').trim();
+    const otherNpcNames = (Array.isArray(options.otherNpcNames) ? options.otherNpcNames : []).map(value => String(value || '').trim()).filter(Boolean);
     if (!subjectNames.length || !playerName) return { ok: false, reason: 'summary-target-identity-unavailable' };
-    const targetBound = excerpts.some(excerpt => subjectNames.some(name => containsNormalizedPhrase(excerpt, name)) && containsNormalizedPhrase(excerpt, playerName));
+    const targetBound = excerpts.some(excerpt => identityMentioned(excerpt, subjectNames, otherNpcNames)
+        && playerMentioned(excerpt, playerName, [...subjectNames, ...otherNpcNames]));
     if (!targetBound) return { ok: false, reason: 'wrong-summary-target' };
 
     const grounding = relationshipEvidenceGrounding(explanation, excerpts.join(' '), {

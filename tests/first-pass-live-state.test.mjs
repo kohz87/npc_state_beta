@@ -156,7 +156,8 @@ test('one completed embedded first pass changes all four fields, persists them, 
     await h.engine.loadChat();
     const result = await h.engine.applyEmbeddedScan(1, consumed.parsed, { expectedMessageText: consumed.cleanedText, expectedSwipeId: 0 });
     assert.equal(result.ok, true);
-    assert.equal(result.coverageDiagnostics.length, 0);
+    assert.equal(result.coverageDiagnostics[0]?.status, 'incomplete-evaluation');
+    assert.equal(result.coverageDiagnostics[0]?.coverageKind, 'group-only');
     assert.equal(result.semanticDiagnostics.filter(row => LIVE_FIELDS.includes(row.field) && row.status === 'applied').length, 4);
     const dossier = h.engine.getDossierNpc('npc-sora');
     assert.equal(dossier.mood, 'Relieved.');
@@ -208,11 +209,13 @@ test('unsupported direct existing live proposals are diagnosed instead of silent
     }
 });
 
-test('evaluated unchanged, omission, unknown live coverage, and explicit removal remain distinct', () => {
+test('group-only evaluation, omission, unknown live coverage, and explicit removal remain distinct', () => {
     const state = liveState();
     const context = 'Sora waits quietly; nothing about her current plan changes.';
     const checked = apply(state, payload({ evaluatedGroups: ALL_GROUPS, semanticUpdates: [] }), context, { requireDossierCoverage: true });
-    assert.equal(checked.coverageDiagnostics.length, 0);
+    assert.equal(checked.coverageDiagnostics[0]?.status, 'incomplete-evaluation');
+    assert.equal(checked.coverageDiagnostics[0]?.coverageKind, 'group-only');
+    assert.equal(checked.semanticDiagnostics.some(row => row.status === 'evaluated-groups'), true);
     assert.equal(checked.state.npcs[0].goal, 'Reach the southern gate before dark.');
 
     const omitted = apply(liveState(), payload(null), context, { requireDossierCoverage: true });

@@ -207,8 +207,10 @@ test('legacy evaluatedGroups-only payload remains group-level compatible without
         sourceMessageId: 1, turn: 1, currentAdmissionText: 'Sanna Karr waits at the desk.', profileContext: 'Sanna Karr waits at the desk.',
         playerName: 'Lucien', applyReturnedNpcPatches: true, applyRelationship: false, preservePresence: true, preserveObservation: true, requireDossierCoverage: true,
     });
-    assert.equal(result.coverageDiagnostics.length, 0);
-    const group = result.semanticDiagnostics.find(row => row.status === 'evaluated-unchanged' && Array.isArray(row.evaluatedGroups));
+    assert.equal(result.coverageDiagnostics[0]?.status, 'incomplete-evaluation');
+    assert.equal(result.coverageDiagnostics[0]?.coverageKind, 'group-only');
+    assert.ok(result.coverageDiagnostics[0]?.missingFields?.includes('mood'));
+    const group = result.semanticDiagnostics.find(row => row.status === 'evaluated-groups' && Array.isArray(row.evaluatedGroups));
     assert.deepEqual(group?.evaluatedGroups, ALL_GROUPS);
     assert.equal(result.semanticDiagnostics.some(row => row.field && ['insufficient-evidence', 'context-unavailable'].includes(row.status)), false);
 });

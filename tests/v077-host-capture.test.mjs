@@ -54,7 +54,7 @@ test('real narrative plus embedded payload populates supported dossiers and pers
             mannerisms: ['Taps the ledger while greeting Ari.'], mood: 'Focused', location: 'Station counter', goal: 'Register Ari', status: 'Completing registration',
             memories: ['Registered Ari at the station.'],
         });
-        const story = visible + ' Nia is the station clerk, careful with records, speaking clearly, checking each entry, tapping the ledger while greeting Ari. Nia is focused at the station counter. Nia registers Ari.';
+        const story = `${visible} ${nia.relationshipSummaryEvidence.excerpts[0]} Nia is the station clerk, careful with records, speaking clearly, checking each entry. Nia is focused at the station counter. Nia registers Ari.`;
         h.context.chat = chatFor(JSON.stringify(payload), story);
         const result = await h.entry.processCompletedAssistantResponse(1);
         assert.equal(result.ok, true);
