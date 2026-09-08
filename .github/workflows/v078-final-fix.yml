@@ -1,0 +1,39 @@
+name: v078 final fix verification
+on:
+  push:
+    branches: [automation/v078-final-fix]
+    paths: ['.github/workflows/v078-final-fix.yml']
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Restore exact reviewed candidate
+        run: |
+          base64 -d .github/v078-final-review.patch.gz.b64 | gzip -d > /tmp/v078-final.patch
+          git checkout --detach 7818b2afe0329086a3b7e1e57e91c0a6cdf3d568
+          git apply --check /tmp/v078-final.patch
+          git apply /tmp/v078-final.patch
+          git diff --check
+      - name: Validate final review fix
+        run: |
+          npm run validate
+          npm test
+          npm run package
+          unzip -t dist/npc_state_beta-0.7.8.zip
+          test "$(unzip -Z1 dist/npc_state_beta-0.7.8.zip | wc -l)" -eq 56
+      - name: Commit reviewed candidate
+        run: |
+          git config user.name 'OpenAI automation'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: sanitize legacy manual override values' -m 'Final independent v0.7.8 review found malformed manualOverrides already persisted by older builds could survive normalization and later become [object Object] during rollback. Centralize manual-owned field validation at the schema boundary, reuse it from manual mutation, discard only malformed legacy override entries, and preserve valid override ownership, relationship compatibility, portrait objects, correction remediation, and rollback semantics. Validation, 285 tests, package reachability and ZIP integrity pass on Node 22; storage and persisted schemas remain unchanged.'
+          git push origin HEAD:refs/heads/automation/v078-reviewed
+          git rev-parse HEAD
