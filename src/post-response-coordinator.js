@@ -5,8 +5,12 @@ function boundedDetail(value) {
 function resultStatus(result) {
     if (result?.ok) {
         if (result?.discarded) return 'blocked';
+        const partialCoverage = new Set([
+            'incomplete-evaluation', 'missing-npc-patch', 'missing-candidate-accounting',
+            'invalid-candidate-accounting', 'candidate-unresolved', 'candidate-accounting-conflict',
+        ]);
         const partial = result?.partial === true
-            || (result.coverageDiagnostics || []).some(row => row?.status === 'incomplete-evaluation')
+            || (result.coverageDiagnostics || []).some(row => partialCoverage.has(row?.status))
             || (result.semanticDiagnostics || []).some(row => ['rejected-proposal', 'invalid-source-reference', 'invalid-structure'].includes(row?.status));
         return partial ? 'partial' : 'complete';
     }
