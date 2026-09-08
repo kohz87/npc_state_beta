@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { withHost } from './helpers/host-harness.mjs';
-import { scanOutputExamples } from '../src/scan-contract.js';
+import { scanOutputExamples, SCAN_OUTPUT_EXAMPLE_SCENES } from '../src/scan-contract.js';
 import { createEmptyState, normalizeNpc } from '../src/schema.js';
 
-const NIA_STORY = 'Nia, harbor clerk in blue, tells Ari “Registry first,” slides the form back when he hesitates, says “Next line,” and taps the signature box. Ivo has green eyes.';
+const NIA_STORY = `${SCAN_OUTPUT_EXAMPLE_SCENES.nia} ${SCAN_OUTPUT_EXAMPLE_SCENES.ivo}`;
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
 function install(h, story = NIA_STORY) {
     h.context.name1 = 'Ari';
@@ -18,7 +18,12 @@ test('legacy-compatible host response still applies valid proposals but cannot f
     const state = createEmptyState('unused');
     state.npcs = [normalizeNpc({ id: 'npc-ivo', name: 'Ivo', appearance: 'Brown eyes.' })];
     return withHost(async h => {
-        install(h); provider(h, { ...scanOutputExamples().populated, candidateAccounting: { 'npc-ivo': 'evaluated' } });
+        install(h);
+        const legacy = structuredClone(scanOutputExamples().populated);
+        delete legacy.candidateAccounting;
+        const ivo = legacy.npcs.find(npc => npc.id === 'npc-ivo');
+        ivo.fieldEvaluations.insufficient = ivo.fieldEvaluations.insufficient.filter(field => field !== 'background');
+        provider(h, legacy);
         const first = await h.entry.processCompletedAssistantResponse(1);
         assert.equal(first.ok, true); assert.equal(h.metrics.generations, 1); assert.equal(h.metrics.posts, 1);
         assert.equal(/<npc_state_v1/i.test(h.context.chat[1].mes), false);

@@ -10,20 +10,20 @@ import { scanPromptMeasurementMatrix } from '../scripts/measure-scan-prompts.mjs
 
 const matrix = () => new Map(scanPromptMeasurementMatrix().map(row => [row.name, row]));
 
-test('v0.5.21 background calibration retains compact routine budgets', () => {
+test('v0.5.22 Current Dynamic repair retains compact routine budgets', () => {
     const rows = matrix();
-    // v0.5.21 spends a small bounded amount of prompt budget on explicit Role/Background
-    // separation and a corrected grounded example without restoring the pre-compaction
-    // prompt or truncating current narrative.
+    // v0.5.22 spends bounded prompt budget on coherent Current Dynamic evidence and
+    // source-coherent fictional examples without restoring the pre-compaction prompt or
+    // truncating current narrative. The dense fixture is an honest stress-case overage.
     const ceilings = {
-        'minimal-one-npc': 6200,
-        'rich-first-encounter': 6200,
-        'three-active-plus-mentioned': 7250,
-        'observation-development': 6500,
-        'dense-collections-locks-forms': 7850,
-        'large-db-one-relevant': 6400,
-        'structured-plus-custom': 6900,
-        'targeted-refresh': 4650,
+        'minimal-one-npc': 6350,
+        'rich-first-encounter': 6350,
+        'three-active-plus-mentioned': 7425,
+        'observation-development': 6680,
+        'dense-collections-locks-forms': 8025,
+        'large-db-one-relevant': 6560,
+        'structured-plus-custom': 7085,
+        'targeted-refresh': 4750,
     };
     for (const [name, ceiling] of Object.entries(ceilings)) {
         assert.ok(rows.has(name), name);
@@ -31,22 +31,23 @@ test('v0.5.21 background calibration retains compact routine budgets', () => {
     }
 });
 
-test('v0.5.21 background calibration adds only bounded overhead to v0.5.20 fixtures', () => {
+test('v0.5.22 Current Dynamic repair adds only bounded overhead to v0.5.21 fixtures', () => {
     const rows = matrix();
-    const v0520 = {
-        'minimal-one-npc': 6070,
-        'rich-first-encounter': 6073,
-        'three-active-plus-mentioned': 7137,
-        'observation-development': 6397,
-        'dense-collections-locks-forms': 7739,
-        'large-db-one-relevant': 6275,
-        'structured-plus-custom': 6798,
-        'targeted-refresh': 4567,
+    const v0521 = {
+        'minimal-one-npc': 6138,
+        'rich-first-encounter': 6141,
+        'three-active-plus-mentioned': 7206,
+        'observation-development': 6465,
+        'dense-collections-locks-forms': 7807,
+        'large-db-one-relevant': 6343,
+        'structured-plus-custom': 6867,
+        'targeted-refresh': 4604,
     };
-    for (const [name, before] of Object.entries(v0520)) {
+    for (const [name, before] of Object.entries(v0521)) {
         assert.ok(rows.has(name), name);
         const increase = rows.get(name).estTokens - before;
-        assert.ok(increase >= 0 && increase <= 80, `${name}: background-calibration overhead +${increase} tokens`);
+        const ceiling = name === 'targeted-refresh' ? 150 : 210;
+        assert.ok(increase >= 0 && increase <= ceiling, `${name}: Current Dynamic/example overhead +${increase} tokens`);
     }
 });
 

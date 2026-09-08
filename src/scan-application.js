@@ -1044,6 +1044,27 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         if (scope === 'excluded' && !targetSet.has(id) && !worldSet.has(id)) excludedEvidenceSet.add(id);
     }
     const returnedPatchSet = new Set([...patchByNpcId.keys()].filter(id => (!worldSet.has(id) || targetSet.has(id)) && !privateEvidenceSet.has(id) && !excludedEvidenceSet.has(id)));
+    const acceptedPatchNpcIds = new Set(patchResolutions
+        .filter(row => row?.status === 'accepted' && row.npcId)
+        .map(row => row.npcId));
+    const currentVisibleText = currentVisibleEvidenceText(evidencePolicy, currentAdmissionText);
+    const acceptedExchangeActivityEvidence = [...patchByNpcId.entries()].map(([npcId, candidatePatch]) => {
+        const record = candidatePatch?.activityEvidence?.exchangeActive;
+        const accepted = acceptedPatchNpcIds.has(npcId)
+            && exchangeSet.has(npcId)
+            && activityEvidenceVerified(candidatePatch, 'exchangeActive', currentVisibleText);
+        return {
+            npcId,
+            excerpts: accepted && Array.isArray(record?.excerpts)
+                ? record.excerpts.map(value => String(value || '').trim()).filter(Boolean).slice(0, 3)
+                : [],
+        };
+    }).filter(row => row.excerpts.length);
+    const unambiguousActivityExcerptsForNpc = npcId => {
+        const own = acceptedExchangeActivityEvidence.find(row => row.npcId === npcId)?.excerpts || [];
+        return own.filter(excerpt => !acceptedExchangeActivityEvidence.some(row => row.npcId !== npcId
+            && row.excerpts.some(other => containsNormalizedPhrase(excerpt, other) || containsNormalizedPhrase(other, excerpt))));
+    };
 
     for (let i = 0; i < state.npcs.length; i += 1) {
         let npc = state.npcs[i];
@@ -1060,6 +1081,26 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
                 relationshipEvidenceSources: Array.isArray(options.evidencePolicy?.relationshipSources) ? options.evidencePolicy.relationshipSources : [],
                 playerName,
                 otherNpcNames: state.npcs.filter(other => other.id !== npc.id).flatMap(other => [other.name, ...(other.aliases || [])]),
+                relationshipSummaryTargetBinding: (() => {
+                    const activityRecord = patch?.activityEvidence?.exchangeActive;
+                    const activityEvidenceAccepted = Boolean(exchangeSet.has(npc.id)
+                        && activityEvidenceVerified(patch, 'exchangeActive', currentVisibleText));
+                    const identityRecord = identityEvidenceRecord(patch);
+                    const identityEvidenceAccepted = Boolean(identityEvidenceVerified(patch, evidencePolicy, currentAdmissionText));
+                    return {
+                        npcId: npc.id,
+                        identityAccepted: acceptedPatchNpcIds.has(npc.id),
+                        exchangeActiveAccepted: exchangeSet.has(npc.id),
+                        activityEvidenceAccepted,
+                        activityEvidenceExcerpts: activityEvidenceAccepted
+                            ? unambiguousActivityExcerptsForNpc(npc.id)
+                            : [],
+                        identityEvidenceAccepted,
+                        identityEvidenceExcerpts: identityEvidenceAccepted && Array.isArray(identityRecord?.excerpts)
+                            ? identityRecord.excerpts.map(value => String(value || '').trim()).filter(Boolean).slice(0, 3)
+                            : [],
+                    };
+                })(),
                 // Automatic relationship movement is always current-exchange evidence.
                 // Existing NPCs are not allowed to bypass grounding merely because their
                 // dossier already exists. Direct/manual relationship editing uses engine
