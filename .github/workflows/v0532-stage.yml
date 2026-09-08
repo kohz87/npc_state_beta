@@ -43,4 +43,4 @@ jobs:
           git add -A
           git commit -m 'fix: complete newly admitted dossiers in v0.5.32'
           git push origin HEAD:fix/v0532-first-contact-completion
-          echo 'v0.5.32 candidate committed after regression fixture correction'
+          echo 'v0.5.32 candidate committed after graph assertion correction'
