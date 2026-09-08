@@ -239,10 +239,8 @@ function sourceForCompletedResponse(messageId) {
     const chatKey = getChatKey();
     return {
         valid: true,
-        ctx,
         chatKey,
         messageId: id,
-        message,
         identity: completedResponseIdentity(chatKey, id, message, ctx.chat),
         fingerprint: fingerprintMessage(message),
         swipeId: Number.isInteger(message.swipe_id) ? message.swipe_id : 0,

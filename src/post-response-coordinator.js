@@ -32,6 +32,7 @@ export function createPostResponseCoordinator(adapters = {}) {
     const jobs = new Map();
     const currentByChat = new Map();
     const statuses = new Map();
+    const latestMessageByChat = new Map();
 
     function status(chatKey) {
         return structuredClone(statuses.get(chatKey) || { status: 'idle', messageId: null, detail: '', identity: '' });
@@ -50,15 +51,33 @@ export function createPostResponseCoordinator(adapters = {}) {
         const settings = getSettings();
         if (settings.enabled === false || settings.autoScan === false) {
             currentByChat.set(source.chatKey, source.identity);
+            latestMessageByChat.set(source.chatKey, source.messageId);
             setStatus(source, 'idle', settings.enabled === false ? 'extension-disabled' : 'auto-scan-disabled');
             return Promise.resolve({ ok: false, skipped: true, reason: settings.enabled === false ? 'disabled' : 'auto-disabled', messageId: source.messageId });
         }
         const existing = jobs.get(source.identity);
         if (existing) return existing.promise;
 
+        const latestMessageId = latestMessageByChat.get(source.chatKey);
+        if (Number.isInteger(latestMessageId) && source.messageId < latestMessageId) {
+            return Promise.resolve({ ok: true, skipped: true, reason: 'stale-completion', messageId: source.messageId });
+        }
+        const previousIdentity = currentByChat.get(source.chatKey);
+        const previous = previousIdentity ? jobs.get(previousIdentity) : null;
+        if (previous && previousIdentity !== source.identity) {
+            if (previous.source?.messageId === source.messageId) {
+                // A new swipe/revision at the same source boundary supersedes the old provider request.
+                previous.controller.abort();
+                jobs.delete(previousIdentity);
+            } else if (previous.settled) {
+                jobs.delete(previousIdentity);
+            }
+        }
+
         currentByChat.set(source.chatKey, source.identity);
+        latestMessageByChat.set(source.chatKey, source.messageId);
         setStatus(source, 'queued');
-        const job = { source, promise: null, result: null, controller: new AbortController(), timedOut: false };
+        const job = { source, promise: null, result: null, controller: new AbortController(), timedOut: false, settled: false };
         job.promise = Promise.resolve().then(async () => {
             setStatus(source, 'scanning');
             try {
@@ -80,6 +99,10 @@ export function createPostResponseCoordinator(adapters = {}) {
                 logError(error, source);
                 return job.result;
             }
+        }).finally(() => {
+            job.settled = true;
+            // Only the latest completed revision needs to remain for duplicate host events.
+            if (currentByChat.get(source.chatKey) !== source.identity) jobs.delete(source.identity);
         });
         jobs.set(source.identity, job);
         return job.promise;
@@ -108,13 +131,22 @@ export function createPostResponseCoordinator(adapters = {}) {
     function retryLatest() {
         const source = getLatestSource();
         if (!source?.valid) return Promise.resolve({ ok: false, reason: source?.reason || 'no-assistant-message' });
+        const existing = jobs.get(source.identity);
+        if (existing && !existing.settled) return existing.promise;
+        existing?.controller?.abort();
         jobs.delete(source.identity);
         return process(source.messageId);
     }
 
     function clearChat(chatKey) {
         currentByChat.delete(chatKey);
+        latestMessageByChat.delete(chatKey);
         statuses.delete(chatKey);
+        for (const [identity, job] of jobs) {
+            if (job.source?.chatKey !== chatKey) continue;
+            job.controller?.abort();
+            jobs.delete(identity);
+        }
     }
 
     return Object.freeze({ process, settleLatest, retryLatest, status, clearChat });

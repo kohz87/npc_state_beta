@@ -191,6 +191,50 @@ test('post-response coordinator aborts an overlong owning request at synchroniza
 });
 
 
+
+test('coordinator retires older completed revisions and ignores delayed duplicate completion events', async () => {
+    let source = { valid: true, chatKey: 'chat', messageId: 1, identity: 'chat|1|a' };
+    let calls = 0;
+    const coordinator = createPostResponseCoordinator({
+        getSource: () => source, getLatestSource: () => source,
+        getSettings: () => ({ enabled: true, autoScan: true }),
+        runScan: async id => { calls += 1; return { ok: true, messageId: id }; },
+    });
+    assert.equal((await coordinator.process(1)).ok, true);
+    source = { valid: true, chatKey: 'chat', messageId: 3, identity: 'chat|3|b' };
+    assert.equal((await coordinator.process(3)).ok, true);
+    source = { valid: true, chatKey: 'chat', messageId: 1, identity: 'chat|1|a' };
+    const delayed = await coordinator.process(1);
+    assert.equal(delayed.reason, 'stale-completion');
+    assert.equal(calls, 2);
+});
+
+
+test('same-position replacement and chat clear abort superseded coordinator work', async () => {
+    let source = { valid: true, chatKey: 'chat', messageId: 1, identity: 'chat|1|old' };
+    const aborted = [];
+    const pending = [];
+    const coordinator = createPostResponseCoordinator({
+        getSource: () => source, getLatestSource: () => source,
+        getSettings: () => ({ enabled: true, autoScan: true }),
+        runScan: (_id, { signal, source: owned }) => new Promise(resolve => {
+            pending.push(owned.identity);
+            signal.addEventListener('abort', () => { aborted.push(owned.identity); resolve({ ok: false, discarded: true, reason: 'scan-cancelled' }); }, { once: true });
+        }),
+    });
+    const old = coordinator.process(1);
+    await Promise.resolve();
+    source = { valid: true, chatKey: 'chat', messageId: 1, identity: 'chat|1|new' };
+    const replacement = coordinator.process(1);
+    await Promise.resolve();
+    assert.deepEqual(aborted, ['chat|1|old']);
+    coordinator.clearChat('chat');
+    assert.deepEqual(aborted, ['chat|1|old', 'chat|1|new']);
+    await Promise.all([old, replacement]);
+    assert.deepEqual(pending, ['chat|1|old', 'chat|1|new']);
+    assert.equal(coordinator.status('chat').status, 'idle');
+});
+
 function summaryAttempt(excerpt, { otherNpcNames = [], aliases = [], playerName = 'Lucien Noctis' } = {}) {
     const diagnostics = [];
     const npc = normalizeNpc({ id: 'bessa', name: 'Bessa Vond', aliases, relationshipSummary: '' });

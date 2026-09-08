@@ -10,6 +10,7 @@
 - Retire obsolete `scanAfterEachResponse`, `fallbackScan`, and `newNpcHistoryEnrichment` settings without changing an explicit `autoScan` choice. The foreground injection budget now supports 256-8000 estimated tokens because extraction schemas are no longer injected.
 - Remove the obsolete capture/completeness coordinators and capture diagnostic storage/matching helpers after migrating their meaningful race, persistence, parser, rollback, and value-boundary tests to the dedicated-scan workflow. Legacy transport stripping remains only in history canonicalization.
 - SillyTavern's third-party updater checks Git repository freshness and pulls the tracked branch, so this lower presentation version does not require uninstalling the extension or deleting user data.
+- Post-implementation review found and fixed coordinator retention/cancellation drift: completed jobs no longer accumulate host context across messages, delayed older completion events cannot replay after a newer boundary, same-position revisions abort superseded requests, and chat switches actively cancel/retire the old chat job.
 
 ## 0.7.10 (unpublished development candidate)
 
