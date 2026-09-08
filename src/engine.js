@@ -145,19 +145,15 @@ function filterFirstContactFieldEvaluations(value, allowed) {
 
 function sanitizeFirstContactCompletionPayload(result = {}, targets = []) {
     const byId = new Map();
-    const byName = new Map();
     for (const target of Array.isArray(targets) ? targets : []) {
         if (!target?.npc?.id) continue;
-        const row = { npc: target.npc, allowed: new Set(target.fields || []) };
-        byId.set(target.npc.id, row);
-        const name = normalizeName(target.npc.name);
-        if (name) byName.set(name, row);
+        byId.set(target.npc.id, { npc: target.npc, allowed: new Set(target.fields || []) });
     }
     const npcs = [];
     const seen = new Set();
     for (const patch of Array.isArray(result?.npcs) ? result.npcs : []) {
         const patchId = String(patch?.id || '').trim();
-        const target = byId.get(patchId) || byName.get(normalizeName(patch?.name));
+        const target = byId.get(patchId);
         if (!target || seen.has(target.npc.id)) continue;
         seen.add(target.npc.id);
         const semanticUpdates = (Array.isArray(patch?.semanticUpdates) ? patch.semanticUpdates : [])
@@ -928,7 +924,7 @@ export function createNpcStateEngine(adapters = {}) {
                         const completionApplied = applyScanResult(applied.state, completionParsed, {
                             sourceMessageId: messageId, ...semanticSourceOptions, turn: working.turn,
                             preservePresence: true, preserveObservation: true, applyRelationship: false,
-                            reconcileFamilyGraph: false, allowHistoricalProfilePatches: true,
+                            reconcileFamilyGraph: false,
                             playerName: resolvePlayerName('', chat, messageId), dossierLimits: settings.dossierLimits,
                             profileContext: profileContextForExchange(exchange), evidencePolicy,
                             currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),

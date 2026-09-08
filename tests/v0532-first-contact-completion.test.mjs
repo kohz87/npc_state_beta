@@ -55,6 +55,8 @@ test('first-contact completion prompt is current-only and forbids second-pass ca
     assert.match(prompt, /ONLY the complete CURRENT USER \+ ASSISTANT exchange/);
     assert.match(prompt, /Do not create NPCs, rename targets, revisit presence\/activity, relationship scores\/Current Dynamic, lifecycle, family\/social graph/);
     assert.doesNotMatch(prompt, /OLDER REFERENCE CONTEXT|CHAT WINDOW \(bounded operation evidence\)/);
+    assert.match(prompt, /ADMITTED TARGETS AND ONLY FIELDS TO RECHECK:\n\[{\"id\":\"npc-tessa\",\"name\":\"Tessa Morren\",\"unresolvedFields\":\[\"goal\",\"mood\"\]}/);
+    assert.doesNotMatch(prompt, /\"dossier\":/);
 });
 
 test('automatic new-NPC admission gets one bounded completion request that can fill a missed current-source goal without repainting first-pass state', () => withHost(async h => {
@@ -82,6 +84,32 @@ test('automatic new-NPC admission gets one bounded completion request that can f
     assert.equal(npc.worldActive, false);
     assert.deepEqual(npc.relationship, { trust:0, affection:0, desire:0, tension:0 });
     assert.equal((h.persisted().socialEdges || []).length, 0);
+}), { state: createEmptyState('chat:actor.png:fixture') });
+
+
+test('first-contact completion requires the admitted stable id and will not bind a same-name patch with a wrong id', () => withHost(async h => {
+    h.context.chat = structuredClone(chat);
+    let calls = 0;
+    h.context.generateRaw = async ({ prompt }) => {
+        h.metrics.generations += 1;
+        calls += 1;
+        if (calls === 1) return JSON.stringify(firstPayload());
+        assert.match(prompt, /FIRST-CONTACT COMPLETION CHECK/);
+        return JSON.stringify({
+            exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [],
+            npcs: [{
+                id: 'npc-wrong-target', name: 'Tessa Morren',
+                semanticUpdates: [{ field: 'goal', operation: 'establish', value: 'Wrong-id mutation.', sources: [{ messageId: 1, excerpt: 'TESSA: I need this ledger closed by dusk.' }] }],
+            }],
+            socialEdges: [], familyFacts: [], lifeStateUpdates: [], candidateAccounting: {},
+        });
+    };
+    const result = await h.entry.processCompletedAssistantResponse(1);
+    assert.equal(result.ok, true);
+    assert.equal(h.metrics.generations, 2);
+    const admitted = h.persisted().npcs.find(row => row.name === 'Tessa Morren');
+    assert.ok(admitted?.id && admitted.id !== 'npc-wrong-target');
+    assert.equal(admitted.goal, '');
 }), { state: createEmptyState('chat:actor.png:fixture') });
 
 test('completion provider failure preserves the valid first pass and reports partial instead of losing admission', () => withHost(async h => {

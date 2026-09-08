@@ -204,9 +204,10 @@ export function buildFirstContactCompletionPrompt({ targets = [], chat, assistan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     const rows = (Array.isArray(targets) ? targets : []).map(target => ({
-        dossier: rosterForPrompt({ npcs: [target?.npc] })[0],
+        id: String(target?.npc?.id || '').trim(),
+        name: String(target?.npc?.name || '').trim(),
         unresolvedFields: [...new Set((Array.isArray(target?.fields) ? target.fields : []).map(value => String(value || '').trim()).filter(Boolean))],
-    })).filter(row => row.dossier?.id && row.unresolvedFields.length);
+    })).filter(row => row.id && row.unresolvedFields.length);
     const targetNpcs = (Array.isArray(targets) ? targets : []).map(target => target?.npc).filter(npc => npc?.id);
     const sourceIds = [exchange.user?.id, exchange.assistant?.id].filter(Number.isInteger);
     const structuredDetected = [exchange.user?.mes, exchange.assistant?.mes].some(hasRecognizedStructuredBlocks);
