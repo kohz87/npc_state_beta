@@ -1,0 +1,46 @@
+name: v0.5.30 candidate verification
+
+on:
+  push:
+    branches:
+      - fix/v0530-first-pass-sufficiency
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Show candidate
+        run: git rev-parse HEAD
+      - name: Apply candidate patch when driver exists
+        run: |
+          if [ -f .github/scripts/v0530-apply.mjs ]; then
+            node .github/scripts/v0530-apply.mjs
+          fi
+      - name: Validate
+        run: npm run validate
+      - name: Tests
+        run: npm test
+      - name: Package
+        run: npm run package
+      - name: Scanner prompt matrix
+        run: npm run measure:scan-prompts
+      - name: Commit candidate changes
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No candidate changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "candidate: v0.5.30 first-pass sufficiency"
+          git push origin HEAD:fix/v0530-first-pass-sufficiency
