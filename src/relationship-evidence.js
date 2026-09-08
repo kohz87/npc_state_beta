@@ -301,8 +301,23 @@ function relationshipSemanticGrounding(proof, context, expectations = {}) {
     return '';
 }
 
-function relationshipQuoteComparable(value, max = 40000) {
+const RELATIONSHIP_PRESENTATION_TAGS = '(?:font|span|b|strong|i|em|u|s|strike|small|big|mark|sub|sup)';
+const RELATIONSHIP_PRESENTATION_TAG_RE = new RegExp(`<\\/?${RELATIONSHIP_PRESENTATION_TAGS}\\b[^<>]*>`, 'giu');
+const RELATIONSHIP_PRESENTATION_BREAK_RE = /<br\b[^<>]*\/?\s*>/giu;
+
+function relationshipPresentationComparable(value) {
     return String(value ?? '')
+        // SillyTavern/preset presentation markup is not narrative evidence. Strip only a
+        // small allowlist of formatting tags so an exact quotation may cross a closing
+        // <font>/<span>/style tag into adjacent narration. Deliberately leave custom and
+        // structural tags (for example <Blocks>) intact so formatting normalization cannot
+        // bridge evidence across visibility/control boundaries.
+        .replace(RELATIONSHIP_PRESENTATION_BREAK_RE, ' ')
+        .replace(RELATIONSHIP_PRESENTATION_TAG_RE, ' ');
+}
+
+function relationshipQuoteComparable(value, max = 40000) {
+    return relationshipPresentationComparable(value)
         .normalize('NFKC')
         .replace(/\r\n?/g, '\n')
         .replace(/[“”„‟]/g, '"')
@@ -318,7 +333,10 @@ function relationshipQuoteComparable(value, max = 40000) {
 }
 
 function quotedDialogueSegments(value) {
-    const text = String(value || '');
+    // Use the same presentation-only normalization as exact excerpt matching. Quote marks
+    // remain in place, so stripping <font>/<span> wrappers does not turn dialogue into
+    // narration or allow a cross-boundary excerpt to count as wholly quoted speech.
+    const text = relationshipPresentationComparable(value);
     const out = [];
     let start = -1;
     let close = '';
@@ -345,7 +363,16 @@ function quotedDialogueSegments(value) {
 function excerptInsideQuotedDialogue(excerpt, sourceText) {
     const quote = relationshipQuoteComparable(excerpt, 1200);
     if (!quote) return false;
-    return quotedDialogueSegments(sourceText).some(segment => relationshipQuoteComparable(segment, 40000).includes(quote));
+    // quotedDialogueSegments() intentionally returns the content between delimiters. Model
+    // excerpts may preserve those outer quote marks, so compare both the literal comparable
+    // form and one safely unwrapped whole-quote form. Do not unwrap a mixed excerpt that
+    // starts in dialogue and continues into narration.
+    const wholeQuoted = quote.match(/^"([\s\S]*)"$/u);
+    const candidates = [...new Set([quote, wholeQuoted?.[1]?.trim()].filter(Boolean))];
+    return quotedDialogueSegments(sourceText).some(segment => {
+        const comparable = relationshipQuoteComparable(segment, 40000);
+        return candidates.some(candidate => comparable.includes(candidate));
+    });
 }
 
 export function relationshipEvidenceExcerptMatch(excerpt, sources = []) {

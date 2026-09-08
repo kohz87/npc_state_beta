@@ -2,6 +2,14 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.24
+
+- Normalize a bounded allowlist of presentation-only HTML wrappers during exact relationship evidence matching. Model excerpts can now cross a formatted dialogue boundary such as `</font>` into adjacent narration without reproducing presentation tags.
+- Apply the same matcher to identity, activity, and Current Dynamic evidence, while preserving per-source ownership, wrong-source/fabricated rejection, structural/custom tag boundaries, and dialogue-versus-narration quote classification.
+- Add a production-path Nelda regression proving cross-`<font>` identity/activity/summary evidence persists a neutral Current Dynamic with all numeric relationship state unchanged, plus safeguards showing fabricated cross-tag text and structural-tag bridging remain rejected.
+- The single review also found that wholly quoted model excerpts retaining their outer quote marks were not recognized as being inside source dialogue; normalize that comparison without treating mixed dialogue-to-narration excerpts as wholly quoted.
+- Scanner prompt text is unchanged, so the v0.5.23 measurement matrix remains unchanged. No additional scan, provider-specific branch, output reduction, database migration, or Phase 2 historical enrichment is introduced.
+
 ## 0.5.23
 
 - Finish Current Dynamic evidence reuse: `relationshipSummaryEvidence` no longer has to repeat a narrator quote already accepted as the same resolved NPC's player-facing exchange activity. The bridge is transient, revalidates exact evidence against one permitted source record, and reuses only unambiguous application-validated activity/identity evidence.
