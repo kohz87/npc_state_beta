@@ -4,14 +4,14 @@ The authoritative behavior and ownership specification is [`docs/core-contract.m
 
 ## Current boundaries
 
-- Extension release: `0.5.11`
+- Extension release: `0.5.12`
 - Persisted state schema: `1`
 - Settings schema: `1`
 - Model semantic update contract: `6`
 - Foreground continuity contract: `8`
 - Sidecar/settings storage identity remains `npc_state_beta.v3`
 
-The 0.5.11 public label is an intentional renumbering over newer code, not a source/data downgrade. A release bump does not require a persisted schema bump. Change a persisted schema only for an actual incompatible storage contract.
+The 0.5.12 release continues the intentional 0.5.x public numbering over the newer codebase, not a source/data downgrade. A release bump does not require a persisted schema bump. Change a persisted schema only for an actual incompatible storage contract.
 
 ## Responsibility map
 
