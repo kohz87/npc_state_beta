@@ -6,6 +6,7 @@ on:
       - automation/v0512-gap-fixes
     paths:
       - scripts/release-v0512.py
+      - scripts/release-v0512-followup.py
       - .github/workflows/v0512-release.yml
   workflow_dispatch:
 
@@ -23,7 +24,9 @@ jobs:
         with:
           node-version: '22'
       - name: Apply release metadata
-        run: python3 scripts/release-v0512.py
+        run: |
+          python3 scripts/release-v0512.py
+          python3 scripts/release-v0512-followup.py
       - name: Validate
         run: npm run validate
       - name: Test
@@ -42,7 +45,7 @@ jobs:
         run: git diff --check
       - name: Commit final candidate tree
         run: |
-          rm scripts/release-v0512.py .github/workflows/v0512-release.yml
+          rm scripts/release-v0512.py scripts/release-v0512-followup.py .github/workflows/v0512-release.yml
           git add -A
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
