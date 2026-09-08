@@ -71,11 +71,11 @@ export function summarizeProposalDiagnostics(semanticDiagnostics = [], coverageD
     }
     for (const row of Array.isArray(coverageDiagnostics) ? coverageDiagnostics : []) {
         const status = String(row?.status || '');
-        if (status === 'missing-npc-patch' || status === 'incomplete-evaluation') {
+        if (['missing-npc-patch', 'incomplete-evaluation', 'missing-candidate-accounting', 'invalid-candidate-accounting', 'candidate-unresolved', 'candidate-accounting-conflict'].includes(status)) {
             const fields = Array.isArray(row?.missingFields) ? row.missingFields.filter(Boolean) : [];
             const groups = Array.isArray(row?.missingGroups) ? row.missingGroups.filter(Boolean) : [];
             summary.omitted += Math.max(1, fields.length || groups.length);
-            const detail = fields.length ? `fields=${fields.slice(0, 12).join(',')}` : (groups.length ? `groups=${groups.join(',')}` : '');
+            const detail = fields.length ? `fields=${fields.slice(0, 12).join(',')}` : (groups.length ? `groups=${groups.join(',')}` : String(row?.reason || ''));
             reasons.push([status, detail].filter(Boolean).join(': '));
         } else if (status === 'identity-rejected' || status === 'identity-unresolved') {
             countIdentityFailure(row);
