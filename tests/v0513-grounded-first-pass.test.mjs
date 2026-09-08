@@ -21,7 +21,7 @@ test('apparent age preserves legacy wording while accepting model-led ranges wit
     assert.equal(normalizeActualAge('25'), '25');
 });
 
-test('routine Scan asks for grounded first-pass background, appearance fidelity, non-habitual behavior and neutral Current Dynamic', () => {
+test('routine Scan asks for grounded first-pass background, portrait-ready appearance, non-habitual behavior and neutral Current Dynamic', () => {
     const state = createEmptyState('chat:v0513-first-pass');
     const chat = [
         { is_user: true, name: 'Lucien', mes: 'I enter the Adventurer Guild to register.' },
@@ -34,19 +34,23 @@ test('routine Scan asks for grounded first-pass background, appearance fidelity,
     assert.match(prompt, /APPARENT AGE:/);
     assert.match(prompt, /semantically infer a defensible numeric interval/i);
     assert.match(prompt, /APPEARANCE FIDELITY:/);
-    assert.match(prompt, /Do not add plausible uniform pieces/i);
+    assert.match(prompt, /portrait-ready overall visual synthesis/i);
+    assert.match(prompt, /not a latest-detail delta/i);
+    assert.match(prompt, /Preserve prior supported visible facts unless contradicted/i);
+    assert.match(prompt, /Never invent missing portrait features/i);
     assert.match(prompt, /BEHAVIOR PROFILE EVIDENCE:/);
     assert.match(prompt, /must not be rewritten as a habitual behavior/i);
     assert.match(prompt, /first direct interaction may establish a neutral professional, transactional/i);
     assert.match(prompt, /do not leave it blank merely because no trust\/affection\/desire\/tension delta occurred/i);
 });
 
-test('targeted Refresh receives the shared apparent-age range policy and can repair a blank professional Current Dynamic at zero scores', () => {
+test('targeted Refresh receives the shared apparent-age and portrait-ready appearance policies and can repair a blank professional Current Dynamic at zero scores', () => {
     const npc = normalizeNpc({
         id: 'npc-guild-clerk',
         name: 'Guild Clerk',
         role: 'Adventurer Guild intake clerk',
         apparentAge: '',
+        appearance: 'Ink-stained fingers; sleeves rolled to the elbows.',
         relationshipSummary: '',
         relationship: { trust: 0, affection: 0, desire: 0, tension: 0 },
     });
@@ -58,5 +62,7 @@ test('targeted Refresh receives the shared apparent-age range policy and can rep
 
     assert.match(prompt, /apparentAge=~N-M/i);
     assert.match(prompt, /backend chooses and persists one stable ~N inside that interval/i);
+    assert.match(prompt, /portrait-ready overall visual synthesis/i);
+    assert.match(prompt, /Preserve prior supported visible facts unless contradicted/i);
     assert.match(prompt, /first direct role-defined interaction may establish a neutral professional or transactional Current Dynamic with zero score change/i);
 });
