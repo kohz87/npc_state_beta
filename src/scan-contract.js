@@ -38,7 +38,6 @@ export function scanOutputExamples({ includeNew = true, includeExisting = true }
     }
     if (includeExisting) populated.npcs.push({
         id: 'npc-ivo', name: 'Ivo', evaluatedGroups: ['canon'], fieldEvaluations: { unchanged: ['age'], insufficient: ['background'], unavailable: ['personality'] },
-        relationshipSummary: '',
         semanticUpdates: [{ field: 'appearance', operation: 'replace', value: 'Green eyes.', sources: [{ messageId: null, excerpt: 'Ivo has green eyes.' }], explanation: 'Ivo has green eyes.' }],
     });
     return { minimal, populated };
