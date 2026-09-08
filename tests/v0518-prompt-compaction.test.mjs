@@ -12,19 +12,41 @@ const matrix = () => new Map(scanPromptMeasurementMatrix().map(row => [row.name,
 
 test('routine scanner compaction leaves useful headroom on stable modest fixtures', () => {
     const rows = matrix();
+    // v0.5.19 restores canonical lifecycle and nested collection/form shapes. These
+    // explicit ceilings retain the ~7.5k routine engineering target without hiding
+    // the small fixed contract overhead behind evidence truncation or looser output limits.
     const ceilings = {
-        'minimal-one-npc': 6000,
-        'rich-first-encounter': 6000,
-        'three-active-plus-mentioned': 6800,
+        'minimal-one-npc': 5900,
+        'rich-first-encounter': 5900,
+        'three-active-plus-mentioned': 6950,
         'observation-development': 6200,
         'dense-collections-locks-forms': 7500,
-        'large-db-one-relevant': 6000,
-        'structured-plus-custom': 6500,
-        'targeted-refresh': 4500,
+        'large-db-one-relevant': 6100,
+        'structured-plus-custom': 6600,
+        'targeted-refresh': 4350,
     };
     for (const [name, ceiling] of Object.entries(ceilings)) {
         assert.ok(rows.has(name), name);
         assert.ok(rows.get(name).estTokens <= ceiling, `${name}: ${rows.get(name).estTokens} > ${ceiling} via ${FOREGROUND_TOKEN_ESTIMATE_METHOD}`);
+    }
+});
+
+test('v0.5.19 contract corrections add only bounded fixed overhead to v0.5.18 fixtures', () => {
+    const rows = matrix();
+    const v0518 = {
+        'minimal-one-npc': 5690,
+        'rich-first-encounter': 5693,
+        'three-active-plus-mentioned': 6757,
+        'observation-development': 6017,
+        'dense-collections-locks-forms': 7359,
+        'large-db-one-relevant': 5895,
+        'structured-plus-custom': 6418,
+        'targeted-refresh': 4166,
+    };
+    for (const [name, before] of Object.entries(v0518)) {
+        assert.ok(rows.has(name), name);
+        const increase = rows.get(name).estTokens - before;
+        assert.ok(increase >= 0 && increase <= 150, `${name}: fixed overhead +${increase} tokens`);
     }
 });
 

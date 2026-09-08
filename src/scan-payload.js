@@ -6,6 +6,8 @@ const object = value => Boolean(value && typeof value === 'object' && !Array.isA
 const has = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const identity = value => typeof value === 'string' && Boolean(value.trim());
 const strings = value => Array.isArray(value) && value.every(identity);
+const LIFECYCLE_STATES = new Set(['alive', 'dead', 'unknown']);
+const LIFECYCLE_CERTAINTIES = new Set(['explicit', 'strong', 'uncertain', 'confirmed']); // confirmed: legacy compatibility only
 // Existing classifications only. These aliases never constitute admission evidence.
 const LEGACY_IDENTITY_KINDS = Object.freeze({ 'proper-name': 'named', proper: 'named', role: 'role-label', unnamed: 'role-label' });
 const DRIFT_KEYS = Object.freeze({ canonicalName: 'name', activityRefs: 'activityEvidence', live: 'flat dossier fields', relationshipToPlayer: 'relationshipChange with canonical axes and evidence' });
@@ -82,6 +84,19 @@ function focusedProposalIssue(kind, raw) {
     if (kind === 'lifeStateUpdates' && has(raw, 'livingReturn') && raw.livingReturn != null && typeof raw.livingReturn !== 'boolean') {
         return 'livingReturn-expected-boolean';
     }
+    if (kind === 'lifeStateUpdates') {
+        const abbreviated = ['state', 'certainty', 'reason'].filter(field => has(raw, field));
+        if (abbreviated.length) return `unsupported-lifecycle-keys:${abbreviated.join(',')}`;
+        if (!['id', 'name', 'target'].some(field => identity(raw[field]))) return 'missing-lifecycle-target';
+        const state = typeof raw.lifeState === 'string' ? raw.lifeState.trim().toLocaleLowerCase() : '';
+        if (!state && raw.livingReturn !== true) return 'missing-lifecycle-state';
+        if (state && !LIFECYCLE_STATES.has(state)) return `unsupported-lifeState:${state.slice(0, 40)}`;
+        const certainty = typeof raw.lifeStateCertainty === 'string' ? raw.lifeStateCertainty.trim().toLocaleLowerCase() : '';
+        // Preserve the established compatibility where grounded alive/unknown rows may omit
+        // certainty. Death/livingReturn certainty remains enforced by applyLifeState().
+        if (certainty && !LIFECYCLE_CERTAINTIES.has(certainty)) return `unsupported-lifeStateCertainty:${certainty.slice(0, 40)}`;
+        if (!identity(raw.lifeStateReason)) return 'missing-lifeStateReason';
+    }
     return '';
 }
 
@@ -94,7 +109,8 @@ export function validateFocusedProposalPayload(input) {
         for (let index = 0; index < rows.length; index += 1) {
             const issue = focusedProposalIssue(kind, rows[index]);
             if (issue) {
-                diagnostics.push({ field: kind, patchIndex: index, channel: 'focused-proposal', status: 'rejected-proposal', reason: `invalid-value-type:${issue}` });
+                const reason = /^(?:missing|unsupported)-/.test(issue) ? issue : `invalid-value-type:${issue}`;
+                diagnostics.push({ field: kind, patchIndex: index, channel: 'focused-proposal', status: 'rejected-proposal', reason });
                 continue;
             }
             accepted.push(rows[index]);

@@ -2,6 +2,13 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.19
+
+- Correct the compact lifecycle contract to advertise the canonical `lifeState`, `lifeStateCertainty`, and `lifeStateReason` keys. Abbreviated `state`/`certainty`/`reason` lifecycle rows are rejected at the focused proposal boundary with bounded diagnostics instead of silently becoming no-ops; valid sibling proposals still apply.
+- Restore compact nested semantic-update guidance for collection `changes:[{action,ref?,expected?,value?}]` operations and `appearanceForms` targeting through `scope.form`, with parser/application-tested literal examples that preserve unrelated entries, other forms, shared appearance, current form, manual locks, and source validation.
+- Keep v0.5.18 prompt compaction and the one-request workflow. Using the same local conservative estimator and scanner system wrapper, the corrected stable matrix is 5,831 minimal, 5,834 rich first encounter, 6,898 three active plus one mentioned, 6,157 observation development, 7,500 dense collections/locks/forms, 6,036 large DB/one relevant, 6,559 structured/custom, and 4,307 targeted Refresh estimated input tokens. This is roughly +140 to +141 fixed tokens versus v0.5.18 and does not truncate current narrative or reduce scanner output limits.
+- Persisted/settings schemas remain 1, model semantic contract remains 6, foreground contract remains 8, and storage identity remains `npc_state_beta.v3`.
+
 ## 0.5.18
 
 - Compact repeated scanner instructions across identity/activity, dossier extraction, relationships, lifecycle/graph, output examples, and semantic-update guidance while keeping one canonical wire shape and one ordinary semantic mutation pipeline.
