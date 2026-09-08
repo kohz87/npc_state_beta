@@ -1,0 +1,37 @@
+name: NPC State Stage v0.5.21
+
+on:
+  push:
+    branches:
+      - fix/v0.5.21-background-calibration
+    paths:
+      - '.github/workflows/stage-v0521.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          ref: fix/v0.5.21-background-calibration
+          fetch-depth: 0
+      - name: Apply exact reviewed v0.5.21 patch
+        shell: bash
+        run: |
+          cat .npc-state-v0521.part-00 .npc-state-v0521.part-01 .npc-state-v0521.part-02 .npc-state-v0521.part-03 > /tmp/v0521.patch.gz.b64
+          echo "29571fb18d5cf5475edaa52df2cec6021accb6ec40941b37e88bd839e5bcf815  /tmp/v0521.patch.gz.b64" | sha256sum -c -
+          base64 -d /tmp/v0521.patch.gz.b64 | gzip -d > /tmp/v0521.patch
+          echo "e1641d17370c570a98532a5581954ab40e1714c1b8535ea870536a6a702a93e4  /tmp/v0521.patch" | sha256sum -c -
+          git apply --check /tmp/v0521.patch
+          git apply /tmp/v0521.patch
+          rm -f .npc-state-v0521.part-00 .npc-state-v0521.part-01 .npc-state-v0521.part-02 .npc-state-v0521.part-03
+          rm .github/workflows/stage-v0521.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: align first-pass background calibration for v0.5.21"
+          git push origin HEAD:fix/v0.5.21-background-calibration
