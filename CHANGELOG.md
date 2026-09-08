@@ -2,6 +2,12 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.29
+
+- Fix first-contact zero-delta Current Dynamic when a new NPC is visibly grounded by exact role/description evidence but receives its canonical proper name through the current World_State enrichment path. The accepted visible identity remains identity authority for that descriptive relationship-summary bridge even when the canonical name itself is not visible.
+- Carry the already validated World_State-enrichment fact into Current Dynamic context plumbing so exact summary quotations from the same permitted visible source can reuse accepted player-facing activity without repeating the identity anchor. Other identity paths retain their existing summary-linked target checks.
+- Preserve known/unnamed wrong-addressee rejection, isolated quoted-second-person rejection, exact source ownership, and descriptive-versus-numeric relationship separation. Add Vrena-shaped production regressions for the accepted enrichment case and quoted-`you` negative boundary. No prompt text, extra scan, provider-specific rule, storage schema, model contract, or foreground contract change.
+
 ## 0.5.28
 
 - Unify first-seen identity admission around one validated current-visible identity anchor. A proper/short name or unique role/description must appear inside exact current-visible identity evidence; a compatible proper canonical name may be enriched from the same current World_State placement without turning that structured-only name into the anchor.
