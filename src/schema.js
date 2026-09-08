@@ -161,7 +161,7 @@ function manualOwnedFieldIssue(field, value) {
         if (!value || typeof value !== 'object' || Array.isArray(value)) return 'expected-object-value';
         for (const axis of RELATIONSHIP_AXES) {
             if (!Object.prototype.hasOwnProperty.call(value, axis)) continue;
-            if (!finiteManualNumericInput(raw?.value)) return `${axis}:expected-finite-number-or-numeric-string`;
+            if (!finiteManualNumericInput(value[axis])) return `${axis}:expected-finite-number-or-numeric-string`;
         }
         return '';
     }
@@ -389,6 +389,9 @@ export function memoriesSemanticallyDuplicate(a, b) {
     const sharedEvent = [...left.events].some(event => right.events.has(event));
     const isEventToken = token => MEMORY_EVENT_GROUPS.some(([, pattern]) => pattern.test(token));
     const sharedAnchors = [...left.tokenSet].filter(token => right.tokenSet.has(token) && !isEventToken(token)).length;
+    // A shared event verb plus three concrete anchors (typically actor/target/object/place)
+    // is strong enough to tolerate richer paraphrasing. Requiring three anchors avoids
+    // collapsing two separate rescues merely because the same pair of people is involved.
     if (sharedEvent && sharedAnchors >= 3 && jaccard >= 0.28) return true;
     return shared >= 4 && jaccard >= 0.70;
 }
@@ -406,6 +409,8 @@ export function normalizeMemoryEntries(value, max = MEMORY_LIMIT, itemMax = 700)
         if (!clean) continue;
         const duplicateIndex = out.findIndex(existing => memoriesSemanticallyDuplicate(existing, clean));
         if (duplicateIndex >= 0) {
+            // Keep the richer of two paraphrases rather than spending two memory slots on
+            // the same event. Equal-information ties preserve the earlier established wording.
             if (memoryInformationScore(clean) > memoryInformationScore(out[duplicateIndex]) + 1) out[duplicateIndex] = clean;
             continue;
         }
@@ -540,6 +545,8 @@ export function normalizeName(value) {
 export function normalizeApparentAge(value, seed = '') {
     const raw = text(value, 80);
     if (!raw) return '';
+    // A range is model-led apparent-age evidence. Without an NPC identity keep the range
+    // canonical for validation; with one, choose a reproducible inclusive value and persist ~N.
     const range = raw.match(/^(?:~\s*|(?:about|around|approx(?:imately)?|roughly|circa)\s+)?(\d{1,4})\s*(?:-|–|—|to)\s*(\d{1,4})$/i);
     if (range) {
         const lower = Number(range[1]);
@@ -558,12 +565,15 @@ export function normalizeApparentAge(value, seed = '') {
         if (matches.length !== 1 || !Number.isInteger(matches[0]) || matches[0] < 0) return '';
         return `~${matches[0]}`;
     }
+    // Preserve legacy/manual descriptive apparent ages; new extraction asks the model for a range.
     return raw;
 }
 
 export function normalizeActualAge(value) {
     const raw = text(value, 80);
     if (!raw) return '';
+    // Actual age is chronological numeric data, not a life-stage label or a broad band.
+    // Preserve small-unit ages for infants/newborns, while years use the compact N/~N form.
     if (/\b\d{1,4}\s*['’]?\s*s\b/i.test(raw)) return '';
     if (/\d{1,4}\s*(?:-|–|—|to)\s*\d{1,4}/i.test(raw)) return '';
     const matches = [...raw.matchAll(/(^|[^\d])(\d{1,4})(?!\d)/g)].map(match => Number(match[2]));
@@ -744,9 +754,9 @@ export function normalizeLifeStateDiagnostics(value = []) {
         code: text(raw?.code, 80),
         detail: text(raw?.detail, 500),
         livingReturn: raw?.livingReturn === true,
-        sourceMessageId: Number.isInteger(raw?.sourceMessageId) ? raw.sourceMessageId : null,
-        turn: Number.isInteger(raw?.turn) ? raw.turn : null,
-        at: Number(raw?.at) || null,
+        sourceMessageId: Number.isInteger(raw.sourceMessageId) ? raw.sourceMessageId : null,
+        turn: Number.isInteger(raw.turn) ? raw.turn : null,
+        at: Number(raw.at) || null,
     })).filter(item => item.code);
 }
 
@@ -800,7 +810,7 @@ export function normalizeRelationshipMilestones(value, relationship = DEFAULT_RE
             axis,
             polarity,
             threshold,
-            reason: text(raw.reason, 300) || 'Existing relationship depth predates milestone tracking.',
+            reason: text(raw.reason, 300) || 'Relationship milestone established.',
             evidence: text(raw.evidence, 500),
             sourceMessageId: Number.isInteger(raw.sourceMessageId) ? raw.sourceMessageId : null,
             turn: Number.isInteger(raw.turn) ? raw.turn : null,
@@ -1126,6 +1136,7 @@ export function normalizeState(input = {}, chatKey = '') {
             snapshot: structuredClone(rawBranchBase.snapshot),
         }
         : null;
+    // preserve-mode rebase stores the accepted lineage boundary so retries/reloads cannot rescore it.
     const rawRelationshipReplayBoundary = input.relationshipReplayBoundary && typeof input.relationshipReplayBoundary === 'object' && !Array.isArray(input.relationshipReplayBoundary) ? input.relationshipReplayBoundary : null;
     const replayThroughMessageId = Number.isInteger(rawRelationshipReplayBoundary?.throughMessageId) && rawRelationshipReplayBoundary.throughMessageId >= 0
         ? rawRelationshipReplayBoundary.throughMessageId
@@ -1218,6 +1229,9 @@ export function snapshotForCheckpoint(state) {
     copy.branchBase = null;
     copy.recovery = null;
     copy.rebaseBackup = null;
+    // Portrait binary/data URLs are durable presentation assets, not timeline state.
+    // Excluding them keeps up to 48 rollback checkpoints from multiplying megabytes
+    // of identical image data. Restoration merges the current portrait back by id.
     copy.npcs = copy.npcs.map(npc => ({ ...npc, portrait: null }));
     return copy;
 }
