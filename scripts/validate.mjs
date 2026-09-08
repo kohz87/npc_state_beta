@@ -23,6 +23,14 @@ assert.match(read('bootstrap.js'), /\.\/src\/index\.js/, 'bootstrap must load au
 assert.match(read('src/index.js'), /from '\.\.\/\.\.\/\.\.\/\.\.\/extensions\.js'/, 'SillyTavern nested extension import depth changed');
 assert.match(read('src/index.js'), /from '\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/script\.js'/, 'SillyTavern script import depth changed');
 
+const readme = read('README.md');
+const development = read('DEVELOPMENT.md');
+const changelog = read('CHANGELOG.md');
+assert.match(readme, new RegExp(`^## Release ${manifest.version.replace(/\./g, '\\.')}\\s*$`, 'm'), 'README current release heading must match manifest version');
+assert.ok(development.includes(`- Extension release: \`${manifest.version}\``), 'DEVELOPMENT current release must match manifest version');
+const changelogCurrent = changelog.match(/^##\s+(\d+\.\d+\.\d+)\s*$/m)?.[1] || '';
+assert.equal(changelogCurrent, manifest.version, 'CHANGELOG first release entry must match manifest version');
+
 const reachable = runtimeFiles(root);
 const unused = runtimeSourceFiles(root).filter(file => !reachable.includes(file));
 assert.deepEqual(unused, [], 'Unused src files must be removed or referenced explicitly');
