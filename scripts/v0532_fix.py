@@ -16,8 +16,16 @@ replace_once(
     "test('automatic post-response scan populates supported new dossier fields with one request and duplicate completion is idempotent'",
     "test('automatic post-response scan may complete a newly admitted dossier with a second bounded request and duplicate completion is idempotent'",
 )
-replace_once('tests/post-response-rework.test.mjs', "    assert.equal(h.metrics.generations, 1);\n    assert.equal(h.metrics.posts, 1);", "    assert.equal(h.metrics.generations, 2);\n    assert.equal(h.metrics.posts, 1);")
-replace_once('tests/post-response-rework.test.mjs', "    assert.equal(h.metrics.generations, 1);\n    assert.equal(h.metrics.posts, 1);\n}, { settings: { birthdayFillMode: 'off' } }));", "    assert.equal(h.metrics.generations, 2);\n    assert.equal(h.metrics.posts, 1);\n}, { settings: { birthdayFillMode: 'off' } }));")
+replace_once(
+    'tests/post-response-rework.test.mjs',
+    "    const first = await h.entry.processCompletedAssistantResponse(1);\n    assert.equal(first.ok, true);\n    assert.equal(h.metrics.generations, 1);\n    assert.equal(h.metrics.posts, 1);",
+    "    const first = await h.entry.processCompletedAssistantResponse(1);\n    assert.equal(first.ok, true);\n    assert.equal(h.metrics.generations, 2);\n    assert.equal(h.metrics.posts, 1);",
+)
+replace_once(
+    'tests/post-response-rework.test.mjs',
+    "    const second = await h.entry.processCompletedAssistantResponse(1);\n    assert.equal(second.ok, true);\n    assert.equal(h.metrics.generations, 1);\n    assert.equal(h.metrics.posts, 1);",
+    "    const second = await h.entry.processCompletedAssistantResponse(1);\n    assert.equal(second.ok, true);\n    assert.equal(h.metrics.generations, 2);\n    assert.equal(h.metrics.posts, 1);",
+)
 replace_once('tests/post-response-rework.test.mjs', "    assert.equal(h.metrics.generations, 1);\n    assert.equal(h.persisted().lastScannedMessageId, 1);", "    assert.equal(h.metrics.generations, 2);\n    assert.equal(h.persisted().lastScannedMessageId, 1);")
 
 replace_once('tests/v0512-gap-fixes.test.mjs', "    assert.equal(h.metrics.generations, 2);\n    assert.equal(h.persisted().npcs[0].mood, 'Focused and mildly concerned.');", "    assert.equal(h.metrics.generations, 3);\n    assert.equal(h.persisted().npcs[0].mood, 'Focused and mildly concerned.');")
