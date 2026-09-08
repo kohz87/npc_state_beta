@@ -131,3 +131,13 @@ test('superseded deterministic role-head admission authority is removed', () => 
     assert.doesNotMatch(source, new RegExp(retired));
   }
 });
+
+
+test('visible identity anchor may exactly equal the proposed unique role without becoming a canonical-name shortcut', () => {
+  const visible = 'The Guild intake clerk points to the ledger and waits.';
+  const patch = namedPatch({ anchor: 'Guild intake clerk', role: 'Guild intake clerk', identityExcerpt: visible });
+  const result = apply(payload([patch]), visible, policy(visible, { present: 'Maren Keller: Guild Intake Clerk' }));
+  const npc = result.state.npcs.find(row => row.name === 'Maren Keller');
+  assert.ok(npc);
+  assert.equal(result.patchResolutions[0].status, 'accepted');
+});

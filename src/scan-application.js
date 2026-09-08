@@ -695,7 +695,7 @@ function verifiedCurrentVisibleExcerpts(record, visibleText = '') {
 function identityEvidenceVerified(patch, policy, currentAdmissionText = '') {
     const record = identityEvidenceRecord(patch);
     if (!record) return null;
-    const anchor = humanIdentityCandidate(record.anchor, patch?.role);
+    const anchor = humanIdentityCandidate(record.anchor);
     const explanation = String(record.explanation || '').trim();
     const canonicalName = canonicalPatchName(patch, []);
     const visible = currentVisibleEvidenceText(policy, currentAdmissionText);
@@ -751,7 +751,7 @@ function identityAnchorUnique(state, patch, anchor, patches = []) {
     for (let index = 0; index < (Array.isArray(patches) ? patches.length : 0); index += 1) {
         const candidate = patches[index];
         const name = canonicalPatchName(candidate, []);
-        const claimedAnchor = humanIdentityCandidate(identityEvidenceRecord(candidate)?.anchor, candidate?.role);
+        const claimedAnchor = humanIdentityCandidate(identityEvidenceRecord(candidate)?.anchor);
         if (!name) continue;
         if (containsNormalizedPhrase(name, anchor) || normalizeName(claimedAnchor) === key) owners.add('patch:' + index);
     }
