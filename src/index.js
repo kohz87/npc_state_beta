@@ -26,10 +26,19 @@ let staleUi = null;
 let bundleUi = null;
 let portraitUi = null;
 let postResponseCoordinator = null;
-let scannerGenerationDepth = 0;
+let scannerGenerationInvocationDepth = 0;
 
 function getSettings() {
     return extensionSettings(extension_settings);
+}
+
+function invokeScannerGeneration(task) {
+    scannerGenerationInvocationDepth += 1;
+    try {
+        return task();
+    } finally {
+        scannerGenerationInvocationDepth = Math.max(0, scannerGenerationInvocationDepth - 1);
+    }
 }
 
 function persistSettings() {
@@ -64,14 +73,15 @@ function notify(kind, message) {
 
 async function generateJson({ systemPrompt, prompt, responseLength, route = null, signal = null }) {
     const selectedRoute = route || resolveScanGenerationRoute(getContext, getSettings().scanConnectionProfileId);
-    scannerGenerationDepth += 1;
-    try {
-        return await runSharedQuietGeneration('npc-state-scan', () => generateWithScanRoute({
+    return runSharedQuietGeneration('npc-state-scan', async () => {
+        // Only the scanner's own synchronous host generation invocation bypasses the
+        // awaited next-turn gate. Once the provider promise is pending, ordinary
+        // roleplay generation/response events must synchronize normally.
+        const request = invokeScannerGeneration(() => generateWithScanRoute({
             getContext, route: selectedRoute, systemPrompt, prompt, responseLength, signal,
         }));
-    } finally {
-        scannerGenerationDepth = Math.max(0, scannerGenerationDepth - 1);
-    }
+        return await request;
+    });
 }
 
 function resolveNpcScanRoute() {
@@ -135,6 +145,7 @@ const engine = createNpcStateEngine({
     resolveGenerationRoute: resolveNpcScanRoute,
     notify,
     stateChangeSnapshot: false,
+    onManualScanCommitted: (messageId, result) => postResponseCoordinator?.adoptSuccessfulResult(messageId, result),
     onStateChanged: () => {
         updateInjection();
         ui?.refresh();
@@ -160,7 +171,7 @@ postResponseCoordinator = createPostResponseCoordinator({
     getSource: sourceForCompletedResponse,
     getLatestSource: latestCompletedSource,
     getSettings,
-    runScan: (messageId, { source, signal, onPhase } = {}) => engine.scan(messageId, { manual: false, force: false, expectedSource: source, signal, onPhase }),
+    runScan: (messageId, { source, signal, onPhase, force = false } = {}) => engine.scan(messageId, { manual: false, force, expectedSource: source, signal, onPhase }),
     setStatus: () => ui?.refresh(),
     logError: error => console.error('[NPC State Beta] automatic post-response scan failed safely', error),
 });
@@ -255,12 +266,12 @@ function latestCompletedSource() {
 }
 
 export function processCompletedAssistantResponse(messageId) {
-    if (scannerGenerationDepth > 0) return Promise.resolve({ ok: false, skipped: true, reason: 'scanner-generation' });
+    if (scannerGenerationInvocationDepth > 0) return Promise.resolve({ ok: false, skipped: true, reason: 'scanner-generation' });
     return postResponseCoordinator.process(messageId);
 }
 
 export async function npcStateGenerationInterceptor(_chat, _contextSize, abort) {
-    if (scannerGenerationDepth > 0) return;
+    if (scannerGenerationInvocationDepth > 0) return;
     const settings = getSettings();
     if (settings.enabled === false || settings.autoScan === false) return;
     const result = await postResponseCoordinator.settleLatest({ timeoutMs: 45000 });

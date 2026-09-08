@@ -5,7 +5,8 @@ function boundedDetail(value) {
 function resultStatus(result) {
     if (result?.ok) {
         if (result?.discarded) return 'blocked';
-        const partial = (result.coverageDiagnostics || []).some(row => row?.status === 'incomplete-evaluation')
+        const partial = result?.partial === true
+            || (result.coverageDiagnostics || []).some(row => row?.status === 'incomplete-evaluation')
             || (result.semanticDiagnostics || []).some(row => ['rejected-proposal', 'invalid-source-reference', 'invalid-structure'].includes(row?.status));
         return partial ? 'partial' : 'complete';
     }
@@ -45,7 +46,7 @@ export function createPostResponseCoordinator(adapters = {}) {
         publishStatus(source.chatKey, value);
     }
 
-    function process(messageId) {
+    function process(messageId, { force = false } = {}) {
         const source = getSource(messageId);
         if (!source?.valid) return Promise.resolve({ ok: false, reason: source?.reason || 'not-assistant-message' });
         const settings = getSettings();
@@ -56,7 +57,11 @@ export function createPostResponseCoordinator(adapters = {}) {
             return Promise.resolve({ ok: false, skipped: true, reason: settings.enabled === false ? 'disabled' : 'auto-disabled', messageId: source.messageId });
         }
         const existing = jobs.get(source.identity);
-        if (existing) return existing.promise;
+        if (existing && (!force || !existing.settled)) return existing.promise;
+        if (existing?.settled && force) {
+            existing.controller?.abort();
+            jobs.delete(source.identity);
+        }
 
         const latestMessageId = latestMessageByChat.get(source.chatKey);
         if (Number.isInteger(latestMessageId) && source.messageId < latestMessageId) {
@@ -83,6 +88,7 @@ export function createPostResponseCoordinator(adapters = {}) {
             try {
                 const result = await runScan(source.messageId, {
                     source,
+                    force,
                     signal: job.controller.signal,
                     onPhase: phase => {
                         if (phase === 'saving') setStatus(source, 'saving');
@@ -90,7 +96,10 @@ export function createPostResponseCoordinator(adapters = {}) {
                     },
                 });
                 job.result = result;
-                const next = resultStatus(result);
+                let next = resultStatus(result);
+                const prior = statuses.get(source.chatKey);
+                if (result?.skipped && result?.reason === 'already-scanned' && prior?.identity === source.identity
+                    && ['partial', 'failed', 'blocked'].includes(prior.status)) next = prior.status;
                 if (!job.timedOut) setStatus(source, next, result?.reason || '');
                 return result;
             } catch (error) {
@@ -135,7 +144,27 @@ export function createPostResponseCoordinator(adapters = {}) {
         if (existing && !existing.settled) return existing.promise;
         existing?.controller?.abort();
         jobs.delete(source.identity);
-        return process(source.messageId);
+        return process(source.messageId, { force: true });
+    }
+
+    function adoptSuccessfulResult(messageId, result) {
+        if (!result?.ok || result?.discarded) return false;
+        const source = getSource(messageId);
+        const latest = getLatestSource();
+        if (!source?.valid || !latest?.valid || source.identity !== latest.identity) return false;
+        const previousIdentity = currentByChat.get(source.chatKey);
+        const previous = previousIdentity ? jobs.get(previousIdentity) : null;
+        if (previous && previousIdentity !== source.identity) previous.controller?.abort();
+        if (previousIdentity && previousIdentity !== source.identity) jobs.delete(previousIdentity);
+        const same = jobs.get(source.identity);
+        same?.controller?.abort();
+        const controller = new AbortController();
+        const adopted = { source, result, controller, timedOut: false, settled: true, promise: Promise.resolve(result) };
+        jobs.set(source.identity, adopted);
+        currentByChat.set(source.chatKey, source.identity);
+        latestMessageByChat.set(source.chatKey, source.messageId);
+        setStatus(source, resultStatus(result), result?.reason || 'manual-scan-repaired-source');
+        return true;
     }
 
     function clearChat(chatKey) {
@@ -149,5 +178,5 @@ export function createPostResponseCoordinator(adapters = {}) {
         }
     }
 
-    return Object.freeze({ process, settleLatest, retryLatest, status, clearChat });
+    return Object.freeze({ process, settleLatest, retryLatest, adoptSuccessfulResult, status, clearChat });
 }

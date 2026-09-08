@@ -240,6 +240,7 @@ export function createNpcStateEngine(adapters = {}) {
     const generate = adapters.generate;
     const resolveGenerationRoute = adapters.resolveGenerationRoute || (() => ({ kind: 'current' }));
     const onStateChanged = adapters.onStateChanged || (() => {});
+    const onManualScanCommitted = adapters.onManualScanCommitted || (() => {});
     // Compatibility default remains immutable snapshots. The installed runtime opts out because its callback ignores the payload.
     const stateChangeSnapshot = adapters.stateChangeSnapshot !== false;
     const notify = adapters.notify || (() => {});
@@ -809,7 +810,7 @@ export function createNpcStateEngine(adapters = {}) {
             const persisted = commit.state;
             const notice = lifecycleNotice(stale);
             if (notice) notify('info', `Stale management ${notice}.`);
-            return {
+            const scanResult = {
                 ok: true,
                 messageId,
                 exchangeActiveNpcIds: applied.exchangeActiveNpcIds,
@@ -827,6 +828,12 @@ export function createNpcStateEngine(adapters = {}) {
                 },
                 state: structuredClone(persisted),
             };
+            if (manual) {
+                try { onManualScanCommitted(messageId, scanResult); } catch (error) {
+                    console.warn('[NPC State Beta] manual scan status reconciliation failed safely', error);
+                }
+            }
+            return scanResult;
         });
     }
 

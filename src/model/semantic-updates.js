@@ -9,6 +9,7 @@ import {
     normalizeMemoryEntries,
     normalizeName,
     normalizeNpc,
+    normalizeProfileEvolutionEvidence,
 } from '../schema.js';
 import {
     DOSSIER_COLLECTION_FIELDS,
@@ -35,6 +36,7 @@ const COLLECTION_FIELDS = new Set(DOSSIER_COLLECTION_FIELDS);
 const FORM_FIELDS = new Set(DOSSIER_FORM_FIELDS);
 const DURABLE_FIELDS = new Set(DOSSIER_DURABLE_FIELDS);
 const AGE_KINDS = new Set(['birthday', 'elapsed', 'correction']);
+const PROFILE_EVOLUTION_FIELDS = new Set(['personality', 'behaviorProfile', 'speech', 'mannerisms']);
 
 function compact(value, max = 2000) {
     return String(value ?? '').replace(/\u0000/g, '').trim().slice(0, max);
@@ -214,6 +216,59 @@ function sourceValidation(update, options = {}) {
 
 function manualProtected(npc, field) {
     return dossierFieldManualProtected(npc, field);
+}
+
+function profileEvolutionTextValue(value) {
+    if (typeof value === 'string' || typeof value === 'number') return compact(value, 180);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+    for (const key of ['behavior', 'mannerism', 'trait', 'text', 'description', 'value']) {
+        if (typeof value[key] === 'string' && value[key].trim()) return compact(value[key], 180);
+    }
+    return '';
+}
+
+function profileEvolutionConcept(update, result = {}) {
+    if (SCALAR_FIELDS.has(update.field)) return profileEvolutionTextValue(update.value) || compact(update.explanation || update.field, 180);
+    const changes = Array.isArray(update.changes) ? update.changes : [];
+    const values = changes.filter(change => ['add', 'replace'].includes(String(change?.action || '')))
+        .map(change => profileEvolutionTextValue(change?.value)).filter(Boolean);
+    if (values.length) return compact(values.join('; '), 180);
+    if (Array.isArray(update.value)) {
+        const normalized = update.value.map(profileEvolutionTextValue).filter(Boolean);
+        if (normalized.length) return compact(normalized.join('; '), 180);
+    }
+    return compact(update.explanation || result.reason || update.field, 180);
+}
+
+function profileEvolutionMode(update) {
+    if (Array.isArray(update?.changes) && update.changes.length > 1) return 'batch';
+    if (update?.operation === 'refine') return 'refine';
+    if (update?.operation === 'replace' || update?.operation === 'remove') return 'explicit';
+    return 'gradual';
+}
+
+function appendProfileEvolutionEvidence(npc, update, provenanceRows, options = {}, result = {}) {
+    if (!PROFILE_EVOLUTION_FIELDS.has(update.field) || !result.changed) return;
+    const rows = Array.isArray(provenanceRows) ? provenanceRows : [];
+    const concept = profileEvolutionConcept(update, result);
+    const evidence = compact(rows.map(row => row.excerpt).filter(Boolean).join(' | '), 600);
+    if (!concept || !evidence) return;
+    const sourceMessageId = Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null;
+    const turn = Number.isInteger(options.turn) ? options.turn : null;
+    const existing = normalizeProfileEvolutionEvidence(npc.profileEvolutionEvidence);
+    const duplicate = existing.some(entry => entry.field === update.field
+        && normalizeName(entry.concept) === normalizeName(concept)
+        && (sourceMessageId !== null ? entry.sourceMessageId === sourceMessageId : (turn !== null && entry.sourceMessageId == null && entry.turn === turn)));
+    if (duplicate) return;
+    npc.profileEvolutionEvidence = normalizeProfileEvolutionEvidence([...existing, {
+        field: update.field,
+        mode: profileEvolutionMode(update),
+        concept,
+        evidence,
+        sourceMessageId,
+        turn,
+        at: Date.now(),
+    }]);
 }
 
 function sameValue(left, right) {
@@ -704,7 +759,10 @@ export function applyModelLedSemanticUpdates(stateInput, resultInput, options = 
                 status: semanticApplicationStatus(result),
                 reason: result.reason || '',
             });
-            if (result.changed) npc.updatedAt = Math.max(Date.now(), Number(npc.updatedAt || 0) + 1);
+            if (result.changed) {
+                appendProfileEvolutionEvidence(npc, update, provenance.rows, options, result);
+                npc.updatedAt = Math.max(Date.now(), Number(npc.updatedAt || 0) + 1);
+            }
         }
     }
     state.npcs = (state.npcs || []).map(npc => normalizeNpc(npc));

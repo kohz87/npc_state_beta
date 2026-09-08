@@ -317,16 +317,49 @@ function relationshipQuoteComparable(value, max = 40000) {
         .slice(0, max);
 }
 
+function quotedDialogueSegments(value) {
+    const text = String(value || '');
+    const out = [];
+    let start = -1;
+    let close = '';
+    const closesFor = char => ({ '"': '"', '“': '”', '„': '”', '«': '»', '‘': '’' }[char] || '');
+    for (let index = 0; index < text.length; index += 1) {
+        const char = text[index];
+        if (start >= 0) {
+            if (char === close) {
+                out.push(text.slice(start, index));
+                start = -1;
+                close = '';
+            }
+            continue;
+        }
+        const expected = closesFor(char);
+        if (expected) {
+            start = index + 1;
+            close = expected;
+        }
+    }
+    return out;
+}
+
+function excerptInsideQuotedDialogue(excerpt, sourceText) {
+    const quote = relationshipQuoteComparable(excerpt, 1200);
+    if (!quote) return false;
+    return quotedDialogueSegments(sourceText).some(segment => relationshipQuoteComparable(segment, 40000).includes(quote));
+}
+
 export function relationshipEvidenceExcerptMatch(excerpt, sources = []) {
     const quote = relationshipQuoteComparable(excerpt, 1200);
     if (!quote) return null;
     for (const raw of Array.isArray(sources) ? sources.slice(0, 8) : []) {
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
-        const source = relationshipQuoteComparable(raw.text, 40000);
+        const sourceText = String(raw.text || '');
+        const source = relationshipQuoteComparable(sourceText, 40000);
         if (!source || !source.includes(quote)) continue;
         return {
             sourceId: String(raw.id || 'relationship-source').trim().slice(0, 80),
             kind: ['visible', 'inner'].includes(String(raw.kind || '').trim()) ? String(raw.kind).trim() : 'visible',
+            insideQuotedDialogue: excerptInsideQuotedDialogue(excerpt, sourceText),
         };
     }
     return null;

@@ -151,7 +151,11 @@ test('next-generation interceptor waits for preceding scan after user append and
     await entered.promise;
     h.context.chat.push({ is_user: true, name: 'Lucien Noctis', mes: 'I take the contract.' });
     let aborted = false;
+    let gateSettled = false;
     const gate = h.entry.npcStateGenerationInterceptor(h.context.chat, 8192, () => { aborted = true; });
+    gate.finally(() => { gateSettled = true; });
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(gateSettled, false, 'ordinary next-turn interceptor must actually wait while the previous scan is pending');
     release.resolve();
     const [scan] = await Promise.all([pending, gate]);
     assert.equal(scan.ok, true);
