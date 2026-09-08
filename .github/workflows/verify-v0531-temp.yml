@@ -26,6 +26,7 @@ jobs:
           sed -i 's@; birthdayProvenance:"generated" is fallback metadata, not evidence\.@.@' src/model/semantic-updates.js
           sed -i "s/assert.equal(manifest.version, '0.5.30');/assert.equal(manifest.version, '0.5.31');/" tests/structure.test.mjs
           sed -i "s/NPC_STATE_VERSION = '0.5.30'/NPC_STATE_VERSION = '0.5.31'/" tests/structure.test.mjs
+          sed -i 's/directly supported narrow values are proposals, not insufficient/directly supported values are proposals, not insufficient/' tests/v0531-live-evidence-birthday-provenance.test.mjs
       - name: Diff sanity
         run: |
           git diff --check
