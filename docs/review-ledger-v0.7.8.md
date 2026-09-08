@@ -16,9 +16,11 @@ Confirmed finding:
 
 Fix:
 - Centralized manual-owned field validation in the schema boundary and reused it from the public manual API. Persisted legacy override entries now keep only values accepted by the same field-shape rules; invalid entries are dropped fail-closed before rollback. Valid overrides, numeric relationship compatibility, portrait objects, correction remediation, and user-owned rollback semantics remain supported.
+- Runtime fix commit: `912f87442202b812c0ed77dbeb4011aeafe488d4`.
 
 Validation:
 - Added malformed-legacy and valid-legacy rollback controls to `tests/v078-manual-api-value-boundaries.test.mjs`.
-- Final focused/full/package results are recorded in the release report.
+- Final focused boundary suite: 22/22 passed.
+- Final repository gates: 80 JavaScript files validated; 285/285 tests passed; 56-file package built and ZIP integrity passed.
 
 Limitation: controlled repository/host simulations only. No configured live SillyTavern + exact Gemini 3.8 Flash provider identifier was available for a live smoke test.
