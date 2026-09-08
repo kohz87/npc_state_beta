@@ -4,7 +4,7 @@ The authoritative behavior and ownership specification is [`docs/core-contract.m
 
 ## Current boundaries
 
-- Extension release: `0.5.17`
+- Extension release: `0.5.18`
 - Persisted state schema: `1`
 - Settings schema: `1`
 - Model semantic update contract: `6`
@@ -49,9 +49,10 @@ Requires Node.js 22 or later. From a clean checkout run:
 npm run validate
 npm test
 npm run package
+npm run measure:scan-prompts
 ```
 
-`npm run validate` checks JavaScript syntax, manifest/release consistency, release-document consistency, runtime dependency reachability and unused source files. `npm test` contains behavioral/compatibility regressions. `npm run package` produces the installable ZIP from reachable runtime files plus manifest, license and README. Tests, scripts and development/history documents do not ship in the ZIP.
+`npm run validate` checks JavaScript syntax, manifest/release consistency, release-document consistency, runtime dependency reachability and unused source files. `npm test` contains behavioral/compatibility regressions. `npm run package` produces the installable ZIP from reachable runtime files plus manifest, license and README. `npm run measure:scan-prompts` reports the stable scanner fixture matrix using the existing local conservative estimator and the exact scanner system wrapper; it is not a provider token-usage claim. Tests, scripts and development/history documents do not ship in the ZIP.
 
 Before release:
 

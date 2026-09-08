@@ -200,7 +200,7 @@ test('foreground contract is continuity-only while scanner retains the one-pipel
     assert.match(foreground, /CONTINUITY CONTEXT/);
     assert.doesNotMatch(foreground, /semanticUpdates|evaluatedGroups|OUTPUT CONTRACT/);
     const scan = buildScanPrompt({ state: stateWithNpc(), chat: [{ is_user: true, mes: 'Sora?' }, { is_user: false, mes: 'Sora answers.' }], assistantMessageId: 1 });
-    assert.match(scan, /SINGLE-PIPELINE INVARIANT/);
+    assert.match(scan, /PIPELINE:.*semanticUpdates once/);
     assert.match(scan, /evaluatedGroups/);
 });
 

@@ -48,6 +48,7 @@ import {
     reconcileFamilyGraphState,
     relevantNpcsForExchange,
     sanitizeStructuredDossierPatch,
+    SCAN_SYSTEM_PROMPT,
 } from './scanner.js';
 import {
     applyStaleLifecycle,
@@ -60,7 +61,6 @@ import { estimateForegroundTokens, FOREGROUND_TOKEN_ESTIMATE_METHOD } from './fo
 import { createOperationDiagnostics, operationHistoryIdentity, summarizeProposalDiagnostics } from './operation-diagnostics.js';
 import { resolvePlayerName } from './scan-helpers.js';
 
-const SYSTEM_PROMPT = 'Return only valid JSON for the NPC State scanner. Obey the supplied schema and evidence rules exactly.';
 
 function profileContextForWindow(chat = [], messageId = null, depth = 8) {
     const end = Number.isInteger(messageId) ? Math.min(chat.length - 1, messageId) : chat.length - 1;
@@ -713,11 +713,11 @@ export function createNpcStateEngine(adapters = {}) {
         const responseLength = normalizeScannerResponseTokens(getSettings().scannerResponseTokens);
         // Resolve once so the first request and its JSON retry cannot mix connection/profile configuration.
         const route = await resolveGenerationRoute({ label });
-        let raw = await generate({ systemPrompt: SYSTEM_PROMPT, prompt, responseLength, label, route, signal });
+        let raw = await generate({ systemPrompt: SCAN_SYSTEM_PROMPT, prompt, responseLength, label, route, signal });
         try { return parseScanJson(raw, { requireLifeStateUpdates: true }); }
         catch (firstError) {
             raw = await generate({
-                systemPrompt: SYSTEM_PROMPT,
+                systemPrompt: SCAN_SYSTEM_PROMPT,
                 prompt: `${prompt}\n\nYour previous response was malformed. Return exactly one valid JSON object, no markdown and no commentary.`,
                 responseLength,
                 label: `${label}-json-retry`,

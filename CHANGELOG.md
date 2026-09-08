@@ -2,6 +2,14 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.18
+
+- Compact repeated scanner instructions across identity/activity, dossier extraction, relationships, lifecycle/graph, output examples, and semantic-update guidance while keeping one canonical wire shape and one ordinary semantic mutation pipeline.
+- Preserve full current user/assistant evidence, bounded older reference-only context, candidate accounting, field coverage, manual locks, collection/form refs, profile observations, exact claimed-message ownership, structured-evidence authority, custom relationship/memory criteria, and all existing deterministic relationship/recovery behavior.
+- Centralize the scanner system wrapper so actual dispatch and developer measurement use the same fixed system instruction. Add `npm run measure:scan-prompts` and stable prompt-budget regressions; no tokenizer dependency or runtime token-count network call is added.
+- Using the existing local conservative estimator (`ASCII/3.5 + non-ASCII*1.1`) including the scanner system wrapper, the stable minimal fixture falls from 10,123 to 5,690 estimated input tokens; three active plus one mentioned falls from 11,191 to 6,757; dense collections/locks/forms from 11,793 to 7,359; targeted Refresh from 6,301 to 4,166. A deliberately long current response remains over the target because current evidence is not truncated.
+- Keep scanner response-token settings unchanged. Persisted/settings schema, model semantic contract, foreground contract, storage identity, database format, and one-request automatic architecture remain unchanged. Phase 2 historical enrichment/backfill remains deferred and unnumbered.
+
 ## 0.5.17
 
 - Correct the Phase 1 observation contract so every prompt and parser-tested literal example advertises `profileObservations` as an array; an object container now fails at the structural boundary instead of reaching the per-observation validator.
