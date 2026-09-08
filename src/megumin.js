@@ -194,7 +194,7 @@ export function createMeguminBlockIntegration(options = {}) {
                 recovered = true;
                 holders = [...(root.querySelectorAll(`#${INLINE_ID}`) || [])];
             } catch (error) {
-                console.debug('[NPC State v0.3] Megumin inline recovery skipped', error);
+                console.debug('[NPC State Beta] Megumin inline recovery skipped', error);
             }
         }
 
@@ -227,7 +227,7 @@ export function createMeguminBlockIntegration(options = {}) {
             observer = new MutationObserverCtor(() => queueRepair(25));
             try { observer.observe(target, { childList: true, subtree: true }); }
             catch (error) {
-                console.debug('[NPC State v0.3] Megumin MutationObserver could not attach', error);
+                console.debug('[NPC State Beta] Megumin MutationObserver could not attach', error);
                 observer = null;
             }
         }

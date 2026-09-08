@@ -35,8 +35,8 @@ test('release, persisted schema, model contract, foreground contract, and settin
     const semantic = read('src/model/semantic-updates.js');
     const foreground = read('src/foreground-contract.js');
     const settings = read('src/settings.js');
-    assert.equal(manifest.version, '0.5.14');
-    assert.match(schema, /NPC_STATE_VERSION = '0.5.14'/);
+    assert.equal(manifest.version, '0.5.15');
+    assert.match(schema, /NPC_STATE_VERSION = '0.5.15'/);
     assert.match(schema, /NPC_STATE_SCHEMA_VERSION = 1/);
     assert.match(semantic, /NPC_STATE_MODEL_CONTRACT_VERSION = 6/);
     assert.match(foreground, /FOREGROUND_CONTRACT_VERSION = 8/);
@@ -46,4 +46,17 @@ test('release, persisted schema, model contract, foreground contract, and settin
     assert.equal(fs.existsSync(path.join(root, 'src/operation-diagnostics.js')), true);
     assert.equal(fs.existsSync(path.join(root, 'docs/core-contract.md')), true);
     assert.match(settings, /const SETTINGS_SCHEMA = 1/);
+});
+
+test('release-facing documentation stays synchronized with the active release', () => {
+    const manifest = JSON.parse(read('manifest.json'));
+    const version = manifest.version.replace(/\./g, '\\.');
+    assert.match(read('README.md'), new RegExp(`^## Release ${version}\\s*$`, 'm'));
+    assert.match(read('DEVELOPMENT.md'), new RegExp('^- Extension release: `' + version + '`\\s*$', 'm'));
+    assert.match(read('CHANGELOG.md'), new RegExp(`^## ${version}\\s*$`, 'm'));
+});
+
+test('active runtime diagnostics do not advertise retired numeric release labels', () => {
+    assert.doesNotMatch(read('src/megumin.js'), /\[NPC State v0\./);
+    assert.doesNotMatch(read('src/storage.js'), /NPC State v0\.\d/);
 });

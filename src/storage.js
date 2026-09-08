@@ -67,10 +67,10 @@ export function encodeV3Payload(chatKey, state, revision = 0) {
 export function decodeV3Payload(text, expectedChatKey = '') {
     let payload;
     try { payload = JSON.parse(String(text ?? '')); }
-    catch { throw new Error('NPC State v0.3 sidecar contains invalid JSON.'); }
-    if (payload?.format !== V3_FILE_FORMAT || payload?.formatVersion !== V3_FILE_FORMAT_VERSION) throw new Error('Not an NPC State v0.3 sidecar.');
-    if (!payload.state || typeof payload.state !== 'object' || Array.isArray(payload.state)) throw new Error('NPC State v0.3 sidecar is missing state.');
-    if (expectedChatKey && String(payload.chatKey || '') !== String(expectedChatKey)) throw new Error('NPC State v0.3 sidecar belongs to a different chat.');
+    catch { throw new Error('NPC State sidecar contains invalid JSON.'); }
+    if (payload?.format !== V3_FILE_FORMAT || payload?.formatVersion !== V3_FILE_FORMAT_VERSION) throw new Error('Not an NPC State sidecar.');
+    if (!payload.state || typeof payload.state !== 'object' || Array.isArray(payload.state)) throw new Error('NPC State sidecar is missing state.');
+    if (expectedChatKey && String(payload.chatKey || '') !== String(expectedChatKey)) throw new Error('NPC State sidecar belongs to a different chat.');
     const state = normalizeState(payload.state, payload.chatKey || expectedChatKey);
     state.revision = Math.max(0, Math.trunc(Number(payload.revision) || state.revision || 0));
     return { ...payload, retired: payload?.retired === true, retireReason: String(payload?.retireReason || ''), redirectChatKey: String(payload?.redirectChatKey || ''), revision: state.revision, state };
@@ -157,7 +157,7 @@ async function withLocalStorageWriterLock(chatKey, task) {
         }
         await wait(20);
     }
-    const error = new Error(`NPC State v0.3 could not acquire the cross-tab sidecar lock for ${chatKey}.`);
+    const error = new Error(`NPC State could not acquire the cross-tab sidecar lock for ${chatKey}.`);
     error.code = 'NPC_STATE_V04_BETA_LOCK_TIMEOUT';
     throw error;
 }
@@ -202,20 +202,20 @@ function conflict(message, expectedRevision = null, actualRevision = null) {
 
 export async function readV3Sidecar({ chatKey, pointer, fetchFn = globalThis.fetch }) {
     if (!pointer?.path) return null;
-    if (typeof fetchFn !== 'function') throw new Error('fetch() is unavailable for NPC State v0.3 persistence.');
+    if (typeof fetchFn !== 'function') throw new Error('fetch() is unavailable for NPC State persistence.');
     const response = await fetchFn(pointer.path, { method: 'GET', cache: 'no-store' });
     if (response?.status === 404) return null;
-    if (!response?.ok) throw new Error(`NPC State v0.3 sidecar read failed with HTTP ${response?.status || 'error'}.`);
+    if (!response?.ok) throw new Error(`NPC State sidecar read failed with HTTP ${response?.status || 'error'}.`);
     return decodeV3Payload(await response.text(), chatKey);
 }
 
 export async function writeV3Sidecar({ chatKey, state, pointer = null, fetchFn = globalThis.fetch, headers = {}, retryDelays = TRANSIENT_WRITE_RETRY_DELAYS }) {
-    if (typeof fetchFn !== 'function') throw new Error('fetch() is unavailable for NPC State v0.3 persistence.');
+    if (typeof fetchFn !== 'function') throw new Error('fetch() is unavailable for NPC State persistence.');
     return withWriterLock(chatKey, async () => {
         const hint = readV3PointerHint(chatKey);
         const pointerRevision = pointer?.revision == null ? null : Math.max(0, Math.trunc(Number(pointer.revision) || 0));
         if (hint?.path && (!pointer?.path || hint.path !== pointer.path || hint.revision > (pointerRevision ?? -1))) {
-            throw conflict('NPC State v0.3 sidecar was created or advanced in another tab. Reload this chat before saving.', pointerRevision, hint.revision);
+            throw conflict('NPC State sidecar was created or advanced in another tab. Reload this chat before saving.', pointerRevision, hint.revision);
         }
 
         const expected = pointerRevision;
@@ -223,19 +223,19 @@ export async function writeV3Sidecar({ chatKey, state, pointer = null, fetchFn =
         if (pointer?.path) {
             const remote = await readV3Sidecar({ chatKey, pointer, fetchFn });
             if (!remote) {
-                const error = new Error('NPC State v0.3 sidecar pointer exists but the file is missing. Refusing to recreate it over an unknown state.');
+                const error = new Error('NPC State sidecar pointer exists but the file is missing. Refusing to recreate it over an unknown state.');
                 error.code = 'NPC_STATE_V04_BETA_MISSING_SIDECAR';
                 throw error;
             }
             if (remote.retired) {
-                const error = new Error('NPC State beta sidecar is retired and cannot accept writes.');
+                const error = new Error('NPC State Beta sidecar is retired and cannot accept writes.');
                 error.code = 'NPC_STATE_V04_BETA_RETIRED_SIDECAR';
                 error.redirectChatKey = remote.redirectChatKey || '';
                 throw error;
             }
             remoteRevision = remote.revision || 0;
-            if (expected === null) throw conflict('NPC State v0.3 has no revision token for an existing sidecar. Reload before saving.', null, remoteRevision);
-            if (remoteRevision !== expected) throw conflict(`NPC State v0.3 sidecar changed in another writer (expected ${expected}, found ${remoteRevision}). Reload before saving.`, expected, remoteRevision);
+            if (expected === null) throw conflict('NPC State has no revision token for an existing sidecar. Reload before saving.', null, remoteRevision);
+            if (remoteRevision !== expected) throw conflict(`NPC State sidecar changed in another writer (expected ${expected}, found ${remoteRevision}). Reload before saving.`, expected, remoteRevision);
         }
 
         const revision = Math.max(remoteRevision, expected || 0) + 1;
@@ -248,10 +248,10 @@ export async function writeV3Sidecar({ chatKey, state, pointer = null, fetchFn =
             method: 'POST',
             headers,
             body: JSON.stringify({ name, data: toBase64(json) }),
-        }, { label: 'NPC State beta sidecar write', retryDelays });
-        if (!response?.ok) throw new Error(`NPC State v0.3 sidecar write failed with HTTP ${response?.status || 'error'}.`);
+        }, { label: 'NPC State Beta sidecar write', retryDelays });
+        if (!response?.ok) throw new Error(`NPC State sidecar write failed with HTTP ${response?.status || 'error'}.`);
         const result = await response.json();
-        if (!result?.path) throw new Error('NPC State v0.3 sidecar upload returned no path.');
+        if (!result?.path) throw new Error('NPC State sidecar upload returned no path.');
         const nextPointer = { name, path: result.path, revision, updatedAt: Date.now() };
         writeV3PointerHint(chatKey, nextPointer);
         return { state: normalized, pointer: nextPointer };
@@ -326,18 +326,18 @@ export async function createRecoveryV3Sidecar({
 
 export async function retireV3Sidecar({ chatKey, pointer, reason = 'retired', redirectChatKey = '', fetchFn = globalThis.fetch, headers = {}, retryDelays = TRANSIENT_WRITE_RETRY_DELAYS }) {
     if (!pointer?.path) return null;
-    if (typeof fetchFn !== 'function') throw new Error('fetch() is unavailable for NPC State beta lifecycle persistence.');
+    if (typeof fetchFn !== 'function') throw new Error('fetch() is unavailable for NPC State Beta lifecycle persistence.');
     return withWriterLock(chatKey, async () => {
         const remote = await readV3Sidecar({ chatKey, pointer, fetchFn });
         if (!remote) {
-            const error = new Error('NPC State beta sidecar disappeared before lifecycle retirement.');
+            const error = new Error('NPC State Beta sidecar disappeared before lifecycle retirement.');
             error.code = 'NPC_STATE_V04_BETA_MISSING_SIDECAR';
             throw error;
         }
         if (remote.retired) return { pointer: { ...pointer, revision: remote.revision, retired: true }, payload: remote };
         const expected = pointer?.revision == null ? null : Math.max(0, Math.trunc(Number(pointer.revision) || 0));
         if (expected === null || Number(remote.revision || 0) !== expected) {
-            throw conflict('NPC State beta sidecar changed before lifecycle retirement. Reload/retry from its newest revision.', expected, remote.revision || 0);
+            throw conflict('NPC State Beta sidecar changed before lifecycle retirement. Reload/retry from its newest revision.', expected, remote.revision || 0);
         }
         const revision = expected + 1;
         const json = encodeV3RetiredPayload(chatKey, revision, { reason, redirectChatKey });
@@ -345,10 +345,10 @@ export async function retireV3Sidecar({ chatKey, pointer, reason = 'retired', re
             method: 'POST',
             headers,
             body: JSON.stringify({ name: pointer.name || makeV3FileName(chatKey), data: toBase64(json) }),
-        }, { label: 'NPC State beta sidecar retirement', retryDelays });
-        if (!response?.ok) throw new Error('NPC State beta sidecar retirement failed with HTTP ' + (response?.status || 'error') + '.');
+        }, { label: 'NPC State Beta sidecar retirement', retryDelays });
+        if (!response?.ok) throw new Error('NPC State Beta sidecar retirement failed with HTTP ' + (response?.status || 'error') + '.');
         const result = await response.json();
-        if (!result?.path) throw new Error('NPC State beta sidecar retirement returned no path.');
+        if (!result?.path) throw new Error('NPC State Beta sidecar retirement returned no path.');
         const retiredPointer = { name: pointer.name || makeV3FileName(chatKey), path: result.path, revision, updatedAt: Date.now(), retired: true };
         writeV3PointerHint(chatKey, retiredPointer);
         return { pointer: retiredPointer, payload: decodeV3Payload(json, chatKey) };
@@ -357,13 +357,13 @@ export async function retireV3Sidecar({ chatKey, pointer, reason = 'retired', re
 
 export async function deleteV3SidecarFile(pointer, { fetchFn = globalThis.fetch, headers = {}, retryDelays = TRANSIENT_WRITE_RETRY_DELAYS } = {}) {
     if (!pointer?.path) return false;
-    if (typeof fetchFn !== 'function') throw new Error('fetch() is unavailable for NPC State beta lifecycle persistence.');
+    if (typeof fetchFn !== 'function') throw new Error('fetch() is unavailable for NPC State Beta lifecycle persistence.');
     const response = await fetchPersistenceMutation(fetchFn, '/api/files/delete', {
         method: 'POST',
         headers,
         body: JSON.stringify({ path: pointer.path }),
-    }, { label: 'NPC State beta sidecar deletion', retryDelays });
+    }, { label: 'NPC State Beta sidecar deletion', retryDelays });
     if (response?.status === 404) return false;
-    if (!response?.ok) throw new Error('NPC State beta sidecar delete failed with HTTP ' + (response?.status || 'error') + '.');
+    if (!response?.ok) throw new Error('NPC State Beta sidecar delete failed with HTTP ' + (response?.status || 'error') + '.');
     return true;
 }
