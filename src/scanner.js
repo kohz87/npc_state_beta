@@ -33,7 +33,7 @@ export function newNpcAdmissionAllows(patch, mode = 'balanced') {
 
 function currentDynamicCoverage(state, result, npcIds = [], patchResolutions = null, diagnostics = []) {
     const patches = Array.isArray(result?.npcs) ? result.npcs : [];
-    const out = diagnostics.map(row => ({ ...row, missingFields: Array.isArray(row?.missingFields) ? [...row.missingFields] : row?.missingFields }));
+    const out = structuredClone(diagnostics);
     for (const npcId of npcIds) {
         const npc = (state?.npcs || []).find(item => item.id === npcId) || findNpcByReference(state, npcId);
         if (!npc || normalizeRelationshipSummary(npc.relationshipSummary)) continue;
