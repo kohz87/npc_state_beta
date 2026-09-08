@@ -1,4 +1,4 @@
-import { buildScanPrompt, buildTargetedRefreshPrompt, SCAN_SYSTEM_PROMPT } from '../src/scanner.js';
+import { buildFirstContactCompletionPrompt, buildScanPrompt, buildTargetedRefreshPrompt, SCAN_SYSTEM_PROMPT } from '../src/scanner.js';
 import { createEmptyState, normalizeNpc } from '../src/schema.js';
 import { estimateForegroundTokens, FOREGROUND_TOKEN_ESTIMATE_METHOD } from '../src/foreground-budget.js';
 
@@ -39,6 +39,22 @@ export function scanPromptMeasurementMatrix() {
         const state = stateWith([]);
         const chat = [{ is_user: true, name: 'Ari', mes: 'I approach the registration desk and ask for field work.' }, { is_user: false, mes: 'Vrena Tolk, a slender young woman in a wool waistcoat over ink-stained linen sleeves, catches the ledger before it slides. “Name first. Then the south-trail form.” She taps the signature line with a carved bone bodkin and waits with her arms crossed behind the Rimecross Adventurer Guild counter.' }];
         cases.push(['rich-first-encounter', buildScanPrompt({ state, chat, assistantMessageId: 1 })]);
+    }
+    {
+        const npc = baseNpc('tessa', 'Tessa Morren', {
+            species: '', age: '', birthday: '23 Thawrise', appearanceForms: [], mannerisms: [], mood: '', goal: '', currentForm: '', memories: [], keyRelationships: [],
+            appearance: 'A young woman in a wool waistcoat and ink-stained linen sleeves.',
+            personality: 'Brisk and no-nonsense during intake.', behaviorProfile: ['Keeps intake moving rapidly.'], speech: 'Direct practical instructions.',
+            location: 'Rimecross guild desk', status: 'Processing Lucien intake paperwork.',
+        });
+        const chat = [
+            { is_user: true, name: 'Lucien Noctis', mes: 'I enter the guild and approach the young woman receptionist.' },
+            { is_user: false, mes: 'A young woman in a wool waistcoat and ink-stained linen sleeves grips your sleeve, puts a ledger before you, and says, “Name on the fifth line.” <Blocks><World_State>NPCs Present: Tessa Morren | Rimecross guild desk</World_State><NPC_Inner_Chatter>TESSA: I need this ledger closed by dusk.</NPC_Inner_Chatter></Blocks>' },
+        ];
+        cases.push(['first-contact-completion', buildFirstContactCompletionPrompt({
+            targets: [{ npc, fields: ['species', 'age', 'appearanceForms', 'mannerisms', 'mood', 'goal', 'currentForm', 'memories', 'keyRelationships'] }],
+            chat, assistantMessageId: 1, playerName: 'Lucien Noctis',
+        })]);
     }
     {
         const npcs = [baseNpc('vrena', 'Vrena Tolk'), baseNpc('sora', 'Sora', { role: 'Dependent', species: 'Stormcrown Thunderbird Chimera', speech: 'Bright, proud speech.' }), baseNpc('ryu', 'Ryu', { role: 'Dependent', species: 'Silver Dragon Chimera', speech: 'Measured analytical speech.' }), baseNpc('mirel', 'Mirel', { present: false, worldActive: false, role: 'Healer' })];

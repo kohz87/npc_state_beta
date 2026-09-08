@@ -2,6 +2,12 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.32
+
+- Add one bounded first-contact completion request only when the automatic Scan actually admits a new NPC. The request sees the same current exchange, targets only still-unresolved ordinary fields for the newly admitted dossier, and is sanitized before application so it cannot change activity/presence, relationship state or Current Dynamic, lifecycle, family/social graph, identity, or already-populated fields. First pass and completion persist through one owned checkpoint/commit.
+- If the optional completion request fails, preserve the valid admitted first pass and report an explicit partial-coverage diagnostic instead of discarding the dossier. Existing-cast turns remain one provider request; no recurring completeness scan, historical backfill, or provider-specific semantic rule is introduced.
+- Keep deterministic birthday generation and internal provenance bookkeeping, but remove the user/model-facing `generated` label from dossier presentation, compact scanner context, and foreground cache identity. Generated dates behave as ordinary stable stored birthdays in normal continuity. Persisted schema remains version 1.
+
 ## 0.5.31
 
 - Tighten shared field accounting so `insufficient` is an evidence conclusion rather than a safe default: directly supported narrow values from already permitted current sources should be proposed, including stated current private mood/goal from NPC_Inner_Chatter. Keep the existing field-scoped structured-evidence firewall; no deterministic mood/goal inference, extra scan, or provider-specific rule is added.

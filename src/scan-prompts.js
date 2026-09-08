@@ -92,7 +92,6 @@ function rosterForPrompt(state, { relationshipSummaryIds = null, relationshipSum
             age: npc.age,
             apparentAge: npc.apparentAge,
             birthday: npc.birthday,
-            birthdayProvenance: npc.birthdayProvenance,
             appearance: npc.appearance,
             appearanceForms: npc.appearanceForms,
             currentForm: npc.currentForm,
@@ -196,6 +195,36 @@ ${scannerEvidenceText(exchange.user?.mes || '')}`,
 ${scannerEvidenceText(exchange.assistant?.mes || '')}`,
         scanOutputContract({ compact: true }),
         semanticAppend({ npcs: relevantState.npcs || [], mode: semanticMode, sourceIds: [exchange.user?.id, exchange.assistant?.id].filter(Number.isInteger) }),
+    ].filter(Boolean).join('\n\n');
+}
+
+export function buildFirstContactCompletionPrompt({ targets = [], chat, assistantMessageId, playerName = '', memoryCriteria = '', dossierLimits = {} }) {
+    const exchange = currentExchange(chat, assistantMessageId);
+    if (!exchange) throw new Error('NPC State first-contact completion requires a completed assistant message.');
+    const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
+    const limits = normalizeDossierLimits(dossierLimits);
+    const rows = (Array.isArray(targets) ? targets : []).map(target => ({
+        id: String(target?.npc?.id || '').trim(),
+        name: String(target?.npc?.name || '').trim(),
+        unresolvedFields: [...new Set((Array.isArray(target?.fields) ? target.fields : []).map(value => String(value || '').trim()).filter(Boolean))],
+    })).filter(row => row.id && row.unresolvedFields.length);
+    const targetNpcs = (Array.isArray(targets) ? targets : []).map(target => target?.npc).filter(npc => npc?.id);
+    const sourceIds = [exchange.user?.id, exchange.assistant?.id].filter(Number.isInteger);
+    const structuredDetected = [exchange.user?.mes, exchange.assistant?.mes].some(hasRecognizedStructuredBlocks);
+    return [
+        'You are NPC State performing a FIRST-CONTACT COMPLETION CHECK inside the same automatic Scan operation. Return exactly one valid JSON object, no markdown/commentary.',
+        `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
+        `ADMITTED TARGETS AND ONLY FIELDS TO RECHECK:\n${JSON.stringify(rows)}`,
+        'Identity/admission already succeeded. Do not create NPCs, rename targets, revisit presence/activity, relationship scores/Current Dynamic, lifecycle, family/social graph, or any field not listed for that target.',
+        'Use ONLY the complete CURRENT USER + ASSISTANT exchange below as evidence. This is not historical Refresh/backfill. Reconsider each listed unresolved field once; propose a narrow grounded value when directly supported, otherwise keep it insufficient. Never fill a field merely because it is blank.',
+        ...dossierExtractionPromptRules({ includeNew: false, includeExisting: true }),
+        ...(structuredDetected ? structuredEvidencePromptRules() : []),
+        memoryCriteria ? `IMPORTANT MEMORY RUBRIC (user-authored; preserve as supplied):\n${compactText(memoryCriteria, 6000)}` : '',
+        `CURRENT USER MESSAGE (complete event evidence):\n${scannerEvidenceText(exchange.user?.mes || '')}`,
+        `CURRENT ASSISTANT MESSAGE (complete event evidence):\n${scannerEvidenceText(exchange.assistant?.mes || '')}`,
+        'All top-level activity/presence/world/social/family/lifecycle arrays must be empty. NPC patches must keep the supplied stable id and use only semanticUpdates/profileObservations/fieldEvaluations for that target\'s listed fields.',
+        scanOutputContract({ includeNew: false, includeRelationship: false, compact: true }),
+        semanticAppend({ npcs: targetNpcs, mode: 'first-contact', sourceIds }),
     ].filter(Boolean).join('\n\n');
 }
 

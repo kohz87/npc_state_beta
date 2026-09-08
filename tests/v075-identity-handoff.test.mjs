@@ -382,7 +382,7 @@ test('dedicated Scan retains a complete new dossier when model emits a nonempty 
     const h = engineHarness({ state, chat: [{ is_user: true, mes: 'Lucien asks Mira for a room.' }, { is_user: false, mes: MIRA_VISIBLE, swipe_id: 0 }], generate: async () => JSON.stringify(scan) });
     await h.engine.loadChat(); const result = await h.engine.scan(1, { manual: false }); assert.equal(result.ok, true);
     const mira = result.state.npcs.find(npc => npc.name === 'Mira'); assertMiraPopulated(mira); assert.notEqual(mira.id, 'mira');
-    assert.equal(result.coverageDiagnostics.some(row => row.status === 'missing-npc-patch'), false); assert.equal(h.generations(), 1);
+    assert.equal(result.coverageDiagnostics.some(row => row.status === 'missing-npc-patch'), false); assert.equal(h.generations(), 2);
 });
 
 test('a follow-up Scan using the assigned stable id enriches the same NPC instead of duplicating it', () => {

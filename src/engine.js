@@ -41,6 +41,7 @@ import {
 import {
     applyScanResult,
     buildScanPrompt,
+    buildFirstContactCompletionPrompt,
     buildStructuredDossierImportPrompt,
     buildTargetedRefreshPrompt,
     currentExchange,
@@ -60,6 +61,7 @@ import { clearV3PointerHint, createRecoveryV3Sidecar, deleteV3SidecarFile, readV
 import { estimateForegroundTokens, FOREGROUND_TOKEN_ESTIMATE_METHOD } from './foreground-budget.js';
 import { createOperationDiagnostics, operationHistoryIdentity, summarizeProposalDiagnostics } from './operation-diagnostics.js';
 import { resolvePlayerName } from './scan-helpers.js';
+import { DOSSIER_SEMANTIC_FIELDS, dossierFieldDefinition } from './model/dossier-fields.js';
 
 
 function profileContextForWindow(chat = [], messageId = null, depth = 8) {
@@ -112,6 +114,69 @@ function structuredSemanticContextsForWindow(chat = [], messageId = null, depth 
 function relationshipContextForExchange(exchange) {
     if (!exchange) return '';
     return [exchange.user?.mes, exchange.assistant?.mes].map(value => relationshipEvidenceText(value).trim()).filter(Boolean).join('\n');
+}
+
+function firstContactFieldMissing(npc = {}, field = '') {
+    const definition = dossierFieldDefinition(field);
+    if (!definition) return false;
+    const value = npc?.[field];
+    if (definition.kind === 'collection' || definition.kind === 'forms') return !Array.isArray(value) || value.length === 0;
+    const clean = String(value ?? '').trim();
+    return !clean || normalizeName(clean) === 'unknown';
+}
+
+function firstContactCompletionTargets(beforeState = {}, afterState = {}) {
+    const existingIds = new Set((beforeState?.npcs || []).map(npc => npc?.id).filter(Boolean));
+    return (afterState?.npcs || []).filter(npc => npc?.id && !existingIds.has(npc.id)).map(npc => ({
+        npc,
+        fields: DOSSIER_SEMANTIC_FIELDS.filter(field => firstContactFieldMissing(npc, field)),
+    })).filter(target => target.fields.length);
+}
+
+function filterFirstContactFieldEvaluations(value, allowed) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+    const out = {};
+    for (const key of ['unchanged', 'insufficient', 'unavailable']) {
+        const rows = [...new Set((Array.isArray(value[key]) ? value[key] : []).map(item => String(item || '').trim()).filter(field => allowed.has(field)))];
+        if (rows.length) out[key] = rows;
+    }
+    return Object.keys(out).length ? out : undefined;
+}
+
+function sanitizeFirstContactCompletionPayload(result = {}, targets = []) {
+    const byId = new Map();
+    for (const target of Array.isArray(targets) ? targets : []) {
+        if (!target?.npc?.id) continue;
+        byId.set(target.npc.id, { npc: target.npc, allowed: new Set(target.fields || []) });
+    }
+    const npcs = [];
+    const seen = new Set();
+    for (const patch of Array.isArray(result?.npcs) ? result.npcs : []) {
+        const patchId = String(patch?.id || '').trim();
+        const target = byId.get(patchId);
+        if (!target || seen.has(target.npc.id)) continue;
+        seen.add(target.npc.id);
+        const semanticUpdates = (Array.isArray(patch?.semanticUpdates) ? patch.semanticUpdates : [])
+            .filter(update => target.allowed.has(String(update?.field || '').trim()))
+            .map(update => structuredClone(update));
+        const profileObservations = (Array.isArray(patch?.profileObservations) ? patch.profileObservations : [])
+            .filter(observation => target.allowed.has(String(observation?.field || '').trim()))
+            .map(observation => structuredClone(observation));
+        const fieldEvaluations = filterFirstContactFieldEvaluations(patch?.fieldEvaluations, target.allowed);
+        const groups = [...new Set([...target.allowed].map(field => dossierFieldDefinition(field)?.group).filter(Boolean))];
+        npcs.push({
+            id: target.npc.id,
+            name: target.npc.name,
+            ...(groups.length ? { evaluatedGroups: groups } : {}),
+            ...(semanticUpdates.length ? { semanticUpdates } : {}),
+            ...(profileObservations.length ? { profileObservations } : {}),
+            ...(fieldEvaluations ? { fieldEvaluations } : {}),
+        });
+    }
+    return {
+        exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs,
+        socialEdges: [], familyFacts: [], lifeStateUpdates: [], candidateAccounting: {},
+    };
 }
 
 function lifecycleNotice(result) {
@@ -810,9 +875,12 @@ export function createNpcStateEngine(adapters = {}) {
             }
             const working = ensurePreUpdateBaseline(normalizeState(state, chatKey), chat, messageId);
             working.turn = Math.max(0, Number(working.turn) || 0) + 1;
-            const applied = applyScanResult(working, parsed, {
+            const exchangeSourceIds = [exchange.user?.id, exchange.assistant?.id].filter(Number.isInteger);
+            const evidencePolicy = buildExchangeEvidencePolicy(exchange);
+            const semanticSourceOptions = profileEvidenceSourceOptions(chatKey, chat, messageId, exchangeSourceIds);
+            let applied = applyScanResult(working, parsed, {
                 sourceMessageId: messageId,
-                ...profileEvidenceSourceOptions(chatKey, chat, messageId, [exchange.user?.id, exchange.assistant?.id].filter(Number.isInteger)),
+                ...semanticSourceOptions,
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 playerName: resolvePlayerName('', chat, messageId),
@@ -820,7 +888,7 @@ export function createNpcStateEngine(adapters = {}) {
                 // Routine scan validates new evidence against the owned exchange. Saved
                 // profile-evolution observations remain available through dossier state.
                 profileContext: profileContextForExchange(exchange),
-                evidencePolicy: buildExchangeEvidencePolicy(exchange),
+                evidencePolicy,
                 currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
                 admissionMode: settings.newNpcAdmissionMode,
                 dossierLimits: settings.dossierLimits,
@@ -836,6 +904,55 @@ export function createNpcStateEngine(adapters = {}) {
                 applyRelationship: relationshipApplyRequested && !replayProtectedRelationship,
                 repairRelationshipSummary: manual,
             });
+
+            if (!manual) {
+                const completionTargets = firstContactCompletionTargets(working, applied.state);
+                if (completionTargets.length) {
+                    const completionPrompt = buildFirstContactCompletionPrompt({
+                        targets: completionTargets, chat, assistantMessageId: messageId,
+                        playerName: resolvePlayerName('', chat, messageId),
+                        memoryCriteria: settings.memoryCriteria, dossierLimits: settings.dossierLimits,
+                    });
+                    try {
+                        const completionRaw = await invokeJson(completionPrompt, 'automatic-first-contact-completion', signal);
+                        const postCompletionChat = getContext().chat || [];
+                        if (signal?.aborted || !operationOwnershipMatches(ownership) || (expectedSource && !sourceDescriptorMatches(expectedSource, chatKey, postCompletionChat, messageId))) {
+                            finishDiscardedOperation(operationId, signal?.aborted ? 'scan-cancelled' : 'stale-operation', 'post-first-contact-completion');
+                            return { ok: false, discarded: true, reason: signal?.aborted ? 'scan-cancelled' : 'stale-operation', messageId };
+                        }
+                        const completionParsed = sanitizeFirstContactCompletionPayload(completionRaw, completionTargets);
+                        const completionApplied = applyScanResult(applied.state, completionParsed, {
+                            sourceMessageId: messageId, ...semanticSourceOptions, turn: working.turn,
+                            preservePresence: true, preserveObservation: true, applyRelationship: false,
+                            reconcileFamilyGraph: false,
+                            playerName: resolvePlayerName('', chat, messageId), dossierLimits: settings.dossierLimits,
+                            profileContext: profileContextForExchange(exchange), evidencePolicy,
+                            currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
+                            birthdayFill: {
+                                mode: settings.birthdayFillMode, calendar: settings.birthdayRandomCalendar,
+                                fallbackDays: settings.birthdayRandomDaysPerMonth,
+                            },
+                            applyReturnedNpcPatches: true,
+                        });
+                        applied = {
+                            ...applied, state: completionApplied.state,
+                            semanticDiagnostics: [...(applied.semanticDiagnostics || []), ...(completionApplied.semanticDiagnostics || [])],
+                            coverageDiagnostics: [...(applied.coverageDiagnostics || []), ...(completionApplied.coverageDiagnostics || [])],
+                        };
+                    } catch (error) {
+                        if (signal?.aborted) {
+                            finishDiscardedOperation(operationId, 'scan-cancelled', 'first-contact-completion');
+                            return { ok: false, discarded: true, reason: 'scan-cancelled', messageId };
+                        }
+                        const reason = String(error?.message || error).slice(0, 300);
+                        applied.coverageDiagnostics = [
+                            ...(applied.coverageDiagnostics || []),
+                            ...completionTargets.map(target => ({ npcId: target.npc.id, status: 'first-contact-completion-failed', coverageKind: 'first-contact-completion', reason })),
+                        ];
+                    }
+                }
+            }
+
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
             const retentionExchange = { ...exchange, user: exchange.user ? { ...exchange.user, mes: retentionEvidenceText(exchange.user.mes) } : null, assistant: exchange.assistant ? { ...exchange.assistant, mes: retentionEvidenceText(exchange.assistant.mes) } : null };
             const referencedNpcIds = referencedNpcIdsFromExchange(applied.state, retentionExchange);
