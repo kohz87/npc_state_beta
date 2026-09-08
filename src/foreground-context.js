@@ -255,7 +255,7 @@ function npcContentSignature(npc = {}) {
     const formText = (npc.appearanceForms || []).map(form => `${form?.name || ''}:${form?.appearance || ''}`).join('|');
     const profileEvidence = (npc.profileEvolutionEvidence || []).slice(-6).map(row => `${row?.field || ''}:${row?.kind || ''}:${row?.mode || ''}:${row?.sourceMessageId ?? ''}:${row?.evidence || ''}`).join('|');
     return hashForegroundText([
-        npc.id, npc.name, (npc.aliases || []).join('|'), npc.role, npc.species, npc.age, npc.apparentAge, npc.birthday, npc.birthdayProvenance,
+        npc.id, npc.name, (npc.aliases || []).join('|'), npc.role, npc.species, npc.age, npc.apparentAge, npc.birthday, npc.birthdayProvenance === 'generated' ? 'generated' : '',
         npc.appearance, npc.currentForm, formText, npc.personality, (npc.behaviorProfile || []).join('|'), npc.speech,
         (npc.mannerisms || []).join('|'), (npc.keyRelationships || []).join('|'), (npc.memories || []).join('|'), npc.background,
         npc.mood, npc.location, npc.goal, npc.status, npc.lifeState, npc.relationshipSummary,
