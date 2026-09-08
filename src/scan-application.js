@@ -769,6 +769,19 @@ function newPatchMentionedInCurrentExchange(patch, currentAdmissionText = '') {
     ].map(value => String(value || '').trim()).filter(value => value && !isTechnicalNpcIdentity(value) && !GENERIC_REFERENCES.has(normalizeName(value))))];
     return variants.some(value => containsNormalizedPhrase(source, value));
 }
+function verifiedIdentityAnchorIntroducesPatch(state, patch, policy, currentAdmissionText = '', patches = []) {
+    const identity = identityEvidenceVerified(patch, policy, currentAdmissionText);
+    if (!identity || !identityAnchorUnique(state, patch, identity.anchor, patches)) return false;
+    const record = identityEvidenceRecord(patch);
+    const excerpts = Array.isArray(record?.excerpts)
+        ? record.excerpts.map(value => String(value || '').trim()).filter(Boolean)
+        : [];
+    // identityEvidence may connect several exact excerpts, but admission through a shorter
+    // contextual anchor requires that the anchor itself occur inside one validated excerpt.
+    // This prevents an unrelated visible role word elsewhere in the exchange from licensing
+    // a canonical label that the evidence record never actually identifies.
+    return excerpts.some(excerpt => containsNormalizedPhrase(excerpt, identity.anchor));
+}
 
 const WORLD_IDENTITY_GENERIC_ROLE_HEADS = new Set([
     'person', 'people', 'someone', 'somebody', 'stranger', 'figure', 'individual',
@@ -829,6 +842,11 @@ function newPatchAllowedByEvidence(state, patch, policy, currentAdmissionText = 
     const visible = currentVisibleEvidenceText(policy, currentAdmissionText);
     const directlyMentioned = newPatchMentionedInCurrentExchange(patch, visible);
     if (directlyMentioned) return true;
+    // The scanner contract explicitly supplies identityEvidence.anchor for contextual NEW
+    // identities. Let that grounded short role/name satisfy visible admission when its exact
+    // excerpt is current-visible and uniquely owned by this patch. Canonical display wording
+    // may therefore be richer than the literal anchor without weakening source validation.
+    if (verifiedIdentityAnchorIntroducesPatch(state, patch, policy, currentAdmissionText, patches)) return true;
     const scope = restrictedEvidenceScope(state, patch, policy);
     if (scope === 'inner' || scope === 'excluded') return false;
     if (scope === 'world') return worldStateIdentityBridgesVisibleIntroduction(state, patch, policy, visible, patches);

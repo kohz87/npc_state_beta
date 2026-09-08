@@ -2,6 +2,13 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.27
+
+- Fix intermittent first-seen NPC creation when the scanner emits a contextual canonical role label such as `Guild Receptionist` while the visible narrative grounds the same person through a shorter identity anchor such as `receptionist`.
+- Treat `identityEvidence.anchor` as deterministic admission evidence only after the existing current-visible exact excerpt validation succeeds, the anchor itself occurs inside one validated identity excerpt, and that anchor is uniquely owned by the proposed NPC within the operation.
+- Preserve fail-closed boundaries: fabricated identity excerpts, unrelated visible anchor words, ambiguous shared anchors, structured/private-only introductions, identity collisions, and technical/generic identities remain rejected. `named_preferred` and `manual` admission policies are unchanged and cannot be bypassed by a valid role-label anchor.
+- Add production-path regressions for the captured role-label shape plus fabricated excerpt, anchor-outside-excerpt, ambiguous-anchor, and Named preferred rejection cases. Persisted schema remains version 1.
+
 ## 0.5.26
 
 - Make descriptive Current Dynamic player binding POV-independent. Direct grounding now recognizes first-person references in the current USER source, second-person references in ASSISTANT narration, and explicit PC naming without treating quoted dialogue pronouns as direct authority.

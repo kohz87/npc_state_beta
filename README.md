@@ -2,9 +2,9 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.26
+## Release 0.5.27
 
-0.5.26 makes Current Dynamic player binding independent of first-, second-, or third-person prose. Direct evidence now understands USER first person, ASSISTANT narrator second person, and explicit PC names using source-role metadata; dialogue-only or third-person wording can instead reuse the same operation's accepted, unambiguous exchangeActive identity/activity evidence from one permitted source. Isolated pronouns, unowned same-scene quotes, wrong NPC/addressee evidence, and cross-source borrowing remain rejected. Numeric relationship scoring is unchanged.
+0.5.27 fixes intermittent first-seen NPC creation when the scanner returns a contextual role label whose canonical dossier name is richer than the literal visible anchor. A current-visible, exact-validated, uniquely owned `identityEvidence.anchor` can now satisfy new-NPC admission in Balanced mode; fabricated excerpts, anchors absent from their own identity evidence, ambiguous shared anchors, structured-only introductions, and Named preferred/Manual policy bypasses remain rejected.
 
 Recent 0.5.x refinements retained by this release include:
 
@@ -22,6 +22,7 @@ Recent 0.5.x refinements retained by this release include:
 - **0.5.24:** normalize supported presentation-only markup for exact evidence matching so real cross-tag identity/activity/Current Dynamic excerpts survive without weakening source or dialogue boundaries.
 - **0.5.25:** accept exact verbatim slices from within one longer quoted-dialogue segment even when the model adds outer quote delimiters, without allowing cross-segment or narration bridging.
 - **0.5.26:** make Current Dynamic target binding POV-independent by combining source-role-aware direct PC references with same-source accepted exchange activity reuse, while preserving wrong-addressee and unowned-evidence rejection.
+- **0.5.27:** admit first-seen contextual role labels through their exact validated unique identity anchor in Balanced mode, without weakening identity collisions, structured evidence firewalls, or stricter admission settings.
 
 The automatic workflow remains:
 
