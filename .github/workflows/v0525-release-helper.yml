@@ -1,0 +1,40 @@
+name: v0.5.25 release helper
+
+on:
+  push:
+    branches:
+      - fix/v0525-quoted-dialogue-slices
+    paths:
+      - '.github/workflows/v0525-release-helper.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  bump-runtime-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/v0525-quoted-dialogue-slices
+      - name: Bump runtime release constant and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/schema.js')
+          text = path.read_text()
+          old = "export const NPC_STATE_VERSION = '0.5.24';"
+          new = "export const NPC_STATE_VERSION = '0.5.25';"
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one runtime version marker, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          rm .github/workflows/v0525-release-helper.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/schema.js .github/workflows/v0525-release-helper.yml
+          git commit -m "chore: bump runtime version to v0.5.25"
+          git push origin HEAD:fix/v0525-quoted-dialogue-slices
