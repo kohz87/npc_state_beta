@@ -185,26 +185,18 @@ export function evidenceReferenceScope(policy, variants) {
 }
 export function identityPresencePromptRules() {
     return [
-        'IDENTITY AND SCENE PARTICIPATION:',
-        '- Interpret identity across the WHOLE CURRENT exchange. A participating character may be referred to indirectly by pronouns, descriptions, scene continuity, or a proper name established earlier in the same exchange; the name/occupation does not need to be repeated in every sentence.',
-        '- For every NEW NPC, use identityEvidence {anchor, excerpts, explanation} when identity depends on contextual binding rather than a directly repeated full canonical name. anchor must be a proper-name or unique-role identity actually present in CURRENT VISIBLE narrative. excerpts must be 1-3 exact CURRENT VISIBLE quotations. explanation briefly states the contextual binding. Do not invent missing surname/title/name components.',
-        '- For every NPC claimed in exchangeActiveNpcIds, inChatNpcIds, or worldActiveNpcIds, return an npcs patch when practical and use activityEvidence for the claimed channel. Each channel record uses 1-3 exact CURRENT VISIBLE quotations plus a concise explanation. The LLM interprets what the quotations mean; NPC State only verifies provenance and state invariants.',
-        '- exchangeActive means the NPC spoke, acted, was directly acted upon, or directly perceived/received a story-relevant event somewhere in this exchange. inChat means the NPC remains individually relevant in the active scene/conversation at the END. worldActive means explicitly ongoing OFF-SCREEN activity. Judge chronology and the final scene state, not just the first mention.',
-        '- inChat and worldActive are mutually exclusive final states. Never place the same NPC in both arrays. An NPC may be exchangeActive and end either inChat or worldActive after entering/leaving during the exchange.',
-        '- Current visible narrative is sufficient by itself. Structured/reference blocks are optional corroboration and must never be required for ordinary identity or presence interpretation.',
+        'IDENTITY / ACTIVITY: judge the WHOLE CURRENT exchange. Pronouns, descriptions, scene continuity, and a name established elsewhere in the exchange may bind the same character.',
+        'exchangeActive=spoke/acted/was directly acted upon/directly perceived a story-relevant event; inChat=individually relevant in the active scene at END; worldActive=explicit ongoing OFF-SCREEN activity. Mention/topic/history alone is not activity. inChat and worldActive are mutually exclusive final states.',
+        'NEW identity needing contextual binding uses identityEvidence:{anchor,excerpts,explanation}; anchor is an actual current-visible proper name or unique role, excerpts are 1-3 exact current-visible quotes, and missing name/title parts are never invented.',
+        'For claimed exchangeActive/inChat/worldActive channels, provide activityEvidence with 1-3 exact CURRENT VISIBLE quotes plus a brief explanation when practical. Visible narrative alone is sufficient; structured/reference blocks are optional corroboration.',
     ];
 }
 
 export function structuredEvidencePromptRules() {
     return [
-        'STRUCTURED BLOCK EVIDENCE FIREWALL (active because recognized Megumin-style <Blocks> content is present):',
-        '- Visible narrative outside <Blocks> is ordinary full event evidence and remains the primary source for identity and scene participation.',
-        '- <World_State> may corroborate live location/status and structured scene placement, but by itself NEVER proves exchange action, speech, direct perception, or a new NPC introduction.',
-        '- WORLD_STATE SECTION SEMANTICS: NPCs Present and Off-Screen are separate corroboration channels. NPCs Present may corroborate identity/location but does not by itself prove inChat; Off-Screen may corroborate worldActive. A name listed only under NPCs Present must not be accepted as worldActive merely because it occurs somewhere in World_State.',
-        '- IDENTITY BRIDGE: public identity enrichment remains optional corroboration. when CURRENT VISIBLE narrative grounds a unique short proper-name anchor and the same current World_State supplies one compatible canonical full name, the structured name may enrich that already-visible identity. The public anchor remains mandatory. World_State, NPC_Inner_Chatter, CYOA, or other reference material without a public anchor cannot manufacture a dossier or missing identity. World_State without an independent visible introduction still cannot create a dossier.',
-        '- <NPC_Inner_Chatter> may ground private goals, thoughts, attitudes, or relationship context, but by itself NEVER proves inChat presence, exchange action, spoken dialogue, gesture, or a visible emotional reaction.',
-        '- Other children of <Blocks>, including Story Tracker, Character Sheet, CYOA, Bonds, New_NPC, NPC_Update, and custom/reference blocks, are NOT current-event evidence for ordinary NPC State scanning.',
-        '- Never convert private thought into visible behavior unless visible narrative independently establishes that behavior.',
+        'STRUCTURED BLOCK FIREWALL: visible narrative outside <Blocks> is full event evidence. <World_State> may corroborate location/status/scene placement only; NPCs Present does not prove inChat, while Off-Screen may corroborate worldActive. It never proves exchange action/speech/perception or independently introduces an NPC.',
+        'A visible unique short-name anchor may be enriched by one compatible canonical full name in the same current World_State; without the visible anchor, structured/reference blocks cannot manufacture identity.',
+        '<NPC_Inner_Chatter> may ground private mood/goal/attitude/relationship context only; it never proves presence, action, speech, gesture, or visible reaction. Other <Blocks> children are not ordinary current-event evidence. Never convert private thought into visible behavior without independent visible support.',
     ];
 }
 

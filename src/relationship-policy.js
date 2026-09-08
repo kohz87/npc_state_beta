@@ -36,18 +36,13 @@ export function trimStateRelationshipHistory(state, limit = RELATIONSHIP_HISTORY
 
 export function relationshipJudgmentRubricPrompt() {
     return [
-        'RELATIONSHIP JUDGMENT AND PER-AXIS EVIDENCE:',
-        '- NEW CHANGE & CONTINUITY: Decide whether THIS exchange supports a genuinely new relationship shift rather than merely displaying an established attitude, continuing an interaction, or repeating an already-scored consequence. Use established relationship context to understand what changed, never as fresh evidence. Continued interaction may still move when a genuinely new relationship-changing development occurs.',
-        '- ATTRIBUTION: Evaluate THIS NPC toward the PLAYER only. Identify who acted, who reacted or experienced a response, and toward whom that response is directed. Do not transfer another character’s feelings or unrelated emotional changes onto this relationship, and do not infer mutual feelings from evidence about only one participant.',
-        '- EVIDENCE & INFERENCE: Separate what the narration establishes from what you infer. Indirect behavior may justify movement; explicit emotion labels or relationship keywords are not required. Keep each explanation within what its quotations plus relevant context reasonably support. Avoid permanent, absolute, or broader claims when the evidence supports only a limited change.',
-        '- AMBIGUITY WITHOUT FREEZING: Consider whether a plausible alternative explanation materially weakens the proposed relationship interpretation. Mere hypothetical alternatives are not vetoes. Clear contextual evidence should still receive movement; weak or materially ambiguous support should favor a smaller delta or zero.',
-        '- AXIS INDEPENDENCE: Trust = confidence/reliance in the player; Affection = warmth/liking/attachment; Desire = attraction/intimate interest; Tension = interpersonal strain/charged friction, with negative Tension meaning greater ease/lower strain. Judge every axis and sign separately. Do not spread a general positive or negative impression across axes. One quotation may support multiple axes only when each has a distinct defensible explanation.',
-        '- PROPORTIONALITY: Choose modest raw deltas proportionate to the strength, significance, and novelty of the supported shift. An impact-tier cap is a maximum, not a default target. Zero is appropriate when no new shift is supported; meaningful developments must not be suppressed merely because they are expressed indirectly. Runtime applies caps, axis limits, priority selection, duplicate protection, inertia, fractional progress, and milestone gates; do not manually apply those reductions a second time or inflate proposals to overcome them.',
-        '- MIXED EVIDENCE & CHRONOLOGY: Consider conflicting reactions and how the exchange develops. A later response may qualify an earlier one without automatically erasing it. Propose the net supported change per axis. Do not cherry-pick only the strongest supporting sentence, ignore contradictory context, or turn mixed evidence into an automatic zero.',
-        '- BALANCED DIRECTION: Apply comparable evidence standards to increases and decreases. A pleasant interaction does not automatically establish Affection, and an unpleasant interaction does not automatically establish dislike or distrust. Evaluate the particular axis and its sign correctly, especially Tension.',
-        '- NO CIRCULAR JUSTIFICATION: Existing meter values, qualitative relationship lenses, generated relationship summaries, previous scanner explanations, diagnostics, and prior relationship history are context only. Never use them themselves as fresh evidence that another change occurred.',
-        '- PER-AXIS RELATIONSHIP EVIDENCE: Every nonzero axis needs axisEvidence for that axis with 1-3 short VERBATIM excerpts copied from permitted CURRENT-exchange relationship evidence plus one concise explanation identifying the supported NEW change and its basis. Do not provide a long reasoning transcript, a checklist response for every rubric item, or a numerical confidence score. Context may guide interpretation but does not turn an earlier event into fresh evidence.',
-        '- A quotation proves source provenance, not emotional meaning. Preserve who acted, negation, chronology, and outcome in quoted evidence. Runtime validates provenance/structure without keyword-gating the model’s relationship interpretation.',
+        'RELATIONSHIP JUDGMENT:',
+        '- Judge only a genuinely NEW shift in THIS NPC toward the PLAYER from the CURRENT exchange. Established attitude/history is context, not fresh evidence; attribute actions/reactions to the correct person and target, and never infer mutual feelings.',
+        '- Infer meaning semantically from narration and context; explicit emotion words are not required. Material ambiguity should reduce or zero a delta, but hypothetical alternatives do not veto clear evidence. Preserve negation, chronology, outcome, and conflicting reactions.',
+        '- Axes are independent: Trust=confidence/reliance; Affection=warmth/liking/attachment; Desire=attraction/intimate interest; Tension=strain/charged friction (negative means greater ease). Do not spread a general impression across axes; one quote may support multiple axes only with distinct explanations.',
+        '- Use modest raw deltas proportional to novelty/significance; impact caps are maxima, not targets. Judge increases/decreases symmetrically. Runtime applies caps, priority overflow, duplicate protection, inertia/fractional progress, and milestone gates, so do not pre-discount or inflate proposals.',
+        '- Existing meters, summaries, qualitative lenses, prior explanations/history, and diagnostics are never fresh evidence for another change.',
+        '- Every nonzero axis needs axisEvidence for that axis with 1-3 short VERBATIM excerpts from permitted CURRENT-exchange relationship evidence plus one concise explanation of the new shift. Quotes prove provenance, not emotional meaning; no long reasoning transcript or confidence score.',
     ].join('\n');
 }
 
@@ -57,11 +52,9 @@ export function relationshipMechanicsPrompt(caps = DEFAULT_RELATIONSHIP_CAPS) {
     const gates = RELATIONSHIP_MILESTONE_THRESHOLDS.map(threshold => `${threshold} needs ${RELATIONSHIP_MILESTONE_REQUIREMENTS[threshold]}+ with raw ${RELATIONSHIP_MILESTONE_MIN_RAW[threshold]}`).join('; ');
     return [
         'RELATIONSHIP NUMERIC CONTRACT:',
-        `- ${ceilings}. These are the effective configured ceilings, not targets.`,
-        '- priority orders only supported nonzero axes from strongest/most central to weakest so impact-tier overflow can be resolved. Do not list unsupported or zero axes.',
-        `- RELATIONSHIP REPEATS AND GATES: repeated aftermath/restatement is zero unless a genuinely new relationship-changing development occurs. Runtime checkpoints outward depth independently by axis and direction: ${gates}. Movement toward neutral is not gate-blocked. Never inflate impact/delta to force a gate.`,
-        '- Raw deltas are pre-inertia evidence weights. Runtime applies the existing depth resistance and retains accepted fractional progress; do not pre-discount raw deltas for inertia.',
-        '- Relationship Summary may describe accepted depth/context, but it must not become evidence for a new delta or become deeper/more absolute than the accepted state supports.',
+        `- ${ceilings}. Ceilings are not targets; priority lists supported nonzero axes strongest-first for overflow only.`,
+        `- Repeated aftermath/restatement is zero without a new relationship-changing development. Runtime outward gates are per axis/direction: ${gates}. Movement toward neutral is not gate-blocked; never inflate to force a gate.`,
+        '- Raw deltas are pre-inertia evidence weights. Runtime applies depth resistance and retains fractional progress. Relationship Summary may describe accepted depth/context but is never evidence for a new delta.',
     ].join('\n');
 }
 

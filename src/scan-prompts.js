@@ -6,6 +6,8 @@ import { dossierExtractionPromptRules, relationshipSummaryRepairContext, compact
 import { DEFAULT_RELATIONSHIP_CAPS, RELATIONSHIP_AXES, normalizeDossierLimits, normalizeName, normalizeNpcAdmissionMode, normalizeRelationship, normalizeRelationshipEvidenceHistory, normalizeRelationshipProgress, normalizeRelationshipSummary } from './schema.js';
 import { compactForegroundNpc, foregroundNpcCandidates, runtimeNpcSalience } from './foreground-context.js';
 
+export const SCAN_SYSTEM_PROMPT = 'Return only valid JSON for the NPC State scanner. Obey the supplied schema and evidence rules exactly.';
+
 export function recentHistory(chat = [], assistantMessageId = null, depth = 2) {
     const exchange = currentExchange(chat, assistantMessageId);
     const cutoff = exchange?.user?.id ?? (Number.isInteger(assistantMessageId) ? assistantMessageId : chat.length);
@@ -128,10 +130,8 @@ function rosterForPrompt(state, { relationshipSummaryIds = null, relationshipSum
 function dossierCollectionRules(limits) {
     return [
         `DOSSIER COLLECTION LIMITS: behaviorProfile=${limits.behaviorProfile}, mannerisms=${limits.mannerisms}, keyRelationships=${limits.keyRelationships}, memories=${limits.memories}.`,
-        'Existing collections use targeted semanticUpdates with supplied refs or exact expected values. Preserve unrelated entries; omission and empty arrays never authorize deletion. Use remove only for a supported retirement and clear:true only for an explicitly supported whole-collection clear.',
-        'Keep distinct durable events/facts as Important Memories; refine the existing entry for richer evidence of the same event. Do not append paraphrases or evict unrelated memories to make room.',
-        'keyRelationships contains significant NON-PLAYER ties from this NPC perspective. Record grounded directional family/kinship ties for each involved dossier; socialEdges complements rather than replaces these dossier entries.',
-        'New NPC bootstrap may use direct grounded collection arrays within these limits. Keep entries concise, current, and independently useful.',
+        'Existing collections use targeted semanticUpdates with supplied refs/exact expected values; omission/empty arrays preserve, remove retires one supported entry, clear:true requires explicit whole-collection evidence, and unrelated entries are never evicted for space.',
+        'Important Memories are distinct durable events/facts; refine richer evidence of the same event instead of appending paraphrases. keyRelationships contains significant NON-PLAYER ties from this NPC perspective; familyFacts/socialEdges complement it. NEW NPCs may bootstrap concise grounded arrays within limits.',
     ];
 }
 
@@ -155,61 +155,46 @@ export function buildScanPrompt({ state, chat, assistantMessageId, scanDepth = 2
     });
     const structuredDetected = [exchange.user?.mes, exchange.assistant?.mes, ...history.map(row => row.text)].some(hasRecognizedStructuredBlocks);
     return [
-        'You are NPC State, a private structured continuity scanner for a roleplay chat.',
-        'Return JSON only. Never narrate, explain, or wrap the JSON in markdown.',
-        '',
-        `PLAYER IDENTITY:\n${JSON.stringify({ name: activePlayerName })}`,
-        '',
-        'SEMANTIC RULES:',
-        '- exchangeActiveNpcIds: NPCs who SPOKE, ACTED, WERE DIRECTLY ACTED UPON, or DIRECTLY PERCEIVED/RECEIVED a story-relevant event in the CURRENT USER+ASSISTANT exchange.',
-        '- A character who is only mentioned, remembered, discussed, named as a topic, or present only in older history is NOT exchange-active.',
-        '- inChatNpcIds: individually relevant NPCs still participating in the active scene/conversation at the END. Mere physical proximity, unnamed crowds, background workers, incidental guards, and characters only mentioned are not in-chat.',
-        '- worldActiveNpcIds: NPCs explicitly active off-screen in the current world state. Keep this separate from in-chat participation.',
-        '- status is the NPC current concrete activity, immediate situation, or condition: what they are doing or undergoing now, for example standing watch at the gate, bandaging a wound, travelling toward Bluewatch, or asleep by the hearth. It is NOT lifecycle presence. Never use active, inactive, in chat, off-screen, present, archived, or equivalent lifecycle labels as status; those are tracked separately.',
-        '- Every new NPC referenced by those arrays must also have one npcs entry so identity can be created safely.',
-        admissionPromptRule(admissionMode),
-        ...dossierExtractionPromptRules().map(rule => '- ' + rule),
+        'You are NPC State, a private structured continuity scanner for roleplay. Return exactly one valid JSON object, no markdown or commentary.',
+        `PLAYER IDENTITY:
+${JSON.stringify({ name: activePlayerName })}`,
+        'ROUTINE SCAN RULES:',
         ...identityPresencePromptRules(),
-        '- For NEW NPC identity: if a proper/personal name is established anywhere in the current exchange, npcs.name MUST be that canonical name and nothing else. npcs.name is human-facing display text and MUST NEVER be an npc-* identifier, slug, key, or machine label, and MUST NEVER begin with npc-. Put occupation/function such as Clerk, Guard, Innkeeper, or Receptionist in role, not in name. Use a human-readable unique role label as name only while the NPC is genuinely unnamed.',
-        '- A single scan may introduce MULTIPLE new individually relevant NPCs. Do not stop after the first. Return one separate npcs object for every such NPC. Do not add new npcs entries for named-only mentions, crowds, background workers, incidental guards, or other non-individually-relevant characters.',
-        '- A single scan may update MULTIPLE existing NPCs in the same response. Do not stop after the first and do not omit a dossier patch merely because another NPC is more prominent. Return one separate npcs object for EVERY exchange-active existing NPC so relationship evaluation is explicit, plus any other individually relevant existing NPC whose grounded dossier data is established, corrected, or materially changed. Keep exchangeActiveNpcIds, inChatNpcIds, and worldActiveNpcIds complete for their own semantics.',
-        '- CANDIDATE ACCOUNTING: for every RELEVANT EXISTING DOSSIER below return candidateAccounting[stableNpcId]=evaluated|mentioned|inactive|unresolved. evaluated=actually evaluated; mentioned=topic/reference only; inactive=supplied for continuity but no current dossier work; unresolved=genuinely unclear. This is coverage only and never sets presence/activity.',
-        '- Candidate accounting is separate from field completeness: evaluated still needs applicable semanticUpdates/fieldEvaluations. Other statuses never authorize dummy updates, deletion, presence changes, or invented facts.',
-        '- The PLAYER/current USER persona is not an NPC for this scanner, even when named in narration. Never create the PLAYER as an npcs entry.',
-        '- relationship, relationshipSummary, and relationshipChange describe THIS NPC toward the PLAYER. They are the dedicated player-relationship channel.',
-        '- relationshipSummary is the CURRENT NPC-to-PLAYER dynamic, a descriptive projection separate from numeric score mutation. EXISTING DOSSIERS includes stored relationshipSummary only for NPCs already present or explicitly referenced in the CURRENT exchange. Return a new value when CURRENT evidence materially establishes/changes that dynamic, or explicit repair mode below applies. A first direct interaction may establish a neutral professional, transactional, adversarial, supervisory, or other role-defined dynamic even when every relationship score remains zero; do not leave it blank merely because no trust/affection/desire/tension delta occurred. A normal current proposal includes relationshipSummaryEvidence with 1-3 exact permitted excerpts plus a brief evidence-grounded explanation binding this NPC to the PLAYER; mere name co-occurrence is insufficient. Zero deltas and impact none are correct when descriptive context changes without score-worthy movement. Never copy schema instructions, field descriptions, placeholders, or labels into the summary. Do not rewrite for style or invent numeric movement just to qualify a summary.',
+        admissionPromptRule(admissionMode),
+        '- NEW NPC identity: use the canonical proper/personal name when established; name is human-facing and never an npc-* id/slug. Put occupation/function in role. A genuinely unnamed but individually relevant NPC may use one unique human-readable role label when policy permits. Every new NPC referenced by activity arrays also needs an npcs entry.',
+        '- Cover every individually relevant NPC, including multiple new/existing characters. Every exchange-active EXISTING NPC needs an npcs patch for explicit relationship/field evaluation; named-only mentions, crowds, background workers, and incidental characters do not become new dossiers.',
+        '- CANDIDATE ACCOUNTING: for every supplied relevant EXISTING dossier return candidateAccounting[stableNpcId]=evaluated|mentioned|inactive|unresolved. It is coverage only, never activity/presence. evaluated still requires applicable semanticUpdates/fieldEvaluations; other statuses never authorize dummy changes.',
+        '- The PLAYER/current USER persona is never an NPC. keyRelationships and socialEdges are NON-PLAYER ties only.',
+        ...dossierExtractionPromptRules().map(rule => '- ' + rule),
+        '- status is the NPC current concrete activity/situation/condition, never active/inactive/in-chat/off-screen/present/archived or other presence/lifecycle labels.',
+        '- CURRENT exchange owns new live changes, memories, profile observations/development, relationship movement, lifecycle, and activity. Older reference context resolves antecedents and stable continuity only; never replay an older event/delta or use it as a fresh relationship quote.',
+        'PLAYER RELATIONSHIP:',
+        '- relationshipChange and relationshipSummary describe THIS NPC toward the PLAYER only. Evaluate relationshipChange for every exchange-active NPC. With no new shift: evaluated=true, impact=none, all-zero deltas, empty axisEvidence/evidence, concise reason.',
+        '- For every exchange-active NPC, include relationshipSummary: preserve an established unchanged dynamic, return grounded current text when materially established/changed, or "" when evaluated but insufficient. A first direct interaction may establish a neutral professional, transactional, adversarial, supervisory, or other role-defined Current Dynamic with zero score movement. Changed relationshipSummary needs relationshipSummaryEvidence with 1-3 exact permitted excerpts and a brief target-bound explanation; never rewrite only for style or invent movement/intimacy.',
         ...(relationshipSummaryRepair ? [
-            '- CURRENT-DYNAMIC REPAIR MODE: this is an explicit Scan current cast reconciliation. For an existing current-cast NPC whose relationshipSummary is blank and whose relationshipSummaryRepairContext is present, reconstruct one concise Current Dynamic from the STORED relationship values, fractional progress, unlocked milestones, and accepted recent relationship evidence supplied there.',
-            '- Summary repair is independent of relationship scoring. Do NOT invent or replay a relationshipChange merely to make relationshipSummary eligible. If the current exchange has no genuinely new relationship event, relationshipChange must remain impact none with zero deltas while relationshipSummary may still be repaired from the stored accepted state.',
-            '- Never overwrite an already non-empty relationshipSummary in repair mode merely to rephrase it. Repair only a missing/normalized-away Current Dynamic.',
+            '- CURRENT-DYNAMIC REPAIR MODE: only when stored relationshipSummary is blank and relationshipSummaryRepairContext is supplied, reconstruct one concise dynamic from accepted stored relationship/progress/milestones/evidence. Do not overwrite non-empty text or replay relationshipChange; without a new event, scoring remains impact none/zero.',
         ] : []),
-        '- keyRelationships contains significant NON-PLAYER ties only, such as family, friends, rivals, patrons, dependents, or other NPCs. Never include the PLAYER/current USER persona there.',
-        '- socialEdges are NPC-to-NPC only. Never use the PLAYER/current USER persona as an endpoint.',
-        '- Current exchange decides relationship changes. Older context may establish prior attitudes, relationship baselines, already-counted developments, stable profile facts, and durable memories so you can judge what is genuinely new. It is continuity only: never treat an older development as occurring again or replay relationship deltas.',
-        '- RELATIONSHIP EVALUATION IS REQUIRED for every NPC in exchangeActiveNpcIds. Return an npcs patch for each such NPC even when no other dossier field changed. Set relationshipChange.evaluated to true. When no new player-relationship shift is supported, use impact none, all-zero deltas, empty axisEvidence/evidence, and a concise reason. Never omit relationshipChange for an exchange-active NPC.',
         relationshipJudgmentRubricPrompt(),
         relationshipMechanicsPrompt(relationshipCaps),
-        '- PER-AXIS RELATIONSHIP EVIDENCE is governed by the shared rubric above; required excerpts remain exact permitted CURRENT-exchange quotations, not summaries or older-context substitutions.',
-        '- Older history is context for stable profile/memory and relationship continuity only. It may establish prior attitudes, baselines, and already-counted developments and may help interpret what changed, but it never supplies fresh relationship-event quotations or replays prior deltas.',
         ...dossierCollectionRules(limits),
-        '- Do not infer romance, obedience, hostility, personality, motives, secrets, actual age, species, or relationships without evidence.',
-        '- LIFE-STATE SEMANTICS: you are responsible for interpreting attribution, pronouns, indirect reports, negation, hypothetical language, and certainty. The backend validates lifeStateReason against permitted current narrative/World_State source text but does not reinterpret its English wording. Never propose dead from negated, hypothetical, merely dangerous, or uncertain evidence.',
-        '- LIFE-STATE UPDATE CHANNEL: every authoritative lifecycle transition MUST also appear in top-level lifeStateUpdates, even when the NPC has no ordinary npcs profile/activity patch. This channel is independent of exchangeActive/inChat/worldActive admission. A terminal condition written into status never substitutes for the lifecycle update.',
-        '- Confirmed death: emit lifeStateUpdates with lifeState dead only with grounded current-timeline evidence and lifeStateCertainty explicit or strong. lifeStateReason must quote or closely preserve a concrete permitted source span AND include enough of that span to bind the target NPC by canonical name, established alias, or safe unique short identity. For pronouns, include the nearby antecedent sentence in lifeStateReason. Explicitly deceased terminal dissolution/disintegration/dispersion of body or mortal essence with no continuing living form is death, not a transformation. Reversible spectral, elemental, energy, shapeshift, teleport, or other continuing form is not death. A confirmed death is archived immediately as deceased.',
-        '- STORED TERMINAL-STATUS RECONCILIATION: each SUPPLIED RELEVANT EXISTING DOSSIER Status is dossier-scoped continuity. Before finishing the scan, inspect every supplied relevant dossier whose Life state is not dead. If its stored Status itself unambiguously says that same NPC is deceased/killed/slain, has a corpse, or has irreversibly lost/dissolved/destroyed its body or mortal essence with no continuing living form, you MUST emit a lifeStateUpdates row for that NPC with lifeState dead, lifeStateCertainty explicit or strong, and lifeStateReason EXACTLY equal to that stored Status string, even when the NPC is not otherwise active or returned in npcs. The ordinary npcs patch may repeat matching lifecycle fields, but lifeStateUpdates is authoritative for this reconciliation. This repairs contradictory stored state rather than inventing a new event. Do not use this for metaphor, exhaustion, sleep, unconsciousness, disappearance, injury, merely missing bodies, uncertain danger, or a reversible/established transformed form.',
-        '- A dead or terminally dissolved NPC is never worldActive. If you perform stored terminal-status reconciliation, omit that NPC from worldActiveNpcIds even if the incoming dossier incorrectly says worldActive true.',
-        '- livingReturn is true only when a previously archived/dead dossier is explicitly established alive again with lifeStateCertainty explicit or strong. Its grounded lifeStateReason must likewise contain enough source span to bind the target NPC; merely outputting lifeState alive never resurrects a confirmed dead dossier. Stored Status is NEVER sufficient evidence for livingReturn or any dead-to-alive change.',
-        '- EXISTING DOSSIER MUTATION: ordinary existing-dossier canon, profile, live-state, memory, NPC-tie, age, and form changes use the single semanticUpdates contract below. Direct ordinary fields and legacy profileChanges/canonChanges/ageChange/appearanceFormChanges/keyRelationshipChanges are compatibility or new-NPC bootstrap only.',
+        'LIFECYCLE / GRAPH:',
+        '- Every authoritative life transition uses top-level lifeStateUpdates, independent of ordinary dossier/activity patches. dead requires grounded current-timeline evidence with certainty explicit|strong and a target-bound lifeStateReason; include nearby antecedent for pronouns. Irreversible terminal dissolution with no living form is death; reversible transformation is not.',
+        '- STORED STATUS REPAIR: if a supplied existing Status itself unambiguously establishes that same NPC is dead/irreversibly dissolved while stored Life state is not dead, emit lifeStateUpdates dead with explicit|strong certainty and lifeStateReason EXACTLY equal to that Status. This repairs death only, never resurrection; sleep, unconsciousness, injury, disappearance, metaphor, uncertain danger, or reversible form do not qualify. Dead NPCs are never worldActive.',
+        '- livingReturn:true is required only when a previously dead/archived NPC is explicitly established alive again with explicit|strong current evidence and a target-bound reason. Stored Status alone never proves resurrection.',
+        '- EXISTING ordinary canon/profile/live/memory/NPC-tie/age/form changes use semanticUpdates below. Identity/admission, player relationship, lifecycle/activity, and family/social graph remain their focused channels.',
         ...(structuredDetected ? structuredEvidencePromptRules() : []),
-        '',
         relationshipCustomCriteriaPrompt(relationshipCriteria),
-        memoryCriteria ? `IMPORTANT MEMORY RUBRIC:\n${compactText(memoryCriteria, 6000)}` : '',
-        '',
-        `RELEVANT EXISTING DOSSIERS (compact; unrelated roster omitted):\n${JSON.stringify(relevantDossierRows)}`,
-        `OLDER REFERENCE CONTEXT — antecedent resolution only; NOT new event evidence:\n${JSON.stringify(history)}`,
-        `CURRENT USER MESSAGE (complete event evidence):\n${scannerEvidenceText(exchange.user?.mes || '')}`,
-        `CURRENT ASSISTANT MESSAGE (complete event evidence):\n${scannerEvidenceText(exchange.assistant?.mes || '')}`,
-        scanOutputContract(),
+        memoryCriteria ? `IMPORTANT MEMORY RUBRIC (user-authored; preserve as supplied):
+${compactText(memoryCriteria, 6000)}` : '',
+        `RELEVANT EXISTING DOSSIERS (compact; unrelated roster omitted):
+${JSON.stringify(relevantDossierRows)}`,
+        `OLDER REFERENCE CONTEXT — antecedent/continuity only; NOT new event evidence:
+${JSON.stringify(history)}`,
+        `CURRENT USER MESSAGE (complete event evidence):
+${scannerEvidenceText(exchange.user?.mes || '')}`,
+        `CURRENT ASSISTANT MESSAGE (complete event evidence):
+${scannerEvidenceText(exchange.assistant?.mes || '')}`,
+        scanOutputContract({ compact: true }),
         semanticAppend({ npcs: relevantState.npcs || [], mode: semanticMode, sourceIds: [exchange.user?.id, exchange.assistant?.id].filter(Number.isInteger) }),
     ].filter(Boolean).join('\n\n');
 }
@@ -238,7 +223,7 @@ export function buildStructuredDossierImportPrompt({ npc, blocks = [], memoryCri
         'MEMORY SEMANTIC HYGIENE: collapse paraphrases of the same durable event/fact, while preserving genuinely different events.',
         memoryCriteria ? 'IMPORTANT MEMORY RUBRIC:\n' + compactText(memoryCriteria, 6000) : '',
         ...dossierExtractionPromptRules({ includeNew: false }),
-        scanOutputContract({ includeNew: false, includeRelationship: false }),
+        scanOutputContract({ includeNew: false, includeRelationship: false, compact: true }),
         semanticAppend({ npcs: npc ? [npc] : [], mode: 'structured-import', sourceIds: sources.map(row => row.messageId).filter(Number.isInteger) }),
     ].filter(Boolean).join('\n\n');
 }
@@ -252,34 +237,30 @@ export function buildTargetedRefreshPrompt({ npc, chat, assistantMessageId, scan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     return [
-        'You are NPC State performing a targeted dossier reconciliation.',
-        'Return JSON only using the same object shape shown below.',
+        'You are NPC State performing targeted reconciliation for ONE existing NPC. Return exactly one valid JSON object, no markdown/commentary.',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `TARGET DOSSIER: ${JSON.stringify(rosterForPrompt({ npcs: [npc] }, { relationshipSummaryIds: new Set([npc.id]) })[0])}`,
-        'Use the supplied chat window to reconcile grounded stable profile facts, current activity/situation/condition when supported, durable memories, and key relationships for THIS NPC only.',
+        'Use the bounded chat window to reconcile grounded durable profile/canon, current live state, memories, and non-player ties for THIS NPC only.',
         ...dossierExtractionPromptRules({ includeNew: false, includeExisting: true }),
-        'status is the NPC current concrete activity, immediate situation, or condition: what they are doing or undergoing now. Never use active, inactive, in chat, off-screen, present, archived, or equivalent lifecycle labels as status; lifecycle presence is tracked separately.',
-        'LIFE-STATE RECONCILIATION: TARGET DOSSIER Status and Life state are continuity together. Every authoritative transition MUST be returned in top-level lifeStateUpdates. If the stored Status itself unambiguously establishes this NPC is dead or terminally/irreversibly dissolved while stored Life state is not dead, return a lifeStateUpdates row with lifeState dead, explicit/strong certainty, and lifeStateReason EXACTLY equal to the stored Status even if no ordinary npcs patch is otherwise needed. Explicitly deceased irreversible dissolution with no continuing living form is death; reversible transformations are not. Stored Status can repair death only; it can never prove livingReturn or resurrection.',
-        'The PLAYER/current USER persona is not an NPC. relationshipSummary is this NPC toward the PLAYER; keyRelationships is NON-PLAYER ties only and must never duplicate the PLAYER.',
-        'TARGET DOSSIER includes the stored relationshipSummary. Reconcile it as the NPC current relationship dynamic toward the PLAYER: return a new concise natural-language value when it is missing/invalid or the supplied chat establishes a materially newer dynamic. A first direct role-defined interaction may establish a neutral professional or transactional Current Dynamic with zero score change. For a materially newer current-evidence proposal include relationshipSummaryEvidence; repair/reconciliation from already accepted stored relationship context remains separate. This targeted refresh may reconcile relationshipSummary without changing any relationship score. Never copy an output-schema instruction or placeholder into the field; never rewrite merely for style.',
+        'status is current concrete activity/situation/condition, never presence/lifecycle labels.',
+        'LIFE-STATE RECONCILIATION: authoritative transitions use top-level lifeStateUpdates. If stored Status itself unambiguously establishes this NPC dead/irreversibly dissolved while stored Life state is not dead, emit dead with explicit|strong certainty and lifeStateReason EXACTLY equal to stored Status. Reversible transformations are not death; stored Status repairs death only and never proves livingReturn/resurrection.',
+        'The PLAYER is not an NPC. keyRelationships is NON-PLAYER only. relationshipSummary is this NPC toward the PLAYER and may be reconciled without score changes. A first direct role-defined interaction may establish a neutral professional or transactional Current Dynamic with zero score change. Preserve established unchanged text; materially newer current-evidence text needs relationshipSummaryEvidence. Never copy an output-schema instruction or placeholder; never rewrite merely for style.',
         ...dossierCollectionRules(limits),
-        'Do NOT change relationship scores or propose relationship deltas in a targeted refresh. Do NOT change global in-chat state for other NPCs.',
-        'If the chat does not establish a change, omit its semantic update. Never invent facts.',
-        'EXISTING TARGET MUTATION: use the single semanticUpdates contract appended below for profile, canon, live state, age/forms, memories, and non-player ties. Do not emit legacy profileChanges/canonChanges or parallel direct replacements for the target.',
+        'Do NOT change relationship scores/deltas or global in-chat state for other NPCs. Unsupported change is omitted, never invented.',
+        'EXISTING TARGET MUTATION: use semanticUpdates below for ordinary fields; no legacy/direct parallel replacements.',
         ...(structuredDetected ? structuredEvidencePromptRules() : []),
-        memoryCriteria ? `IMPORTANT MEMORY RUBRIC:\n${compactText(memoryCriteria, 6000)}` : '',
-        `CHAT WINDOW:\n${JSON.stringify(history)}`,
-        scanOutputContract({ includeNew: false }),
-
+        memoryCriteria ? `IMPORTANT MEMORY RUBRIC (user-authored; preserve as supplied):\n${compactText(memoryCriteria, 6000)}` : '',
+        `CHAT WINDOW (bounded operation evidence):\n${JSON.stringify(history)}`,
+        scanOutputContract({ includeNew: false, compact: true }),
         semanticAppend({ npcs: npc ? [npc] : [], mode: 'refresh', sourceIds: nonSystemIds(chat, assistantMessageId, Math.max(2, Math.min(30, Math.round(Number(scanDepth) || 12)))) }),
     ].filter(Boolean).join('\n\n');
 }
 
 function admissionPromptRule(mode = 'balanced') {
     const policy = normalizeNpcAdmissionMode(mode);
-    if (policy === 'manual') return 'NEW NPC ADMISSION POLICY: Manual. Do not return NEW npcs entries or new-NPC activity references. Existing dossiers may still update normally.';
-    if (policy === 'named_preferred') return 'NEW NPC ADMISSION POLICY: Named preferred. A new dossier may be proposed only when a proper/personal canonical name is established. Set identityKind to named. Do not propose first-seen unnamed occupation/role labels as dossiers; they remain narrative-only until named or manually added.';
-    return 'NEW NPC ADMISSION POLICY: Balanced. Preserve normal v0.4 admission: individually relevant named NPCs and genuinely unique role-label NPCs may be proposed; set identityKind to named or role-label accurately.';
+    if (policy === 'manual') return 'NEW NPC ADMISSION: Manual; do not propose new dossiers/activity refs. Existing dossiers may update.';
+    if (policy === 'named_preferred') return 'NEW NPC ADMISSION: Named preferred; propose a new dossier only for an established canonical proper/personal name with identityKind=named. Unnamed role characters remain narrative-only until named or manually added.';
+    return 'NEW NPC ADMISSION: Balanced; individually relevant named NPCs or genuinely unique role-label NPCs may be proposed with accurate identityKind=named|role-label.';
 }
 
 function nonSystemIds(chat = [], through = null, limit = 30) {
@@ -292,7 +273,7 @@ function nonSystemIds(chat = [], through = null, limit = 30) {
 function semanticAppend({ npcs = [], mode = 'scan', sourceIds = [] } = {}) {
     return [
         semanticUpdatePrompt({ npcs, mode, allowedSourceIds: sourceIds, compactContext: true }),
-        'SINGLE-PIPELINE INVARIANT: after response compatibility normalization, every ordinary EXISTING-dossier field change is applied through semanticUpdates exactly once. Identity/admission, NPC-to-player relationship scoring/Current Dynamic, lifecycle, activity/presence, and family graph safety remain separate deterministic channels.',
-        'MODEL-LED FAMILY / KINSHIP: familyFacts.relation is directional from owner toward each member. Preserve custom relation labels; add reciprocalRelation only when established or safely symmetric. Never invent members, gender, biological status, or reciprocity.',
+        'PIPELINE: ordinary EXISTING-dossier fields apply through semanticUpdates once; identity/admission, player relationship, lifecycle/activity, and graph safety remain separate focused channels.',
+        'FAMILY / KINSHIP: familyFacts.relation is directional owner->member. Preserve grounded custom labels; add reciprocalRelation only when established/safely symmetric. Never invent members, gender, biology, or reciprocity.',
     ].join('\n\n');
 }

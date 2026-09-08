@@ -41,7 +41,7 @@ test('routine Scan asks for grounded first-pass background, portrait-ready appea
     assert.match(prompt, /BEHAVIOR PROFILE EVIDENCE:/);
     assert.match(prompt, /must not be rewritten as a habitual behavior/i);
     assert.match(prompt, /first direct interaction may establish a neutral professional, transactional/i);
-    assert.match(prompt, /do not leave it blank merely because no trust\/affection\/desire\/tension delta occurred/i);
+    assert.match(prompt, /zero score movement/i);
 });
 
 test('targeted Refresh receives the shared apparent-age and portrait-ready appearance policies and can repair a blank professional Current Dynamic at zero scores', () => {

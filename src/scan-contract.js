@@ -1,4 +1,4 @@
-import { DOSSIER_EVALUATION_GROUPS, DOSSIER_SEMANTIC_FIELDS } from './model/dossier-fields.js';
+import { DOSSIER_EVALUATION_GROUPS, DOSSIER_FIELD_DEFINITIONS, DOSSIER_SEMANTIC_FIELDS } from './model/dossier-fields.js';
 import { RELATIONSHIP_AXES } from './schema.js';
 
 // One envelope definition for prompt examples and the production response boundary.
@@ -17,33 +17,36 @@ export function emptyScanPayload() {
 export function scanOutputExamples({ includeNew = true, includeExisting = true } = {}) {
     const minimal = emptyScanPayload();
     const populated = emptyScanPayload();
-    const proof = text => ({ excerpts: [text], explanation: 'Nia tells Ari to register.' });
     const zero = () => ({ evaluated: true, impact: 'none', delta: Object.fromEntries(RELATIONSHIP_AXES.map(axis => [axis, 0])), axisEvidence: {}, reason: 'No relationship shift.' });
     if (includeNew) {
-        const evidence = 'Nia, harbor clerk in blue, tells Ari “Registry first,” slides the form back when he hesitates, says “Next line,” and taps the signature box.';
+        const excerpt = 'Nia, harbor clerk in blue, tells Ari “Registry first,” and taps the signature box.';
+        const evidence = { excerpts: [excerpt], explanation: 'Nia directs Ari through registry.' };
         populated.exchangeActiveNpcIds.push('Nia');
         populated.inChatNpcIds.push('Nia');
         const nia = {
             id: '', name: 'Nia', identityKind: 'named', evaluatedGroups: [...DOSSIER_EVALUATION_GROUPS],
-            identityEvidence: { anchor: 'Nia', ...proof(evidence) },
-            activityEvidence: { exchangeActive: proof(evidence), inChat: proof(evidence) },
-            role: 'Harbor clerk', appearance: 'Blue coat.', personality: 'Brisk and impatiently task-focused during professional intake.',
-            behaviorProfile: ['Keeps intake moving with direct instructions and little ceremony.'], speech: 'Brief practical instructions.',
-            mannerisms: ['Observed tapping the signature box.'], mood: 'Businesslike.', location: 'Harbor desk.', goal: 'Register Ari.', status: 'Processing registry.',
-            relationshipChange: zero(), relationshipSummary: 'Professional clerk-applicant interaction.', relationshipSummaryEvidence: proof(evidence),
+            identityEvidence: { anchor: 'Nia', ...evidence }, activityEvidence: { exchangeActive: evidence, inChat: evidence },
+            role: 'Harbor clerk', appearance: 'Blue coat.', personality: 'Brisk and impatiently task-focused during professional intake.', speech: 'Brief practical instructions.', status: 'Processing registry.',
+            relationshipChange: zero(), relationshipSummary: 'Professional clerk-applicant interaction.', relationshipSummaryEvidence: evidence,
         };
         const proposed = new Set(Object.keys(nia));
         nia.fieldEvaluations = { unchanged: [], insufficient: DOSSIER_SEMANTIC_FIELDS.filter(field => !proposed.has(field)), unavailable: [] };
         populated.npcs.push(nia);
     }
-    if (includeExisting) populated.npcs.push({
-        id: 'npc-ivo', name: 'Ivo', evaluatedGroups: ['canon'], fieldEvaluations: { unchanged: ['age'], insufficient: ['background'], unavailable: ['personality'] },
-        semanticUpdates: [{ field: 'appearance', operation: 'replace', value: 'Green eyes.', sources: [{ messageId: null, excerpt: 'Ivo has green eyes.' }], explanation: 'Ivo has green eyes.' }],
-        profileObservations: [{
-            field: 'speech', observation: 'Uses brief factual corrections during registry work.', concept: 'Brief factual correction replies.',
-            sources: [{ messageId: null, excerpt: 'Ivo says, “That line is wrong.”' }], explanation: 'A grounded speech observation that does not itself force a Speech update.',
-        }],
-    });
+    if (includeExisting) {
+        const groups = ['canon', 'profile'];
+        const accounted = new Set(['appearance', 'age']);
+        populated.npcs.push({
+            id: 'npc-ivo', name: 'Ivo', evaluatedGroups: groups,
+            fieldEvaluations: {
+                unchanged: ['age'],
+                insufficient: DOSSIER_SEMANTIC_FIELDS.filter(field => groups.includes(DOSSIER_FIELD_DEFINITIONS[field]?.group) && !accounted.has(field)),
+                unavailable: [],
+            },
+            semanticUpdates: [{ field: 'appearance', operation: 'replace', value: 'Green eyes.', sources: [{ messageId: null, excerpt: 'Ivo has green eyes.' }], explanation: 'Current visible appearance.' }],
+            profileObservations: [{ field: 'speech', observation: 'Uses brief factual corrections.', concept: 'Brief factual correction replies.', sources: [{ messageId: null, excerpt: 'Ivo says, “That line is wrong.”' }] }],
+        });
+    }
     return { minimal, populated };
 }
 

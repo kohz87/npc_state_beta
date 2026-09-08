@@ -230,9 +230,9 @@ test('scanner owns extraction/evaluation requirements while foreground is contin
     const foreground = foregroundContract();
     const chat = [{ is_user: true, mes: 'Lucien enters.' }, { is_user: false, mes: SANNA_VISIBLE }];
     const scan = buildScanPrompt({ state: safeState('chat:prompt'), chat, assistantMessageId: 1, playerName: 'Lucien' });
-    for (const marker of ['DOSSIER EXTRACTION MAP:', 'FIELD EVALUATION DETAIL:', 'PRIVATE COMPLETENESS CHECK:']) assert.match(scan, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    for (const marker of ['DOSSIER EXTRACTION MAP:', 'FIELD EVALUATION:', 'PRIVATE COMPLETENESS CHECK:']) assert.match(scan, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     assert.match(scan, /relationshipSummaryEvidence/);
-    assert.doesNotMatch(foreground, /DOSSIER EXTRACTION MAP:|FIELD EVALUATION DETAIL:|PRIVATE COMPLETENESS CHECK:|relationshipSummaryEvidence|semanticUpdates|npc_state_v1/);
+    assert.doesNotMatch(foreground, /DOSSIER EXTRACTION MAP:|FIELD EVALUATION:|PRIVATE COMPLETENESS CHECK:|relationshipSummaryEvidence|semanticUpdates|npc_state_v1/);
 });
 
 test('tight foreground compaction marks omitted stored fields unavailable instead of making them look empty', () => {

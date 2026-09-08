@@ -2,9 +2,9 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.17
+## Release 0.5.18
 
-0.5.17 is a focused Phase 1 corrective release. It fixes observation shape, source-owned evidence deduplication, and per-message excerpt ownership without adding another automatic model request or changing the persisted/settings schema, storage identity, relationship mechanics, or recovery model.
+0.5.18 compacts scanner input instructions and examples while preserving the 0.5.17 Phase 1 ownership fixes and the one-request post-response architecture. It reduces repeated fixed prompt overhead without lowering scanner output-token allowance, truncating the current exchange, changing storage/schema contracts, or adding another model call.
 
 Recent 0.5.x refinements retained by this release include:
 
@@ -13,6 +13,7 @@ Recent 0.5.x refinements retained by this release include:
 - **0.5.15:** repository/runtime hygiene and portrait-ready overall appearance synthesis.
 - **0.5.16:** independent bounded candidate accounting, observation-only profile evidence, and model-led profile consolidation/refinement semantics while retaining one post-response scanner request.
 - **0.5.17:** correct `profileObservations` array examples, source-first observation/application dedupe, and exact claimed-message excerpt validation.
+- **0.5.18:** compact shared scanner/domain rules, response examples, relationship/lifecycle instructions, and semantic-update guidance; add a reproducible final-request measurement matrix.
 
 The automatic workflow remains:
 
@@ -27,6 +28,8 @@ Before the next ordinary generation, NPC State uses SillyTavern's awaited genera
 Routine automatic Scan and manual **Scan current cast** treat the latest completed assistant message and its preceding user message as new-event evidence. At most two earlier non-system messages may be supplied as bounded reference context for antecedents; they are not new-event evidence. Relevant identity context accepts exact names/aliases and unique unambiguous short-name mentions, including explicitly mentioned archived/deceased dossiers; ambiguous short names are never guessed. The same bounded existing-NPC candidate set is supplied to the model and audited afterward. Candidate accounting is separate from physical presence/activity and from field-level completeness, so an omitted NPC cannot disappear from coverage merely because the model also omitted it from activity arrays. Unrelated roster growth does not expand every routine scan.
 
 **Refresh** reconciles one NPC over bounded history. Historical recovery reconstructs surviving exchanges sequentially from a trustworthy baseline. All story mutations continue through the same guarded commit/checkpoint path.
+
+Scanner input sizing is measured separately from foreground continuity and scanner output allowance. `npm run measure:scan-prompts` uses the existing local conservative estimator (`ASCII/3.5 + non-ASCII*1.1`) and the exact scanner system wrapper. On the 0.5.18 stable matrix, estimated final input is 5,690 tokens for the minimal one-NPC fixture, 5,693 for a rich first encounter, 6,757 for three active plus one mentioned NPC, 7,359 for dense collections/locks/forms, 5,895 with 1,000 stored NPCs but one relevant NPC, 6,418 for structured blocks plus custom criteria, and 4,166 for targeted Refresh. A deliberately long current response remains about 20,646 estimated tokens because the current scene is preserved in full. These are local engineering estimates, not provider-reported usage.
 
 ### Dossier completeness and safety
 
@@ -69,7 +72,7 @@ User-owned portraits, locks, manual corrections, importance, and suppression tom
 
 Current boundaries:
 
-- Release label: **0.5.17**
+- Release label: **0.5.18**
 - Persisted state schema: **1**
 - Settings schema: **1**
 - Model semantic contract: **6**

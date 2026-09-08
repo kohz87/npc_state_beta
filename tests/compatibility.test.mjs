@@ -56,7 +56,7 @@ test('legacy semantic compatibility no longer depends on English phrase gates fo
     assert.match(adapter, /canonChanges/);
     assert.match(adapter, /ageChange/);
     assert.match(adapter, /appearanceFormChanges/);
-    assert.match(semantics, /establish.*refine.*replace.*remove/);
+    assert.match(semantics, /DOSSIER_SEMANTIC_OPERATIONS/);
     assert.match(semantics, /out-of-scope-source/);
 });
 
