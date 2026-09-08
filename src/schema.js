@@ -2,7 +2,7 @@ import { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILE
 export { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 import { normalizeNumericSetting } from './settings-contract.js';
 import { dossierCollectionMemberText, dossierFieldValueIssue, normalizeDossierTextCollection } from './model/dossier-fields.js';
-export const NPC_STATE_VERSION = '0.5.13';
+export const NPC_STATE_VERSION = '0.5.14';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     return normalizeNumericSetting('scannerResponseTokens', value);
@@ -97,7 +97,7 @@ export function normalizeBirthdayCalendar(value, fallbackDays = 30) {
     }
     return out;
 }
-function birthdayHash(value) {
+function stableHash(value) {
     const source = String(value || '');
     let hash = 2166136261;
     for (let i = 0; i < source.length; i += 1) {
@@ -110,8 +110,8 @@ export function generatedBirthdayForNpc(npc = {}, calendarValue = '', fallbackDa
     const months = normalizeBirthdayCalendar(calendarValue, fallbackDays);
     if (!months.length) return '';
     const seed = String(npc?.id || npc?.name || 'npc');
-    const month = months[birthdayHash(seed + '|birthday-month-v1') % months.length];
-    const day = 1 + (birthdayHash(seed + '|birthday-day-v1') % month.days);
+    const month = months[stableHash(seed + '|birthday-month-v1') % months.length];
+    const day = 1 + (stableHash(seed + '|birthday-day-v1') % month.days);
     return String(day) + ' ' + month.name;
 }
 export function applyBirthdayFill(npcInput = {}, options = {}) {
@@ -542,18 +542,30 @@ export function normalizeName(value) {
     return text(value, 160).normalize('NFKC').toLocaleLowerCase().replace(/[\s\p{P}\p{S}]+/gu, ' ').trim();
 }
 
-export function normalizeApparentAge(value) {
+export function normalizeApparentAge(value, seed = '') {
     const raw = text(value, 80);
     if (!raw) return '';
-    // Numeric apparent ages remain one approximate number. Grounded prose life-stage
-    // descriptions are also valid apparent-age evidence and must not be discarded.
+    // A range is model-led apparent-age evidence. Without an NPC identity keep the range
+    // canonical for validation; with one, choose a reproducible inclusive value and persist ~N.
+    const range = raw.match(/^(?:~\s*|(?:about|around|approx(?:imately)?|roughly|circa)\s+)?(\d{1,4})\s*(?:-|–|—|to)\s*(\d{1,4})$/i);
+    if (range) {
+        const lower = Number(range[1]);
+        const upper = Number(range[2]);
+        if (!Number.isInteger(lower) || !Number.isInteger(upper) || lower < 0 || upper < lower) return '';
+        if (lower === upper) return `~${lower}`;
+        const identity = text(seed, 160);
+        if (!identity) return `~${lower}-${upper}`;
+        const span = upper - lower + 1;
+        const picked = lower + (stableHash(`${identity}|apparent-age-v1|${lower}-${upper}`) % span);
+        return `~${picked}`;
+    }
     if (/\d/.test(raw)) {
         if (/\b\d{1,4}\s*['’]?\s*s\b/i.test(raw)) return '';
-        if (/\d{1,4}\s*(?:-|–|—|to)\s*\d{1,4}/i.test(raw)) return '';
         const matches = [...raw.matchAll(/(^|[^\d])(\d{1,4})(?!\d)/g)].map(match => Number(match[2]));
         if (matches.length !== 1 || !Number.isInteger(matches[0]) || matches[0] < 0) return '';
         return `~${matches[0]}`;
     }
+    // Preserve legacy/manual descriptive apparent ages; new extraction asks the model for a range.
     return raw;
 }
 
@@ -978,7 +990,7 @@ export function normalizeNpc(input = {}, options = {}) {
         role: text(input.role, 240),
         species: text(input.species, 160),
         age: normalizeActualAge(input.age),
-        apparentAge: normalizeApparentAge(input.apparentAge),
+        apparentAge: normalizeApparentAge(input.apparentAge, id),
         birthday: normalizeBirthday(input.birthday),
         birthdayProvenance: normalizeBirthdayProvenance(input.birthdayProvenance, input.birthday),
         ageProgressionBaselineAge: normalizeActualAge(input.ageProgressionBaselineAge),

@@ -6,17 +6,18 @@ import { createEmptyState, normalizeActualAge, normalizeApparentAge, normalizeNp
 
 const GUILD_SCENE = `A slender young woman in a wool waistcoat and ink-stained linen sleeves catches Lucien's forearm and steers him toward the Adventurer Guild intake desk. She puts a registration form and contract notices in front of him, gives rapid instructions, then waits over the desk with her arms crossed for him to sign.`;
 
-test('apparent age preserves grounded life-stage wording without weakening actual age', () => {
+test('apparent age preserves legacy wording while accepting model-led ranges without weakening actual age', () => {
     assert.equal(normalizeApparentAge('young woman'), 'young woman');
     assert.equal(normalizeApparentAge('middle-aged man'), 'middle-aged man');
     assert.equal(normalizeApparentAge('elderly'), 'elderly');
     assert.equal(normalizeApparentAge('25'), '~25');
     assert.equal(normalizeApparentAge('about 25'), '~25');
-    assert.equal(normalizeApparentAge('20-30'), '');
+    assert.equal(normalizeApparentAge('20-30'), '~20-30');
     assert.equal(normalizeApparentAge('20s'), '');
 
     assert.equal(normalizeActualAge('young woman'), '');
     assert.equal(normalizeActualAge('middle-aged man'), '');
+    assert.equal(normalizeActualAge('20-30'), '');
     assert.equal(normalizeActualAge('25'), '25');
 });
 
@@ -30,16 +31,17 @@ test('routine Scan asks for grounded first-pass background, appearance fidelity,
 
     assert.match(prompt, /BACKGROUND EVIDENCE:/);
     assert.match(prompt, /clearly established workplace or affiliation may populate background on first pass/i);
+    assert.match(prompt, /APPARENT AGE:/);
+    assert.match(prompt, /semantically infer a defensible numeric interval/i);
     assert.match(prompt, /APPEARANCE FIDELITY:/);
     assert.match(prompt, /Do not add plausible uniform pieces/i);
     assert.match(prompt, /BEHAVIOR PROFILE EVIDENCE:/);
     assert.match(prompt, /must not be rewritten as a habitual behavior/i);
-    assert.match(prompt, /visible life-stage descriptor such as child, young woman/i);
     assert.match(prompt, /first direct interaction may establish a neutral professional, transactional/i);
     assert.match(prompt, /do not leave it blank merely because no trust\/affection\/desire\/tension delta occurred/i);
 });
 
-test('targeted Refresh retains descriptive apparent age and can repair a blank professional Current Dynamic at zero scores', () => {
+test('targeted Refresh receives the shared apparent-age range policy and can repair a blank professional Current Dynamic at zero scores', () => {
     const npc = normalizeNpc({
         id: 'npc-guild-clerk',
         name: 'Guild Clerk',
@@ -54,6 +56,7 @@ test('targeted Refresh retains descriptive apparent age and can repair a blank p
     ];
     const prompt = buildTargetedRefreshPrompt({ npc, chat, assistantMessageId: 1, playerName: 'Lucien' });
 
-    assert.match(prompt, /preserve one concise grounded visible life-stage descriptor/i);
+    assert.match(prompt, /apparentAge=~N-M/i);
+    assert.match(prompt, /backend chooses and persists one stable ~N inside that interval/i);
     assert.match(prompt, /first direct role-defined interaction may establish a neutral professional or transactional Current Dynamic with zero score change/i);
 });
