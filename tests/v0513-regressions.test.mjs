@@ -65,5 +65,5 @@ test('scanner prompt permits narrow first-scene personality synthesis from reinf
     });
     assert.match(prompt, /personality may be established narrowly from multiple reinforcing choices/i);
     assert.match(prompt, /Brisk and impatiently task-focused during professional intake/);
-    assert.match(prompt, /relationshipSummary must be present/i);
+    assert.match(prompt, /For every exchange-active NPC, include relationshipSummary/i);
 });
