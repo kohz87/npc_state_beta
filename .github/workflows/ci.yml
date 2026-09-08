@@ -67,7 +67,7 @@ jobs:
           replaceOnce(
             'src/evidence-adapter.js',
             "'NEW identity needing contextual binding uses identityEvidence:{anchor,excerpts,explanation}; anchor is the actual current-visible proper/short name or unique role/description that identifies the individual, excerpts are 1-3 exact current-visible quotes, and missing name/title parts are never invented.',",
-            "'NEW contextual identity uses identityEvidence:{anchor,excerpts,explanation}; anchor is the exact current-visible name/short name or unique role/description; excerpts are 1-3 exact current-visible quotes; never invent missing name/title parts.',",
+            "'NEW contextual identity uses identityEvidence:{anchor,excerpts,explanation}; anchor is the exact current-visible proper/short name or unique role/description; excerpts are 1-3 exact current-visible quotes; never invent missing name/title parts.',",
             'compact identity prompt'
           );
           replaceOnce(
@@ -96,8 +96,6 @@ jobs:
             'identity diagnostic mapping'
           );
           NODE
-          # Tests enforce that the checked-in CI remains a non-mutating verifier. The workflow
-          # was already loaded for this run, so restore the ordinary file before validation.
           git checkout 0cc427cac920db0e332bb1b9b23f96f381affcaf -- .github/workflows/ci.yml
       - name: Validate authoritative source
         run: npm run validate
