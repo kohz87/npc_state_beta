@@ -21,7 +21,7 @@ function semanticPatch(id, updates) {
     return {
         id, name: 'Bessa Vond', evaluatedGroups: [...DOSSIER_EVALUATION_GROUPS],
         fieldEvaluations: { unchanged: [], insufficient: DOSSIER_SEMANTIC_FIELDS.filter(field => !proposed.has(field)), unavailable: [] },
-        semanticUpdates: updates, relationshipChange: structuredClone(ZERO_REL),
+        semanticUpdates: updates, relationshipChange: structuredClone(ZERO_REL), relationshipSummary: '',
     };
 }
 
