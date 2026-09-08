@@ -1,5 +1,5 @@
 import { evidenceReferenceScope } from './evidence-adapter.js';
-import { DOSSIER_SEMANTIC_FIELDS, dossierFieldGroup } from './model/dossier-fields.js';
+import { DOSSIER_SEMANTIC_FIELDS, dossierFieldGroup, dossierFieldValueIssue } from './model/dossier-fields.js';
 import { relationshipEvidenceExcerptMatch } from './relationship-evidence.js';
 import { GENERIC_REFERENCES, appendUnique, containsNormalizedPhrase, evidenceTextKey, identityTokenMention, resolvePlayerName, shortActivityIdentityCandidates, shortActivityIdentityUnique, uniqueStrings } from './scan-helpers.js';
 import { applyLifeState } from './scan-lifecycle.js';
@@ -512,9 +512,9 @@ function bootstrapComparable(value) {
     return evidenceTextKey(value, 6000);
 }
 
-function recordBootstrapDiagnostics(before, after, patch, diagnostics = []) {
+function recordBootstrapDiagnostics(before, after, patch, diagnostics = [], accountedFields = new Set()) {
     for (const field of DOSSIER_SEMANTIC_FIELDS) {
-        if (!meaningfulBootstrapProposal(patch, field)) continue;
+        if (accountedFields.has(field) || !meaningfulBootstrapProposal(patch, field)) continue;
         const changed = bootstrapComparable(before?.[field]) !== bootstrapComparable(after?.[field]);
         diagnostics.push({
             npcId: after?.id || before?.id || '', field, group: dossierFieldGroup(field), channel: 'bootstrap',
@@ -547,38 +547,65 @@ function applyIdentityAndBootstrapPatch(npc, patch, options = {}) {
     }
     if (options.isBootstrap !== true) return next;
 
+    const accountedFields = new Set();
+    const validBootstrapField = field => {
+        if (!Object.prototype.hasOwnProperty.call(patch || {}, field)) return false;
+        const issue = dossierFieldValueIssue(field, patch[field]);
+        if (!issue) return true;
+        accountedFields.add(field);
+        options.applicationDiagnostics?.push({
+            npcId: next.id || before.id || '', field, group: dossierFieldGroup(field), channel: 'bootstrap',
+            status: 'rejected-proposal', reason: 'invalid-value-type:' + issue,
+        });
+        return false;
+    };
+
     for (const field of ['role', 'species', 'background', 'appearance', 'personality', 'speech', 'mood', 'location', 'goal']) {
-        const value = String(patch?.[field] ?? '').trim();
+        if (!validBootstrapField(field)) continue;
+        const value = String(patch[field]).trim();
         if (value) next[field] = value;
     }
-    const age = normalizeActualAge(patch?.age);
-    if (age) next.age = age;
-    const apparentAge = normalizeApparentAge(patch?.apparentAge);
-    if (apparentAge) next.apparentAge = apparentAge;
-    const birthday = normalizeBirthday(patch?.birthday);
-    if (birthday && bootstrapBirthdayGrounded(birthday, options.profileContext)) {
-        next.birthday = birthday;
-        next.birthdayProvenance = 'explicit';
+    if (validBootstrapField('age')) {
+        const age = normalizeActualAge(patch.age);
+        if (age) next.age = age;
+    }
+    if (validBootstrapField('apparentAge')) {
+        const apparentAge = normalizeApparentAge(patch.apparentAge);
+        if (apparentAge) next.apparentAge = apparentAge;
+    }
+    if (validBootstrapField('birthday')) {
+        const birthday = normalizeBirthday(patch.birthday);
+        if (birthday && bootstrapBirthdayGrounded(birthday, options.profileContext)) {
+            next.birthday = birthday;
+            next.birthdayProvenance = 'explicit';
+        }
     }
 
-    const forms = normalizeAppearanceForms(patch?.appearanceForms);
-    if (forms.length) next.appearanceForms = forms;
-    const requestedForm = String(patch?.currentForm || '').trim().slice(0, 80);
-    if (requestedForm) {
-        const matched = forms.find(form => normalizeName(form.name) === normalizeName(requestedForm));
-        next.currentForm = matched?.name || requestedForm;
+    if (validBootstrapField('appearanceForms')) {
+        const forms = normalizeAppearanceForms(patch.appearanceForms);
+        if (forms.length) next.appearanceForms = forms;
     }
-    const status = normalizeCurrentStatus(patch?.status);
-    if (status) next.status = status;
+    if (validBootstrapField('currentForm')) {
+        const requestedForm = String(patch.currentForm).trim().slice(0, 80);
+        if (requestedForm) {
+            const forms = normalizeAppearanceForms(patch.appearanceForms);
+            const matched = forms.find(form => normalizeName(form.name) === normalizeName(requestedForm));
+            next.currentForm = matched?.name || requestedForm;
+        }
+    }
+    if (validBootstrapField('status')) {
+        const status = normalizeCurrentStatus(patch.status);
+        if (status) next.status = status;
+    }
 
-    if (Array.isArray(patch?.behaviorProfile)) next.behaviorProfile = appendUnique([], patch.behaviorProfile, limits.behaviorProfile);
-    if (Array.isArray(patch?.mannerisms)) next.mannerisms = appendUnique([], patch.mannerisms, limits.mannerisms);
-    if (Array.isArray(patch?.memories)) next.memories = normalizeMemoryEntries(patch.memories, limits.memories, 700);
-    if (Array.isArray(patch?.keyRelationships)) {
+    if (validBootstrapField('behaviorProfile')) next.behaviorProfile = appendUnique([], patch.behaviorProfile, limits.behaviorProfile);
+    if (validBootstrapField('mannerisms')) next.mannerisms = appendUnique([], patch.mannerisms, limits.mannerisms);
+    if (validBootstrapField('memories')) next.memories = normalizeMemoryEntries(patch.memories, limits.memories, 700);
+    if (validBootstrapField('keyRelationships')) {
         next.keyRelationships = normalizeKeyRelationshipEntries(patch.keyRelationships, limits.keyRelationships, 500)
             .filter(item => !keyRelationshipReferencesPlayer(item, options.playerName));
     }
-    recordBootstrapDiagnostics(before, next, patch, options.applicationDiagnostics);
+    recordBootstrapDiagnostics(before, next, patch, options.applicationDiagnostics, accountedFields);
     return next;
 }
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.8
+
+- Bind optional malformed/missing-capture fallback scans to the originating capture attempt and canonical source history. A newer capture now invalidates queued/in-flight fallback work before it can consume the newer first-pass boundary; the existing guarded commit path still blocks saved-but-unowned writes. Manual Scan keeps its established non-capture-bound ownership policy.
+- Validate ordinary dossier input shapes before bootstrap or semantic coercion. Scalar fields reject objects/arrays/booleans instead of storing JavaScript string artifacts, while numeric chronological/apparent ages remain compatible. Invalid values are field-level rejections with concrete bounded diagnostics and do not overwrite valid stored values.
+- Centralize field-shape rules under the dossier registry and preserve supported collection/form compatibility. Mixed invalid collection values reject the affected field atomically; supported object-shaped collection entries continue through existing normalization rather than becoming `[object Object]`.
+- Preserve the v0.7.7 output envelope, identity handoff, neutral zero-delta Current Dynamic, random birthday fill, relationship mechanics/replay protection, branch rollback/recovery, optional completeness, alternate routing, storage identity, and persisted/settings schema 1. Model contract remains 5 and foreground contract remains 6.
+
 ## 0.7.7
 
 - Replaced separate output templates with one compact response envelope and parser-tested new/existing NPC examples shared by foreground, Scan, Refresh, and recovery. Corrected the structured-import example and kept the v1 transport tag independent of contract versions.

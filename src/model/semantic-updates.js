@@ -19,8 +19,10 @@ import {
     DOSSIER_SCALAR_FIELDS,
     DOSSIER_SEMANTIC_FIELDS,
     DOSSIER_SEMANTIC_OPERATIONS,
+    dossierCollectionMemberText,
     dossierFieldDefinition,
     dossierFieldGroup,
+    dossierFieldValueIssue,
     dossierFieldManualProtected,
     dossierSemanticFieldList,
 } from './dossier-fields.js';
@@ -262,7 +264,7 @@ function collectionValues(npc, field, limits, playerName = '') {
     const out = [];
     const seen = new Set();
     for (const raw of Array.isArray(npc?.[field]) ? npc[field] : []) {
-        const value = compact(raw, 700);
+        const value = dossierCollectionMemberText(field, raw, 700);
         const key = evidenceKey(value, 1400);
         if (!value || !key || seen.has(key)) continue;
         seen.add(key);
@@ -282,7 +284,7 @@ function normalizeCollection(field, values, limits, playerName = '') {
     const out = [];
     const seen = new Set();
     for (const raw of Array.isArray(values) ? values : []) {
-        const value = compact(raw, 700);
+        const value = dossierCollectionMemberText(field, raw, 700);
         const key = evidenceKey(value, 1400);
         if (!value || !key || seen.has(key)) continue;
         seen.add(key);
@@ -320,12 +322,12 @@ function applyCollectionOperation(npc, update, limits, playerName = '') {
             if (index < 0) continue;
             if (String(change.action) === 'remove') next.splice(index, 1);
             else {
-                const value = compact(change.value, 700);
+                const value = normalizeCollection(field, [change.value], limits, playerName)[0] || '';
                 if (value) next[index] = value;
             }
         }
         for (const change of changes.filter(row => String(row?.action) === 'add')) {
-            const value = compact(change.value, 700);
+            const value = normalizeCollection(field, [change.value], limits, playerName)[0] || '';
             if (!value || next.some(item => sameValue(item, value))) continue;
             next.push(value);
         }
@@ -405,6 +407,43 @@ function applyScalarOperation(npc, update, rows) {
     npc[field] = value;
     if (field === 'birthday') npc.birthdayProvenance = 'explicit';
     return { changed: true };
+}
+
+function semanticValueShapeIssue(update) {
+    const field = update?.field;
+    if (!field) return 'unsupported-field';
+    if (update.operation === 'remove') {
+        if (COLLECTION_FIELDS.has(field) && Array.isArray(update.changes) && update.changes.length) {
+            // Removal changes may target by ref/expected and do not require a value.
+        } else if (COLLECTION_FIELDS.has(field) && update.value !== undefined && update.clear !== true) {
+            return dossierFieldValueIssue(field, update.value);
+        }
+        return '';
+    }
+    if (SCALAR_FIELDS.has(field)) return dossierFieldValueIssue(field, update.value);
+    if (FORM_FIELDS.has(field)) {
+        if (typeof update.value === 'string') return '';
+        if (update.value && typeof update.value === 'object' && !Array.isArray(update.value)) {
+            return dossierFieldValueIssue(field, [update.value]);
+        }
+        return 'expected-string-or-form-object';
+    }
+    if (!COLLECTION_FIELDS.has(field)) return '';
+    const changes = Array.isArray(update.changes) ? update.changes : [];
+    if (!changes.length) return dossierFieldValueIssue(field, update.value);
+    for (let index = 0; index < changes.length; index += 1) {
+        const change = changes[index];
+        if (!change || typeof change !== 'object' || Array.isArray(change)) return `change-${index}-expected-object`;
+        const action = String(change.action || '').trim().toLocaleLowerCase();
+        if (!['add', 'replace', 'remove'].includes(action)) return `change-${index}-invalid-action`;
+        if (change.ref !== undefined && typeof change.ref !== 'string') return `change-${index}-ref-expected-string`;
+        if (change.expected !== undefined && typeof change.expected !== 'string') return `change-${index}-expected-expected-string`;
+        if (['add', 'replace'].includes(action)) {
+            const issue = dossierFieldValueIssue(field, [change.value]);
+            if (issue) return `change-${index}-${issue}`;
+        }
+    }
+    return '';
 }
 
 function normalizedUpdate(raw) {
@@ -566,7 +605,13 @@ function restoreNewNpcModelLedRole(state, originalResult, options = {}, diagnost
     const patches = Array.isArray(originalResult?.npcs) ? originalResult.npcs : [];
     for (let patchIndex = 0; patchIndex < patches.length; patchIndex += 1) {
         const patch = patches[patchIndex];
-        const role = compact(patch?._modelLedRole ?? patch?.role, 240);
+        const roleValue = patch?._modelLedRole ?? patch?.role;
+        const roleIssue = dossierFieldValueIssue('role', roleValue);
+        if (roleIssue) {
+            if (roleValue !== undefined) diagnostics.push({ npcId: '', patchIndex, field: 'role', group: dossierFieldGroup('role'), channel: 'bootstrap-role', status: 'rejected-proposal', reason: 'invalid-value-type:' + roleIssue });
+            continue;
+        }
+        const role = compact(roleValue, 240);
         if (!role || String(patch?.identityKind || '').trim().toLocaleLowerCase() !== 'named') continue;
         const { npc } = resolvedPatchTarget(state, patch, patchIndex, options);
         if (!npc || manualProtected(npc, 'role') || npc.role) continue;
@@ -640,6 +685,11 @@ export function applyModelLedSemanticUpdates(stateInput, resultInput, options = 
             seen.add(dedupeKey);
             if (manualProtected(npc, update.field)) {
                 diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, group: dossierFieldGroup(update.field), status: 'manually-protected' });
+                continue;
+            }
+            const valueShapeIssue = semanticValueShapeIssue(update);
+            if (valueShapeIssue) {
+                diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, group: dossierFieldGroup(update.field), status: 'rejected-proposal', reason: 'invalid-value-type:' + valueShapeIssue });
                 continue;
             }
             if (DURABLE_FIELDS.has(update.field) && update.durability === 'temporary') {
