@@ -57,6 +57,7 @@ export function dossierExtractionPromptRules({ includeNew = true, includeExistin
     return [
         `DOSSIER EXTRACTION MAP: ${dossierExtractionGroupSummary()}. ${modes.join('. ')}.`,
         'FIELD EVALUATION DETAIL: propose each applicable field or list it in fieldEvaluations unchanged|insufficient|unavailable. evaluatedGroups are group labels only; omission=unaccounted. contextCoverage.unavailable/partial != empty.',
+        'PROFILE EVIDENCE: personality may be established narrowly from multiple reinforcing choices, reactions, or interaction patterns in the same scene when they support the same trait. Qualify the trait to the observed context when needed; one isolated gesture, pose, mood, or line never proves a broad lifelong personality.',
         'PRIVATE COMPLETENESS CHECK: same generation; silently check all dossier fields + Current Dynamic before payload. One-off gestures may be observed mannerisms, never recurring/lifelong traits. No reasoning.',
     ];
 }
