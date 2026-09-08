@@ -31,9 +31,9 @@ export function newNpcAdmissionAllows(patch, mode = 'balanced') {
     return ['named', 'proper-name', 'proper', 'role-label', 'role', 'unnamed', ''].includes(kind);
 }
 
-function currentDynamicCoverage(state, result, npcIds = [], patchResolutions = null) {
+function currentDynamicCoverage(state, result, npcIds = [], patchResolutions = null, diagnostics = []) {
     const patches = Array.isArray(result?.npcs) ? result.npcs : [];
-    const diagnostics = [];
+    const out = diagnostics.map(row => ({ ...row, missingFields: Array.isArray(row?.missingFields) ? [...row.missingFields] : row?.missingFields }));
     for (const npcId of npcIds) {
         const npc = (state?.npcs || []).find(item => item.id === npcId) || findNpcByReference(state, npcId);
         if (!npc || normalizeRelationshipSummary(npc.relationshipSummary)) continue;
@@ -50,7 +50,12 @@ function currentDynamicCoverage(state, result, npcIds = [], patchResolutions = n
             }) || null;
         }
         if (!patch || Object.prototype.hasOwnProperty.call(patch, 'relationshipSummary')) continue;
-        diagnostics.push({
+        const existing = out.find(row => row.npcId === npc.id && row.status === 'incomplete-evaluation');
+        if (existing) {
+            existing.missingFields = [...new Set([...(Array.isArray(existing.missingFields) ? existing.missingFields : []), 'relationshipSummary'])];
+            continue;
+        }
+        out.push({
             npcId: npc.id,
             status: 'incomplete-evaluation',
             missingGroups: [],
@@ -58,7 +63,7 @@ function currentDynamicCoverage(state, result, npcIds = [], patchResolutions = n
             coverageKind: 'current-dynamic',
         });
     }
-    return diagnostics;
+    return out;
 }
 
 export function applyScanResult(stateInput, resultInput, options = {}) {
@@ -82,11 +87,11 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     const coverageNpcIds = Array.isArray(options.coverageNpcIds)
         ? options.coverageNpcIds
         : (options.requireDossierCoverage === true ? applied.exchangeActiveNpcIds : []);
+    const ordinaryCoverage = coverageNpcIds.length
+        ? auditDossierEvaluationCoverage(family.state, adapted, { npcIds: coverageNpcIds, patchResolutions: applied.patchResolutions })
+        : [];
     const coverageDiagnostics = coverageNpcIds.length
-        ? [
-            ...auditDossierEvaluationCoverage(family.state, adapted, { npcIds: coverageNpcIds, patchResolutions: applied.patchResolutions }),
-            ...currentDynamicCoverage(family.state, adapted, coverageNpcIds, applied.patchResolutions),
-        ]
+        ? currentDynamicCoverage(family.state, adapted, coverageNpcIds, applied.patchResolutions, ordinaryCoverage)
         : [];
     return {
         ...applied,
