@@ -39,7 +39,7 @@ jobs:
           count=$(unzip -Z1 dist/npc_state_beta-0.5.12.zip | wc -l)
           test "$count" -eq 55
           ! unzip -Z1 dist/npc_state_beta-0.5.12.zip | grep -E '(^|/)(tests|scripts|docs|\.github)/'
-          unzip -p dist/npc_state_beta-0.5.12.zip manifest.json | grep -q '"version": "0.5.12"'
+          unzip -p dist/npc_state_beta-0.5.12.zip npc_state_beta-0.5.12/manifest.json | grep -q '"version": "0.5.12"'
           sha256sum dist/npc_state_beta-0.5.12.zip
       - name: Diff check
         run: git diff --check
