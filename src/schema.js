@@ -212,7 +212,7 @@ export function normalizeManualRelationshipCorrections(value = [], revisionValue
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
         const axis = String(raw.axis || '').trim().toLocaleLowerCase();
         const itemRevision = Math.max(0, Math.trunc(Number(raw.revision) || 0));
-        if (!RELATIONSHIP_AXES.includes(axis) || itemRevision <= 0) continue;
+        if (!RELATIONSHIP_AXES.includes(axis) || itemRevision <= 0 || !finiteManualNumericInput(raw.value)) continue;
         const normalized = normalizeRelationship({ [axis]: raw.value });
         const item = {
             id: axis + ':' + itemRevision,

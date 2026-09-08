@@ -4,6 +4,7 @@ import { createNpcStateEngine } from '../src/engine.js';
 import { applyModelLedSemanticUpdates } from '../src/model/semantic-updates.js';
 import { dossierFieldValueIssue } from '../src/model/dossier-fields.js';
 import { createEmptyState, normalizeNpc, normalizeKeyRelationshipEntries } from '../src/schema.js';
+import { ensurePreUpdateBaseline, recordCheckpoint, reconcileToCurrentBranch } from '../src/branches.js';
 import { encodeV3Payload, decodeV3Payload } from '../src/storage.js';
 import { normalizeSettings } from '../src/settings.js';
 
@@ -180,4 +181,37 @@ test('manual importance rejects coercive values and preserves finite numeric com
     }
     assert.equal((await h.engine.updateNpc('nia', { importance: '42' })).ok, true);
     assert.equal(h.persisted().npcs[0].importance, 42);
+});
+
+
+test('malformed persisted manual correction cannot become durable zero/array ownership during rollback', () => {
+    const chat = [{ is_user: true, mes: 'Ari waits.' }, { mes: 'Nia answers.' }];
+    let state = createEmptyState('v079-correction-rollback');
+    state.npcs = [normalizeNpc({ id: 'nia', name: 'Nia', relationship: { trust: 20 } })];
+    state = ensurePreUpdateBaseline(state, chat, 1);
+    state.npcs[0].relationship.trust = 30;
+    state = recordCheckpoint(state, chat, 1, 'embedded-foreground');
+    state.npcs[0].manualRelationshipCorrectionRevision = 1;
+    state.npcs[0].manualRelationshipCorrections = [
+        { axis: 'trust', value: null, revision: 1, sourceMessageId: 1, at: 123 },
+    ];
+    const restored = reconcileToCurrentBranch(state, []);
+    assert.equal(restored.state.npcs[0].relationship.trust, 20);
+    assert.deepEqual(restored.state.npcs[0].manualRelationshipCorrections, []);
+});
+
+test('valid persisted numeric-string manual correction remains durable through rollback', () => {
+    const chat = [{ is_user: true, mes: 'Ari waits.' }, { mes: 'Nia answers.' }];
+    let state = createEmptyState('v079-valid-correction-rollback');
+    state.npcs = [normalizeNpc({ id: 'nia', name: 'Nia', relationship: { trust: 20 } })];
+    state = ensurePreUpdateBaseline(state, chat, 1);
+    state.npcs[0].relationship.trust = 30;
+    state = recordCheckpoint(state, chat, 1, 'embedded-foreground');
+    state.npcs[0].manualRelationshipCorrectionRevision = 1;
+    state.npcs[0].manualRelationshipCorrections = [
+        { axis: 'trust', value: '12.4', revision: 1, sourceMessageId: 1, at: 123 },
+    ];
+    const restored = reconcileToCurrentBranch(state, []);
+    assert.equal(restored.state.npcs[0].relationship.trust, 12);
+    assert.equal(restored.state.npcs[0].manualRelationshipCorrections[0].value, 12);
 });
