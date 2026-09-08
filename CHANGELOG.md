@@ -2,6 +2,13 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.25
+
+- Generalize exact relationship evidence matching for wholly quoted model excerpts that are verbatim slices of a longer source dialogue. Outer quote delimiters may be ignored only when the unwrapped interior matches exactly inside one quoted-dialogue segment of the same permitted source.
+- Keep the relaxation deliberately narrow: fabricated text, wrong-source evidence, mixed dialogue-to-narration excerpts, stitching across separate dialogue segments, and structural/custom-tag bridging remain rejected. Presentation-only markup normalization from v0.5.24 remains unchanged.
+- Identity, activity, and Current Dynamic continue to share the same matcher. Neutral descriptive Current Dynamic can therefore persist at zero numeric relationship movement when its bounded evidence uses a shortened exact dialogue slice.
+- Add generalized matcher and production-path regressions covering prefix/middle dialogue slices plus the fail-closed boundary cases. No database migration, scanner-prompt change, output allowance change, extra scan, or provider-specific branch is introduced.
+
 ## 0.5.24
 
 - Normalize a bounded allowlist of presentation-only HTML wrappers during exact relationship evidence matching. Model excerpts can now cross a formatted dialogue boundary such as `</font>` into adjacent narration without reproducing presentation tags.
