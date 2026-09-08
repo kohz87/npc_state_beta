@@ -1,0 +1,208 @@
+diff --git a/src/profile-observations.js b/src/profile-observations.js
+new file mode 100644
+index 0000000..17e3241
+--- /dev/null
++++ b/src/profile-observations.js
+@@ -0,0 +1,140 @@
++import { normalizeNpc, normalizeProfileEvolutionEvidence } from './schema.js';
++import { semanticSourceEventKey, validateSemanticSourceReference } from './model/semantic-updates.js';
++
++const PROFILE_FIELDS = new Set(['personality', 'behaviorProfile', 'speech', 'mannerisms']);
++
++function text(value, max = 600) {
++    return typeof value === 'string' ? value.replace(/\u0000/g, '').replace(/\s+/g, ' ').trim().slice(0, max) : '';
++}
++
++function evidenceKey(value) {
++    return String(value ?? '')
++        .normalize('NFKC')
++        .toLocaleLowerCase()
++        .replace(/[\s\p{P}\p{S}]+/gu, ' ')
++        .trim()
++        .slice(0, 1600);
++}
++
++function evidenceParts(value) {
++    return String(value || '').split(/\s+\|\s+/).map(evidenceKey).filter(Boolean);
++}
++
++function validSources(value) {
++    if (!Array.isArray(value) || !value.length) return false;
++    return value.slice(0, 6).every(raw => raw && typeof raw === 'object' && !Array.isArray(raw)
++        && (raw.messageId == null || Number.isInteger(raw.messageId))
++        && typeof raw.excerpt === 'string' && Boolean(raw.excerpt.trim()));
++}
++
++function duplicatesOwnedFact(existing, field, sourceEventKey, sourceMessageId, rows) {
++    const incoming = new Set(rows.map(row => evidenceKey(row.excerpt)).filter(Boolean));
++    if (!incoming.size) return false;
++    return normalizeProfileEvolutionEvidence(existing).some(entry => {
++        if (entry.field !== field) return false;
++        if (sourceEventKey) {
++            if (!entry.sourceEventKey || entry.sourceEventKey !== sourceEventKey) return false;
++        } else if (entry.sourceMessageId !== sourceMessageId) return false;
++        return evidenceParts(entry.evidence).some(fragment => incoming.has(fragment));
++    });
++}
++
++function diagnostic(patchIndex, observationIndex, field, status, reason = '') {
++    return {
++        patchIndex,
++        observationIndex,
++        field: field || 'profileObservations',
++        group: 'profile',
++        channel: 'profile-observation',
++        status,
++        ...(reason ? { reason } : {}),
++    };
++}
++
++export function applyProfileObservations(stateInput, result = {}, options = {}) {
++    const state = structuredClone(stateInput || {});
++    const diagnostics = [];
++    const patches = Array.isArray(result?.npcs) ? result.npcs : [];
++    const resolutions = Array.isArray(options.patchResolutions) ? options.patchResolutions : [];
++
++    for (let patchIndex = 0; patchIndex < patches.length; patchIndex += 1) {
++        const patch = patches[patchIndex];
++        if (!Object.prototype.hasOwnProperty.call(patch || {}, 'profileObservations')) continue;
++        const proposals = patch?.profileObservations;
++        if (!Array.isArray(proposals)) {
++            diagnostics.push(diagnostic(patchIndex, null, '', 'rejected-proposal', 'invalid-value-type:expected-array'));
++            continue;
++        }
++        const resolution = resolutions[patchIndex];
++        if (resolution?.status !== 'accepted' || !resolution.npcId) {
++            diagnostics.push(diagnostic(patchIndex, null, '', 'rejected-proposal', 'observation-target-not-accepted'));
++            continue;
++        }
++        const existingNpcIds = options.existingNpcIds instanceof Set ? options.existingNpcIds : null;
++        if (existingNpcIds && !existingNpcIds.has(resolution.npcId)) {
++            diagnostics.push(diagnostic(patchIndex, null, '', 'rejected-proposal', 'observation-target-not-existing'));
++            continue;
++        }
++        const npcIndex = (state.npcs || []).findIndex(npc => npc.id === resolution.npcId);
++        if (npcIndex < 0) {
++            diagnostics.push(diagnostic(patchIndex, null, '', 'rejected-proposal', 'observation-target-missing'));
++            continue;
++        }
++        let npc = state.npcs[npcIndex];
++        for (let observationIndex = 0; observationIndex < proposals.length && observationIndex < 12; observationIndex += 1) {
++            const raw = proposals[observationIndex];
++            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
++                diagnostics.push(diagnostic(patchIndex, observationIndex, '', 'rejected-proposal', 'invalid-value-type:expected-object'));
++                continue;
++            }
++            const field = typeof raw.field === 'string' ? raw.field.trim() : '';
++            const observation = text(raw.observation, 500);
++            const concept = raw.concept == null ? observation : text(raw.concept, 180);
++            if (!PROFILE_FIELDS.has(field)) {
++                diagnostics.push(diagnostic(patchIndex, observationIndex, field, 'rejected-proposal', 'unsupported-observation-field'));
++                continue;
++            }
++            if (!observation || !concept || (raw.explanation != null && typeof raw.explanation !== 'string') || !validSources(raw.sources)) {
++                diagnostics.push(diagnostic(patchIndex, observationIndex, field, 'rejected-proposal', 'invalid-observation-shape'));
++                continue;
++            }
++            const validation = validateSemanticSourceReference({ field, sources: raw.sources }, options);
++            if (!validation.ok) {
++                diagnostics.push(diagnostic(patchIndex, observationIndex, field, 'rejected-proposal', validation.reason));
++                continue;
++            }
++            const rows = validation.rows || [];
++            const sourceMessageId = Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null;
++            const sourceEventKey = semanticSourceEventKey(rows, options);
++            if (duplicatesOwnedFact(npc.profileEvolutionEvidence, field, sourceEventKey, sourceMessageId, rows)) {
++                diagnostics.push(diagnostic(patchIndex, observationIndex, field, 'no-change-proposed', 'duplicate-owned-observation'));
++                continue;
++            }
++            const evidence = rows.map(row => text(row.excerpt, 1000)).filter(Boolean).join(' | ').slice(0, 600);
++            const nextEvidence = normalizeProfileEvolutionEvidence([...(npc.profileEvolutionEvidence || []), {
++                field,
++                kind: 'observation',
++                mode: 'gradual',
++                concept,
++                evidence,
++                sourceEventKey,
++                sourceMessageId,
++                turn: Number.isInteger(options.turn) ? options.turn : null,
++                at: Date.now(),
++            }]);
++            if (nextEvidence.length === normalizeProfileEvolutionEvidence(npc.profileEvolutionEvidence).length
++                && JSON.stringify(nextEvidence) === JSON.stringify(normalizeProfileEvolutionEvidence(npc.profileEvolutionEvidence))) {
++                diagnostics.push(diagnostic(patchIndex, observationIndex, field, 'no-change-proposed', 'observation-not-retained'));
++                continue;
++            }
++            npc = normalizeNpc({
++                ...npc,
++                profileEvolutionEvidence: nextEvidence,
++                updatedAt: Math.max(Date.now(), Number(npc.updatedAt || 0) + 1),
++            });
++            state.npcs[npcIndex] = npc;
++            diagnostics.push(diagnostic(patchIndex, observationIndex, field, 'observation-recorded'));
++        }
++    }
++    return { state, diagnostics };
++}
+diff --git a/src/scan-contract.js b/src/scan-contract.js
+index d833b87..1a97819 100644
+--- a/src/scan-contract.js
++++ b/src/scan-contract.js
+@@ -51,9 +51,12 @@ export function scanOutputContract(options = {}) {
+             ? 'JSON: seven arrays required. NEW id="", canonical name, identityKind=named|role-label; EXISTING/name-only: keep supplied id. No alternate dialects.'
+             : 'JSON: all seven arrays required, even empty. References=ids/names. NEW id="", name=canonical name, identityKind=' + SCAN_IDENTITY_KINDS.join('|') + '. EXISTING/name-only: keep supplied id. No canonicalName/activityRefs/live/relationshipToPlayer.',
+         compact ? 'NEW ordinary fields are flat; []=string arrays; appearanceForms:[{name,appearance}].' : 'NEW: flat strings; map [] means string arrays; appearanceForms:[{name,appearance}].',
++        compact
++            ? 'candidateAccounting maps supplied stable existing NPC ids to evaluated|mentioned|inactive|unresolved; coverage only, never presence. Existing patches may add evidence-only profileObservations for personality|behaviorProfile|speech|mannerisms.'
++            : 'Routine candidateAccounting maps each supplied stable existing NPC id to evaluated|mentioned|inactive|unresolved; it is separate from activity and fieldEvaluations. Existing patches may add evidence-only profileObservations:{field,observation,concept?,sources:[{messageId,excerpt}],explanation?} for personality|behaviorProfile|speech|mannerisms.',
+         compact
+             ? 'Evidence={excerpts:[exact quotes],explanation}; identity adds anchor; activity keys=exchangeActive/inChat/worldActive; messageId:null=current.'
+-            : 'Evidence:{excerpts:[1-3 exact quotes],explanation}; identityEvidence adds anchor. activityEvidence keys:exchangeActive/inChat/worldActive. Identity/activity=current visible. Semantic messageId:null=current, number=history.',
++            : 'Evidence:{excerpts:[1-3 exact quotes],explanation}; identityEvidence adds anchor. activityEvidence keys:exchangeActive/inChat/worldActive. Identity/activity=current visible. Semantic/observation messageId:null=current, number=history.',
+         compact ? '' : 'evaluatedGroups=map groups only. Modern coverage: each applicable ordinary field is proposed or listed once in fieldEvaluations unchanged|insufficient|unavailable; group labels never prove field evaluation.',
+         'OUTPUT CONTRACT:\n' + JSON.stringify(examples.minimal),
+         (compact
+diff --git a/src/scan-helpers.js b/src/scan-helpers.js
+index f59a2f5..8118a83 100644
+--- a/src/scan-helpers.js
++++ b/src/scan-helpers.js
+@@ -58,6 +58,9 @@ export function dossierExtractionPromptRules({ includeNew = true, includeExistin
+         `DOSSIER EXTRACTION MAP: ${dossierExtractionGroupSummary()}. ${modes.join('. ')}.`,
+         'FIELD EVALUATION DETAIL: propose each applicable field or list it in fieldEvaluations unchanged|insufficient|unavailable. evaluatedGroups are group labels only; omission=unaccounted. contextCoverage.unavailable/partial != empty.',
+         'PROFILE EVIDENCE: personality may be established narrowly from multiple reinforcing choices, reactions, or interaction patterns in the same scene when they support the same trait. Qualify the trait to the observed context when needed; one isolated gesture, pose, mood, or line never proves a broad lifelong personality.',
++        'PROFILE OBSERVATIONS: EXISTING NPCs may emit evidence-only profileObservations:{field,observation,concept?,sources:[{messageId,excerpt}],explanation?} for personality|behaviorProfile|speech|mannerisms without forcing semanticUpdates. Observations never mutate dossier/relationship/presence/lifecycle. If the same fact also drives an update, reuse its exact source excerpts so it counts once.',
++        'PROFILE DEVELOPMENT: refine adds compatible detail. Lasting change needs grounded sustained development, independent observations plus new support, or explicit narrative authority. Elapsed time alone and temporary mood/sleep/injury/stress/silence/one interaction do not become lifelong traits; a time skip counts only when it narrates sustained development. Keep player-specific attitude in the player dynamic when appropriate.',
++        'PROFILE CONSOLIDATION: keep behaviorProfile/mannerisms compact. Use supplied refs and targeted replace/remove/add to merge substantially overlapping established entries into the smallest faithful set while preserving distinct facts, scope, exceptions, unrelated entries, and ownership. One-off gestures may stay observations rather than recurring mannerisms; judge semantic overlap yourself.',
+         'BACKGROUND EVIDENCE: background is durable biographical or contextual information such as established affiliation, employment/position, origin, training, prior history, or lasting circumstances. A clearly established workplace or affiliation may populate background on first pass even when no past-tense biography is given. Keep it concise; never invent tenure, origin, family history, or earlier events.',
+         'APPARENT AGE: actual age is chronological and separate. If evidence supports a specific visual age, use apparentAge=~N. If evidence supports only a broad visible life-stage or age band, semantically infer a defensible numeric interval and return apparentAge=~N-M; do not use a fixed phrase-to-range lookup. The backend chooses and persists one stable ~N inside that interval for the NPC. Never copy apparent age into actual age. If no defensible visual age or interval is supported, mark apparentAge insufficient.',
+         'APPEARANCE FIDELITY: appearance/form text is a portrait-ready overall visual synthesis, not a latest-detail delta. Preserve prior supported visible facts unless contradicted; fold new evidence into the whole look (apparent life-stage, build, clothing/equipment, hair/face/form traits, distinctive details when supported). Never invent missing portrait features, uniform pieces, accessories, colors, materials, or body traits.',
+diff --git a/src/scan-payload.js b/src/scan-payload.js
+index d13bec4..a186ee8 100644
+--- a/src/scan-payload.js
++++ b/src/scan-payload.js
+@@ -22,6 +22,17 @@ function canonicalIdentityKind(value) {
+     return !key || SCAN_IDENTITY_KINDS.includes(key) ? key : (has(LEGACY_IDENTITY_KINDS, key) ? LEGACY_IDENTITY_KINDS[key] : null);
+ }
+ 
++function normalizedCandidateAccounting(value) {
++    if (!object(value)) return {};
++    const out = {};
++    for (const [rawId, rawStatus] of Object.entries(value).slice(0, 100)) {
++        const id = String(rawId || '').trim().slice(0, 160);
++        if (!id) continue;
++        out[id] = typeof rawStatus === 'string' ? rawStatus.trim().toLocaleLowerCase().slice(0, 40) : '';
++    }
++    return out;
++}
++
+ function npcIssues(npc, index, issues) {
+     const path = `npcs[${index}]`;
+     if (!object(npc)) { issues.push(`${path}: expected object-with-string-identity`); return; }
+@@ -125,6 +136,7 @@ export function normalizeScanPayload(parsed, { requireContract = true, allowOmit
+         socialEdges: Array.isArray(parsed.socialEdges) ? parsed.socialEdges.slice(0, 100) : [],
+         familyFacts: Array.isArray(parsed.familyFacts) ? parsed.familyFacts.slice(0, 100) : [],
+         lifeStateUpdates: Array.isArray(parsed.lifeStateUpdates) ? parsed.lifeStateUpdates.slice(0, 100) : [],
++        candidateAccounting: normalizedCandidateAccounting(parsed.candidateAccounting),
+     };
+ }
+ 
