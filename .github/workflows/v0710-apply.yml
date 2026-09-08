@@ -20,7 +20,7 @@ jobs:
           node-version: 22
       - name: Apply exact reviewed patch
         run: |
-          base64 -d .staging/v0710/initial.patch.gz.b64 | gzip -d > /tmp/v0710.patch
+          cat .staging/v0710/initial.part* | base64 -d | gzip -d > /tmp/v0710.patch
           git checkout --detach 0386c6b8b16d5fc196a8f0e921ca766fed72cfea
           git apply --index /tmp/v0710.patch
       - name: Run initial implementation gates
@@ -40,5 +40,3 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'fix: complete first-pass dossier accounting' -m 'Release v0.7.10 initial implementation. Ground zero-delta Current Dynamic through unambiguous short-name and narrator-addressed evidence, make field-level completeness honest while preserving legacy group labels, and route bootstrap collections through field-specific normalization. Strengthen the compact same-generation first-pass contract without adding another model request.'
           git push origin HEAD:refs/heads/automation/v0710-candidate
-
-# second registration push for branch-only staging workflow
