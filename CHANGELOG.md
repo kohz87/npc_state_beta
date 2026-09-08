@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.12
+
+- Fix automatic-scan synchronization so the recursion bypass exists only while invoking the scanner's own host generation call, not for the lifetime of its pending provider request. Ordinary next-turn generation now actually waits for the preceding scan, and a second real assistant completion remains eligible for its own queued scan while an earlier scanner request is pending.
+- Expand routine Scan identity context with ambiguity-safe unique short-name matching. A returning inactive dossier such as `Bessa Vond` can be supplied when current narration uniquely says `Bessa`, while ambiguous shared short names remain unbound; explicitly mentioned archived/deceased dossiers are also supplied so resurrection extraction can reuse established identity/state instead of admitting a duplicate.
+- Make automatic recovery status authoritative. Retry of a partial/failed settled boundary performs a fresh forced semantic rescan without replaying already-applied relationship scoring, `already-scanned` cannot erase a known partial/failed status, and a successful manual Scan of the same current source boundary is adopted by the coordinator so stale automatic failure state no longer blocks the next generation.
+- Harden zero-delta Current Dynamic evidence against shortened quoted excerpts. Exact evidence is resolved back to its permitted original source, so narrator-addressed second person remains valid outside dialogue while a fragment taken from another character's quoted speech cannot turn quoted `you` into the player.
+- Restore bounded `profileEvolutionEvidence` writing inside the current semantic pipeline for applied personality, behavioral-profile, speech, and mannerism changes. Observations retain source-message/turn ownership, normalize through the existing schema-1 collection, deduplicate same-source retries, and never stringify supported collection objects into `[object Object]`.
+- Preserve the 0.5.11 post-response architecture, storage identity `npc_state_beta.v3`, persisted/settings schema 1, model semantic contract 6, foreground continuity contract 8, deterministic relationship mechanics, manual correction ownership, rollback/recovery, alternate routing, and guarded persistence. No database rebuild or storage migration is required.
+
 ## 0.5.11
 
 - Intentionally reset the public release label from the 0.7.x development line to the next unused 0.5.x patch while retaining the newer codebase. Storage identity remains `npc_state_beta.v3`; persisted/settings schemas remain 1; model contract remains 6; foreground continuity contract advances to 8. No database rebuild or storage migration is required.

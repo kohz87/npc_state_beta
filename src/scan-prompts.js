@@ -3,8 +3,8 @@ import { scanOutputContract } from './scan-contract.js';
 import { semanticUpdatePrompt } from './model/semantic-updates.js';
 import { relationshipCustomCriteriaPrompt, relationshipJudgmentRubricPrompt, relationshipMechanicsPrompt } from './relationship-policy.js';
 import { dossierExtractionPromptRules, relationshipSummaryRepairContext, compactText, containsNormalizedPhrase, currentExchange, nonSystemMessages, resolvePlayerName } from './scan-helpers.js';
-import { DEFAULT_RELATIONSHIP_CAPS, RELATIONSHIP_AXES, normalizeDossierLimits, normalizeNpcAdmissionMode, normalizeRelationship, normalizeRelationshipEvidenceHistory, normalizeRelationshipProgress, normalizeRelationshipSummary } from './schema.js';
-import { compactForegroundNpc, foregroundNpcCandidates } from './foreground-context.js';
+import { DEFAULT_RELATIONSHIP_CAPS, RELATIONSHIP_AXES, normalizeDossierLimits, normalizeName, normalizeNpcAdmissionMode, normalizeRelationship, normalizeRelationshipEvidenceHistory, normalizeRelationshipProgress, normalizeRelationshipSummary } from './schema.js';
+import { compactForegroundNpc, foregroundNpcCandidates, runtimeNpcSalience } from './foreground-context.js';
 
 export function recentHistory(chat = [], assistantMessageId = null, depth = 2) {
     const exchange = currentExchange(chat, assistantMessageId);
@@ -20,6 +20,37 @@ export function recentHistory(chat = [], assistantMessageId = null, depth = 2) {
         }));
 }
 
+function scannerShortIdentityCandidates(npc = {}) {
+    const out = [];
+    for (const label of [npc?.name, ...(Array.isArray(npc?.aliases) ? npc.aliases : [])]) {
+        const words = normalizeName(label).split(/\s+/).filter(Boolean);
+        if (words.length < 2) continue;
+        for (const token of [words[0], words.at(-1)]) {
+            if (token.length < 2 || out.includes(token)) continue;
+            out.push(token);
+        }
+    }
+    return out;
+}
+
+function explicitlyMentionedNpcIds(state, visible) {
+    const npcs = Array.isArray(state?.npcs) ? state.npcs : [];
+    const mentioned = new Set();
+    const shortOwners = new Map();
+    for (const npc of npcs) {
+        const labels = [npc?.name, ...(Array.isArray(npc?.aliases) ? npc.aliases : [])].filter(Boolean);
+        if (labels.some(label => containsNormalizedPhrase(visible, label))) mentioned.add(npc.id);
+        for (const token of scannerShortIdentityCandidates(npc)) {
+            if (!shortOwners.has(token)) shortOwners.set(token, new Set());
+            shortOwners.get(token).add(npc.id);
+        }
+    }
+    for (const [token, owners] of shortOwners) {
+        if (owners.size === 1 && containsNormalizedPhrase(visible, token)) mentioned.add([...owners][0]);
+    }
+    return mentioned;
+}
+
 function relevantNpcsForExchange(state, exchange, limit = 12) {
     const visible = [exchange?.user?.mes, exchange?.assistant?.mes].map(value => scannerEvidenceText(value || '')).filter(Boolean).join('\n');
     const active = new Set([
@@ -27,16 +58,22 @@ function relevantNpcsForExchange(state, exchange, limit = 12) {
         ...(state?.lastObservation?.finalPresentNpcIds || []),
         ...(state?.lastObservation?.worldActiveNpcIds || []),
     ]);
-    const mentioned = new Set();
-    for (const npc of state?.npcs || []) {
-        const labels = [npc?.name, ...(npc?.aliases || [])].filter(Boolean);
-        if (labels.some(label => containsNormalizedPhrase(visible, label))) mentioned.add(npc.id);
-        if (npc?.present || npc?.worldActive) active.add(npc.id);
+    const mentioned = explicitlyMentionedNpcIds(state, visible);
+    for (const npc of state?.npcs || []) if (npc?.present || npc?.worldActive) active.add(npc.id);
+    const limitValue = Math.max(1, Math.min(20, Number(limit) || 12));
+    const explicit = (state?.npcs || []).filter(npc => mentioned.has(npc.id))
+        .sort((a, b) => runtimeNpcSalience(b) - runtimeNpcSalience(a) || String(a.name || '').localeCompare(String(b.name || '')));
+    const ordinary = foregroundNpcCandidates(state, { foregroundCurrentUserText: visible })
+        .filter(npc => active.has(npc.id) && !mentioned.has(npc.id));
+    const out = [];
+    const seen = new Set();
+    for (const npc of [...explicit, ...ordinary]) {
+        if (!npc?.id || seen.has(npc.id)) continue;
+        seen.add(npc.id);
+        out.push(npc);
+        if (out.length >= limitValue) break;
     }
-    const ids = new Set([...mentioned, ...active]);
-    return foregroundNpcCandidates(state, { foregroundCurrentUserText: visible })
-        .filter(npc => ids.has(npc.id))
-        .slice(0, Math.max(1, Math.min(20, Number(limit) || 12)));
+    return out;
 }
 
 function rosterForPrompt(state, { relationshipSummaryIds = null, relationshipSummaryRepair = false, relationshipSummaryRepairIds = null } = {}) {

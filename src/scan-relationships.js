@@ -174,11 +174,11 @@ function identityMentioned(excerpt, names = [], otherNames = []) {
         containsNormalizedPhrase(excerpt, candidate) && !identityShortTokenAmbiguous(candidate, otherNames));
 }
 
-function playerMentioned(excerpt, playerName, npcNames = []) {
+function playerMentioned(excerpt, playerName, npcNames = [], { allowNarratorSecondPerson = true } = {}) {
     if (containsNormalizedPhrase(excerpt, playerName) && !identityShortTokenAmbiguous(playerName, npcNames)) return true;
     const short = shortActivityIdentityCandidates({ name: playerName, aliases: [] });
     if (short.some(candidate => containsNormalizedPhrase(excerpt, candidate) && !identityShortTokenAmbiguous(candidate, npcNames))) return true;
-    return /\b(?:you|your|yours|yourself)\b/i.test(narrationOutsideQuotedDialogue(excerpt));
+    return allowNarratorSecondPerson && /\b(?:you|your|yours|yourself)\b/i.test(narrationOutsideQuotedDialogue(excerpt));
 }
 
 function relationshipSummaryEvidenceGrounded(npc, patch, options = {}) {
@@ -190,14 +190,15 @@ function relationshipSummaryEvidenceGrounded(npc, patch, options = {}) {
     if (excerpts.length < 1 || excerpts.length > 3 || !explanation) return { ok: false, reason: 'malformed-summary-evidence' };
     const sources = relationshipEvidenceSourcesForOptions(options);
     if (!sources.length) return { ok: false, reason: 'no-summary-evidence-source' };
-    if (!excerpts.every(excerpt => relationshipEvidenceExcerptMatch(excerpt, sources))) return { ok: false, reason: 'out-of-scope-summary-evidence' };
+    const excerptMatches = excerpts.map(excerpt => relationshipEvidenceExcerptMatch(excerpt, sources));
+    if (excerptMatches.some(match => !match)) return { ok: false, reason: 'out-of-scope-summary-evidence' };
 
     const subjectNames = [npc?.name, ...(Array.isArray(npc?.aliases) ? npc.aliases : [])].map(value => String(value || '').trim()).filter(Boolean);
     const playerName = String(options.playerName || '').trim();
     const otherNpcNames = (Array.isArray(options.otherNpcNames) ? options.otherNpcNames : []).map(value => String(value || '').trim()).filter(Boolean);
     if (!subjectNames.length || !playerName) return { ok: false, reason: 'summary-target-identity-unavailable' };
-    const targetBound = excerpts.some(excerpt => identityMentioned(excerpt, subjectNames, otherNpcNames)
-        && playerMentioned(excerpt, playerName, [...subjectNames, ...otherNpcNames]));
+    const targetBound = excerpts.some((excerpt, index) => identityMentioned(excerpt, subjectNames, otherNpcNames)
+        && playerMentioned(excerpt, playerName, [...subjectNames, ...otherNpcNames], { allowNarratorSecondPerson: excerptMatches[index]?.insideQuotedDialogue !== true }));
     if (!targetBound) return { ok: false, reason: 'wrong-summary-target' };
 
     const grounding = relationshipEvidenceGrounding(explanation, excerpts.join(' '), {

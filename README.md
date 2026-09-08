@@ -2,7 +2,7 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.11
+## Release 0.5.12
 
 This release intentionally resets the **public release label** from the 0.7.x development line to the next unused 0.5.x patch. It does **not** restore old source, downgrade the sidecar, or change the persisted/settings schema. Existing `npc_state_beta.v3` data continues in place.
 
@@ -12,11 +12,11 @@ The automatic workflow is now simpler:
 
 Roleplay generation no longer has to emit `<npc_state_v1>` or any other NPC JSON. Foreground injection is continuity-only. `autoScan=true` means one dedicated scanner request after each completed assistant revision. Duplicate host completion events share the same logical job; edits, swipes, deletion, branch changes, and chat switches invalidate stale work.
 
-Before the next ordinary generation, NPC State uses SillyTavern's awaited generation interceptor to settle the preceding response's owning scan and rebuild continuity. Scanner-generated quiet requests carry an internal lease so they do not wait on themselves. A failed or timed-out owning scan exposes an actionable Retry state and aborts the attempted next generation instead of silently using unsynchronized state.
+Before the next ordinary generation, NPC State uses SillyTavern's awaited generation interceptor to settle the preceding response's owning scan and rebuild continuity. The recursion bypass exists only while invoking the scanner's own host generation call; it is not held for the provider request lifetime, so ordinary roleplay work cannot inherit scanner privileges. A failed or timed-out owning scan exposes an actionable Retry state and aborts the attempted next generation instead of silently using unsynchronized state.
 
 ### Scanner scope
 
-Routine automatic Scan and manual **Scan current cast** treat the latest completed assistant message and its preceding user message as new-event evidence. At most two earlier non-system messages may be supplied as bounded reference context for antecedents; they are not new-event evidence. Only relevant/mentioned/currently active dossiers are serialized richly, so unrelated roster growth does not expand every routine scan.
+Routine automatic Scan and manual **Scan current cast** treat the latest completed assistant message and its preceding user message as new-event evidence. At most two earlier non-system messages may be supplied as bounded reference context for antecedents; they are not new-event evidence. Relevant identity context accepts exact names/aliases and unique unambiguous short-name mentions, including explicitly mentioned archived/deceased dossiers; ambiguous short names are never guessed. Unrelated roster growth still does not expand every routine scan.
 
 **Refresh** still reconciles one NPC over bounded history. Historical recovery still reconstructs surviving exchanges sequentially from a trustworthy baseline. All story mutations continue through the same guarded commit/checkpoint path.
 
@@ -24,13 +24,13 @@ Routine automatic Scan and manual **Scan current cast** treat the latest complet
 
 The scanner contract demonstrates a realistically populated new NPC, explicit insufficient-evidence outcomes, field-level evaluation metadata, and a zero-delta Current Dynamic. Unsupported facts remain unknown. A sparse valid payload may still commit its supported facts, but diagnostics report unaccounted fields separately from persistence success.
 
-Current Dynamic evidence may bind an NPC through an unambiguous short identity and the player through a full/unique short identity or narrator-addressed second person outside quoted dialogue. Quoted `you`, ambiguous aliases, wrong recipients, and unrelated NPC interactions remain rejected. Numeric relationship movement is independent and may remain zero.
+Current Dynamic evidence may bind an NPC through an unambiguous short identity and the player through a full/unique short identity or narrator-addressed second person outside quoted dialogue. Exact excerpts are resolved within their original permitted source before quote/addressee checks, so shortening another character's quoted speech cannot turn quoted `you` into the player. Ambiguous aliases, wrong recipients, and unrelated NPC interactions remain rejected. Numeric relationship movement is independent and may remain zero.
 
 New-NPC bootstrap, existing semantic updates, manual/import boundaries, and persisted normalization share field-aware value rules. Malformed nested collection members, form selectors, scalar objects, and coercive manual numeric values are rejected before lossy normalization rather than becoming strings such as `[object Object]`.
 
 ## Settings
 
-Important settings retained by 0.5.11 include:
+Important settings retained by 0.5.12 include:
 
 - **Auto scan**: one dedicated post-response scanner request.
 - **Inject NPC continuity**: independent continuity context for roleplay generation.
@@ -43,7 +43,7 @@ Obsolete `scanAfterEachResponse`, `fallbackScan`, and `newNpcHistoryEnrichment` 
 
 ## Relationship and profile behavior
 
-Existing dossiers evolve through the single `semanticUpdates` channel (`establish`, `refine`, `replace`, `remove`). The model judges narrative meaning; deterministic code validates source ownership, target identity, durability, manual locks, collection/form targeting, and permitted fields.
+Existing dossiers evolve through the single `semanticUpdates` channel (`establish`, `refine`, `replace`, `remove`). The model judges narrative meaning; deterministic code validates source ownership, target identity, durability, manual locks, collection/form targeting, and permitted fields. Applied personality, behavioral-profile, speech, and mannerism changes append bounded source-owned `profileEvolutionEvidence`, so later exchanges can distinguish accumulated development from same-source retries.
 
 Temporary states such as sleep, unconsciousness, one-off poses, or momentary mood do not automatically become permanent personality/speech. Later grounded evidence may enrich or replace an obsolete placeholder. Collection entries can be edited at capacity through stable refs without evicting unrelated items.
 
@@ -59,7 +59,7 @@ User-owned portraits, locks, manual corrections, importance, and suppression tom
 
 Current boundaries:
 
-- Release label: **0.5.11**
+- Release label: **0.5.12**
 - Persisted state schema: **1**
 - Settings schema: **1**
 - Model semantic contract: **6**
@@ -68,7 +68,7 @@ Current boundaries:
 
 No database reset, rebuild, or storage-key migration is required. Old `<npc_state_v1>` text is ignored by canonical history fingerprints so historical chats do not diverge merely because transport text remains, but new automatic processing does not consume embedded payloads.
 
-SillyTavern's third-party extension updater is Git-based: it checks whether the installed repository is current and pulls the tracked branch when needed. The lower 0.5.11 presentation label therefore does not require uninstall/reinstall or data deletion.
+SillyTavern's third-party extension updater is Git-based: it checks whether the installed repository is current and pulls the tracked branch when needed. The 0.5.x presentation label therefore does not require uninstall/reinstall or data deletion.
 
 ## Public APIs and diagnostics
 
