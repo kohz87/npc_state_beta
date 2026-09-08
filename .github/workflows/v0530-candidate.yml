@@ -18,16 +18,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Show candidate
-        run: git rev-parse HEAD
-      - name: Apply candidate patch when driver exists
+      - name: Apply candidate
         run: |
-          if [ -f .github/scripts/v0530-apply.mjs ]; then
-            node .github/scripts/v0530-apply.mjs
-          fi
-          if [ -f .github/scripts/v0530-fix-generated-test.mjs ]; then
-            node .github/scripts/v0530-fix-generated-test.mjs
-          fi
+          node .github/scripts/v0530-apply.mjs
+          node .github/scripts/v0530-fix-generated-test.mjs
+          node .github/scripts/v0530-align-example.mjs
       - name: Validate
         run: npm run validate
       - name: Tests
@@ -38,10 +33,7 @@ jobs:
         run: npm run measure:scan-prompts
       - name: Commit candidate changes
         run: |
-          if git diff --quiet && git diff --cached --quiet; then
-            echo "No candidate changes to commit."
-            exit 0
-          fi
+          if git diff --quiet && git diff --cached --quiet; then exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
