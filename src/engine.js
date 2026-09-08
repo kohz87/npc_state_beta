@@ -46,6 +46,7 @@ import {
     currentExchange,
     parseScanJson,
     reconcileFamilyGraphState,
+    relevantNpcsForExchange,
     sanitizeStructuredDossierPatch,
 } from './scanner.js';
 import {
@@ -78,6 +79,15 @@ function profileContextForExchange(exchange) {
         .map(value => profileEvidenceText(value || '').trim())
         .filter(Boolean)
         .join('\n');
+}
+
+function profileSourceIdsForWindow(chat = [], messageId = null, depth = 8) {
+    const end = Number.isInteger(messageId) ? Math.min(chat.length - 1, messageId) : chat.length - 1;
+    const ids = [];
+    for (let i = Math.max(0, end - Math.max(2, Number(depth) || 8) * 2); i <= end; i += 1) {
+        if (chat[i] && !chat[i].is_system) ids.push(i);
+    }
+    return ids;
 }
 
 function structuredSemanticContextsForWindow(chat = [], messageId = null, depth = 12) {
@@ -344,6 +354,30 @@ export function createNpcStateEngine(adapters = {}) {
             swipeId: source && Number.isInteger(source.swipe_id) ? source.swipe_id : 0,
             lineage: sourceId !== null ? chatLineage(chat, sourceId) : chatLineage(chat),
         };
+    }
+
+    function profileEvidenceSourceEventKey(token) {
+        if (!token?.chatKey || token.messageId === null) return '';
+        const identity = operationHistoryIdentity([
+            token.chatKey,
+            String(token.messageId),
+            token.sourceFingerprint || '',
+            String(token.swipeId ?? 0),
+            ...(Array.isArray(token.lineage) ? token.lineage : []),
+        ]);
+        return identity.hash ? `source:${identity.length}:${identity.hash}` : '';
+    }
+
+    function profileEvidenceSourceOptions(chatKey, chat = [], sourceMessageId = null, sourceIds = []) {
+        const current = Number.isInteger(sourceMessageId)
+            ? profileEvidenceSourceEventKey(captureOperationOwnership('profile-evidence-source', chatKey, chat, sourceMessageId))
+            : '';
+        const sourceEventKeys = {};
+        for (const id of [...new Set((Array.isArray(sourceIds) ? sourceIds : []).filter(Number.isInteger))]) {
+            const key = profileEvidenceSourceEventKey(captureOperationOwnership('profile-evidence-source', chatKey, chat, id));
+            if (key) sourceEventKeys[id] = key;
+        }
+        return { sourceEventKey: current, sourceEventKeys };
     }
 
 
@@ -734,10 +768,12 @@ export function createNpcStateEngine(adapters = {}) {
             if (!operationOwnershipMatches(ownership) || (expectedSource && !sourceDescriptorMatches(expectedSource, chatKey, chat, messageId))) return { ok: false, discarded: true, reason: 'stale-operation-before-dispatch', messageId };
 
             const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(settings.relationshipHistoryLimit);
+            const candidateNpcIds = relevantNpcsForExchange(state, exchange, 12, resolvePlayerName('', chat, messageId)).map(npc => npc.id);
             const prompt = buildScanPrompt({
                 state,
                 chat,
                 assistantMessageId: messageId,
+                candidateNpcIds,
                 scanDepth: manual ? settings.scanDepth : 2,
                 relationshipCriteria: settings.relationshipCriteria,
                 relationshipCaps: settings.relationshipCaps,
@@ -766,6 +802,7 @@ export function createNpcStateEngine(adapters = {}) {
             working.turn = Math.max(0, Number(working.turn) || 0) + 1;
             const applied = applyScanResult(working, parsed, {
                 sourceMessageId: messageId,
+                ...profileEvidenceSourceOptions(chatKey, chat, messageId, [exchange.user?.id, exchange.assistant?.id].filter(Number.isInteger)),
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 playerName: resolvePlayerName('', chat, messageId),
@@ -783,7 +820,9 @@ export function createNpcStateEngine(adapters = {}) {
                     fallbackDays: settings.birthdayRandomDaysPerMonth,
                 },
                 applyReturnedNpcPatches: true,
+                coverageNpcIds: candidateNpcIds,
                 requireDossierCoverage: true,
+                requireCandidateAccounting: true,
                 applyRelationship: relationshipApplyRequested && !replayProtectedRelationship,
                 repairRelationshipSummary: manual,
             });
@@ -886,6 +925,7 @@ export function createNpcStateEngine(adapters = {}) {
             const baselineState = ensurePreUpdateBaseline(state, liveChat, messageId);
             const applied = applyScanResult(baselineState, parsed, {
                 sourceMessageId: messageId,
+                ...profileEvidenceSourceOptions(chatKey, liveChat, messageId, blocks.map(block => block.messageId).filter(Number.isInteger)),
                 turn: baselineState.turn,
                 preservePresence: true,
                 preserveObservation: true,
@@ -966,6 +1006,7 @@ export function createNpcStateEngine(adapters = {}) {
             const baselineState = ensurePreUpdateBaseline(state, liveChat, messageId);
             const applied = applyScanResult(baselineState, parsed, {
                 sourceMessageId: messageId,
+                ...profileEvidenceSourceOptions(chatKey, liveChat, messageId, profileSourceIdsForWindow(liveChat, messageId, settings.scanDepth)),
                 turn: baselineState.turn,
                 preservePresence: true,
                 preserveObservation: true,
@@ -1735,10 +1776,12 @@ export function createNpcStateEngine(adapters = {}) {
             if (getChatKey() !== chatKey) return pauseRecoveryForChatSwitchUnlocked(chatKey, state);
 
             const ownership = captureOperationOwnership('historical-recovery', chatKey, historicalChat, nextMessageId);
+            const candidateNpcIds = relevantNpcsForExchange(state, exchange, 12, resolvePlayerName('', historicalChat, nextMessageId)).map(npc => npc.id);
             const prompt = buildScanPrompt({
                 state,
                 chat: historicalChat,
                 assistantMessageId: nextMessageId,
+                candidateNpcIds,
                 scanDepth: settings.scanDepth,
                 relationshipCriteria: settings.relationshipCriteria,
                 relationshipCaps: settings.relationshipCaps,
@@ -1803,6 +1846,7 @@ export function createNpcStateEngine(adapters = {}) {
             working.turn = Math.max(0, Number(working.turn) || 0) + 1;
             const applied = applyScanResult(working, parsed, {
                 sourceMessageId: nextMessageId,
+                ...profileEvidenceSourceOptions(chatKey, historicalChat, nextMessageId, [exchange.user?.id, exchange.assistant?.id].filter(Number.isInteger)),
                 turn: working.turn,
                 relationshipCaps: settings.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,
                 playerName: resolvePlayerName('', historicalChat, nextMessageId),
@@ -1818,7 +1862,9 @@ export function createNpcStateEngine(adapters = {}) {
                     fallbackDays: settings.birthdayRandomDaysPerMonth,
                 },
                 applyReturnedNpcPatches: true,
+                coverageNpcIds: candidateNpcIds,
                 requireDossierCoverage: true,
+                requireCandidateAccounting: true,
                 applyRelationship: working.recovery?.relationshipMode === 're-evaluate',
             });
             const relationshipHistoryLimit = normalizeRelationshipHistoryLimit(settings.relationshipHistoryLimit);

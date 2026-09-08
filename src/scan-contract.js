@@ -52,8 +52,11 @@ export function scanOutputContract(options = {}) {
             : 'JSON: all seven arrays required, even empty. References=ids/names. NEW id="", name=canonical name, identityKind=' + SCAN_IDENTITY_KINDS.join('|') + '. EXISTING/name-only: keep supplied id. No canonicalName/activityRefs/live/relationshipToPlayer.',
         compact ? 'NEW ordinary fields are flat; []=string arrays; appearanceForms:[{name,appearance}].' : 'NEW: flat strings; map [] means string arrays; appearanceForms:[{name,appearance}].',
         compact
+            ? 'candidateAccounting maps supplied stable existing NPC ids to evaluated|mentioned|inactive|unresolved; coverage only, never presence. Existing patches may add evidence-only profileObservations for personality|behaviorProfile|speech|mannerisms.'
+            : 'Routine candidateAccounting maps each supplied stable existing NPC id to evaluated|mentioned|inactive|unresolved; it is separate from activity and fieldEvaluations. Existing patches may add evidence-only profileObservations:{field,observation,concept?,sources:[{messageId,excerpt}],explanation?} for personality|behaviorProfile|speech|mannerisms.',
+        compact
             ? 'Evidence={excerpts:[exact quotes],explanation}; identity adds anchor; activity keys=exchangeActive/inChat/worldActive; messageId:null=current.'
-            : 'Evidence:{excerpts:[1-3 exact quotes],explanation}; identityEvidence adds anchor. activityEvidence keys:exchangeActive/inChat/worldActive. Identity/activity=current visible. Semantic messageId:null=current, number=history.',
+            : 'Evidence:{excerpts:[1-3 exact quotes],explanation}; identityEvidence adds anchor. activityEvidence keys:exchangeActive/inChat/worldActive. Identity/activity=current visible. Semantic/observation messageId:null=current, number=history.',
         compact ? '' : 'evaluatedGroups=map groups only. Modern coverage: each applicable ordinary field is proposed or listed once in fieldEvaluations unchanged|insufficient|unavailable; group labels never prove field evaluation.',
         'OUTPUT CONTRACT:\n' + JSON.stringify(examples.minimal),
         (compact

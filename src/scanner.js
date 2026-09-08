@@ -2,6 +2,7 @@ import * as core from './scan-application.js';
 import { normalizeScanPayload, parseScanJson, validateFocusedProposalPayload } from './scan-payload.js';
 import { findNpcByReference, normalizeNpcAdmissionMode, normalizeRelationshipSummary } from './schema.js';
 import { adaptLegacySemanticPayload } from './model/legacy-semantic-adapter.js';
+import { applyProfileObservations } from './profile-observations.js';
 import {
     applyModelLedFamilyFacts,
     applyModelLedSemanticUpdates,
@@ -10,7 +11,7 @@ import {
 } from './model/semantic-updates.js';
 
 export { currentExchange } from './scan-helpers.js';
-export { recentHistory, buildScanPrompt, buildTargetedRefreshPrompt, buildStructuredDossierImportPrompt } from './scan-prompts.js';
+export { recentHistory, relevantNpcsForExchange, buildScanPrompt, buildTargetedRefreshPrompt, buildStructuredDossierImportPrompt } from './scan-prompts.js';
 export { parseScanJson };
 export { keyRelationshipReferencesPlayer, reconcileFamilyGraphState } from './scan-application.js';
 
@@ -29,6 +30,35 @@ export function newNpcAdmissionAllows(patch, mode = 'balanced') {
     const kind = String(patch?.identityKind || '').trim().toLocaleLowerCase().replace(/[_ ]+/g, '-');
     if (policy === 'named_preferred') return ['named', 'proper-name', 'proper'].includes(kind);
     return ['named', 'proper-name', 'proper', 'role-label', 'role', 'unnamed', ''].includes(kind);
+}
+
+function auditCandidateAccounting(state, result, candidateNpcIds = [], exchangeActiveNpcIds = []) {
+    const allowed = new Set(['evaluated', 'mentioned', 'inactive', 'unresolved']);
+    const accounting = result?.candidateAccounting && typeof result.candidateAccounting === 'object' && !Array.isArray(result.candidateAccounting)
+        ? result.candidateAccounting
+        : {};
+    const active = new Set(Array.isArray(exchangeActiveNpcIds) ? exchangeActiveNpcIds : []);
+    const evaluatedNpcIds = [];
+    const diagnostics = [];
+    for (const npcId of Array.isArray(candidateNpcIds) ? candidateNpcIds : []) {
+        const npc = (state?.npcs || []).find(item => item.id === npcId);
+        if (!npc) continue;
+        const status = typeof accounting[npc.id] === 'string' ? accounting[npc.id].trim().toLocaleLowerCase() : '';
+        if (!status) {
+            diagnostics.push({ npcId: npc.id, status: 'missing-candidate-accounting', coverageKind: 'candidate' });
+            continue;
+        }
+        if (!allowed.has(status)) {
+            diagnostics.push({ npcId: npc.id, status: 'invalid-candidate-accounting', coverageKind: 'candidate', reason: status.slice(0, 80) });
+            continue;
+        }
+        if (status === 'evaluated') evaluatedNpcIds.push(npc.id);
+        if (status === 'unresolved') diagnostics.push({ npcId: npc.id, status: 'candidate-unresolved', coverageKind: 'candidate' });
+        if (active.has(npc.id) && status !== 'evaluated') {
+            diagnostics.push({ npcId: npc.id, status: 'candidate-accounting-conflict', coverageKind: 'candidate', reason: `exchange-active-candidate-reported-${status}` });
+        }
+    }
+    return { diagnostics, evaluatedNpcIds };
 }
 
 function currentDynamicCoverage(state, result, npcIds = [], patchResolutions = null, diagnostics = []) {
@@ -83,20 +113,37 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         ...semanticOptions,
         patchResolutions: applied.patchResolutions,
     });
-    const family = applyModelLedFamilyFacts(semantic.state, adapted, options);
+    const observations = applyProfileObservations(semantic.state, adapted, {
+        ...semanticOptions,
+        patchResolutions: applied.patchResolutions,
+        existingNpcIds: new Set((stateInput?.npcs || []).map(npc => npc.id)),
+    });
+    const family = applyModelLedFamilyFacts(observations.state, adapted, options);
     const coverageNpcIds = Array.isArray(options.coverageNpcIds)
         ? options.coverageNpcIds
         : (options.requireDossierCoverage === true ? applied.exchangeActiveNpcIds : []);
-    const ordinaryCoverage = coverageNpcIds.length
-        ? auditDossierEvaluationCoverage(family.state, adapted, { npcIds: coverageNpcIds, patchResolutions: applied.patchResolutions })
+    const candidateAudit = options.requireCandidateAccounting === true
+        ? auditCandidateAccounting(family.state, adapted, coverageNpcIds, applied.exchangeActiveNpcIds)
+        : { diagnostics: [], evaluatedNpcIds: coverageNpcIds };
+    const ordinaryCoverageNpcIds = [...new Set([
+        ...(options.requireCandidateAccounting === true ? candidateAudit.evaluatedNpcIds : coverageNpcIds),
+        ...applied.exchangeActiveNpcIds,
+    ])];
+    const ordinaryCoverage = ordinaryCoverageNpcIds.length
+        ? auditDossierEvaluationCoverage(family.state, adapted, { npcIds: ordinaryCoverageNpcIds, patchResolutions: applied.patchResolutions })
         : [];
-    const coverageDiagnostics = coverageNpcIds.length
-        ? currentDynamicCoverage(family.state, adapted, coverageNpcIds, applied.patchResolutions, ordinaryCoverage)
-        : [];
+    const dynamicCoverageNpcIds = options.requireCandidateAccounting === true ? applied.exchangeActiveNpcIds : ordinaryCoverageNpcIds;
+    const coverageDiagnostics = currentDynamicCoverage(
+        family.state,
+        adapted,
+        dynamicCoverageNpcIds,
+        applied.patchResolutions,
+        [...candidateAudit.diagnostics, ...ordinaryCoverage],
+    );
     return {
         ...applied,
         state: family.state,
-        semanticDiagnostics: [...compatibilityDiagnostics, ...(applied.applicationDiagnostics || []), ...semantic.diagnostics, ...family.diagnostics],
+        semanticDiagnostics: [...compatibilityDiagnostics, ...(applied.applicationDiagnostics || []), ...semantic.diagnostics, ...observations.diagnostics, ...family.diagnostics],
         coverageDiagnostics,
     };
 }

@@ -199,7 +199,8 @@ export function compactForegroundNpc(npc, level = 0, limits = {}) {
         .slice(sizes.evidence > 0 ? -sizes.evidence : 0, sizes.evidence > 0 ? undefined : 0)
         .map(row => ({
             field: clipForegroundText(row?.field, 40),
-            mode: clipForegroundText(row?.mode, 40),
+            kind: row?.kind === 'observation' ? 'observation' : 'applied',
+            ...(row?.kind === 'observation' ? {} : { mode: clipForegroundText(row?.mode, 40) }),
             sourceMessageId: Number.isInteger(row?.sourceMessageId) ? row.sourceMessageId : null,
             evidence: clipForegroundText(row?.evidence, 220),
         }))
@@ -251,7 +252,7 @@ export function compactForegroundNpc(npc, level = 0, limits = {}) {
 
 function npcContentSignature(npc = {}) {
     const formText = (npc.appearanceForms || []).map(form => `${form?.name || ''}:${form?.appearance || ''}`).join('|');
-    const profileEvidence = (npc.profileEvolutionEvidence || []).slice(-6).map(row => `${row?.field || ''}:${row?.mode || ''}:${row?.sourceMessageId ?? ''}:${row?.evidence || ''}`).join('|');
+    const profileEvidence = (npc.profileEvolutionEvidence || []).slice(-6).map(row => `${row?.field || ''}:${row?.kind || ''}:${row?.mode || ''}:${row?.sourceMessageId ?? ''}:${row?.evidence || ''}`).join('|');
     return hashForegroundText([
         npc.id, npc.name, (npc.aliases || []).join('|'), npc.role, npc.species, npc.age, npc.apparentAge, npc.birthday,
         npc.appearance, npc.currentForm, formText, npc.personality, (npc.behaviorProfile || []).join('|'), npc.speech,

@@ -22,6 +22,17 @@ function canonicalIdentityKind(value) {
     return !key || SCAN_IDENTITY_KINDS.includes(key) ? key : (has(LEGACY_IDENTITY_KINDS, key) ? LEGACY_IDENTITY_KINDS[key] : null);
 }
 
+function normalizedCandidateAccounting(value) {
+    if (!object(value)) return {};
+    const out = {};
+    for (const [rawId, rawStatus] of Object.entries(value).slice(0, 100)) {
+        const id = String(rawId || '').trim().slice(0, 160);
+        if (!id) continue;
+        out[id] = typeof rawStatus === 'string' ? rawStatus.trim().toLocaleLowerCase().slice(0, 40) : '';
+    }
+    return out;
+}
+
 function npcIssues(npc, index, issues) {
     const path = `npcs[${index}]`;
     if (!object(npc)) { issues.push(`${path}: expected object-with-string-identity`); return; }
@@ -125,6 +136,7 @@ export function normalizeScanPayload(parsed, { requireContract = true, allowOmit
         socialEdges: Array.isArray(parsed.socialEdges) ? parsed.socialEdges.slice(0, 100) : [],
         familyFacts: Array.isArray(parsed.familyFacts) ? parsed.familyFacts.slice(0, 100) : [],
         lifeStateUpdates: Array.isArray(parsed.lifeStateUpdates) ? parsed.lifeStateUpdates.slice(0, 100) : [],
+        candidateAccounting: normalizedCandidateAccounting(parsed.candidateAccounting),
     };
 }
 

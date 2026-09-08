@@ -2,6 +2,16 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.16
+
+- Audit the same bounded existing-NPC candidate set supplied to routine Scan independently of model-returned activity arrays; candidate accounting is model-judged and remains separate from physical presence and ordinary field completeness.
+- Treat missing, unresolved, conflicting, or legacy-omitted candidate accounting as honest partial semantic coverage while still applying valid compatible sibling proposals.
+- Allow grounded personality, Behavioral Profile, Speech, and Mannerisms observations to persist without forcing a field mutation, using the existing bounded `profileEvolutionEvidence` store and accepted patch/source ownership.
+- Keep observation-only evidence and related applied profile changes from double-counting the same owned source fact; independent later exchanges may accumulate support while edits/swipes/deletions restore evidence through existing checkpoints.
+- Clarify model-led refinement/development semantics and compact substantially overlapping Behavioral Profile/Mannerism entries through existing targeted collection operations without hardcoded phrase dictionaries.
+- Preserve one normal automatic post-response scanner request, bounded current-exchange authority, deterministic relationship mechanics, manual locks, guarded persistence, rollback/recovery, and portrait-ready appearance behavior.
+- Historical enrichment/recent-history backfill remains intentionally deferred. No database reset, persisted/settings schema change, storage migration, full-cast Refresh loop, supplemental completeness request, or embedded extraction is introduced.
+
 ## 0.5.15
 
 - Run a repository/runtime hygiene pass without changing NPC data semantics, persisted/settings schema, storage identity, relationship mechanics, model contract shape, or rollback/recovery behavior.
