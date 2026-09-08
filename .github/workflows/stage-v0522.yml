@@ -1,0 +1,36 @@
+name: NPC State Stage v0.5.22
+
+on:
+  push:
+    branches:
+      - fix/v0.5.22-current-dynamic-final2
+    paths:
+      - ".github/workflows/stage-v0522.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply exact reviewed v0.5.22 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .stage/v0522/part-* > /tmp/release.b64
+          echo "637d47b3461de80179cba96cfb81349b7bc9a4d4939604635a9666180111e603  /tmp/release.b64" | sha256sum -c -
+          base64 -d /tmp/release.b64 | gzip -d > /tmp/release.patch
+          echo "772c079687561886e4a520e059d7e95eb334286643bb308d9389400e2ddfa797  /tmp/release.patch" | sha256sum -c -
+          git apply --check /tmp/release.patch
+          git apply /tmp/release.patch
+          rm -rf .stage/v0522 .github/workflows/stage-v0522.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: repair grounded Current Dynamic for v0.5.22"
+          git push
