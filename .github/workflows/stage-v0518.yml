@@ -1,0 +1,35 @@
+name: NPC State Stage v0.5.18
+
+on:
+  push:
+    branches:
+      - perf/v0.5.18-prompt-compaction
+    paths:
+      - '.github/workflows/stage-v0518.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          ref: perf/v0.5.18-prompt-compaction
+          fetch-depth: 0
+      - name: Apply exact tested v0.5.18 patch
+        shell: bash
+        run: |
+          base64 -d .npc-state-v0518.patch.gz.b64 | gzip -d > /tmp/v0518.patch
+          echo "10a18245a0fb6ae0d3d04669a4fc2e7c93d9a437a642cf43dcadbfe2faa2752d  /tmp/v0518.patch" | sha256sum -c -
+          git apply --check /tmp/v0518.patch
+          git apply /tmp/v0518.patch
+          rm .npc-state-v0518.patch.gz.b64
+          rm .github/workflows/stage-v0518.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "perf: compact scanner prompts for v0.5.18"
+          git push origin HEAD:perf/v0.5.18-prompt-compaction
