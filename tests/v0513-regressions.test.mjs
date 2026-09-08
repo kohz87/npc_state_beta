@@ -43,7 +43,7 @@ test('MESSAGE_RECEIVED delegates to the single scanner recursion guard and conta
     const source = fs.readFileSync(path.join(root, 'src/index.js'), 'utf8');
     assert.doesNotMatch(source, /\bscannerGenerationDepth\b/);
     assert.match(source, /MESSAGE_RECEIVED[\s\S]{0,260}void processCompletedAssistantResponse\(messageId\)/);
-    assert.match(source, /processCompletedAssistantResponse\(messageId\)[\s\S]{0,220}scannerGenerationInvocationDepth > 0/);
+    assert.match(source, /export function processCompletedAssistantResponse\(messageId\)\s*\{\s*if \(scannerGenerationInvocationDepth > 0\)/);
 });
 
 test('blank Current Dynamic must be explicitly evaluated instead of silently omitted', () => {
