@@ -122,7 +122,7 @@ test('production application accepts shortened dialogue evidence for activity an
     assert.deepEqual(maren.relationship, { trust: 0, affection: 0, desire: 0, tension: 0 });
     assert.equal(maren.relationshipHistory.length, 0);
     assert.equal(maren.relationshipEvidenceHistory.length, 0);
-    assert.ok(result.state.activeNpcIds.includes(maren.id));
+    assert.ok(result.exchangeActiveNpcIds.includes(maren.id));
     const diagnostic = result.semanticDiagnostics.find(row => row.field === 'relationshipSummary');
     assert.equal(diagnostic?.status, 'applied');
 });
