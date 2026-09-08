@@ -1,0 +1,17 @@
+name: post-response source export
+on:
+  push:
+    branches: [automation/post-response-source2]
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive exact checkout
+        run: |
+          git rev-parse HEAD
+          tar --exclude=.git --exclude=.github/workflows/post-response-export.yml -czf /tmp/source.tgz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: post-response-source
+          path: /tmp/source.tgz
