@@ -1,0 +1,43 @@
+name: Review-fix v0.5.32
+
+on:
+  push:
+    branches:
+      - fix/v0532-first-contact-completion
+    paths:
+      - .github/workflows/v0532-review-fix.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  review-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply review corrections
+        run: python3 scripts/v0532_review_fix.py
+      - name: Validate
+        run: npm run validate
+      - name: Test
+        run: npm test
+      - name: Package
+        run: npm run package
+      - name: Measure prompts
+        run: npm run measure:scan-prompts
+      - name: Diff check
+        run: git diff --check
+      - name: Commit corrected reviewed candidate
+        run: |
+          rm scripts/v0532_review_fix.py .github/workflows/v0532-review-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'tighten: first-contact completion review corrections'
+          git push origin HEAD:fix/v0532-first-contact-completion
