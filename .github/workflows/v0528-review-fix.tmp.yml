@@ -1,0 +1,59 @@
+name: v0528 review correction
+
+on:
+  push:
+    branches: [release/v0.5.28]
+
+permissions:
+  contents: write
+
+jobs:
+  review-fix:
+    if: contains(github.event.head_commit.message, 'apply v0.5.28 review correction')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/v0.5.28
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply bounded review correction
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const appPath = 'src/scan-application.js';
+          let app = fs.readFileSync(appPath, 'utf8');
+          const replacements = [
+            ["humanIdentityCandidate(record.anchor, patch?.role)", "humanIdentityCandidate(record.anchor)"],
+            ["humanIdentityCandidate(identityEvidenceRecord(candidate)?.anchor, candidate?.role)", "humanIdentityCandidate(identityEvidenceRecord(candidate)?.anchor)"],
+          ];
+          for (const [before, after] of replacements) {
+            const count = app.split(before).length - 1;
+            if (count !== 1) throw new Error(`expected exactly one review target for ${before}, found ${count}`);
+            app = app.replace(before, after);
+          }
+          fs.writeFileSync(appPath, app);
+
+          const testPath = 'tests/v0528-world-identity-enrichment.test.mjs';
+          let tests = fs.readFileSync(testPath, 'utf8');
+          const regression = `\n\ntest('visible identity anchor may exactly equal the proposed unique role without becoming a canonical-name shortcut', () => {\n  const visible = 'The Guild intake clerk points to the ledger and waits.';\n  const patch = namedPatch({ anchor: 'Guild intake clerk', role: 'Guild intake clerk', identityExcerpt: visible });\n  const result = apply(payload([patch]), visible, policy(visible, { present: 'Maren Keller: Guild Intake Clerk' }));\n  const npc = result.state.npcs.find(row => row.name === 'Maren Keller');\n  assert.ok(npc);\n  assert.equal(result.patchResolutions[0].status, 'accepted');\n});\n`;
+          if (tests.includes("visible identity anchor may exactly equal the proposed unique role")) throw new Error('review regression already present');
+          tests += regression;
+          fs.writeFileSync(testPath, tests);
+          NODE
+      - name: Required release checks after review fix
+        run: |
+          npm run validate
+          npm test
+          npm run package
+          npm run measure:scan-prompts
+      - name: Commit reviewed candidate
+        run: |
+          rm .github/workflows/v0528-review-fix.tmp.yml
+          git config user.name "kohz87"
+          git config user.email "83744063+kohz87@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: accept exact visible role identity anchors"
+          git push origin HEAD:release/v0.5.28
