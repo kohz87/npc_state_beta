@@ -1,0 +1,111 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 43d8383..7205366 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,16 @@
+ 
+ This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
+ 
++## 0.5.16
++
++- Audit the same bounded existing-NPC candidate set supplied to routine Scan independently of model-returned activity arrays; candidate accounting is model-judged and remains separate from physical presence and ordinary field completeness.
++- Treat missing, unresolved, conflicting, or legacy-omitted candidate accounting as honest partial semantic coverage while still applying valid compatible sibling proposals.
++- Allow grounded personality, Behavioral Profile, Speech, and Mannerisms observations to persist without forcing a field mutation, using the existing bounded `profileEvolutionEvidence` store and accepted patch/source ownership.
++- Keep observation-only evidence and related applied profile changes from double-counting the same owned source fact; independent later exchanges may accumulate support while edits/swipes/deletions restore evidence through existing checkpoints.
++- Clarify model-led refinement/development semantics and compact substantially overlapping Behavioral Profile/Mannerism entries through existing targeted collection operations without hardcoded phrase dictionaries.
++- Preserve one normal automatic post-response scanner request, bounded current-exchange authority, deterministic relationship mechanics, manual locks, guarded persistence, rollback/recovery, and portrait-ready appearance behavior.
++- Historical enrichment/recent-history backfill remains intentionally deferred. No database reset, persisted/settings schema change, storage migration, full-cast Refresh loop, supplemental completeness request, or embedded extraction is introduced.
++
+ ## 0.5.15
+ 
+ - Run a repository/runtime hygiene pass without changing NPC data semantics, persisted/settings schema, storage identity, relationship mechanics, model contract shape, or rollback/recovery behavior.
+diff --git a/DEVELOPMENT.md b/DEVELOPMENT.md
+index 37c6af3..4088ae5 100644
+--- a/DEVELOPMENT.md
++++ b/DEVELOPMENT.md
+@@ -4,7 +4,7 @@ The authoritative behavior and ownership specification is [`docs/core-contract.m
+ 
+ ## Current boundaries
+ 
+-- Extension release: `0.5.15`
++- Extension release: `0.5.16`
+ - Persisted state schema: `1`
+ - Settings schema: `1`
+ - Model semantic update contract: `6`
+@@ -18,6 +18,7 @@ The 0.5.x release line intentionally keeps the newer consolidated architecture u
+ - `src/schema.js`: persisted state normalization, ownership metadata and snapshot shape.
+ - `src/model/dossier-fields.js`: ordinary semantic field registry.
+ - `src/model/semantic-updates.js`: ordinary semantic validation/application and coverage diagnostics.
++- `src/profile-observations.js`: bounded evidence-only profile observations using accepted patch identity and semantic source validation.
+ - `src/scan-contract.js`: shared response envelope, identity classifications, and literal parser-tested examples.
+ - `src/scanner.js` plus `src/scan-*.js`: model response boundary and focused identity/relationship/lifecycle/graph handlers.
+ - `src/foreground-contract.js`, `src/foreground-context.js` and `src/injection.js`: continuity-only foreground selection, compaction and local prompt diagnostics.
+diff --git a/README.md b/README.md
+index d825fec..7625642 100644
+--- a/README.md
++++ b/README.md
+@@ -2,15 +2,16 @@
+ 
+ NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
+ 
+-## Release 0.5.15
++## Release 0.5.16
+ 
+-0.5.15 is a hygiene release over the consolidated 0.5.x architecture. It does not change the persisted/settings schema, storage identity, relationship mechanics, scanner contract shape, or recovery model. The release synchronizes maintenance documentation, removes stale release branding, and strengthens repository validation so release-facing documentation cannot silently drift behind the runtime version.
++0.5.16 improves grounded observation and dossier completeness without adding another automatic model request or changing the persisted/settings schema, storage identity, relationship mechanics, or recovery model.
+ 
+ Recent 0.5.x refinements retained by this release include:
+ 
+ - **0.5.13:** grounded first-pass dossier extraction for descriptive apparent age, concise workplace/affiliation background, neutral first-contact Current Dynamic, appearance fidelity, and non-habitual behavior evidence.
+ - **0.5.14:** model-led apparent-age ranges such as `~20-30`, resolved deterministically to one stable per-NPC value such as `~24` without converting Apparent Age into chronological Actual Age.
+-- **0.5.15:** repository/runtime hygiene only; no NPC database rebuild or migration.
++- **0.5.15:** repository/runtime hygiene and portrait-ready overall appearance synthesis.
++- **0.5.16:** independent bounded candidate accounting, observation-only profile evidence, and model-led profile consolidation/refinement semantics while retaining one post-response scanner request.
+ 
+ The automatic workflow remains:
+ 
+@@ -22,13 +23,13 @@ Before the next ordinary generation, NPC State uses SillyTavern's awaited genera
+ 
+ ### Scanner scope
+ 
+-Routine automatic Scan and manual **Scan current cast** treat the latest completed assistant message and its preceding user message as new-event evidence. At most two earlier non-system messages may be supplied as bounded reference context for antecedents; they are not new-event evidence. Relevant identity context accepts exact names/aliases and unique unambiguous short-name mentions, including explicitly mentioned archived/deceased dossiers; ambiguous short names are never guessed. Unrelated roster growth does not expand every routine scan.
++Routine automatic Scan and manual **Scan current cast** treat the latest completed assistant message and its preceding user message as new-event evidence. At most two earlier non-system messages may be supplied as bounded reference context for antecedents; they are not new-event evidence. Relevant identity context accepts exact names/aliases and unique unambiguous short-name mentions, including explicitly mentioned archived/deceased dossiers; ambiguous short names are never guessed. The same bounded existing-NPC candidate set is supplied to the model and audited afterward. Candidate accounting is separate from physical presence/activity and from field-level completeness, so an omitted NPC cannot disappear from coverage merely because the model also omitted it from activity arrays. Unrelated roster growth does not expand every routine scan.
+ 
+ **Refresh** reconciles one NPC over bounded history. Historical recovery reconstructs surviving exchanges sequentially from a trustworthy baseline. All story mutations continue through the same guarded commit/checkpoint path.
+ 
+ ### Dossier completeness and safety
+ 
+-The scanner contract supports realistically populated new NPCs, explicit insufficient-evidence outcomes, field-level evaluation metadata, and zero-delta Current Dynamic. Unsupported facts remain unknown. A sparse valid payload may still commit its supported facts, while diagnostics report unaccounted fields separately from persistence success.
++The scanner contract supports realistically populated new NPCs, compact existing-candidate accounting, explicit insufficient-evidence outcomes, field-level evaluation metadata, observation-only profile evidence, and zero-delta Current Dynamic. Unsupported facts remain unknown. A sparse valid payload may still commit its supported facts, while candidate/field diagnostics report unaccounted work separately from persistence success. Older compatible responses may still apply valid proposals but cannot falsely report complete candidate coverage.
+ 
+ Current Dynamic may establish a neutral professional, transactional, adversarial, supervisory, or other role-defined relationship even when Trust/Affection/Desire/Tension remain zero. Numeric relationship movement is separate and still requires its own validated evidence.
+ 
+@@ -51,9 +52,9 @@ Obsolete `scanAfterEachResponse`, `fallbackScan`, and `newNpcHistoryEnrichment`
+ 
+ ## Relationship and profile behavior
+ 
+-Existing dossiers evolve through the single `semanticUpdates` channel (`establish`, `refine`, `replace`, `remove`). The model judges narrative meaning; deterministic code validates source ownership, target identity, durability, manual locks, collection/form targeting, and permitted fields. Applied personality, behavioral-profile, speech, and mannerism changes append bounded source-owned `profileEvolutionEvidence`, so later exchanges can distinguish accumulated development from same-source retries.
++Existing dossiers evolve through the single `semanticUpdates` channel (`establish`, `refine`, `replace`, `remove`). The model judges narrative meaning; deterministic code validates source ownership, target identity, durability, manual locks, collection/form targeting, and permitted fields. Personality, behavioral profile, speech, and mannerisms may also record bounded grounded observations without forcing an immediate dossier mutation. Observation-only and applied-change evidence share the existing `profileEvolutionEvidence` store and commit through the same guarded transaction/checkpoint; same-source retries and an observation that also supports an applied update do not manufacture independent evidence.
+ 
+-Temporary states such as sleep, unconsciousness, one-off poses, or momentary mood do not automatically become permanent personality/speech. Later grounded evidence may enrich or replace an obsolete placeholder. Collection entries can be edited at capacity through stable refs without evicting unrelated items.
++Temporary states such as sleep, unconsciousness, one-off poses, injury, stress, or momentary mood do not automatically become permanent personality/speech. Later grounded evidence may enrich or replace an obsolete placeholder. Behavioral Profile and Mannerisms may consolidate substantially overlapping established entries through targeted collection refs while preserving distinct facts and unrelated entries. Semantic overlap remains model-led rather than hardcoded in English dictionaries.
+ 
+ Player relationship meters remain deterministic: Trust, Affection, Desire, and Tension use configured caps, gates, inertia, fractional progress, milestones, evidence history, and replay protection.
+ 
+@@ -67,14 +68,14 @@ User-owned portraits, locks, manual corrections, importance, and suppression tom
+ 
+ Current boundaries:
+ 
+-- Release label: **0.5.15**
++- Release label: **0.5.16**
+ - Persisted state schema: **1**
+ - Settings schema: **1**
+ - Model semantic contract: **6**
+ - Foreground continuity contract: **8**
+ - Storage identity: **`npc_state_beta.v3`**
+ 
+-No database reset, rebuild, or storage-key migration is required.
++No database reset, rebuild, or storage-key migration is required. Automatic historical enrichment/backfill remains intentionally deferred; this release does not add a raw-history window or follow-up scanner request.
+ 
+ Old `<npc_state_v1>` text is ignored/stripped only where needed for historical canonicalization and prompt cleanliness so older chats do not diverge merely because transport text remains. New automatic processing does not consume embedded payloads.
+ 
