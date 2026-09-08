@@ -26,8 +26,9 @@ jobs:
           for patch in scripts/v0516-part-*.patch; do
             git apply "$patch"
           done
+          cat scripts/v0516-test-*.part > tests/v0516-grounded-observation.test.mjs
           git checkout origin/main -- .github/workflows/ci.yml
-          rm -f scripts/v0516-part-*.patch scripts/stage-v0516.mjs
+          rm -f scripts/v0516-part-*.patch scripts/v0516-test-*.part scripts/stage-v0516.mjs
           git add -A
           git diff --cached --check
           git config user.name "github-actions[bot]"
