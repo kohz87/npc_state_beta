@@ -360,15 +360,24 @@ function quotedDialogueSegments(value) {
     return out;
 }
 
+function wholeQuotedExcerptInterior(excerpt) {
+    const text = relationshipPresentationComparable(excerpt).trim();
+    if (!text) return '';
+    const close = ({ '"': '"', '“': '”', '„': '”', '«': '»', '‘': '’' })[text[0]] || '';
+    if (!close || text.at(-1) !== close) return '';
+    return relationshipQuoteComparable(text.slice(1, -1), 1200);
+}
+
 function excerptInsideQuotedDialogue(excerpt, sourceText) {
     const quote = relationshipQuoteComparable(excerpt, 1200);
     if (!quote) return false;
     // quotedDialogueSegments() intentionally returns the content between delimiters. Model
-    // excerpts may preserve those outer quote marks, so compare both the literal comparable
-    // form and one safely unwrapped whole-quote form. Do not unwrap a mixed excerpt that
-    // starts in dialogue and continues into narration.
-    const wholeQuoted = quote.match(/^"([\s\S]*)"$/u);
-    const candidates = [...new Set([quote, wholeQuoted?.[1]?.trim()].filter(Boolean))];
+    // excerpts may preserve or add harmless outer quote marks around a verbatim slice, so
+    // compare both the literal form and a safely unwrapped whole-quote interior. A mixed
+    // dialogue-to-narration excerpt is not one whole quoted slice and therefore cannot use
+    // this path.
+    const wholeQuotedInterior = wholeQuotedExcerptInterior(excerpt);
+    const candidates = [...new Set([quote, wholeQuotedInterior].filter(Boolean))];
     return quotedDialogueSegments(sourceText).some(segment => {
         const comparable = relationshipQuoteComparable(segment, 40000);
         return candidates.some(candidate => comparable.includes(candidate));
@@ -378,15 +387,25 @@ function excerptInsideQuotedDialogue(excerpt, sourceText) {
 export function relationshipEvidenceExcerptMatch(excerpt, sources = []) {
     const quote = relationshipQuoteComparable(excerpt, 1200);
     if (!quote) return null;
+    const wholeQuotedInterior = wholeQuotedExcerptInterior(excerpt);
     for (const raw of Array.isArray(sources) ? sources.slice(0, 8) : []) {
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
         const sourceText = String(raw.text || '');
         const source = relationshipQuoteComparable(sourceText, 40000);
-        if (!source || !source.includes(quote)) continue;
+        if (!source) continue;
+        const directMatch = source.includes(quote);
+        // A model may quote only a verbatim prefix/middle/suffix of a longer spoken line and
+        // add its own closing quote delimiter. Treat those outer delimiters as presentation
+        // only when the unwrapped interior is still an exact substring of ONE quoted-dialogue
+        // segment in this same permitted source. Never stitch across dialogue segments or
+        // fall back to narration, and never relax the exact interior text itself.
+        const quotedSliceMatch = !directMatch && Boolean(wholeQuotedInterior) && quotedDialogueSegments(sourceText).some(segment =>
+            relationshipQuoteComparable(segment, 40000).includes(wholeQuotedInterior));
+        if (!directMatch && !quotedSliceMatch) continue;
         return {
             sourceId: String(raw.id || 'relationship-source').trim().slice(0, 80),
             kind: ['visible', 'inner'].includes(String(raw.kind || '').trim()) ? String(raw.kind).trim() : 'visible',
-            insideQuotedDialogue: excerptInsideQuotedDialogue(excerpt, sourceText),
+            insideQuotedDialogue: quotedSliceMatch || excerptInsideQuotedDialogue(excerpt, sourceText),
         };
     }
     return null;
