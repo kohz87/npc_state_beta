@@ -11,7 +11,7 @@ import {
 } from './model/semantic-updates.js';
 
 export { currentExchange } from './scan-helpers.js';
-export { SCAN_SYSTEM_PROMPT, recentHistory, relevantNpcsForExchange, buildScanPrompt, buildTargetedRefreshPrompt, buildStructuredDossierImportPrompt } from './scan-prompts.js';
+export { SCAN_SYSTEM_PROMPT, recentHistory, relevantNpcsForExchange, buildScanPrompt, buildFirstContactCompletionPrompt, buildTargetedRefreshPrompt, buildStructuredDossierImportPrompt } from './scan-prompts.js';
 export { parseScanJson };
 export { keyRelationshipReferencesPlayer, reconcileFamilyGraphState } from './scan-application.js';
 

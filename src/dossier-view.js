@@ -95,17 +95,13 @@ function paragraphHtml(value, empty = 'Unknown') {
     return `<p${clean ? '' : ' class="npc-state-muted"'}>${escapeHtml(clean || empty)}</p>`;
 }
 
-function birthdayIsGenerated(npc = {}) {
-    return npc?.birthdayProvenance === 'generated';
-}
-
 function identityText(npc = {}) {
     return [
         npc.species,
         npc.role,
         npc.age ? `Actual age ${npc.age}` : '',
         npc.apparentAge ? `Looks ${npc.apparentAge}` : '',
-        npc.birthday ? `Birthday ${npc.birthday}${birthdayIsGenerated(npc) ? ' (generated)' : ''}` : '',
+        npc.birthday ? `Birthday ${npc.birthday}` : '',
     ].filter(Boolean).join(' · ');
 }
 
@@ -364,7 +360,7 @@ export function dossierHtml(npc, { showDiagnostics = false } = {}) {
           <div class="npc-state-v3-current-grid">
             ${currentFact('Actual age', npc.age)}
             ${currentFact('Apparent age', npc.apparentAge)}
-            ${currentFact(birthdayIsGenerated(npc) ? 'Birthday (generated)' : 'Birthday', npc.birthday)}
+            ${currentFact('Birthday', npc.birthday)}
             ${currentFact('Mood', npc.mood)}
             ${currentFact('Location', npc.location)}
             ${currentFact('Goal', npc.goal)}

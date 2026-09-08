@@ -2,9 +2,9 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.31
+## Release 0.5.32
 
-0.5.31 tightens first-pass field accounting so directly supported values from each field's already permitted current source are proposed instead of reflexively marked insufficient. Current NPC_Inner_Chatter remains narrowly authoritative for stated private mood/goal context only. Generated birthday fallback values now retain visible provenance through compact scanner context and dossier presentation instead of looking like narrative canon. One post-response scan and continuity-only foreground injection remain unchanged.
+0.5.32 makes first-contact creation more robust without turning every turn into a double scan. A successful automatic admission may perform one bounded completion request for only the newly admitted NPC's still-unresolved ordinary dossier fields, using the same current exchange and the same evidence firewall, before one persistence/checkpoint. It cannot repaint already-populated fields or change cast presence, relationships, lifecycle, or graph state. Deterministically generated birthdays remain internally tracked but are presented and supplied to normal scanner continuity as ordinary stable birthdays, without a `generated` label.
 
 Recent 0.5.x refinements retained by this release include:
 
@@ -27,12 +27,13 @@ Recent 0.5.x refinements retained by this release include:
 - **0.5.29:** carry accepted World_State canonical-name enrichment into zero-delta Current Dynamic target binding without weakening other summary-target safeguards.
 - **0.5.30:** retain source-owned profile observations for newly admitted NPCs and clarify first-contact profile establishment without adding another scan.
 - **0.5.31:** re-check permitted current evidence before `insufficient`, and expose synthetic birthday provenance in compact scanner context and dossier UI.
+- **0.5.32:** add a new-admission-only current-exchange completion request inside the same automatic operation, and return deterministic birthday provenance to internal-only bookkeeping.
 
 The automatic workflow remains:
 
-`compact continuity -> visible roleplay response -> one dedicated post-response scan -> validate/apply -> guarded persistence/checkpoint -> refresh continuity/UI`
+`compact continuity -> visible roleplay response -> dedicated post-response scan -> optional new-admission completion -> validate/apply -> guarded persistence/checkpoint -> refresh continuity/UI`
 
-Roleplay generation does not emit `<npc_state_v1>` or other NPC JSON. Foreground injection is continuity-only. `autoScan=true` means one dedicated scanner request after each completed assistant revision. Duplicate host completion events share the same logical job; edits, swipes, deletion, branch changes, and chat switches invalidate stale work.
+Roleplay generation does not emit `<npc_state_v1>` or other NPC JSON. Foreground injection is continuity-only. `autoScan=true` means one logical dedicated scan operation after each completed assistant revision. Ordinary existing-cast turns use one provider request; only a turn that actually admits a new NPC may use one additional bounded first-contact completion request before the same guarded commit. Duplicate host completion events share the same logical job; edits, swipes, deletion, branch changes, and chat switches invalidate stale work.
 
 Before the next ordinary generation, NPC State uses SillyTavern's awaited generation interceptor to settle the preceding response's owning scan and rebuild continuity. The recursion bypass exists only while invoking the scanner's own host generation call; ordinary roleplay work cannot inherit scanner privileges. A failed or timed-out owning scan exposes an actionable Retry state and aborts the attempted next generation instead of silently using unsynchronized state.
 
@@ -58,7 +59,7 @@ New-NPC bootstrap, existing semantic updates, manual/import boundaries, and pers
 
 Important settings include:
 
-- **Auto scan**: one dedicated post-response scanner request.
+- **Auto scan**: one dedicated post-response scan operation; newly admitted NPCs may receive one bounded current-exchange completion request before commit.
 - **Inject NPC continuity**: independent continuity context for roleplay generation.
 - **NPC scan connection profile**: optional alternate model route for scanner requests. A missing/changed configured profile is an explicit error, not silent fallback to the main roleplay connection.
 - **Scanner output tokens**: adjustable up to 15,000.

@@ -68,12 +68,12 @@ function setProvider(h, payload, hook = null) {
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
 
 
-test('automatic post-response scan populates supported new dossier fields with one request and duplicate completion is idempotent', () => withHost(async h => {
+test('automatic post-response scan may complete a newly admitted dossier with a second bounded request and duplicate completion is idempotent', () => withHost(async h => {
     installBessaChat(h);
     setProvider(h, payloadForBessa(completeFields()));
     const first = await h.entry.processCompletedAssistantResponse(1);
     assert.equal(first.ok, true);
-    assert.equal(h.metrics.generations, 1);
+    assert.equal(h.metrics.generations, 2);
     assert.equal(h.metrics.posts, 1);
     assert.equal(/<npc_state_v1/i.test(h.context.chat[1].mes), false);
     const bessa = h.persisted().npcs.find(npc => npc.name === 'Bessa Vond');
@@ -89,7 +89,7 @@ test('automatic post-response scan populates supported new dossier fields with o
 
     const second = await h.entry.processCompletedAssistantResponse(1);
     assert.equal(second.ok, true);
-    assert.equal(h.metrics.generations, 1);
+    assert.equal(h.metrics.generations, 2);
     assert.equal(h.metrics.posts, 1);
 }, { settings: { birthdayFillMode: 'off' } }));
 
@@ -161,7 +161,7 @@ test('next-generation interceptor waits for preceding scan after user append and
     assert.equal(scan.ok, true);
     assert.equal(aborted, false);
     assert.equal(nestedAborted, false);
-    assert.equal(h.metrics.generations, 1);
+    assert.equal(h.metrics.generations, 2);
     assert.equal(h.persisted().lastScannedMessageId, 1);
 }));
 

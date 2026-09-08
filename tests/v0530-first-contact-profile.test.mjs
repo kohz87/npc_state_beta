@@ -120,7 +120,7 @@ for (const mode of ['save', 'conflict', 'stale']) {
         };
         if (mode === 'conflict') h.beforeWrite = () => ({ ok: false, status: 409, text: async () => 'fixture conflict' });
         const result = await h.entry.processCompletedAssistantResponse(1);
-        assert.equal(h.metrics.generations, 1);
+        assert.equal(h.metrics.generations, mode === 'stale' ? 1 : 2);
         if (mode === 'save') {
             assert.equal(result.ok, true);
             const npc = h.persisted().npcs[0];
