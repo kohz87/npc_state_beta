@@ -53,12 +53,12 @@ append_before('scripts/measure-scan-prompts.mjs', measurement_marker, measuremen
 replace_once(
     'tests/v0532-first-contact-completion.test.mjs',
     "    const npc = { ...state.npcs[0], id: 'npc-tessa', name: 'Tessa Morren', role: 'Guild intake clerk', goal: '' };",
-    "    const npc = { ...state.npcs[0], id: 'npc-tessa', name: 'Tessa Morren', role: 'Guild intake clerk', personality: 'Stored personality marker.', goal: '' };",
+    "    const npc = { ...state.npcs[0], id: 'npc-tessa', name: 'Tessa Morren', role: 'Guild intake clerk', goal: '' };",
 )
 replace_once(
     'tests/v0532-first-contact-completion.test.mjs',
     "    assert.doesNotMatch(prompt, /OLDER REFERENCE CONTEXT|CHAT WINDOW \\(bounded operation evidence\\)/);\n});",
-    "    assert.doesNotMatch(prompt, /OLDER REFERENCE CONTEXT|CHAT WINDOW \\(bounded operation evidence\\)/);\n    assert.equal((prompt.match(/Stored personality marker\\./g) || []).length, 1, 'target dossier should be serialized once');\n});",
+    "    assert.doesNotMatch(prompt, /OLDER REFERENCE CONTEXT|CHAT WINDOW \\(bounded operation evidence\\)/);\n    assert.match(prompt, /ADMITTED TARGETS AND ONLY FIELDS TO RECHECK:\\n\\[{\\\"id\\\":\\\"npc-tessa\\\",\\\"name\\\":\\\"Tessa Morren\\\",\\\"unresolvedFields\\\":\\[\\\"goal\\\",\\\"mood\\\"\\]}/);\n    assert.doesNotMatch(prompt, /\\\"dossier\\\":/);\n});",
 )
 
 negative_test = r'''
