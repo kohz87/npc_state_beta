@@ -2,6 +2,13 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.26
+
+- Make descriptive Current Dynamic player binding POV-independent. Direct grounding now recognizes first-person references in the current USER source, second-person references in ASSISTANT narration, and explicit PC naming without treating quoted dialogue pronouns as direct authority.
+- Add a same-operation exchange binding fallback for dialogue-only and third-person prose: when the NPC's identity, exchangeActive status, and exact activityEvidence are already accepted, relationshipSummaryEvidence may reuse that same NPC-owned evidence from one permitted source without repeating a literal PC pronoun.
+- Preserve fail-closed boundaries: unowned same-scene quotations, cross-source borrowing, explicit known other-NPC addressees, fabricated evidence, and isolated quoted `you` outside the accepted NPC activity remain rejected. Numeric relationship scoring, gates, inertia, milestones, replay protection, and storage schema stay unchanged.
+- Add production regressions for first-person USER prose, second-person NPC dialogue, third-person pronoun prose, known-other-addressee rejection, and unowned-dialogue rejection. Update Scan/Refresh contract wording and source-role evidence metadata without adding another model request or provider-specific behavior.
+
 ## 0.5.25
 
 - Generalize exact relationship evidence matching for wholly quoted model excerpts that are verbatim slices of a longer source dialogue. Outer quote delimiters may be ignored only when the unwrapped interior matches exactly inside one quoted-dialogue segment of the same permitted source.

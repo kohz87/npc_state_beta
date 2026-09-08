@@ -174,11 +174,17 @@ function identityMentioned(excerpt, names = [], otherNames = []) {
         containsNormalizedPhrase(excerpt, candidate) && !identityShortTokenAmbiguous(candidate, otherNames));
 }
 
-function playerMentioned(excerpt, playerName, npcNames = [], { allowNarratorSecondPerson = true } = {}) {
+function playerMentioned(excerpt, playerName, npcNames = [], { allowNarratorSecondPerson = true, sourceRole = '' } = {}) {
     if (containsNormalizedPhrase(excerpt, playerName) && !identityShortTokenAmbiguous(playerName, npcNames)) return true;
     const short = shortActivityIdentityCandidates({ name: playerName, aliases: [] });
     if (short.some(candidate => containsNormalizedPhrase(excerpt, candidate) && !identityShortTokenAmbiguous(candidate, npcNames))) return true;
-    return allowNarratorSecondPerson && /\b(?:you|your|yours|yourself)\b/i.test(narrationOutsideQuotedDialogue(excerpt));
+    const narration = narrationOutsideQuotedDialogue(excerpt);
+    // POV-sensitive pronouns are only direct authority when the message role makes their
+    // referent structural rather than guessed: USER first person is the PC, while ASSISTANT
+    // narrator second person addresses the PC. Dialogue pronouns stay non-authoritative here.
+    if (sourceRole === 'user' && /\b(?:i|me|my|mine|myself)\b/i.test(narration)) return true;
+    const secondPersonAllowed = allowNarratorSecondPerson && sourceRole !== 'user';
+    return secondPersonAllowed && /\b(?:you|your|yours|yourself)\b/i.test(narration);
 }
 
 function summaryExcerptOverlapsAcceptedActivity(excerpt, acceptedExcerpts = []) {
@@ -216,10 +222,11 @@ function explicitOtherNpcTarget(excerpt, subjectNames, playerName, otherNpcNames
     if (!identityMentioned(excerpt, otherNpcNames, subjectNames)) return false;
     return !playerMentioned(excerpt, playerName, [...subjectNames, ...otherNpcNames], {
         allowNarratorSecondPerson: match?.insideQuotedDialogue !== true,
+        sourceRole: match?.sourceRole || '',
     });
 }
 
-function contextualDialogueNarrationAmbiguous(excerpt, subjectNames, playerName, otherNpcNames, acceptedActivityExcerpts, acceptedIdentityExcerpts) {
+function contextualDialogueNarrationAmbiguous(excerpt, subjectNames, playerName, otherNpcNames, acceptedActivityExcerpts, acceptedIdentityExcerpts, sourceRole = '') {
     const value = String(excerpt || '').trim();
     if (!/["“”‘’]/u.test(value)) return false;
     const narration = narrationOutsideQuotedDialogue(value)
@@ -229,7 +236,10 @@ function contextualDialogueNarrationAmbiguous(excerpt, subjectNames, playerName,
     if (!narration) return false;
     if (summaryExcerptOverlapsAcceptedActivity(value, acceptedActivityExcerpts)
         || summaryExcerptOverlapsAcceptedActivity(value, acceptedIdentityExcerpts)) return false;
-    return !playerMentioned(narration, playerName, [...subjectNames, ...otherNpcNames], { allowNarratorSecondPerson: true });
+    return !playerMentioned(narration, playerName, [...subjectNames, ...otherNpcNames], {
+        allowNarratorSecondPerson: true,
+        sourceRole,
+    });
 }
 
 function relationshipSummaryContextualTargetBound(npc, excerpts, excerptMatches, options = {}) {
@@ -256,7 +266,10 @@ function relationshipSummaryContextualTargetBound(npc, excerpts, excerptMatches,
         const visibleNarration = narrationOutsideQuotedDialogue(excerpt);
         if (excerptMatches[index]?.kind === 'visible'
             && !identityMentioned(excerpt, otherNpcNames, subjectNames)
-            && playerMentioned(visibleNarration, playerName, [...subjectNames, ...otherNpcNames], { allowNarratorSecondPerson: true })
+            && playerMentioned(visibleNarration, playerName, [...subjectNames, ...otherNpcNames], {
+                allowNarratorSecondPerson: true,
+                sourceRole: excerptMatches[index]?.sourceRole || '',
+            })
             && summaryExcerptOverlapsAcceptedActivity(excerpt, acceptedActivityExcerpts)) {
             playerInteractionIndexes.push(index);
         }
@@ -289,23 +302,16 @@ function relationshipSummaryContextualTargetBound(npc, excerpts, excerptMatches,
 
     const playerActivitySources = new Set(activityBindings.filter(row => row.kind === 'visible'
         && !identityMentioned(row.excerpt, otherNpcNames, subjectNames)
-        && playerMentioned(narrationOutsideQuotedDialogue(row.excerpt), playerName, [...subjectNames, ...otherNpcNames], { allowNarratorSecondPerson: true }))
+        && playerMentioned(row.excerpt, playerName, [...subjectNames, ...otherNpcNames], {
+            allowNarratorSecondPerson: row.insideQuotedDialogue !== true,
+            sourceRole: row.sourceRole || '',
+        }))
         .map(row => row.sourceId));
     const identityActivitySources = new Set([...activityBindings, ...identityBindings]
         .filter(row => identityMentioned(row.excerpt, subjectNames, otherNpcNames))
         .map(row => row.sourceId));
     const bridgedSources = new Set([...playerActivitySources].filter(sourceId => identityActivitySources.has(sourceId)));
-    if (!bridgedSources.size) return false;
-
-    const linkedSummarySources = new Set(identityIndexes
-        .map(index => excerptMatches[index]?.sourceId)
-        .filter(sourceId => sourceId && bridgedSources.has(sourceId)));
-    if (!linkedSummarySources.size) return false;
-
-    // Contextual reuse is deliberately one-source. Additional summary quotes may enrich the
-    // model's description, but they may not switch visibility/message records or explicitly
-    // target another known NPC and borrow this player's accepted interaction.
-    return [...linkedSummarySources].some(sourceId => excerpts.every((excerpt, index) =>
+    const summarySourceSafe = sourceId => excerpts.every((excerpt, index) =>
         excerptMatches[index]?.sourceId === sourceId
         && !explicitOtherNpcTarget(excerpt, subjectNames, playerName, otherNpcNames, excerptMatches[index])
         && !contextualDialogueNarrationAmbiguous(
@@ -315,7 +321,34 @@ function relationshipSummaryContextualTargetBound(npc, excerpts, excerptMatches,
             otherNpcNames,
             acceptedActivityExcerpts,
             acceptedIdentityExcerpts,
-        )));
+            excerptMatches[index]?.sourceRole || '',
+        ));
+
+    const linkedSummarySources = new Set(identityIndexes
+        .map(index => excerptMatches[index]?.sourceId)
+        .filter(sourceId => sourceId && bridgedSources.has(sourceId)));
+    if ([...linkedSummarySources].some(summarySourceSafe)) return true;
+
+    // POV-independent fallback: accepted exchangeActive + exact activityEvidence is the
+    // model's semantic participant binding for this operation. It may supply the PC side
+    // when first/second/third-person wording or dialogue does not expose a deterministic
+    // pronoun anchor, but only for summary excerpts that reuse this NPC's own accepted
+    // activity/identity evidence in one visible permitted source. Unowned same-scene quotes
+    // and explicit other-NPC targets still fail closed. Numeric relationship scoring does
+    // not use this descriptive-summary bridge.
+    const exchangeActivitySources = new Set(activityBindings
+        .filter(row => row.kind === 'visible')
+        .map(row => row.sourceId));
+    const povBoundSummarySources = new Set(identityIndexes
+        .map(index => excerptMatches[index]?.sourceId)
+        .filter(sourceId => sourceId && exchangeActivitySources.has(sourceId)));
+    return [...povBoundSummarySources].some(sourceId => summarySourceSafe(sourceId)
+        // A competing known NPC mention makes the fallback ambiguous even when the same
+        // excerpt also addresses the player. Direct target binding may still handle an
+        // explicitly resolved group interaction, but the POV-neutral bridge stays fail-closed.
+        && excerpts.every(excerpt => !identityMentioned(excerpt, otherNpcNames, subjectNames))
+        && excerpts.every(excerpt => summaryExcerptOverlapsAcceptedActivity(excerpt, acceptedActivityExcerpts)
+            || summaryExcerptOverlapsAcceptedActivity(excerpt, acceptedIdentityExcerpts)));
 }
 
 function relationshipSummaryEvidenceGrounded(npc, patch, options = {}) {
@@ -335,7 +368,10 @@ function relationshipSummaryEvidenceGrounded(npc, patch, options = {}) {
     const otherNpcNames = (Array.isArray(options.otherNpcNames) ? options.otherNpcNames : []).map(value => String(value || '').trim()).filter(Boolean);
     if (!subjectNames.length || !playerName) return { ok: false, reason: 'summary-target-identity-unavailable' };
     const directlyTargetBound = excerpts.some((excerpt, index) => identityMentioned(excerpt, subjectNames, otherNpcNames)
-        && playerMentioned(excerpt, playerName, [...subjectNames, ...otherNpcNames], { allowNarratorSecondPerson: excerptMatches[index]?.insideQuotedDialogue !== true }));
+        && playerMentioned(excerpt, playerName, [...subjectNames, ...otherNpcNames], {
+            allowNarratorSecondPerson: excerptMatches[index]?.insideQuotedDialogue !== true,
+            sourceRole: excerptMatches[index]?.sourceRole || '',
+        }));
     const contextuallyTargetBound = directlyTargetBound
         || relationshipSummaryContextualTargetBound(npc, excerpts, excerptMatches, options);
     if (!contextuallyTargetBound) return { ok: false, reason: 'wrong-summary-target' };

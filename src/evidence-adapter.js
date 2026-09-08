@@ -149,10 +149,10 @@ export function buildExchangeEvidencePolicy(exchange) {
     const user = analyzeStructuredEvidence(exchange?.user?.mes || '');
     const assistant = analyzeStructuredEvidence(exchange?.assistant?.mes || '');
     const relationshipSources = [
-        { id: 'user-visible', kind: 'visible', text: clean(user.visibleText, 30000) },
-        { id: 'user-inner', kind: 'inner', text: clean(user.innerChatterText, 30000) },
-        { id: 'assistant-visible', kind: 'visible', text: clean(assistant.visibleText, 30000) },
-        { id: 'assistant-inner', kind: 'inner', text: clean(assistant.innerChatterText, 30000) },
+        { id: 'user-visible', kind: 'visible', role: 'user', text: clean(user.visibleText, 30000) },
+        { id: 'user-inner', kind: 'inner', role: 'user', text: clean(user.innerChatterText, 30000) },
+        { id: 'assistant-visible', kind: 'visible', role: 'assistant', text: clean(assistant.visibleText, 30000) },
+        { id: 'assistant-inner', kind: 'inner', role: 'assistant', text: clean(assistant.innerChatterText, 30000) },
     ].filter(source => source.text);
     return {
         detected: user.detected || assistant.detected,

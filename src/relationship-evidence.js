@@ -405,6 +405,7 @@ export function relationshipEvidenceExcerptMatch(excerpt, sources = []) {
         return {
             sourceId: String(raw.id || 'relationship-source').trim().slice(0, 80),
             kind: ['visible', 'inner'].includes(String(raw.kind || '').trim()) ? String(raw.kind).trim() : 'visible',
+            sourceRole: ['user', 'assistant'].includes(String(raw.role || '').trim()) ? String(raw.role).trim() : '',
             insideQuotedDialogue: quotedSliceMatch || excerptInsideQuotedDialogue(excerpt, sourceText),
         };
     }
