@@ -6,6 +6,7 @@ import { relationshipEvidenceExcerptMatch } from '../src/relationship-evidence.j
 import { applyScanResult } from '../src/scanner.js';
 import { createEmptyState } from '../src/schema.js';
 
+// v0.5.25 regression matrix: exact dialogue slices are source-bounded, not excerpt-specific.
 const PLAYER = 'Lucien Noctis';
 const DIRECT = 'Maren Cole caught your sleeve and steered you to the guild counter before releasing you beside the open ledger.';
 const FULL_DIALOGUE = '"Name goes on the line. First name, clan name, whatever you answer to when the watch calls the gate. Then pick the paper you want. The turnip farmers are screaming at the bailiff every morning. Those tusks need clearing before nightfall."';
