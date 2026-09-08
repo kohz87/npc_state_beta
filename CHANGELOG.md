@@ -2,9 +2,15 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.21
+
+- Fix compact first-pass Background calibration: Role and Background may both be populated from the same grounded employment/workplace evidence when they express current function versus durable affiliation.
+- Correct the parser-tested Nia example so an explicitly affiliated harbor clerk populates Background instead of contradictorily marking it insufficient.
+- Add regressions proving new-NPC Background persists through the real application path and that Scan/Refresh advertise the same Role-vs-Background rule. Stable prompt fixtures add only about +37 to +69 estimated input tokens versus 0.5.20.
+
 ## 0.5.20
 
-- Strengthen compact first-pass sufficiency after a real provider scan under-filled Apparent Age, Behavioral Profile, and Mannerisms despite direct life-stage wording, explicit recurrence, and repeated same-scene behavior. One scene may contain multiple independent observations; supported narrow values are preferred over reflexive `insufficient`, while isolated gestures/actions remain insufficient for broad habitual claims.
+- Strengthen compact first-pass sufficiency after a real provider scan under-filled Apparent Age, Behavioral Profile, and Mannerisms despite direct life-stage wording, explicit recurrence, and repeated same-scene behavior. One scene may contain multiple distinct observations without making same-source facts independent longitudinal support; supported narrow values are preferred over reflexive `insufficient`, while isolated gestures/actions remain insufficient for broad habitual claims.
 - Treat direct visible life-stage wording as positive Apparent Age evidence for a model-led `~N-M` range without adding a phrase-to-range dictionary or weakening chronological Actual Age.
 - Make the existing Current Dynamic target-binding requirement explicit in the compact output contract: a new/changed summary needs at least one exact excerpt that visibly binds the NPC to the player; dialogue-only quotes without speaker identity are supplementary rather than sufficient. Backend target validation remains strict.
 - Add a Vrena-style first-encounter regression proving the intended output can persist Apparent Age, narrow Behavioral Profile, narrow Mannerisms, and a zero-score transactional Current Dynamic together.

@@ -10,20 +10,20 @@ import { scanPromptMeasurementMatrix } from '../scripts/measure-scan-prompts.mjs
 
 const matrix = () => new Map(scanPromptMeasurementMatrix().map(row => [row.name, row]));
 
-test('v0.5.20 semantic calibration retains compact routine budgets', () => {
+test('v0.5.21 background calibration retains compact routine budgets', () => {
     const rows = matrix();
-    // v0.5.20 spends a small bounded amount of prompt budget on positive first-pass
-    // sufficiency and exact Current Dynamic evidence binding instead of restoring the
-    // pre-compaction prompt or truncating current narrative.
+    // v0.5.21 spends a small bounded amount of prompt budget on explicit Role/Background
+    // separation and a corrected grounded example without restoring the pre-compaction
+    // prompt or truncating current narrative.
     const ceilings = {
-        'minimal-one-npc': 6100,
-        'rich-first-encounter': 6100,
-        'three-active-plus-mentioned': 7200,
-        'observation-development': 6450,
-        'dense-collections-locks-forms': 7800,
-        'large-db-one-relevant': 6300,
-        'structured-plus-custom': 6850,
-        'targeted-refresh': 4600,
+        'minimal-one-npc': 6200,
+        'rich-first-encounter': 6200,
+        'three-active-plus-mentioned': 7250,
+        'observation-development': 6500,
+        'dense-collections-locks-forms': 7850,
+        'large-db-one-relevant': 6400,
+        'structured-plus-custom': 6900,
+        'targeted-refresh': 4650,
     };
     for (const [name, ceiling] of Object.entries(ceilings)) {
         assert.ok(rows.has(name), name);
@@ -31,22 +31,22 @@ test('v0.5.20 semantic calibration retains compact routine budgets', () => {
     }
 });
 
-test('v0.5.20 semantic calibration adds only bounded overhead to v0.5.19 fixtures', () => {
+test('v0.5.21 background calibration adds only bounded overhead to v0.5.20 fixtures', () => {
     const rows = matrix();
-    const v0519 = {
-        'minimal-one-npc': 5831,
-        'rich-first-encounter': 5834,
-        'three-active-plus-mentioned': 6898,
-        'observation-development': 6157,
-        'dense-collections-locks-forms': 7500,
-        'large-db-one-relevant': 6036,
-        'structured-plus-custom': 6559,
-        'targeted-refresh': 4307,
+    const v0520 = {
+        'minimal-one-npc': 6070,
+        'rich-first-encounter': 6073,
+        'three-active-plus-mentioned': 7137,
+        'observation-development': 6397,
+        'dense-collections-locks-forms': 7739,
+        'large-db-one-relevant': 6275,
+        'structured-plus-custom': 6798,
+        'targeted-refresh': 4567,
     };
-    for (const [name, before] of Object.entries(v0519)) {
+    for (const [name, before] of Object.entries(v0520)) {
         assert.ok(rows.has(name), name);
         const increase = rows.get(name).estTokens - before;
-        assert.ok(increase >= 0 && increase <= 260, `${name}: semantic-calibration overhead +${increase} tokens`);
+        assert.ok(increase >= 0 && increase <= 80, `${name}: background-calibration overhead +${increase} tokens`);
     }
 });
 
