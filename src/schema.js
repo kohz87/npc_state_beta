@@ -754,9 +754,9 @@ export function normalizeLifeStateDiagnostics(value = []) {
         code: text(raw?.code, 80),
         detail: text(raw?.detail, 500),
         livingReturn: raw?.livingReturn === true,
-        sourceMessageId: Number.isInteger(raw.sourceMessageId) ? raw.sourceMessageId : null,
-        turn: Number.isInteger(raw.turn) ? raw.turn : null,
-        at: Number(raw.at) || null,
+        sourceMessageId: Number.isInteger(raw?.sourceMessageId) ? raw.sourceMessageId : null,
+        turn: Number.isInteger(raw?.turn) ? raw.turn : null,
+        at: Number(raw?.at) || null,
     })).filter(item => item.code);
 }
 
