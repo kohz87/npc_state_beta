@@ -32,7 +32,7 @@ test('routine Scan asks for grounded first-pass background, portrait-ready appea
     assert.match(prompt, /BACKGROUND EVIDENCE:/);
     assert.match(prompt, /clearly established workplace or affiliation may populate background on first pass/i);
     assert.match(prompt, /APPARENT AGE:/);
-    assert.match(prompt, /semantically infer a defensible numeric interval/i);
+    assert.match(prompt, /Infer a defensible interval/i);
     assert.match(prompt, /APPEARANCE FIDELITY:/);
     assert.match(prompt, /portrait-ready overall visual synthesis/i);
     assert.match(prompt, /not a latest-detail delta/i);
@@ -60,8 +60,8 @@ test('targeted Refresh receives the shared apparent-age and portrait-ready appea
     ];
     const prompt = buildTargetedRefreshPrompt({ npc, chat, assistantMessageId: 1, playerName: 'Lucien' });
 
-    assert.match(prompt, /apparentAge=~N-M/i);
-    assert.match(prompt, /backend chooses and persists one stable ~N inside that interval/i);
+    assert.match(prompt, /interval ~N-M/i);
+    assert.match(prompt, /Backend persists one stable ~N within the interval/i);
     assert.match(prompt, /portrait-ready overall visual synthesis/i);
     assert.match(prompt, /Preserve prior supported visible facts unless contradicted/i);
     assert.match(prompt, /first direct role-defined interaction may establish a neutral professional or transactional Current Dynamic with zero score change/i);

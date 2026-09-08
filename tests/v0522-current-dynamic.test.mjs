@@ -320,7 +320,11 @@ test('full fictional example is source-coherent when parsed and applied with exp
     const ivo = result.state.npcs.find(npc => npc.id === 'npc-ivo');
     assert.ok(nia && ivo);
     assert.equal(nia.appearance, 'Blue coat.');
-    assert.equal(nia.personality, '');
+    assert.equal(nia.personality, 'Practical and methodical in registry work.');
+    assert.deepEqual(nia.behaviorProfile, ['Guides applicants through forms and checks their entries.']);
+    assert.ok(Number(nia.apparentAge.slice(1)) >= 20 && Number(nia.apparentAge.slice(1)) <= 29);
+    assert.equal(nia.age, '');
+    assert.deepEqual(nia.mannerisms, []);
     assert.equal(nia.background, 'Clerk of the South Quay Registry.');
     assert.equal(nia.relationshipSummary, 'Professional clerk-applicant interaction.');
     assert.equal(ivo.appearance, 'Green eyes.');

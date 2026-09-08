@@ -2,6 +2,12 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.30
+
+- Retain tentative profile observations after successful new-NPC admission using the accepted stable ID, existing source validation, bounded evidence store, and shared persistence/rollback flow. Remove the superseded existing-only gate; observations cannot authorize admission.
+- Clarify initial establishment versus longitudinal development and current-user apparent-age evidence. Update the existing compact example with grounded narrow personality/behavior and an apparent-age interval; preserve unsupported fields as unknown.
+- Add first-contact admission, source rejection, deduplication, persistence failure/stale-work, deletion, and swipe regressions. Preserve numeric relationships, storage schemas, and one-request scanning; historical enrichment remains deferred.
+
 ## 0.5.29
 
 - Fix first-contact zero-delta Current Dynamic when a new NPC is visibly grounded by exact role/description evidence but receives its canonical proper name through the current World_State enrichment path. The accepted visible identity remains identity authority for that descriptive relationship-summary bridge even when the canonical name itself is not visible.

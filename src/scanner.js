@@ -112,7 +112,6 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     const observations = applyProfileObservations(applied.state, adapted, {
         ...semanticOptions,
         patchResolutions: applied.patchResolutions,
-        existingNpcIds: new Set((stateInput?.npcs || []).map(npc => npc.id)),
     });
     const semantic = applyModelLedSemanticUpdates(observations.state, adapted, {
         ...semanticOptions,

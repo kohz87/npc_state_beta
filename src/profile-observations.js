@@ -45,11 +45,8 @@ export function applyProfileObservations(stateInput, result = {}, options = {}) 
             diagnostics.push(diagnostic(patchIndex, null, '', 'rejected-proposal', 'observation-target-not-accepted'));
             continue;
         }
-        const existingNpcIds = options.existingNpcIds instanceof Set ? options.existingNpcIds : null;
-        if (existingNpcIds && !existingNpcIds.has(resolution.npcId)) {
-            diagnostics.push(diagnostic(patchIndex, null, '', 'rejected-proposal', 'observation-target-not-existing'));
-            continue;
-        }
+        // Admission has already resolved the stable id. Evidence may accompany a new
+        // dossier, but an observation can never authorize admission on its own.
         const npcIndex = (state.npcs || []).findIndex(npc => npc.id === resolution.npcId);
         if (npcIndex < 0) {
             diagnostics.push(diagnostic(patchIndex, null, '', 'rejected-proposal', 'observation-target-missing'));

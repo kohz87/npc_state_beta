@@ -2,9 +2,9 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.29
+## Release 0.5.30
 
-0.5.29 completes zero-delta Current Dynamic reuse for the v0.5.28 case where a first-seen NPC is grounded by exact visible identity evidence but receives its canonical proper name from current World_State. For that accepted enrichment path, exact same-source relationship-summary quotations may reuse the already accepted visible identity plus player-facing activity without repeating the visible anchor or structured-only name. Other identity paths retain their existing summary-link safeguards; wrong addressees, isolated quoted `you`, fabricated/out-of-scope evidence, and numeric relationship scoring remain separately guarded.
+0.5.30 retains source-owned profile observations for newly admitted NPCs through the existing bounded evidence store and commit/checkpoint flow. Initial profile guidance distinguishes several reinforcing actions in one scene from independent later development; apparent-age guidance explicitly includes the current user message. The compact example demonstrates narrow initial personality and behavior while leaving unsupported facts unknown. No extra scan or historical enrichment is introduced.
 
 Recent 0.5.x refinements retained by this release include:
 

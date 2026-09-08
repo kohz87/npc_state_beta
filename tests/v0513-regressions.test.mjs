@@ -64,6 +64,6 @@ test('scanner prompt permits narrow first-scene personality synthesis from reinf
         assistantMessageId: 1,
     });
     assert.match(prompt, /personality may be established narrowly from multiple reinforcing choices/i);
-    assert.match(prompt, /do not default to insufficient because an NPC is new\/first-scene/i);
+    assert.match(prompt, /repeated encounters are not required/i);
     assert.match(prompt, /For every exchange-active NPC, include relationshipSummary/i);
 });

@@ -99,10 +99,10 @@ test('Scan and Refresh share one model-led apparent-age range policy with no phr
 
     for (const prompt of [scan, refresh]) {
         assert.match(prompt, /APPARENT AGE:/);
-        assert.match(prompt, /apparentAge=~N-M/i);
-        assert.match(prompt, /semantically infer a defensible numeric interval/i);
-        assert.match(prompt, /do not use a fixed phrase-to-range lookup/i);
-        assert.match(prompt, /backend chooses and persists one stable ~N inside that interval/i);
+        assert.match(prompt, /interval ~N-M/i);
+        assert.match(prompt, /Infer a defensible interval/i);
+        assert.match(prompt, /no fixed phrase-to-range lookup/i);
+        assert.match(prompt, /Backend persists one stable ~N within the interval/i);
         assert.doesNotMatch(prompt, /Never invent a numeric range|fabricate a range/i);
     }
 });

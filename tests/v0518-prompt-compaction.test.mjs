@@ -46,7 +46,7 @@ test('v0.5.23 evidence-reuse contract adds only bounded overhead to v0.5.22 fixt
     for (const [name, before] of Object.entries(v0522)) {
         assert.ok(rows.has(name), name);
         const increase = rows.get(name).estTokens - before;
-        assert.ok(increase >= 0 && increase <= 60, `${name}: evidence-reuse contract overhead +${increase} tokens`);
+        assert.ok(increase <= 60, `${name}: contract change ${increase} tokens`);
     }
 });
 

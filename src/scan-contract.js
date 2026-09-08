@@ -4,7 +4,7 @@ import { RELATIONSHIP_AXES } from './schema.js';
 const CURRENT_DYNAMIC_EVIDENCE_RULE = 'CURRENT DYNAMIC EVIDENCE: new/changed relationshipSummary needs relationshipSummaryEvidence:{excerpts:[1-3 exact permitted quotes],explanation}. Ground THIS NPC->PLAYER interaction. Player binding is POV-independent: first-person USER, second-person ASSISTANT narration, explicit PLAYER name, or accepted exchangeActive identity/activity evidence. One excerpt may bind directly; a small coherent set may use connected accepted identity/activity evidence from the same permitted source and need not repeat an already accepted narrator quote; quoted you alone is insufficient; another addressee conflicts. zero numeric movement is allowed; explanation interprets the evidence.';
 
 export const SCAN_OUTPUT_EXAMPLE_SCENES = Object.freeze({
-    nia: 'Nia, harbor clerk of the South Quay Registry, wears a blue coat as she tells Ari “Registry first.” She slides the form toward Ari and points to the signature box.',
+    nia: 'Nia, a harbor clerk in her twenties at the South Quay Registry, wears a blue coat. She tells Ari “Registry first,” slides him the form, explains each entry, and checks his answers.',
     ivo: 'A current registrar note reads: “Ivo has green eyes. Asked about a copied total, he replied, ‘That line is wrong.’”',
 });
 
@@ -40,7 +40,9 @@ export function scanOutputExamples({ includeNew = true, includeExisting = true }
         const nia = {
             id: '', name: 'Nia', identityKind: 'named', evaluatedGroups: [...DOSSIER_EVALUATION_GROUPS],
             identityEvidence: { anchor: 'Nia', ...evidence }, activityEvidence: { exchangeActive: evidence, inChat: evidence },
-            role: 'Harbor clerk', background: 'Clerk of the South Quay Registry.', appearance: 'Blue coat.', speech: 'Brief practical instructions.', status: 'Processing Ari’s registry form.',
+            role: 'Harbor clerk', background: 'Clerk of the South Quay Registry.', apparentAge: '~20-29', appearance: 'Blue coat.',
+            personality: 'Practical and methodical in registry work.', behaviorProfile: ['Guides applicants through forms and checks their entries.'],
+            speech: 'Brief practical instructions.', status: 'Processing Ari’s registry form.',
             relationshipChange: zero(), relationshipSummary: 'Professional clerk-applicant interaction.', relationshipSummaryEvidence: evidence,
         };
         const proposed = new Set(Object.keys(nia));
@@ -75,8 +77,8 @@ export function scanOutputContract(options = {}) {
             : 'JSON: all seven arrays required, even empty. References=ids/names. NEW id="", name=canonical name, identityKind=' + SCAN_IDENTITY_KINDS.join('|') + '. EXISTING/name-only: keep supplied id. No canonicalName/activityRefs/live/relationshipToPlayer.',
         compact ? 'NEW ordinary fields are flat; []=string arrays; appearanceForms:[{name,appearance}].' : 'NEW: flat strings; map [] means string arrays; appearanceForms:[{name,appearance}].',
         compact
-            ? 'candidateAccounting maps supplied stable existing NPC ids to evaluated|mentioned|inactive|unresolved; coverage only, never presence. Existing patches may add evidence-only profileObservations:[{field,observation,concept?,sources:[{messageId,excerpt}],explanation?}] for personality|behaviorProfile|speech|mannerisms.'
-            : 'Routine candidateAccounting maps each supplied stable existing NPC id to evaluated|mentioned|inactive|unresolved; it is separate from activity and fieldEvaluations. Existing patches may add evidence-only profileObservations:[{field,observation,concept?,sources:[{messageId,excerpt}],explanation?}] for personality|behaviorProfile|speech|mannerisms.',
+            ? 'candidateAccounting maps supplied stable existing NPC ids to evaluated|mentioned|inactive|unresolved; coverage only, never presence. NEW/EXISTING patches may add evidence-only profileObservations:[{field,observation,concept?,sources:[{messageId,excerpt}],explanation?}] for personality|behaviorProfile|speech|mannerisms.'
+            : 'Routine candidateAccounting maps each supplied stable existing NPC id to evaluated|mentioned|inactive|unresolved; it is separate from activity and fieldEvaluations. NEW/EXISTING patches may add evidence-only profileObservations:[{field,observation,concept?,sources:[{messageId,excerpt}],explanation?}] for personality|behaviorProfile|speech|mannerisms.',
         compact
             ? 'Evidence={excerpts:[exact quotes],explanation}; identity adds anchor; activity keys=exchangeActive/inChat/worldActive; messageId:null=current.'
             : 'Evidence:{excerpts:[1-3 exact quotes],explanation}; identityEvidence adds anchor. activityEvidence keys:exchangeActive/inChat/worldActive. Identity/activity=current visible. Semantic/observation messageId:null=current, number=history.',
