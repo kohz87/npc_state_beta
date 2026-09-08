@@ -2,41 +2,49 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.12
+## Release 0.5.15
 
-This release intentionally resets the **public release label** from the 0.7.x development line to the next unused 0.5.x patch. It does **not** restore old source, downgrade the sidecar, or change the persisted/settings schema. Existing `npc_state_beta.v3` data continues in place.
+0.5.15 is a hygiene release over the consolidated 0.5.x architecture. It does not change the persisted/settings schema, storage identity, relationship mechanics, scanner contract shape, or recovery model. The release synchronizes maintenance documentation, removes stale release branding, and strengthens repository validation so release-facing documentation cannot silently drift behind the runtime version.
 
-The automatic workflow is now simpler:
+Recent 0.5.x refinements retained by this release include:
+
+- **0.5.13:** grounded first-pass dossier extraction for descriptive apparent age, concise workplace/affiliation background, neutral first-contact Current Dynamic, appearance fidelity, and non-habitual behavior evidence.
+- **0.5.14:** model-led apparent-age ranges such as `~20-30`, resolved deterministically to one stable per-NPC value such as `~24` without converting Apparent Age into chronological Actual Age.
+- **0.5.15:** repository/runtime hygiene only; no NPC database rebuild or migration.
+
+The automatic workflow remains:
 
 `compact continuity -> visible roleplay response -> one dedicated post-response scan -> validate/apply -> guarded persistence/checkpoint -> refresh continuity/UI`
 
-Roleplay generation no longer has to emit `<npc_state_v1>` or any other NPC JSON. Foreground injection is continuity-only. `autoScan=true` means one dedicated scanner request after each completed assistant revision. Duplicate host completion events share the same logical job; edits, swipes, deletion, branch changes, and chat switches invalidate stale work.
+Roleplay generation does not emit `<npc_state_v1>` or other NPC JSON. Foreground injection is continuity-only. `autoScan=true` means one dedicated scanner request after each completed assistant revision. Duplicate host completion events share the same logical job; edits, swipes, deletion, branch changes, and chat switches invalidate stale work.
 
-Before the next ordinary generation, NPC State uses SillyTavern's awaited generation interceptor to settle the preceding response's owning scan and rebuild continuity. The recursion bypass exists only while invoking the scanner's own host generation call; it is not held for the provider request lifetime, so ordinary roleplay work cannot inherit scanner privileges. A failed or timed-out owning scan exposes an actionable Retry state and aborts the attempted next generation instead of silently using unsynchronized state.
+Before the next ordinary generation, NPC State uses SillyTavern's awaited generation interceptor to settle the preceding response's owning scan and rebuild continuity. The recursion bypass exists only while invoking the scanner's own host generation call; ordinary roleplay work cannot inherit scanner privileges. A failed or timed-out owning scan exposes an actionable Retry state and aborts the attempted next generation instead of silently using unsynchronized state.
 
 ### Scanner scope
 
-Routine automatic Scan and manual **Scan current cast** treat the latest completed assistant message and its preceding user message as new-event evidence. At most two earlier non-system messages may be supplied as bounded reference context for antecedents; they are not new-event evidence. Relevant identity context accepts exact names/aliases and unique unambiguous short-name mentions, including explicitly mentioned archived/deceased dossiers; ambiguous short names are never guessed. Unrelated roster growth still does not expand every routine scan.
+Routine automatic Scan and manual **Scan current cast** treat the latest completed assistant message and its preceding user message as new-event evidence. At most two earlier non-system messages may be supplied as bounded reference context for antecedents; they are not new-event evidence. Relevant identity context accepts exact names/aliases and unique unambiguous short-name mentions, including explicitly mentioned archived/deceased dossiers; ambiguous short names are never guessed. Unrelated roster growth does not expand every routine scan.
 
-**Refresh** still reconciles one NPC over bounded history. Historical recovery still reconstructs surviving exchanges sequentially from a trustworthy baseline. All story mutations continue through the same guarded commit/checkpoint path.
+**Refresh** reconciles one NPC over bounded history. Historical recovery reconstructs surviving exchanges sequentially from a trustworthy baseline. All story mutations continue through the same guarded commit/checkpoint path.
 
 ### Dossier completeness and safety
 
-The scanner contract demonstrates a realistically populated new NPC, explicit insufficient-evidence outcomes, field-level evaluation metadata, and a zero-delta Current Dynamic. Unsupported facts remain unknown. A sparse valid payload may still commit its supported facts, but diagnostics report unaccounted fields separately from persistence success.
+The scanner contract supports realistically populated new NPCs, explicit insufficient-evidence outcomes, field-level evaluation metadata, and zero-delta Current Dynamic. Unsupported facts remain unknown. A sparse valid payload may still commit its supported facts, while diagnostics report unaccounted fields separately from persistence success.
 
-Current Dynamic evidence may bind an NPC through an unambiguous short identity and the player through a full/unique short identity or narrator-addressed second person outside quoted dialogue. Exact excerpts are resolved within their original permitted source before quote/addressee checks, so shortening another character's quoted speech cannot turn quoted `you` into the player. Ambiguous aliases, wrong recipients, and unrelated NPC interactions remain rejected. Numeric relationship movement is independent and may remain zero.
+Current Dynamic may establish a neutral professional, transactional, adversarial, supervisory, or other role-defined relationship even when Trust/Affection/Desire/Tension remain zero. Numeric relationship movement is separate and still requires its own validated evidence.
+
+Apparent Age is visual, not chronological. When the story supports a specific-looking age, the model may return `~N`. When it supports only a visible age band, the model may return a semantic interval such as `~20-30`; the backend uses the NPC's stable identity to choose one reproducible inclusive value and persists only `~N`. No fixed English phrase-to-range dictionary is used. Existing/manual descriptive Apparent Age values remain compatible. Actual Age never derives from Apparent Age.
 
 New-NPC bootstrap, existing semantic updates, manual/import boundaries, and persisted normalization share field-aware value rules. Malformed nested collection members, form selectors, scalar objects, and coercive manual numeric values are rejected before lossy normalization rather than becoming strings such as `[object Object]`.
 
 ## Settings
 
-Important settings retained by 0.5.12 include:
+Important settings include:
 
 - **Auto scan**: one dedicated post-response scanner request.
 - **Inject NPC continuity**: independent continuity context for roleplay generation.
 - **NPC scan connection profile**: optional alternate model route for scanner requests. A missing/changed configured profile is an explicit error, not silent fallback to the main roleplay connection.
 - **Scanner output tokens**: adjustable up to 15,000.
-- **Injection budget / NPC limit / depth**: continuity budgeting and selection. The budget now supports values down to 256 because it no longer carries an extraction schema.
+- **Injection budget / NPC limit / depth**: continuity budgeting and selection. The budget supports values down to 256 because it no longer carries an extraction schema.
 - Admission, birthday generation, dossier limits, relationship criteria/caps, portraits, stale retention, and recovery controls remain supported.
 
 Obsolete `scanAfterEachResponse`, `fallbackScan`, and `newNpcHistoryEnrichment` settings are retired during idempotent settings normalization. An explicit `autoScan=false` stays false.
@@ -47,7 +55,7 @@ Existing dossiers evolve through the single `semanticUpdates` channel (`establis
 
 Temporary states such as sleep, unconsciousness, one-off poses, or momentary mood do not automatically become permanent personality/speech. Later grounded evidence may enrich or replace an obsolete placeholder. Collection entries can be edited at capacity through stable refs without evicting unrelated items.
 
-Player relationship meters remain deterministic: Trust, Affection, Desire, and Tension use configured caps, gates, inertia, fractional progress, milestones, evidence history, and replay protection. Neutral professional/other Current Dynamic summaries may update at zero scores without fabricating relationship history.
+Player relationship meters remain deterministic: Trust, Affection, Desire, and Tension use configured caps, gates, inertia, fractional progress, milestones, evidence history, and replay protection.
 
 ## Rollback and persistence
 
@@ -59,16 +67,20 @@ User-owned portraits, locks, manual corrections, importance, and suppression tom
 
 Current boundaries:
 
-- Release label: **0.5.12**
+- Release label: **0.5.15**
 - Persisted state schema: **1**
 - Settings schema: **1**
 - Model semantic contract: **6**
 - Foreground continuity contract: **8**
 - Storage identity: **`npc_state_beta.v3`**
 
-No database reset, rebuild, or storage-key migration is required. Old `<npc_state_v1>` text is ignored by canonical history fingerprints so historical chats do not diverge merely because transport text remains, but new automatic processing does not consume embedded payloads.
+No database reset, rebuild, or storage-key migration is required.
 
-SillyTavern's third-party extension updater is Git-based: it checks whether the installed repository is current and pulls the tracked branch when needed. The 0.5.x presentation label therefore does not require uninstall/reinstall or data deletion.
+Old `<npc_state_v1>` text is ignored/stripped only where needed for historical canonicalization and prompt cleanliness so older chats do not diverge merely because transport text remains. New automatic processing does not consume embedded payloads.
+
+Supported older model-response aliases are normalized once at the scanner boundary into the canonical semantic pipeline. Tiny retired public diagnostic entry points may remain as compatibility tombstones, but the obsolete embedded-capture/completeness subsystems themselves are not present.
+
+SillyTavern's third-party extension updater is Git-based: it checks whether the installed repository is current and pulls the tracked branch when needed. The 0.5.x presentation label does not require uninstall/reinstall or data deletion.
 
 ## Public APIs and diagnostics
 
@@ -88,4 +100,4 @@ npm test
 npm run package
 ```
 
-Packaging includes only reachable runtime files plus manifest/license/README. Tests, scripts, review ledgers, staging material, and history documents are excluded from the installable ZIP.
+Packaging includes only reachable runtime files plus manifest/license/README. Tests, scripts, development notes, and history documents are excluded from the installable ZIP.
