@@ -66,7 +66,7 @@ export function dossierExtractionPromptRules({ includeNew = true, includeExistin
         'APPARENT AGE: Direct visible life-stage wording in either CURRENT USER or ASSISTANT (child, adolescent, young woman/man/adult, middle-aged, elderly) is positive evidence. Infer a defensible interval ~N-M or specific visual age ~N; no fixed phrase-to-range lookup. Backend persists one stable ~N within the interval. Actual age is separate and never inferred from appearance.',
         'APPEARANCE FIDELITY: appearance/form is a portrait-ready overall visual synthesis, not a latest-detail delta. Preserve prior supported visible facts unless contradicted and fold in new grounded traits. Never invent missing portrait features, uniform pieces, accessories, colors, materials, or body traits.',
         'BEHAVIOR PROFILE EVIDENCE: MANNERISM SUFFICIENCY: behaviorProfile is what the NPC tends to do; explicit recurrence/generalization or multiple reinforcing actions can establish one narrow pattern even first-scene. One isolated action may support status/observation but must not be rewritten as a habitual behavior. mannerisms are repeated characteristic gestures/object-handling/social habits; multiple related instances may consolidate into one narrow mannerism; one isolated gesture is insufficient.',
-        'PRIVATE COMPLETENESS CHECK: silently check all dossier fields + Current Dynamic before payload; unknown is valid and needs no invented fact.',
+        'PRIVATE COMPLETENESS CHECK: directly supported values from permitted CURRENT sources are proposals, not insufficient. Unknown is valid; never invent.',
     ];
 }
 
