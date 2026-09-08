@@ -130,7 +130,7 @@ test('mixed invalid collection members reject the field atomically and keep vali
         const result = await h.entry.processEmbeddedScan(1);
         assert.equal(result.ok, true);
         assert.deepEqual(h.persisted().npcs[0].mannerisms, ['Keeps her hands folded.']);
-        assert.ok(result.semanticDiagnostics.some(row => row.field === 'mannerisms' && row.reason.includes('member-1-expected-string-or-supported-object')));
+        assert.ok(result.semanticDiagnostics.some(row => row.field === 'mannerisms' && row.reason.includes('member-1-expected-supported-text-property')));
     }, { state });
 });
 

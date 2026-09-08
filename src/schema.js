@@ -2,7 +2,7 @@ import { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILE
 export { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 import { normalizeNumericSetting } from './settings-contract.js';
 import { dossierFieldValueIssue } from './model/dossier-fields.js';
-export const NPC_STATE_VERSION = '0.7.8';
+export const NPC_STATE_VERSION = '0.7.9';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     return normalizeNumericSetting('scannerResponseTokens', value);
@@ -144,6 +144,12 @@ export const MANUAL_OVERRIDE_FIELDS = Object.freeze([
     'archived', 'archiveReason', 'retentionProtected', 'minor',
 ]);
 
+function finiteManualNumericInput(value) {
+    if (typeof value === 'number') return Number.isFinite(value);
+    if (typeof value !== 'string' || !value.trim()) return false;
+    return Number.isFinite(Number(value));
+}
+
 function manualOwnedFieldIssue(field, value) {
     if (field === 'name') return typeof value === 'string' ? '' : 'expected-string-value';
     if (field === 'aliases') return Array.isArray(value) && value.every(item => typeof item === 'string') ? '' : 'expected-string-array';
@@ -155,7 +161,7 @@ function manualOwnedFieldIssue(field, value) {
         if (!value || typeof value !== 'object' || Array.isArray(value)) return 'expected-object-value';
         for (const axis of RELATIONSHIP_AXES) {
             if (!Object.prototype.hasOwnProperty.call(value, axis)) continue;
-            if (!Number.isFinite(Number(value[axis]))) return `${axis}:expected-finite-number`;
+            if (!finiteManualNumericInput(value[axis])) return `${axis}:expected-finite-number-or-numeric-string`;
         }
         return '';
     }
@@ -299,8 +305,9 @@ function collectionEntry(value, itemMax = 500) {
     if (value && typeof value === 'object' && !Array.isArray(value)) {
         const candidates = [value.text, value.value, value.summary, value.description, value.name, value.label, value.memory, value.mannerism, value.behavior, value.trait, value.alias];
         for (const candidate of candidates) {
+            if (typeof candidate !== 'string') continue;
             const clean = text(candidate, itemMax);
-            if (clean && clean !== '[object Object]') return clean;
+            if (clean) return clean;
         }
         return '';
     }
@@ -417,8 +424,9 @@ function keyRelationshipEntry(value, itemMax = 500) {
     if (value && typeof value === 'object' && !Array.isArray(value)) {
         const pick = (keys, max = 240) => {
             for (const key of keys) {
-                const clean = text(value?.[key], max);
-                if (clean && clean !== '[object Object]') return clean;
+                if (typeof value?.[key] !== 'string') continue;
+                const clean = text(value[key], max);
+                if (clean) return clean;
             }
             return '';
         };

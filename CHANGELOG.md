@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.9
+
+- Reject malformed `appearanceForms` selectors before semantic dedupe/normalization. `scope.form`, `targetForm`, `expected`, and `ref` must be textual when supplied; valid string selectors and documented `{name,appearance}` form values remain supported.
+- Tighten collection-object validation so every recognized text property consumed by normalization must actually be a string. A valid sibling property can no longer hide malformed nested `keyRelationships`, memories, mannerisms, or behavioral-profile values; defensive normalization also stops object/array text coercion for recognized object aliases.
+- Harden manual relationship scores at the shared manual-ownership boundary. Finite numbers and nonempty finite numeric strings remain compatible; nulls, booleans, arrays, objects, empty strings, and nonfinite values are rejected before persistence or correction-history creation. Persisted manual overrides use the same rule.
+- Preserve semantic/model contract 5, foreground contract 6, storage identity `npc_state_beta.v3`, persisted/settings schema 1, first-pass behavior, fallback ownership, relationship mechanics, rollback/recovery, optional completeness, and alternate routing. No database rebuild or storage migration is required.
+
 ## 0.7.8
 
 - Final compatibility review sanitizes malformed legacy `manualOverrides` during state normalization using the same owned-field value rules as current manual writes. Invalid old override values are dropped before rollback can replay them as JavaScript object text; valid manual overrides remain authoritative.

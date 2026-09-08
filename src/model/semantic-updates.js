@@ -409,9 +409,28 @@ function applyScalarOperation(npc, update, rows) {
     return { changed: true };
 }
 
+function formSelectorShapeIssue(update) {
+    if (update.scope !== undefined && (!update.scope || typeof update.scope !== 'object' || Array.isArray(update.scope))) return 'scope-expected-object';
+    if (update.scope && Object.prototype.hasOwnProperty.call(update.scope, 'form') && typeof update.scope.form !== 'string') return 'scope.form-expected-string';
+    for (const key of ['targetForm', 'expected', 'ref']) {
+        if (update[key] !== undefined && typeof update[key] !== 'string') return `${key}-expected-string`;
+    }
+    return '';
+}
+
 function semanticValueShapeIssue(update) {
     const field = update?.field;
     if (!field) return 'unsupported-field';
+    if (FORM_FIELDS.has(field)) {
+        const selectorIssue = formSelectorShapeIssue(update);
+        if (selectorIssue) return selectorIssue;
+        if (update.operation === 'remove') return '';
+        if (typeof update.value === 'string') return '';
+        if (update.value && typeof update.value === 'object' && !Array.isArray(update.value)) {
+            return dossierFieldValueIssue(field, [update.value]);
+        }
+        return 'expected-string-or-form-object';
+    }
     if (update.operation === 'remove') {
         if (COLLECTION_FIELDS.has(field) && Array.isArray(update.changes) && update.changes.length) {
             // Removal changes may target by ref/expected and do not require a value.
@@ -421,13 +440,6 @@ function semanticValueShapeIssue(update) {
         return '';
     }
     if (SCALAR_FIELDS.has(field)) return dossierFieldValueIssue(field, update.value);
-    if (FORM_FIELDS.has(field)) {
-        if (typeof update.value === 'string') return '';
-        if (update.value && typeof update.value === 'object' && !Array.isArray(update.value)) {
-            return dossierFieldValueIssue(field, [update.value]);
-        }
-        return 'expected-string-or-form-object';
-    }
     if (!COLLECTION_FIELDS.has(field)) return '';
     const changes = Array.isArray(update.changes) ? update.changes : [];
     if (!changes.length) return dossierFieldValueIssue(field, update.value);
@@ -678,12 +690,6 @@ export function applyModelLedSemanticUpdates(stateInput, resultInput, options = 
                 diagnostics.push({ npcId: npc.id, field: String(raw?.field || ''), operation: String(raw?.operation || ''), status: 'invalid-structure' });
                 continue;
             }
-            const dedupeKey = `${npc.id}|${updateIdentity(update)}`;
-            if (seen.has(dedupeKey)) {
-                diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, group: dossierFieldGroup(update.field), status: 'duplicate-operation' });
-                continue;
-            }
-            seen.add(dedupeKey);
             if (manualProtected(npc, update.field)) {
                 diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, group: dossierFieldGroup(update.field), status: 'manually-protected' });
                 continue;
@@ -693,6 +699,12 @@ export function applyModelLedSemanticUpdates(stateInput, resultInput, options = 
                 diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, group: dossierFieldGroup(update.field), status: 'rejected-proposal', reason: 'invalid-value-type:' + valueShapeIssue });
                 continue;
             }
+            const dedupeKey = `${npc.id}|${updateIdentity(update)}`;
+            if (seen.has(dedupeKey)) {
+                diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, group: dossierFieldGroup(update.field), status: 'duplicate-operation' });
+                continue;
+            }
+            seen.add(dedupeKey);
             if (DURABLE_FIELDS.has(update.field) && update.durability === 'temporary') {
                 diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, group: dossierFieldGroup(update.field), status: 'invalid-structure', reason: 'temporary-evidence-cannot-rewrite-durable-canon' });
                 continue;

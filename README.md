@@ -2,6 +2,12 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model.
 
+## Release 0.7.9
+
+Semantic form targeting and manual/collection input validation are stricter before lossy normalization. Malformed `appearanceForms` selectors are rejected rather than becoming form names such as `[object Object]`. Supported collection objects now require every recognized consumed text property to be textual, so one valid alias cannot conceal another malformed alias. Manual relationship scores accept finite numbers and nonempty finite numeric strings only; rejected values do not create correction/history records or persist a zeroed score.
+
+The v0.7.7 canonical envelope and `<npc_state_v1>` transport remain unchanged. Release 0.7.9 continues semantic contract 5, foreground contract 6, persisted/settings schema 1, and storage identity `npc_state_beta.v3`. No database rebuild or migration is required.
+
 ## Release 0.7.8
 
 Optional foreground fallback scans are now capture-bound: a malformed/missing embedded attempt cannot finish later and consume the scan boundary of a newer valid payload with identical visible narration. Capture attempt/history ownership is checked before queued fallback work dispatches, after generation, and by the existing pre/post-persistence commit guard. Manual Scan remains deliberately independent of embedded capture attempts.

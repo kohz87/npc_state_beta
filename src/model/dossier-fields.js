@@ -66,10 +66,20 @@ const COLLECTION_TEXT_KEYS = Object.freeze({
     keyRelationships: ['name', 'npc', 'person', 'target', 'otherNpc', 'other', 'with', 'character', 'relationship', 'relation', 'type', 'kind', 'role', 'tie', 'summary', 'description', 'details', 'note'],
 });
 
-function supportedCollectionObject(field, value) {
-    if (!plainObject(value)) return false;
+function collectionObjectIssue(field, value) {
+    if (!plainObject(value)) return 'expected-supported-object';
     const keys = COLLECTION_TEXT_KEYS[field] || [];
-    return keys.some(key => typeof value[key] === 'string' && value[key].trim());
+    let supportedText = false;
+    for (const key of keys) {
+        if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+        if (typeof value[key] !== 'string') return `${key}-expected-string`;
+        if (value[key].trim()) supportedText = true;
+    }
+    return supportedText ? '' : 'expected-supported-text-property';
+}
+
+function supportedCollectionObject(field, value) {
+    return !collectionObjectIssue(field, value);
 }
 
 export function dossierCollectionMemberText(field, value, max = 700) {
@@ -112,8 +122,9 @@ export function dossierFieldValueIssue(field, value) {
         for (let index = 0; index < value.length; index += 1) {
             const item = value[index];
             if (typeof item === 'string') continue;
-            if (supportedCollectionObject(field, item)) continue;
-            return `member-${index}-expected-string-or-supported-object`;
+            const issue = collectionObjectIssue(field, item);
+            if (!issue) continue;
+            return `member-${index}-${issue}`;
         }
         return '';
     }
