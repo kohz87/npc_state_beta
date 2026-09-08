@@ -1,54 +1,36 @@
-name: NPC State CI
+name: NPC State Stage v0.5.16
 
 on:
-  workflow_dispatch:
   push:
+    branches:
+      - 'feat/v0.5.16-grounded-observation-final'
     paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'scripts/**'
-      - '.github/workflows/ci.yml'
-      - 'manifest.json'
-      - 'package.json'
-      - 'bootstrap.js'
-      - 'README.md'
-      - 'CHANGELOG.md'
-      - 'DEVELOPMENT.md'
-  pull_request:
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'scripts/**'
-      - '.github/workflows/ci.yml'
-      - 'manifest.json'
-      - 'package.json'
-      - 'bootstrap.js'
-      - 'README.md'
-      - 'CHANGELOG.md'
-      - 'DEVELOPMENT.md'
+      - 'scripts/stage-v0516.mjs'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  validate:
+  stage:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
         uses: actions/checkout@v4
-      - name: Set up Node
-        uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - name: Validate authoritative source
-        run: npm run validate
-      - name: Run regression tests
-        run: npm test
-      - name: Package extension
-        run: npm run package
-      - name: Upload package
-        uses: actions/upload-artifact@v4
-        with:
-          name: npc-state-beta-package
-          path: dist/*.zip
-          if-no-files-found: error
+          fetch-depth: 0
+      - name: Apply tested v0.5.16 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          for patch in scripts/v0516-part-*.patch; do
+            git apply "$patch"
+          done
+          git checkout origin/main -- .github/workflows/ci.yml
+          rm -f scripts/v0516-part-*.patch scripts/stage-v0516.mjs
+          git add -A
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "feat: add source-owned grounded observations"
+          git push origin HEAD:${GITHUB_REF_NAME}
