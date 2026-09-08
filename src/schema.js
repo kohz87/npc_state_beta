@@ -2,7 +2,7 @@ import { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILE
 export { DEFAULT_RELATIONSHIP_CAPS, normalizeRelationshipCaps, RELATIONSHIP_MILESTONE_THRESHOLDS, RELATIONSHIP_MILESTONE_REQUIREMENTS, RELATIONSHIP_MILESTONE_MIN_RAW } from './relationship-rules.js';
 import { normalizeNumericSetting } from './settings-contract.js';
 import { dossierCollectionMemberText, dossierFieldValueIssue, normalizeDossierTextCollection } from './model/dossier-fields.js';
-export const NPC_STATE_VERSION = '0.5.12';
+export const NPC_STATE_VERSION = '0.5.13';
 export const NPC_STATE_SCHEMA_VERSION = 1;
 export function normalizeScannerResponseTokens(value) {
     return normalizeNumericSetting('scannerResponseTokens', value);
@@ -545,11 +545,16 @@ export function normalizeName(value) {
 export function normalizeApparentAge(value) {
     const raw = text(value, 80);
     if (!raw) return '';
-    // Apparent age is deliberately one approximate number, never a decade or range.
-    if (/\b\d{1,4}\s*['’]?\s*s\b/i.test(raw)) return '';
-    const matches = [...raw.matchAll(/(^|[^\d])(\d{1,4})(?!\d)/g)].map(match => Number(match[2]));
-    if (matches.length !== 1 || !Number.isInteger(matches[0]) || matches[0] < 0) return '';
-    return `~${matches[0]}`;
+    // Numeric apparent ages remain one approximate number. Grounded prose life-stage
+    // descriptions are also valid apparent-age evidence and must not be discarded.
+    if (/\d/.test(raw)) {
+        if (/\b\d{1,4}\s*['’]?\s*s\b/i.test(raw)) return '';
+        if (/\d{1,4}\s*(?:-|–|—|to)\s*\d{1,4}/i.test(raw)) return '';
+        const matches = [...raw.matchAll(/(^|[^\d])(\d{1,4})(?!\d)/g)].map(match => Number(match[2]));
+        if (matches.length !== 1 || !Number.isInteger(matches[0]) || matches[0] < 0) return '';
+        return `~${matches[0]}`;
+    }
+    return raw;
 }
 
 export function normalizeActualAge(value) {
