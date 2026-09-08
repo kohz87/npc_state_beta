@@ -20,6 +20,12 @@ jobs:
         run: sed -i "s/export const NPC_STATE_VERSION = '0.5.30'/export const NPC_STATE_VERSION = '0.5.31'/" src/schema.js
       - name: Apply candidate patch
         run: node scripts/v0531-patch-temp.mjs
+      - name: Compact prompt and synchronize release test
+        run: |
+          sed -i 's@PRIVATE COMPLETENESS CHECK: re-check every field + Current Dynamic against permitted CURRENT sources before payload; directly supported narrow values are proposals, not insufficient. Unknown is valid; never invent.@PRIVATE COMPLETENESS CHECK: directly supported values from permitted CURRENT sources are proposals, not insufficient. Unknown is valid; never invent.@' src/scan-helpers.js
+          sed -i 's@; birthdayProvenance:"generated" is fallback metadata, not evidence\.@.@' src/model/semantic-updates.js
+          sed -i "s/assert.equal(manifest.version, '0.5.30');/assert.equal(manifest.version, '0.5.31');/" tests/structure.test.mjs
+          sed -i "s/NPC_STATE_VERSION = '0.5.30'/NPC_STATE_VERSION = '0.5.31'/" tests/structure.test.mjs
       - name: Diff sanity
         run: |
           git diff --check
