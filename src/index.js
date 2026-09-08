@@ -406,8 +406,9 @@ function registerEvents() {
     });
 
     if (events.MESSAGE_RECEIVED) source.on(events.MESSAGE_RECEIVED, messageId => {
-        // Never await a quiet scanner request from the host completion callback.
-        if (scannerGenerationDepth === 0) void processCompletedAssistantResponse(messageId);
+        // processCompletedAssistantResponse owns scanner-recursion suppression.
+        // Keep the host callback fire-and-forget so quiet generation is never awaited here.
+        void processCompletedAssistantResponse(messageId);
     });
 
     const load = async () => {

@@ -4,7 +4,7 @@ import { withHost } from './helpers/host-harness.mjs';
 import { scanOutputExamples } from '../src/scan-contract.js';
 import { createEmptyState, normalizeNpc } from '../src/schema.js';
 
-const NIA_STORY = 'Nia, harbor clerk in blue, tells Ari “Registry first” and taps the form. Ivo has green eyes.';
+const NIA_STORY = 'Nia, harbor clerk in blue, tells Ari “Registry first,” slides the form back when he hesitates, says “Next line,” and taps the signature box. Ivo has green eyes.';
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
 function install(h, story = NIA_STORY) {
     h.context.name1 = 'Ari';
