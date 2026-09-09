@@ -32,6 +32,50 @@ export function newNpcAdmissionAllows(patch, mode = 'balanced') {
     return ['named', 'proper-name', 'proper', 'role-label', 'role', 'unnamed', ''].includes(kind);
 }
 
+const NEW_PROFILE_ESTABLISHMENT_BASES = new Set(['explicit', 'reinforced']);
+
+function normalizeNewNpcSemanticBootstrap(stateInput, resultInput, diagnostics = []) {
+    const result = structuredClone(resultInput || {});
+    const state = stateInput || {};
+    for (let patchIndex = 0; patchIndex < (Array.isArray(result.npcs) ? result.npcs.length : 0); patchIndex += 1) {
+        const patch = result.npcs[patchIndex];
+        if (!patch || typeof patch !== 'object' || Array.isArray(patch)) continue;
+        const patchId = String(patch.id || '').trim();
+        const existing = (patchId ? (state.npcs || []).find(npc => npc.id === patchId) || null : null)
+            || findNpcByReference(state, patch.name || '');
+        if (existing) continue;
+
+        const establishment = patch.profileEstablishment && typeof patch.profileEstablishment === 'object' && !Array.isArray(patch.profileEstablishment)
+            ? patch.profileEstablishment
+            : {};
+        const mannerismBasis = String(establishment.mannerisms || '').trim().toLocaleLowerCase();
+        const semanticUpdates = [];
+        for (const raw of Array.isArray(patch.semanticUpdates) ? patch.semanticUpdates : []) {
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+                semanticUpdates.push(raw);
+                continue;
+            }
+            const update = structuredClone(raw);
+            const field = String(update.field || '').trim();
+            const operation = String(update.operation || '').trim().toLocaleLowerCase();
+            if (field === 'mannerisms' && operation !== 'remove' && !NEW_PROFILE_ESTABLISHMENT_BASES.has(mannerismBasis)) {
+                diagnostics.push({
+                    npcId: '', patchIndex, field: 'mannerisms', group: 'profile', channel: 'new-semantic-bootstrap',
+                    status: 'rejected-proposal', reason: 'profile-establishment-basis-required',
+                });
+                continue;
+            }
+            // Passive generated birthdays are metadata fallback. A grounded explicit birthday
+            // from the same NEW admission must be able to supersede that generated value once
+            // its source passes the ordinary semantic validator.
+            if (field === 'birthday' && operation === 'establish') update.operation = 'replace';
+            semanticUpdates.push(update);
+        }
+        if (Array.isArray(patch.semanticUpdates)) patch.semanticUpdates = semanticUpdates;
+    }
+    return result;
+}
+
 function auditCandidateAccounting(state, result, candidateNpcIds = [], exchangeActiveNpcIds = []) {
     const allowed = new Set(['evaluated', 'mentioned', 'inactive', 'unresolved']);
     const accounting = result?.candidateAccounting && typeof result.candidateAccounting === 'object' && !Array.isArray(result.candidateAccounting)
@@ -107,34 +151,35 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     const focused = validateFocusedProposalPayload(parsed);
     compatibilityDiagnostics.push(...focused.diagnostics);
     const adapted = adaptLegacySemanticPayload(stateInput, focused.result, { ...semanticOptions, compatibilityDiagnostics });
-    const prepared = prepareModelLedPayload(stateInput, adapted, options.admissionMode);
+    const canonicalized = normalizeNewNpcSemanticBootstrap(stateInput, adapted, compatibilityDiagnostics);
+    const prepared = prepareModelLedPayload(stateInput, canonicalized, options.admissionMode);
     const applied = core.applyScanResult(stateInput, prepared, options);
-    const observations = applyProfileObservations(applied.state, adapted, {
+    const observations = applyProfileObservations(applied.state, canonicalized, {
         ...semanticOptions,
         patchResolutions: applied.patchResolutions,
     });
-    const semantic = applyModelLedSemanticUpdates(observations.state, adapted, {
+    const semantic = applyModelLedSemanticUpdates(observations.state, canonicalized, {
         ...semanticOptions,
         patchResolutions: applied.patchResolutions,
     });
-    const family = applyModelLedFamilyFacts(semantic.state, adapted, options);
+    const family = applyModelLedFamilyFacts(semantic.state, canonicalized, options);
     const coverageNpcIds = Array.isArray(options.coverageNpcIds)
         ? options.coverageNpcIds
         : (options.requireDossierCoverage === true ? applied.exchangeActiveNpcIds : []);
     const candidateAudit = options.requireCandidateAccounting === true
-        ? auditCandidateAccounting(family.state, adapted, coverageNpcIds, applied.exchangeActiveNpcIds)
+        ? auditCandidateAccounting(family.state, canonicalized, coverageNpcIds, applied.exchangeActiveNpcIds)
         : { diagnostics: [], evaluatedNpcIds: coverageNpcIds };
     const ordinaryCoverageNpcIds = [...new Set([
         ...(options.requireCandidateAccounting === true ? candidateAudit.evaluatedNpcIds : coverageNpcIds),
         ...applied.exchangeActiveNpcIds,
     ])];
     const ordinaryCoverage = ordinaryCoverageNpcIds.length
-        ? auditDossierEvaluationCoverage(family.state, adapted, { npcIds: ordinaryCoverageNpcIds, patchResolutions: applied.patchResolutions })
+        ? auditDossierEvaluationCoverage(family.state, canonicalized, { npcIds: ordinaryCoverageNpcIds, patchResolutions: applied.patchResolutions })
         : [];
     const dynamicCoverageNpcIds = options.requireCandidateAccounting === true ? applied.exchangeActiveNpcIds : ordinaryCoverageNpcIds;
     const coverageDiagnostics = currentDynamicCoverage(
         family.state,
-        adapted,
+        canonicalized,
         dynamicCoverageNpcIds,
         applied.patchResolutions,
         [...candidateAudit.diagnostics, ...ordinaryCoverage],
