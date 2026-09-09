@@ -25,14 +25,14 @@ test('legacy-compatible host response still applies valid proposals but cannot f
         ivo.fieldEvaluations.insufficient = ivo.fieldEvaluations.insufficient.filter(field => field !== 'background');
         provider(h, legacy);
         const first = await h.entry.processCompletedAssistantResponse(1);
-        assert.equal(first.ok, true); assert.equal(h.metrics.generations, 2); assert.equal(h.metrics.posts, 1);
+        assert.equal(first.ok, true); assert.equal(h.metrics.generations, 1); assert.equal(h.metrics.posts, 1);
         assert.equal(/<npc_state_v1/i.test(h.context.chat[1].mes), false);
         const saved = h.persisted();
         assert.equal(saved.npcs.find(n => n.name === 'Nia').appearance, 'Blue coat.');
         assert.equal(saved.npcs.find(n => n.id === 'npc-ivo').appearance, 'Green eyes.');
         assert.equal(h.api.scanStatus().status, 'partial');
         const second = await h.entry.processCompletedAssistantResponse(1);
-        assert.equal(second.ok, true); assert.equal(h.metrics.generations, 2); assert.equal(h.metrics.posts, 1);
+        assert.equal(second.ok, true); assert.equal(h.metrics.generations, 1); assert.equal(h.metrics.posts, 1);
     }, { state });
 });
 
@@ -76,10 +76,10 @@ test('revision during provider generation cannot publish stale state', () => wit
     assert.equal(result.ok, false); assert.equal(result.discarded, true); assert.equal(h.metrics.posts, 0); assert.equal(h.api.scanStatus().status, 'blocked');
 }));
 
-test('lengthy narrative with Inventory preserves user-visible content while new admission completion stays bounded', () => withHost(async h => {
+test('lengthy narrative with Inventory preserves user-visible content with default follow-up Off', () => withHost(async h => {
     const story = `${'Cold wind rattles the shutters. '.repeat(180)} ${NIA_STORY}\n<Inventory>Coin Pouch | 1 | 100 Gold</Inventory>`;
     install(h, story); provider(h);
     const result = await h.entry.processCompletedAssistantResponse(1);
-    assert.equal(result.ok, true); assert.equal(h.metrics.generations, 2); assert.equal(h.metrics.posts, 1);
+    assert.equal(result.ok, true); assert.equal(h.metrics.generations, 1); assert.equal(h.metrics.posts, 1);
     assert.match(h.context.chat[1].mes, /<Inventory>Coin Pouch/); assert.equal(/<npc_state_v1/i.test(h.context.chat[1].mes), false);
 }));

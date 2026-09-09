@@ -2,9 +2,9 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.32
+## Release 0.5.33
 
-0.5.32 makes first-contact creation more robust without turning every turn into a double scan. A successful automatic admission may perform one bounded completion request for only the newly admitted NPC's still-unresolved ordinary dossier fields, using the same current exchange and the same evidence firewall, before one persistence/checkpoint. It cannot repaint already-populated fields or change cast presence, relationships, lifecycle, or graph state. Deterministically generated birthdays remain internally tracked but are presented and supplied to normal scanner continuity as ordinary stable birthdays, without a `generated` label.
+0.5.33 makes first-contact follow-up explicit instead of unconditional. **Off** is the default, including when the setting is absent on upgrade. **Missing evaluations only** rechecks only eligible blank fields on newly admitted NPCs that the first response neither proposed nor explicitly evaluated. **Recheck unknown fields** may also revisit eligible blanks explicitly marked insufficient. Any automatic follow-up uses the same complete current exchange, exact admitted stable IDs, existing locks/source validation, and the same final persistence/checkpoint boundary. A shared two-request budget includes malformed-JSON retries, so spending the retry budget skips follow-up rather than issuing a third request. Individual dossiers also offer a current-exchange-only **Recheck missing details** action that is distinct from historical Refresh. Deterministically generated birthdays remain internally tracked but are presented and supplied to normal scanner continuity as ordinary stable birthdays, without a `generated` label.
 
 Recent 0.5.x refinements retained by this release include:
 
@@ -28,12 +28,13 @@ Recent 0.5.x refinements retained by this release include:
 - **0.5.30:** retain source-owned profile observations for newly admitted NPCs and clarify first-contact profile establishment without adding another scan.
 - **0.5.31:** re-check permitted current evidence before `insufficient`, and expose synthetic birthday provenance in compact scanner context and dossier UI.
 - **0.5.32:** add a new-admission-only current-exchange completion request inside the same automatic operation, and return deterministic birthday provenance to internal-only bookkeeping.
+- **0.5.33:** make that follow-up optional with an Off default, exact target-field completion coverage, a shared two-request budget, per-request estimates, and a manual current-exchange missing-detail recheck.
 
 The automatic workflow remains:
 
-`compact continuity -> visible roleplay response -> dedicated post-response scan -> optional new-admission completion -> validate/apply -> guarded persistence/checkpoint -> refresh continuity/UI`
+`compact continuity -> visible roleplay response -> dedicated post-response scan -> optional configured first-contact follow-up -> validate/apply -> guarded persistence/checkpoint -> refresh continuity/UI`
 
-Roleplay generation does not emit `<npc_state_v1>` or other NPC JSON. Foreground injection is continuity-only. `autoScan=true` means one logical dedicated scan operation after each completed assistant revision. Ordinary existing-cast turns use one provider request; only a turn that actually admits a new NPC may use one additional bounded first-contact completion request before the same guarded commit. Duplicate host completion events share the same logical job; edits, swipes, deletion, branch changes, and chat switches invalidate stale work.
+Roleplay generation does not emit `<npc_state_v1>` or other NPC JSON. Foreground injection is continuity-only. `autoScan=true` means one logical dedicated scan operation after each completed assistant revision. With first-contact follow-up Off, a valid first response uses one provider request. When a follow-up mode is enabled, the same automatic operation may use one additional request for eligible newly admitted fields, but the shared cap is two requests total including malformed-JSON retries. Duplicate host completion events share the same logical job; edits, swipes, deletion, branch changes, and chat switches invalidate stale work.
 
 Before the next ordinary generation, NPC State uses SillyTavern's awaited generation interceptor to settle the preceding response's owning scan and rebuild continuity. The recursion bypass exists only while invoking the scanner's own host generation call; ordinary roleplay work cannot inherit scanner privileges. A failed or timed-out owning scan exposes an actionable Retry state and aborts the attempted next generation instead of silently using unsynchronized state.
 
@@ -59,7 +60,8 @@ New-NPC bootstrap, existing semantic updates, manual/import boundaries, and pers
 
 Important settings include:
 
-- **Auto scan**: one dedicated post-response scan operation; newly admitted NPCs may receive one bounded current-exchange completion request before commit.
+- **Auto scan**: one dedicated post-response scan operation.
+- **First-contact follow-up**: Off by default; optionally recheck only missing evaluations or recheck eligible unknown fields for newly admitted NPCs. A follow-up consumes the same two-request automatic-operation budget and may find no additional information.
 - **Inject NPC continuity**: independent continuity context for roleplay generation.
 - **NPC scan connection profile**: optional alternate model route for scanner requests. A missing/changed configured profile is an explicit error, not silent fallback to the main roleplay connection.
 - **Scanner output tokens**: adjustable up to 15,000.
@@ -86,7 +88,7 @@ User-owned portraits, locks, manual corrections, importance, and suppression tom
 
 Current boundaries:
 
-- Release label: **0.5.24**
+- Release label: **0.5.33**
 - Persisted state schema: **1**
 - Settings schema: **1**
 - Model semantic contract: **6**

@@ -121,7 +121,7 @@ test('Scan and Refresh advertise positive first-pass sufficiency and exact Curre
         assert.match(prompt, /Direct visible life-stage wording/);
         assert.match(prompt, /young woman\/man\/adult/);
         assert.match(prompt, /explicit recurrence\/generalization or multiple reinforcing actions/);
-        assert.match(prompt, /multiple related instances may consolidate into one narrow mannerism/);
+        assert.match(prompt, /multiple related instances may consolidate into one narrow mannerism/i);
         assert.match(prompt, /CURRENT DYNAMIC EVIDENCE:/);
         assert.match(prompt, /small coherent set may use connected accepted identity\/activity evidence from the same permitted source/);
         assert.match(prompt, /need not repeat an already accepted narrator quote/);

@@ -107,7 +107,7 @@ test('retry of a partial automatic scan forces a same-boundary semantic rescan i
     h.context.generateRaw = async () => { h.metrics.generations += 1; return JSON.stringify(secondPayload); };
     const retry = await h.api.retryAutoScan();
     assert.equal(retry.ok, true);
-    assert.equal(h.metrics.generations, 3);
+    assert.equal(h.metrics.generations, 2);
     assert.equal(h.persisted().npcs[0].mood, 'Focused and mildly concerned.');
     assert.equal(h.api.scanStatus().status, 'complete');
     assert.deepEqual(h.persisted().npcs[0].relationship, { trust: 0, affection: 0, desire: 0, tension: 0 });

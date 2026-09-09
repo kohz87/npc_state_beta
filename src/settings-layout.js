@@ -94,6 +94,7 @@ function ensureScanning(drawer) {
         '#npc_state_v3_retry_auto_scan',
         '#npc_state_v3_scan_depth',
         '#npc_state_v04_admission',
+        '#npc_state_v3_first_contact_follow_up',
         '#npc_state_v047_response_tokens',
         '#npc_state_v3_scan_profile',
     ]);

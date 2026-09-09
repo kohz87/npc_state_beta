@@ -1,4 +1,4 @@
-import { NUMERIC_SETTINGS, numericSettingAttributes, normalizeNumericSetting } from './settings-contract.js';
+import { NUMERIC_SETTINGS, numericSettingAttributes, normalizeFirstContactFollowUpMode, normalizeNumericSetting } from './settings-contract.js';
 import { castRailHtml, dossierHtml, filterDossierNpcs } from './dossier-view.js';
 import { NPC_STATE_VERSION, DOSSIER_LIMIT_MAXIMUMS, RELATIONSHIP_AXES, normalizeNpcAdmissionMode, normalizeBirthdayFillMode, normalizeDossierLimits, normalizeScannerResponseTokens } from './schema.js';
 
@@ -171,6 +171,7 @@ export function createNpcStateUi(adapters = {}) {
               <div class="npc-state-setting-row"><span><b>Retry last Auto Scan</b><small>Retry the latest completed assistant exchange after a failed or blocked automatic scan.</small></span><button id="npc_state_v3_retry_auto_scan" class="menu_button" type="button">Retry</button></div>
               <label class="npc-state-setting-row"><span><b>Refresh/history depth</b><small>History depth for targeted Refresh and recovery-oriented reconciliation. Routine Auto Scan uses only the current exchange plus bounded antecedent reference context.</small></span><input id="npc_state_v3_scan_depth" class="text_pole npc-state-number" type="number" ${numericSettingAttributes('scanDepth')}></label>
               <label class="npc-state-setting-row"><span><b>New NPC admission</b><small>Balanced keeps current behavior. Named preferred ignores first-seen unnamed role labels. Manual prevents scanner-created dossiers while existing NPCs still update.</small></span><select id="npc_state_v04_admission" class="text_pole"><option value="balanced">Balanced</option><option value="named_preferred">Named preferred</option><option value="manual">Manual</option></select></label>
+              <label class="npc-state-setting-row"><span><b>First-contact follow-up</b><small>Off uses only the normal scan. Missing evaluations only rechecks newly admitted fields the first response did not account for. Recheck unknown fields also revisits eligible blanks once, including explicit insufficient outcomes. Follow-up adds one request at most and may find no additional information.</small></span><select id="npc_state_v3_first_contact_follow_up" class="text_pole"><option value="off">Off</option><option value="missing_evaluations">Missing evaluations only</option><option value="recheck_unknown_fields">Recheck unknown fields</option></select></label>
               <label class="npc-state-setting-row"><span><b>Scanner Response Limit</b><small>Output ceiling for separate scans, dossier Refresh, structured imports, and retries. Range: ${NUMERIC_SETTINGS.scannerResponseTokens.min.toLocaleString('en-US')}-${NUMERIC_SETTINGS.scannerResponseTokens.max.toLocaleString('en-US')} tokens. Increase for large casts. Does not change RP output or history depth.</small></span><input id="npc_state_v047_response_tokens" class="text_pole npc-state-number" type="number" ${numericSettingAttributes('scannerResponseTokens')}></label>
               <label class="npc-state-setting-row"><span><b>NPC scan connection profile</b><small>Current connection uses the active connection. A saved supported SillyTavern Connection Profile applies to dedicated NPC scans and JSON retries only; normal roleplay stays on the main connection.</small></span><select id="npc_state_v3_scan_profile" class="text_pole"><option value="">Current connection</option></select></label>
               <label class="npc-state-setting-row"><span><b>Birthday fill</b><small>Passive metadata only. Off leaves blanks; Unknown stores Unknown; Random assigns one stable configured-calendar date. It never advances age.</small></span><select id="npc_state_v04_birthday_fill" class="text_pole"><option value="off">Off</option><option value="unknown">Unknown</option><option value="random">Random</option></select></label>
@@ -235,6 +236,7 @@ export function createNpcStateUi(adapters = {}) {
         syncScanConnectionProfile(panel, settings);
         syncScanStatus(panel);
         panel.querySelector('#npc_state_v04_admission').value = settings.newNpcAdmissionMode || 'balanced';
+        panel.querySelector('#npc_state_v3_first_contact_follow_up').value = normalizeFirstContactFollowUpMode(settings.firstContactFollowUpMode);
         panel.querySelector('#npc_state_v04_birthday_fill').value = settings.birthdayFillMode || 'off';
         panel.querySelector('#npc_state_v04_birthday_calendar').value = settings.birthdayRandomCalendar || '';
         panel.querySelector('#npc_state_v04_birthday_days').value = settings.birthdayRandomDaysPerMonth || 30;
@@ -263,6 +265,13 @@ export function createNpcStateUi(adapters = {}) {
         bindCheck('#npc_state_v3_enabled', 'enabled');
         bindCheck('#npc_state_v3_auto', 'autoScan');
         panel.querySelector('#npc_state_v3_retry_auto_scan')?.addEventListener('click', () => void safely('Retry Auto Scan', retryAutoScan));
+        panel.querySelector('#npc_state_v3_first_contact_follow_up')?.addEventListener('change', event => {
+            const settings = getSettings();
+            settings.firstContactFollowUpMode = normalizeFirstContactFollowUpMode(event.target.value);
+            event.target.value = settings.firstContactFollowUpMode;
+            persistSettings();
+            onSettingsChanged();
+        });
         panel.querySelector('#npc_state_v04_admission')?.addEventListener('change', event => {
             const value = String(event.target.value || 'balanced');
             getSettings().newNpcAdmissionMode = normalizeNpcAdmissionMode(value);
@@ -567,6 +576,17 @@ export function createNpcStateUi(adapters = {}) {
             persistSettings();
             syncSettings();
             renderLibrary({ detailOnly: true });
+        });
+        root.querySelector('.npc-state-v3-recheck-missing')?.addEventListener('click', async event => {
+            const id = event.currentTarget.dataset.npcId;
+            event.currentTarget.disabled = true;
+            const result = await safely('missing-detail recheck', () => engine.recheckMissingDetails(id));
+            event.currentTarget.disabled = false;
+            const message = result.ok
+                ? (result.skipped ? 'NPC State: no eligible blank dossier fields to recheck.' : 'NPC State: current-exchange missing-detail recheck completed.')
+                : (result.reason === 'branch-unsafe' ? 'NPC State: timeline rebase required before rechecking.' : `NPC State: missing-detail recheck did not commit (${result.reason || 'unknown'}).`);
+            notify(result.ok ? 'success' : 'warning', message);
+            refresh();
         });
         root.querySelector('.npc-state-v3-refresh')?.addEventListener('click', async event => {
             const id = event.currentTarget.dataset.npcId;

@@ -1,4 +1,4 @@
-import { NUMERIC_SETTINGS, normalizeNumericSetting } from './settings-contract.js';
+import { NUMERIC_SETTINGS, normalizeFirstContactFollowUpMode, normalizeNumericSetting } from './settings-contract.js';
 import { DEFAULT_BIRTHDAY_RANDOM_CALENDAR, DEFAULT_RELATIONSHIP_CAPS, DOSSIER_LIMIT_DEFAULTS,
     normalizeBirthdayFillMode, normalizeDossierLimits, normalizeNpcAdmissionMode, normalizeRelationshipCaps } from './schema.js';
 import { DEFAULT_PORTRAIT_NEGATIVE_PROMPT, DEFAULT_PORTRAIT_POSITIVE_PROMPT, DEFAULT_PORTRAIT_PRESET,
@@ -8,7 +8,7 @@ import { migrateSettings } from './settings-migrations.js';
 export const SETTINGS_SCHEMA = 1;
 const DEFAULT_RELATIONSHIP_CRITERIA = `The shared relationship-judgment rubric is the default authority. Use this field only for optional campaign-specific calibration; custom criteria are additive and do not replace current-exchange evidence, per-axis meanings, or deterministic score mechanics.`;
 
-const DEFAULT_MEMORY_CRITERIA = `Store only durable NPC memories that can matter in later scenes: consequential promises, betrayals, rescues, injuries, discoveries, relationship-defining exchanges, major gifts/debts, established secrets, lasting changes of circumstance, and other facts the NPC would reasonably remember later. Do not store routine dialogue, transient mood, narration texture, or duplicate paraphrases of an existing memory.`;
+const DEFAULT_MEMORY_CRITERIA = `Store only durable NPC memories that can matter in later scenes: consequential promises, betrayals, rescues, injuries, discoveries, relationship-defining exchanges, major gifts/debts, established secrets, completed registrations or credentials that establish lasting access, lasting changes of circumstance, and other facts the NPC would reasonably remember later. Do not store routine dialogue, transient mood, narration texture, or duplicate paraphrases of an existing memory.`;
 
 const defaults = {
     enabled: true,
@@ -18,6 +18,7 @@ const defaults = {
     showDossierDiagnostics: false,
     branchRescan: true,
     newNpcAdmissionMode: 'balanced',
+    firstContactFollowUpMode: 'off',
     birthdayFillMode: 'off',
     birthdayRandomCalendar: DEFAULT_BIRTHDAY_RANDOM_CALENDAR,
     staleManagementEnabled: true,
@@ -48,6 +49,7 @@ export function normalizeSettings(settings = {}) {
     for (const key of Object.keys(NUMERIC_SETTINGS)) settings[key] = normalizeNumericSetting(key, settings[key]);
     settings.scanConnectionProfileId = String(settings.scanConnectionProfileId || '').trim().slice(0, 240);
     settings.newNpcAdmissionMode = normalizeNpcAdmissionMode(settings.newNpcAdmissionMode);
+    settings.firstContactFollowUpMode = normalizeFirstContactFollowUpMode(settings.firstContactFollowUpMode);
     settings.birthdayFillMode = normalizeBirthdayFillMode(settings.birthdayFillMode);
     settings.birthdayRandomCalendar = String(settings.birthdayRandomCalendar ?? DEFAULT_BIRTHDAY_RANDOM_CALENDAR).slice(0, 6000);
     settings.staleDeleteAfter = Math.max(settings.staleArchiveAfter + 1, settings.staleDeleteAfter);

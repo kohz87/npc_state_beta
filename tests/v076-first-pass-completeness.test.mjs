@@ -265,7 +265,7 @@ test('successful dedicated Sanna scan commits and persists the dossier', async (
     const generated = payload(sannaPatch({ role: 'Desk clerk', appearance: 'Pale brown hair tied at her nape.', memories: ['Issued Lucien a lead registration token.'] }));
     const harness = engineHarness({ state, chat, generate: async () => JSON.stringify(generated) });
     await harness.engine.loadChat(key); const result = await harness.engine.scan(1, { manual: false });
-    assert.equal(result.ok, true); assert.equal(harness.generations(), 2);
+    assert.equal(result.ok, true); assert.equal(harness.generations(), 1);
     const persisted = harness.persisted(); assert.equal(persisted.npcs.length, 1); assert.equal(persisted.npcs[0].name, 'Sanna Karr');
     assert.equal(persisted.npcs[0].relationshipSummary, 'Regards Lucien as a newly registered guild applicant; their interaction is strictly professional.');
 });
@@ -284,5 +284,5 @@ test('follow-up Scan uses the assigned stable id without duplicating Sanna or re
     } });
     await harness.engine.loadChat(key); const first = await harness.engine.scan(1, { manual: false }); assignedId = first.state.npcs[0].id;
     const second = await harness.engine.scan(1, { manual: true, force: true }); assert.equal(second.ok, true); assert.equal(second.state.npcs.length, 1); assert.equal(second.state.npcs[0].id, assignedId);
-    assert.deepEqual(second.state.npcs[0].relationship, { trust: 0, affection: 0, desire: 0, tension: 0 }); assert.equal((second.state.npcs[0].relationshipHistory || []).length, 0); assert.equal(harness.generations(), 3);
+    assert.deepEqual(second.state.npcs[0].relationship, { trust: 0, affection: 0, desire: 0, tension: 0 }); assert.equal((second.state.npcs[0].relationshipHistory || []).length, 0); assert.equal(harness.generations(), 2);
 });

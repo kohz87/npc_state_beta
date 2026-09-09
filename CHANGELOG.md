@@ -2,6 +2,15 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.33
+
+- Make first-contact follow-up one canonical enum setting with **Off** as the default, including absent-setting upgrades. **Missing evaluations only** targets unaccounted eligible blanks on successfully admitted NPCs; **Recheck unknown fields** may also revisit eligible blanks explicitly marked insufficient.
+- Audit follow-up coverage against exact requested stable-ID/field pairs. Empty, wrong-ID, omitted, invalid, and rejected responses remain diagnostic; accepted repairs clear only the repaired first-pass omission and explicit insufficient/unavailable/unchanged are valid evaluated outcomes.
+- Bound automatic scans to two provider requests total across malformed-JSON retry and optional follow-up. Operation diagnostics record request purpose/count, estimated input characters/tokens per request, aggregate estimates, and follow-up outcome without presenting estimates as billed usage.
+- Add dossier **Recheck missing details**, a current-exchange-only manual action that reuses the same target construction, source validation, ordinary-field locks, persistence, and diagnostics while remaining distinct from historical Refresh.
+- Consolidate grounded first-scene guidance: isolated actions remain observations rather than habits, multiple reinforcing actions can establish a narrow pattern, lasting completed registration/access may qualify as memory, and live goals describe remaining objectives.
+- Remove the unconditional v0.5.32 completion dispatch and synthesized completion group coverage. Persisted suppression/rollback/replay tombstones and supported compatibility readers remain unchanged. Persisted schema remains version 1.
+
 ## 0.5.32
 
 - Add one bounded first-contact completion request only when the automatic Scan actually admits a new NPC. The request sees the same current exchange, targets only still-unresolved ordinary fields for the newly admitted dossier, and is sanitized before application so it cannot change activity/presence, relationship state or Current Dynamic, lifecycle, family/social graph, identity, or already-populated fields. First pass and completion persist through one owned checkpoint/commit.
