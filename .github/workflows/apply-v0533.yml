@@ -44,6 +44,12 @@ jobs:
           t = t.replace("    assert.equal(latest(h).followUp.remainingOutcomes, 0);\n  }, { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'recheck_unknown_fields' } }));",
                         "    const followUp = latest(h).followUp;\n    assert.ok(followUp.requestedFields > 1);\n    assert.equal(followUp.remainingOutcomes, followUp.requestedFields - 1);\n  }, { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'recheck_unknown_fields' } }));")
           t = t.replace("assert.deepEqual(h.persisted().socialEdges, []);", "assert.deepEqual(h.persisted().socialEdges || [], []);")
+          anchor = "test('successful narrow repair clears only repaired warning and preserves protected state'"
+          start = t.index(anchor)
+          needle = "if (calls === 1) return JSON.stringify(firstPayload());"
+          pos = t.index(needle, start)
+          replacement = "if (calls === 1) {\n      const payload = firstPayload();\n      payload.npcs[0].fieldEvaluations.insufficient = payload.npcs[0].fieldEvaluations.insufficient.filter(field => field !== 'species');\n      return JSON.stringify(payload);\n    }"
+          t = t[:pos] + replacement + t[pos + len(needle):]
           open(p, 'w', encoding='utf-8').write(t)
           PY
       - name: Apply candidate patch
