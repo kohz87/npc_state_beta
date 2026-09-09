@@ -77,12 +77,26 @@ jobs:
               part = part.replace(old, new)
               open(path, 'w', encoding='utf-8').write(s[:start] + part + s[end:])
 
-          edit('src/scan-helpers.js',
-               "        'PROFILE EVIDENCE: personality and narrow behavior patterns may be established from multiple reinforcing choices/reactions/actions even in a first scene; one isolated gesture, mood, pose, or line remains tentative observation evidence, not a broad trait or recurring habit.',\n        'MANNERISM SUFFICIENCY: mannerisms are repeated characteristic gestures, object-handling, or social habits. Multiple related instances may consolidate into one narrow mannerism; a single sleeve-grab, tap, sweep, pose, or similar isolated action is insufficient and stays observation/live evidence.',",
-               "        'BEHAVIOR PROFILE EVIDENCE: personality may be established narrowly from multiple reinforcing choices/reactions; behaviorProfile and mannerisms require explicit recurrence/generalization or multiple reinforcing actions. One isolated gesture, mood, pose, line, or object action stays observation evidence, not a recurring habit.',")
-          edit('src/scan-helpers.js',
-               "        'LIVE GOAL: store the remaining objective after the current exchange. Completed registration, payment, delivery, explanation, or other finished action is not a live goal; a lasting consequence of that completion may instead qualify as memory when the memory rubric supports it.',",
-               "        'LIVE GOAL: store what remains to be done after the exchange; completed actions are not goals. Lasting completed registration/access may qualify as memory under the memory rubric.',")
+          p = 'src/scan-helpers.js'
+          lines = open(p, encoding='utf-8').read().splitlines()
+          out = []
+          profile = manner = goal = 0
+          for line in lines:
+              if "'PROFILE EVIDENCE:" in line:
+                  out.append("        'BEHAVIOR PROFILE EVIDENCE: personality may be established narrowly from multiple reinforcing choices/reactions; behaviorProfile and mannerisms require explicit recurrence/generalization or multiple reinforcing actions. One isolated gesture, mood, pose, line, or object action stays observation evidence, not a recurring habit.',")
+                  profile += 1
+                  continue
+              if "'MANNERISM SUFFICIENCY:" in line:
+                  manner += 1
+                  continue
+              if "'LIVE GOAL:" in line:
+                  out.append("        'LIVE GOAL: store what remains to be done after the exchange; completed actions are not goals. Lasting completed registration/access may qualify as memory under the memory rubric.',")
+                  goal += 1
+                  continue
+              out.append(line)
+          if (profile, manner, goal) != (1, 1, 1):
+              raise SystemExit(f'src/scan-helpers.js unexpected prompt rows: profile={profile} manner={manner} goal={goal}')
+          open(p, 'w', encoding='utf-8').write('\n'.join(out) + '\n')
 
           section_edit('tests/post-response-rework.test.mjs',
                        "test('automatic post-response scan may complete a newly admitted dossier with a second bounded request and duplicate completion is idempotent'",
