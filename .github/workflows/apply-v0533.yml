@@ -43,7 +43,9 @@ jobs:
         run: rm scripts/apply-v0533.mjs .github/workflows/apply-v0533.yml
       - name: Validate authoritative source
         run: npm run validate
-      - name: Run regression tests
+      - name: Run focused v0.5.33 regressions
+        run: node --test tests/v0533-optional-first-contact-recheck.test.mjs
+      - name: Run full regression tests
         run: npm test
       - name: Package extension
         run: npm run package
