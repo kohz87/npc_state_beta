@@ -55,7 +55,7 @@ test('absent/default first-contact follow-up is Off and admission uses one provi
   assert.equal(h.api.settings().firstContactFollowUpMode, 'off');
   assert.equal(latest(h).followUp.status, 'off');
   assert.equal(latest(h).requests.count, 1);
-}), { state: createEmptyState('chat:actor.png:fixture') });
+}, { state: createEmptyState('chat:actor.png:fixture') }));
 
 test('follow-up setting is one normalized enum and unknown values fail to Off', () => {
   assert.equal(normalizeSettings({}).firstContactFollowUpMode, 'off');
@@ -87,7 +87,9 @@ test('Missing evaluations only ignores explicit insufficient while Recheck unkno
     assert.equal(result.ok, true);
     assert.equal(h.metrics.generations, 2);
     assert.equal(latest(h).followUp.status, 'ran');
-    assert.equal(latest(h).followUp.remainingOutcomes, 0);
+    const followUp = latest(h).followUp;
+    assert.ok(followUp.requestedFields > 1);
+    assert.equal(followUp.remainingOutcomes, followUp.requestedFields - 1);
   }, { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'recheck_unknown_fields' } }));
 });
 
@@ -105,14 +107,18 @@ test('existing NPCs never trigger automatic first-contact follow-up', () => with
   assert.equal(result.ok, true);
   assert.equal(h.metrics.generations, 1);
   assert.equal(latest(h).followUp.status, 'unnecessary');
-}), { state: (() => { const s = createEmptyState('chat:actor.png:fixture'); s.npcs.push(normalizeNpc({ id: 'npc-tessa', name: 'Tessa Morren', role: 'Guild intake clerk' })); return s; })(), settings: { firstContactFollowUpMode: 'recheck_unknown_fields' } });
+}, { state: (() => { const s = createEmptyState('chat:actor.png:fixture'); s.npcs.push(normalizeNpc({ id: 'npc-tessa', name: 'Tessa Morren', role: 'Guild intake clerk' })); return s; })(), settings: { firstContactFollowUpMode: 'recheck_unknown_fields' } }));
 
 test('successful narrow repair clears only repaired warning and preserves protected state', () => withHost(async h => {
   h.context.chat = structuredClone(chat);
   let calls = 0;
   h.context.generateRaw = async ({ prompt }) => {
     h.metrics.generations += 1; calls += 1;
-    if (calls === 1) return JSON.stringify(firstPayload());
+    if (calls === 1) {
+      const payload = firstPayload();
+      payload.npcs[0].fieldEvaluations.insufficient = payload.npcs[0].fieldEvaluations.insufficient.filter(field => field !== 'species');
+      return JSON.stringify(payload);
+    }
     const id = prompt.match(/"id":"([^"]+)","name":"Tessa Morren"/)?.[1];
     return JSON.stringify(completionPayload(id, { extras: { personality: 'overwrite', relationshipSummary: 'overwrite' } }));
   };
@@ -126,7 +132,7 @@ test('successful narrow repair clears only repaired warning and preserves protec
   assert.equal(npc.lifeState, 'unknown');
   assert.equal(npc.present, true);
   assert.equal(npc.worldActive, false);
-  assert.deepEqual(h.persisted().socialEdges, []);
+  assert.deepEqual(h.persisted().socialEdges || [], []);
   assert.equal(result.coverageDiagnostics.some(row => row?.missingFields?.includes('goal')), false);
   assert.ok(result.coverageDiagnostics.some(row => row?.missingFields?.includes('species')));
   const d = latest(h);
@@ -139,7 +145,7 @@ test('successful narrow repair clears only repaired warning and preserves protec
   assert.equal(d.requests.aggregate.billedTokens, 'unavailable');
   assert.equal(d.followUp.acceptedChanges, 1);
   assert.equal(h.metrics.posts, 1);
-}), { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'missing_evaluations' } });
+}, { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'missing_evaluations' } }));
 
 test('empty, wrong-id, and omitted-field completion responses stay partial', async t => {
   for (const kind of ['empty', 'wrong-id', 'omitted']) await t.test(kind, () => withHost(async h => {
@@ -175,7 +181,7 @@ test('zero-change but fully evaluated requested fields is a valid completion', (
   assert.equal(result.ok, true);
   assert.equal(result.coverageDiagnostics.some(row => row.coverageKind === 'first-contact-completion' && ['missing-npc-patch','incomplete-evaluation'].includes(row.status)), false);
   assert.equal(latest(h).followUp.remainingOutcomes, 0);
-}), { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'missing_evaluations' } });
+}, { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'missing_evaluations' } }));
 
 test('shared request budget spends malformed first-pass retry and skips follow-up', () => withHost(async h => {
   h.context.chat = structuredClone(chat);
@@ -188,7 +194,7 @@ test('shared request budget spends malformed first-pass retry and skips follow-u
   assert.equal(d.requests.count, 2);
   assert.equal(d.requests.items[1].purpose, 'automatic-first-pass-json-retry');
   assert.equal(d.followUp.status, 'skipped-budget');
-}), { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'missing_evaluations' } });
+}, { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'missing_evaluations' } }));
 
 test('malformed follow-up cannot make a third request and preserves first-pass data', () => withHost(async h => {
   h.context.chat = structuredClone(chat);
@@ -200,7 +206,7 @@ test('malformed follow-up cannot make a third request and preserves first-pass d
   assert.equal(h.persisted().npcs[0].personality, 'Brisk and efficient during guild intake.');
   assert.ok(result.coverageDiagnostics.some(row => row.status === 'first-contact-completion-failed'));
   assert.equal(latest(h).followUp.status, 'failed');
-}), { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'missing_evaluations' } });
+}, { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'missing_evaluations' } }));
 
 test('edit, swipe, and chat ownership changes during follow-up discard before combined persistence', async t => {
   for (const kind of ['edit','swipe','chat']) await t.test(kind, () => withHost(async h => {
@@ -240,8 +246,8 @@ test('manual Recheck missing details is current-exchange-only and isolated from 
   assert.equal(npc.present, before.present);
   assert.equal(npc.worldActive, before.worldActive);
   assert.equal(npc.lifeState, before.lifeState);
-  assert.deepEqual(h.persisted().socialEdges, []);
-}), { state: (() => { const s = createEmptyState('chat:actor.png:fixture'); s.npcs.push(normalizeNpc({ id: 'npc-tessa', name: 'Tessa Morren', role: 'Guild intake clerk', personality: 'Brisk and efficient during guild intake.', present: true, worldActive: false, relationshipSummary: 'Neutral professional clerk-to-adventurer interaction.' })); return s; })() });
+  assert.deepEqual(h.persisted().socialEdges || [], []);
+}, { state: (() => { const s = createEmptyState('chat:actor.png:fixture'); s.npcs.push(normalizeNpc({ id: 'npc-tessa', name: 'Tessa Morren', role: 'Guild intake clerk', personality: 'Brisk and efficient during guild intake.', present: true, worldActive: false, relationshipSummary: 'Neutral professional clerk-to-adventurer interaction.' })); return s; })() }));
 
 test('completion prompt remains exact-id/current-exchange scoped', () => {
   const npc = normalizeNpc({ id: 'npc-tessa', name: 'Tessa Morren' });

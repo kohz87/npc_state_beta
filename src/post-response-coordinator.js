@@ -8,7 +8,7 @@ function resultStatus(result) {
         const partialCoverage = new Set([
             'incomplete-evaluation', 'missing-npc-patch', 'missing-candidate-accounting',
             'invalid-candidate-accounting', 'candidate-unresolved', 'candidate-accounting-conflict',
-            'first-contact-completion-failed',
+            'first-contact-completion-failed', 'identity-rejected', 'identity-unresolved',
         ]);
         const partial = result?.partial === true
             || (result.coverageDiagnostics || []).some(row => partialCoverage.has(row?.status))

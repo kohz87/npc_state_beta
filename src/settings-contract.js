@@ -11,6 +11,12 @@ export const NUMERIC_SETTINGS = Object.freeze(Object.fromEntries(Object.entries(
     relationshipHistoryLimit: { default: 8, min: 1, max: 24 },
 }).map(([key, value]) => [key, Object.freeze(value)])));
 
+export const FIRST_CONTACT_FOLLOW_UP_MODES = Object.freeze(['off', 'missing_evaluations', 'recheck_unknown_fields']);
+export function normalizeFirstContactFollowUpMode(value) {
+    const mode = String(value || '').trim().toLocaleLowerCase();
+    return FIRST_CONTACT_FOLLOW_UP_MODES.includes(mode) ? mode : 'off';
+}
+
 export function normalizeNumericSetting(key, value, fallback = NUMERIC_SETTINGS[key]?.default) {
     const rule = NUMERIC_SETTINGS[key];
     if (!rule) throw new Error(`Unknown numeric setting: ${key}`);

@@ -125,12 +125,34 @@ function firstContactFieldMissing(npc = {}, field = '') {
     return !clean || normalizeName(clean) === 'unknown';
 }
 
-function firstContactCompletionTargets(beforeState = {}, afterState = {}) {
+function missingEvaluationFields(coverageDiagnostics = [], npcId = '') {
+    const out = new Set();
+    for (const row of Array.isArray(coverageDiagnostics) ? coverageDiagnostics : []) {
+        if (row?.npcId !== npcId) continue;
+        if (row.status === 'missing-npc-patch') {
+            for (const field of DOSSIER_SEMANTIC_FIELDS) out.add(field);
+            continue;
+        }
+        if (row.status !== 'incomplete-evaluation') continue;
+        for (const field of Array.isArray(row.missingFields) ? row.missingFields : []) out.add(field);
+    }
+    return out;
+}
+
+function firstContactCompletionTargets(beforeState = {}, afterState = {}, coverageDiagnostics = [], mode = 'off') {
+    if (mode === 'off') return [];
     const existingIds = new Set((beforeState?.npcs || []).map(npc => npc?.id).filter(Boolean));
-    return (afterState?.npcs || []).filter(npc => npc?.id && !existingIds.has(npc.id)).map(npc => ({
-        npc,
-        fields: DOSSIER_SEMANTIC_FIELDS.filter(field => firstContactFieldMissing(npc, field)),
-    })).filter(target => target.fields.length);
+    return (afterState?.npcs || []).filter(npc => npc?.id && !existingIds.has(npc.id)).map(npc => {
+        const missingEvaluations = missingEvaluationFields(coverageDiagnostics, npc.id);
+        const fields = DOSSIER_SEMANTIC_FIELDS.filter(field => firstContactFieldMissing(npc, field)
+            && (mode === 'recheck_unknown_fields' || missingEvaluations.has(field)));
+        return { npc, fields };
+    }).filter(target => target.fields.length);
+}
+
+function manualRecheckTargets(npc = {}) {
+    const fields = DOSSIER_SEMANTIC_FIELDS.filter(field => firstContactFieldMissing(npc, field));
+    return fields.length ? [{ npc, fields }] : [];
 }
 
 function filterFirstContactFieldEvaluations(value, allowed) {
@@ -145,16 +167,29 @@ function filterFirstContactFieldEvaluations(value, allowed) {
 
 function sanitizeFirstContactCompletionPayload(result = {}, targets = []) {
     const byId = new Map();
+    const byName = new Map();
     for (const target of Array.isArray(targets) ? targets : []) {
         if (!target?.npc?.id) continue;
-        byId.set(target.npc.id, { npc: target.npc, allowed: new Set(target.fields || []) });
+        const row = { npc: target.npc, allowed: new Set(target.fields || []) };
+        byId.set(target.npc.id, row);
+        const name = normalizeName(target.npc.name);
+        if (name && !byName.has(name)) byName.set(name, row);
     }
     const npcs = [];
     const seen = new Set();
+    const diagnostics = [];
     for (const patch of Array.isArray(result?.npcs) ? result.npcs : []) {
         const patchId = String(patch?.id || '').trim();
         const target = byId.get(patchId);
-        if (!target || seen.has(target.npc.id)) continue;
+        if (!target) {
+            const named = byName.get(normalizeName(patch?.name));
+            diagnostics.push({ npcId: named?.npc?.id || '', status: 'identity-rejected', coverageKind: 'first-contact-completion', reason: patchId ? 'wrong-stable-id' : 'missing-stable-id' });
+            continue;
+        }
+        if (seen.has(target.npc.id)) {
+            diagnostics.push({ npcId: target.npc.id, status: 'identity-rejected', coverageKind: 'first-contact-completion', reason: 'duplicate-target-patch' });
+            continue;
+        }
         seen.add(target.npc.id);
         const semanticUpdates = (Array.isArray(patch?.semanticUpdates) ? patch.semanticUpdates : [])
             .filter(update => target.allowed.has(String(update?.field || '').trim()))
@@ -163,19 +198,86 @@ function sanitizeFirstContactCompletionPayload(result = {}, targets = []) {
             .filter(observation => target.allowed.has(String(observation?.field || '').trim()))
             .map(observation => structuredClone(observation));
         const fieldEvaluations = filterFirstContactFieldEvaluations(patch?.fieldEvaluations, target.allowed);
-        const groups = [...new Set([...target.allowed].map(field => dossierFieldDefinition(field)?.group).filter(Boolean))];
         npcs.push({
             id: target.npc.id,
             name: target.npc.name,
-            ...(groups.length ? { evaluatedGroups: groups } : {}),
             ...(semanticUpdates.length ? { semanticUpdates } : {}),
             ...(profileObservations.length ? { profileObservations } : {}),
             ...(fieldEvaluations ? { fieldEvaluations } : {}),
         });
     }
     return {
-        exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs,
-        socialEdges: [], familyFacts: [], lifeStateUpdates: [], candidateAccounting: {},
+        payload: { exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs, socialEdges: [], familyFacts: [], lifeStateUpdates: [], candidateAccounting: {} },
+        diagnostics,
+    };
+}
+
+function auditFirstContactCompletion(payload = {}, targets = [], semanticDiagnostics = [], sanitizeDiagnostics = []) {
+    const diagnostics = [...(Array.isArray(sanitizeDiagnostics) ? sanitizeDiagnostics : [])];
+    const resolvedByNpc = new Map();
+    let requestedFields = 0;
+    let acceptedChanges = 0;
+    for (const target of Array.isArray(targets) ? targets : []) {
+        const npcId = target?.npc?.id;
+        const allowed = new Set(target?.fields || []);
+        requestedFields += allowed.size;
+        const resolved = new Set();
+        const patch = (payload?.npcs || []).find(row => row?.id === npcId);
+        if (!patch) {
+            diagnostics.push({ npcId, status: 'missing-npc-patch', missingFields: [...allowed], missingGroups: [], coverageKind: 'first-contact-completion' });
+            resolvedByNpc.set(npcId, resolved);
+            continue;
+        }
+        const invalidEvaluations = new Set((semanticDiagnostics || []).filter(row => row?.npcId === npcId && row?.status === 'invalid-field-evaluation').map(row => row?.field).filter(Boolean));
+        for (const status of ['unchanged', 'insufficient', 'unavailable']) {
+            for (const field of Array.isArray(patch?.fieldEvaluations?.[status]) ? patch.fieldEvaluations[status] : []) {
+                if (allowed.has(field) && !invalidEvaluations.has(field)) resolved.add(field);
+            }
+        }
+        const proposed = new Set((patch.semanticUpdates || []).map(row => String(row?.field || '').trim()).filter(field => allowed.has(field)));
+        for (const field of proposed) {
+            const accepted = (semanticDiagnostics || []).some(row => row?.npcId === npcId && row?.field === field && ['applied', 'no-change-proposed'].includes(row?.status));
+            if (accepted) resolved.add(field);
+            if ((semanticDiagnostics || []).some(row => row?.npcId === npcId && row?.field === field && row?.status === 'applied')) acceptedChanges += 1;
+        }
+        const missingFields = [...allowed].filter(field => !resolved.has(field));
+        if (missingFields.length) diagnostics.push({ npcId, status: 'incomplete-evaluation', missingFields, missingGroups: [], coverageKind: 'first-contact-completion' });
+        resolvedByNpc.set(npcId, resolved);
+    }
+    const resolvedFields = [...resolvedByNpc.values()].reduce((sum, fields) => sum + fields.size, 0);
+    return { diagnostics, resolvedByNpc, requestedFields, resolvedFields, acceptedChanges, remainingOutcomes: Math.max(0, requestedFields - resolvedFields) };
+}
+
+function reconcileCompletionCoverage(firstPass = [], completionAudit = null) {
+    if (!completionAudit) return Array.isArray(firstPass) ? structuredClone(firstPass) : [];
+    const out = [];
+    for (const original of Array.isArray(firstPass) ? firstPass : []) {
+        const resolved = completionAudit.resolvedByNpc.get(original?.npcId);
+        if (!resolved || original?.status !== 'incomplete-evaluation' || !Array.isArray(original.missingFields)) {
+            out.push(structuredClone(original));
+            continue;
+        }
+        const originalFields = original.missingFields.filter(Boolean);
+        const missingFields = originalFields.filter(field => !resolved.has(field));
+        const unresolvedGroups = new Set(missingFields.map(field => dossierFieldDefinition(field)?.group).filter(Boolean));
+        const originalFieldGroups = new Set(originalFields.map(field => dossierFieldDefinition(field)?.group).filter(Boolean));
+        const missingGroups = (Array.isArray(original.missingGroups) ? original.missingGroups : []).filter(group => !originalFieldGroups.has(group) || unresolvedGroups.has(group));
+        if (!missingFields.length && !missingGroups.length) continue;
+        out.push({ ...structuredClone(original), missingFields, missingGroups });
+    }
+    return [...out, ...structuredClone(completionAudit.diagnostics)];
+}
+
+function createProviderRequestBudget(limit = 2) {
+    return { limit: Math.max(1, Math.trunc(Number(limit) || 2)), count: 0, requests: [] };
+}
+
+function requestBudgetSnapshot(budget = null) {
+    if (!budget) return {};
+    const aggregate = budget.requests.reduce((sum, row) => ({ chars: sum.chars + (row.input?.chars || 0), tokenEstimate: sum.tokenEstimate + (row.input?.tokenEstimate || 0) }), { chars: 0, tokenEstimate: 0 });
+    return {
+        count: budget.count, limit: budget.limit, items: structuredClone(budget.requests),
+        aggregate: { ...aggregate, tokenEstimateKind: 'estimated', tokenEstimateMethod: FOREGROUND_TOKEN_ESTIMATE_METHOD, billedTokens: 'unavailable' },
     };
 }
 
@@ -774,31 +876,35 @@ export function createNpcStateEngine(adapters = {}) {
         }
     }
 
-    async function invokeJson(prompt, label = 'scan', signal = null) {
+    async function invokeJson(prompt, label = 'scan', signal = null, { budget = null, operationId = '', purpose = label } = {}) {
         const responseLength = normalizeScannerResponseTokens(getSettings().scannerResponseTokens);
-        // Resolve once so the first request and its JSON retry cannot mix connection/profile configuration.
         const route = await resolveGenerationRoute({ label });
-        let raw = await generate({ systemPrompt: SCAN_SYSTEM_PROMPT, prompt, responseLength, label, route, signal });
+        const request = async (requestPrompt, requestLabel, requestPurpose) => {
+            if (budget && budget.count >= budget.limit) {
+                const error = new Error(`Provider request budget exhausted (${budget.count}/${budget.limit}).`);
+                error.code = 'NPC_STATE_PROVIDER_REQUEST_BUDGET';
+                throw error;
+            }
+            if (budget) {
+                budget.count += 1;
+                budget.requests.push({ number: budget.count, purpose: requestPurpose, label: requestLabel, input: operationPromptMetadata(SCAN_SYSTEM_PROMPT + '\n\n' + requestPrompt) });
+                if (operationId) operationLog.patch(operationId, { requests: requestBudgetSnapshot(budget) });
+            }
+            return generate({ systemPrompt: SCAN_SYSTEM_PROMPT, prompt: requestPrompt, responseLength, label: requestLabel, route, signal });
+        };
+        let raw = await request(prompt, label, purpose);
         try { return parseScanJson(raw, { requireLifeStateUpdates: true }); }
         catch (firstError) {
-            raw = await generate({
-                systemPrompt: SCAN_SYSTEM_PROMPT,
-                prompt: `${prompt}\n\nYour previous response was malformed. Return exactly one valid JSON object, no markdown and no commentary.`,
-                responseLength,
-                label: `${label}-json-retry`,
-                route,
-                signal,
-            });
+            const retryPrompt = prompt + '\n\nYour previous response was malformed. Return exactly one valid JSON object, no markdown and no commentary.';
+            try { raw = await request(retryPrompt, label + '-json-retry', purpose + '-json-retry'); }
+            catch (budgetError) { budgetError.cause = firstError; throw budgetError; }
             try { return parseScanJson(raw, { requireLifeStateUpdates: true }); }
-            catch (secondError) {
-                secondError.cause = firstError;
-                throw secondError;
-            }
+            catch (secondError) { secondError.cause = firstError; throw secondError; }
         }
     }
 
-    async function invokeOperationJson(prompt, label, operationId, signal = null) {
-        try { return await invokeJson(prompt, label, signal); }
+    async function invokeOperationJson(prompt, label, operationId, signal = null, requestOptions = {}) {
+        try { return await invokeJson(prompt, label, signal, { ...requestOptions, operationId }); }
         catch (error) {
             operationLog.finish(operationId, { status: 'failed', failure: { stage: 'model', reason: String(error?.message || error).slice(0, 300) } });
             throw error;
@@ -859,10 +965,11 @@ export function createNpcStateEngine(adapters = {}) {
                 routine: true,
             });
             const operationId = beginOperationDiagnostics(ownership, prompt);
+            const requestBudget = !manual ? createProviderRequestBudget(2) : null;
             onPhase?.('scanning');
             let parsed;
             try {
-                parsed = await invokeOperationJson(prompt, manual ? 'manual-current-cast' : 'automatic-current-cast', operationId, signal);
+                parsed = await invokeOperationJson(prompt, manual ? 'manual-current-cast' : 'automatic-current-cast', operationId, signal, requestBudget ? { budget: requestBudget, purpose: 'automatic-first-pass' } : {});
             } catch (error) {
                 onPhase?.('failed', { reason: String(error?.message || error) });
                 throw error;
@@ -906,51 +1013,66 @@ export function createNpcStateEngine(adapters = {}) {
             });
 
             if (!manual) {
-                const completionTargets = firstContactCompletionTargets(working, applied.state);
-                if (completionTargets.length) {
+                const followUpMode = String(settings.firstContactFollowUpMode || 'off');
+                const completionTargets = firstContactCompletionTargets(working, applied.state, applied.coverageDiagnostics, followUpMode);
+                const followUp = {
+                    mode: followUpMode,
+                    status: followUpMode === 'off' ? 'off' : (completionTargets.length ? 'pending' : 'unnecessary'),
+                    targetCount: completionTargets.length,
+                    requestedFields: completionTargets.reduce((sum, target) => sum + target.fields.length, 0),
+                    acceptedChanges: 0,
+                    remainingOutcomes: 0,
+                };
+                if (completionTargets.length && requestBudget.count >= requestBudget.limit) {
+                    followUp.status = 'skipped-budget';
+                } else if (completionTargets.length) {
                     const completionPrompt = buildFirstContactCompletionPrompt({
                         targets: completionTargets, chat, assistantMessageId: messageId,
                         playerName: resolvePlayerName('', chat, messageId),
                         memoryCriteria: settings.memoryCriteria, dossierLimits: settings.dossierLimits,
                     });
                     try {
-                        const completionRaw = await invokeJson(completionPrompt, 'automatic-first-contact-completion', signal);
+                        const completionRaw = await invokeJson(completionPrompt, 'automatic-first-contact-completion', signal, { budget: requestBudget, operationId, purpose: 'first-contact-follow-up' });
                         const postCompletionChat = getContext().chat || [];
                         if (signal?.aborted || !operationOwnershipMatches(ownership) || (expectedSource && !sourceDescriptorMatches(expectedSource, chatKey, postCompletionChat, messageId))) {
                             finishDiscardedOperation(operationId, signal?.aborted ? 'scan-cancelled' : 'stale-operation', 'post-first-contact-completion');
                             return { ok: false, discarded: true, reason: signal?.aborted ? 'scan-cancelled' : 'stale-operation', messageId };
                         }
-                        const completionParsed = sanitizeFirstContactCompletionPayload(completionRaw, completionTargets);
-                        const completionApplied = applyScanResult(applied.state, completionParsed, {
+                        const sanitized = sanitizeFirstContactCompletionPayload(completionRaw, completionTargets);
+                        const completionApplied = applyScanResult(applied.state, sanitized.payload, {
                             sourceMessageId: messageId, ...semanticSourceOptions, turn: working.turn,
-                            preservePresence: true, preserveObservation: true, applyRelationship: false,
-                            reconcileFamilyGraph: false,
+                            preservePresence: true, preserveObservation: true, applyRelationship: false, reconcileFamilyGraph: false,
                             playerName: resolvePlayerName('', chat, messageId), dossierLimits: settings.dossierLimits,
                             profileContext: profileContextForExchange(exchange), evidencePolicy,
                             currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
-                            birthdayFill: {
-                                mode: settings.birthdayFillMode, calendar: settings.birthdayRandomCalendar,
-                                fallbackDays: settings.birthdayRandomDaysPerMonth,
-                            },
+                            birthdayFill: { mode: settings.birthdayFillMode, calendar: settings.birthdayRandomCalendar, fallbackDays: settings.birthdayRandomDaysPerMonth },
                             applyReturnedNpcPatches: true,
                         });
+                        const audit = auditFirstContactCompletion(sanitized.payload, completionTargets, completionApplied.semanticDiagnostics, sanitized.diagnostics);
                         applied = {
-                            ...applied, state: completionApplied.state,
+                            ...applied,
+                            state: completionApplied.state,
                             semanticDiagnostics: [...(applied.semanticDiagnostics || []), ...(completionApplied.semanticDiagnostics || [])],
-                            coverageDiagnostics: [...(applied.coverageDiagnostics || []), ...(completionApplied.coverageDiagnostics || [])],
+                            coverageDiagnostics: reconcileCompletionCoverage(applied.coverageDiagnostics, audit),
                         };
+                        followUp.status = 'ran';
+                        followUp.acceptedChanges = audit.acceptedChanges;
+                        followUp.remainingOutcomes = audit.remainingOutcomes;
                     } catch (error) {
                         if (signal?.aborted) {
                             finishDiscardedOperation(operationId, 'scan-cancelled', 'first-contact-completion');
                             return { ok: false, discarded: true, reason: 'scan-cancelled', messageId };
                         }
                         const reason = String(error?.message || error).slice(0, 300);
+                        followUp.status = 'failed';
+                        followUp.failure = reason;
                         applied.coverageDiagnostics = [
                             ...(applied.coverageDiagnostics || []),
                             ...completionTargets.map(target => ({ npcId: target.npc.id, status: 'first-contact-completion-failed', coverageKind: 'first-contact-completion', reason })),
                         ];
                     }
                 }
+                operationLog.patch(operationId, { followUp, requests: requestBudgetSnapshot(requestBudget) });
             }
 
             applied.state = trimStateRelationshipHistory(applied.state, relationshipHistoryLimit);
@@ -1073,6 +1195,55 @@ export function createNpcStateEngine(adapters = {}) {
             const commit = await commitState({ token: ownership, operationId, state: applied.state, chat: liveChat, messageId, checkpointReason: 'structured-dossier-import' });
             if (!commit.ok) return { ...commit, npcId: npc.id, sourceCount: blocks.length };
             return { ok: true, npcId: npc.id, sourceCount: blocks.length, state: structuredClone(commit.state) };
+        });
+    }
+
+    async function recheckMissingDetails(reference) {
+        const chatKey = getChatKey();
+        if (!chatKey || chatKey === 'no-chat') return { ok: false, reason: 'no-chat' };
+        invalidate(chatKey);
+        return exclusive(chatKey, async () => {
+            const state = await loadChat(chatKey);
+            if (recoveryBlocksLiveScan(state)) return { ok: false, reason: 'recovery-active', recovery: structuredClone(state?.recovery) };
+            if (state?.branchSafety?.status !== 'safe') return { ok: false, reason: 'branch-unsafe' };
+            const npc = findNpcByReference(state, reference);
+            if (!npc) return { ok: false, reason: 'not-found' };
+            const chat = getContext().chat || [];
+            const messageId = latestAssistantMessageId(chat);
+            if (messageId < 0) return { ok: false, reason: 'no-assistant-message' };
+            const exchange = currentExchange(chat, messageId);
+            if (!exchange) return { ok: false, reason: 'not-assistant-message' };
+            const targets = manualRecheckTargets(npc);
+            if (!targets.length) return { ok: true, skipped: true, reason: 'no-eligible-blank-fields', npcId: npc.id, state: structuredClone(state) };
+            const ownership = captureOperationOwnership('recheck-missing-details', chatKey, chat, messageId);
+            const settings = getSettings();
+            const prompt = buildFirstContactCompletionPrompt({ targets, chat, assistantMessageId: messageId, playerName: resolvePlayerName('', chat, messageId), memoryCriteria: settings.memoryCriteria, dossierLimits: settings.dossierLimits, scope: 'manual' });
+            const operationId = beginOperationDiagnostics(ownership, prompt, { selectedNpcIds: [npc.id] });
+            const parsedRaw = await invokeOperationJson(prompt, 'manual-missing-detail-recheck-' + npc.id, operationId);
+            const liveChat = getContext().chat || [];
+            if (!operationOwnershipMatches(ownership)) {
+                finishDiscardedOperation(operationId, 'stale-operation', 'post-model');
+                return { ok: false, discarded: true, reason: 'stale-operation', npcId: npc.id };
+            }
+            const sanitized = sanitizeFirstContactCompletionPayload(parsedRaw, targets);
+            const evidencePolicy = buildExchangeEvidencePolicy(exchange);
+            const sourceIds = [exchange.user?.id, exchange.assistant?.id].filter(Number.isInteger);
+            const applied = applyScanResult(state, sanitized.payload, {
+                sourceMessageId: messageId, ...profileEvidenceSourceOptions(chatKey, liveChat, messageId, sourceIds), turn: state.turn,
+                preservePresence: true, preserveObservation: true, applyRelationship: false, reconcileFamilyGraph: false,
+                playerName: resolvePlayerName('', liveChat, messageId), dossierLimits: settings.dossierLimits,
+                profileContext: profileContextForExchange(exchange), evidencePolicy,
+                currentAdmissionText: [exchange.user?.mes, exchange.assistant?.mes].map(value => profileEvidenceText(value)).filter(Boolean).join('\n'),
+                birthdayFill: { mode: settings.birthdayFillMode, calendar: settings.birthdayRandomCalendar, fallbackDays: settings.birthdayRandomDaysPerMonth },
+                applyReturnedNpcPatches: true,
+            });
+            const audit = auditFirstContactCompletion(sanitized.payload, targets, applied.semanticDiagnostics, sanitized.diagnostics);
+            applied.coverageDiagnostics = audit.diagnostics;
+            updateOperationFromApplication(operationId, applied);
+            operationLog.patch(operationId, { followUp: { mode: 'manual', status: 'ran', targetCount: 1, requestedFields: audit.requestedFields, acceptedChanges: audit.acceptedChanges, remainingOutcomes: audit.remainingOutcomes } });
+            const commit = await commitState({ token: ownership, operationId, state: applied.state, chat: liveChat, messageId, checkpointReason: 'manual-missing-detail-recheck' });
+            if (!commit.ok) return { ...commit, npcId: npc.id, semanticDiagnostics: applied.semanticDiagnostics || [], coverageDiagnostics: audit.diagnostics };
+            return { ok: true, npcId: npc.id, semanticDiagnostics: applied.semanticDiagnostics || [], coverageDiagnostics: audit.diagnostics, state: structuredClone(commit.state) };
         });
     }
 
@@ -2455,6 +2626,7 @@ export function createNpcStateEngine(adapters = {}) {
     return Object.freeze({
         loadChat,
         scan,
+        recheckMissingDetails,
         refreshDossier,
         importStructuredDossier,
         addNpc,

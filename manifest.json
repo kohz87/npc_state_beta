@@ -7,7 +7,7 @@
     "js": "bootstrap.js",
     "css": "src/style.css",
     "author": "kohz87",
-    "version": "0.5.32",
+    "version": "0.5.33",
     "minimum_client_version": "1.18.0",
     "generate_interceptor": "NPCStateGenerationInterceptor"
 }

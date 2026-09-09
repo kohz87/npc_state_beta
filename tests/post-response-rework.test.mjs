@@ -70,7 +70,14 @@ function deferred() { let resolve; const promise = new Promise(done => { resolve
 
 test('automatic post-response scan may complete a newly admitted dossier with a second bounded request and duplicate completion is idempotent', () => withHost(async h => {
     installBessaChat(h);
-    setProvider(h, payloadForBessa(completeFields()));
+    let providerCalls = 0;
+    setProvider(h, ({ prompt }) => {
+        providerCalls += 1;
+        if (providerCalls === 1) return JSON.stringify(payloadForBessa(completeFields()));
+        const id = prompt.match(/\"id\":\"([^\"]+)\",\"name\":\"Bessa Vond\"/)?.[1];
+        const fields = JSON.parse(prompt.match(/\"unresolvedFields\":(\[[^\]]*\])/)?.[1] || '[]');
+        return JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id, name: 'Bessa Vond', fieldEvaluations: { insufficient: fields } }], socialEdges: [], familyFacts: [], lifeStateUpdates: [], candidateAccounting: {} });
+    });
     const first = await h.entry.processCompletedAssistantResponse(1);
     assert.equal(first.ok, true);
     assert.equal(h.metrics.generations, 2);
@@ -91,7 +98,7 @@ test('automatic post-response scan may complete a newly admitted dossier with a 
     assert.equal(second.ok, true);
     assert.equal(h.metrics.generations, 2);
     assert.equal(h.metrics.posts, 1);
-}, { settings: { birthdayFillMode: 'off' } }));
+}, { settings: { birthdayFillMode: 'off', firstContactFollowUpMode: 'recheck_unknown_fields' } }));
 
 
 test('sparse valid post-response payload persists supported facts but reports semantic partial coverage', () => withHost(async h => {
@@ -161,7 +168,7 @@ test('next-generation interceptor waits for preceding scan after user append and
     assert.equal(scan.ok, true);
     assert.equal(aborted, false);
     assert.equal(nestedAborted, false);
-    assert.equal(h.metrics.generations, 2);
+    assert.equal(h.metrics.generations, 1);
     assert.equal(h.persisted().lastScannedMessageId, 1);
 }));
 
