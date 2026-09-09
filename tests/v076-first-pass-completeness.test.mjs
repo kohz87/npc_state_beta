@@ -100,6 +100,7 @@ test('Sanna Karr first-pass bootstrap captures supported dossier facts and neutr
         appearance: 'Wears a dark homespun bodice over an unbleached linen shirt with sleeves pinned above her wrists; pale brown hair is tied at her nape with a leather thong.',
         behaviorProfile: ['Practical and task-focused during intake; keeps attention on the ledger and paperwork.'],
         mannerisms: ['Taps the registration paper to direct Lucien during intake.'],
+        profileEstablishment: { mannerisms: 'reinforced' },
         memories: ['Processed Lucien Noctis’s registration and issued his lead Guild token.'],
         status: 'Processing Lucien’s intake and explaining available postings.',
     };

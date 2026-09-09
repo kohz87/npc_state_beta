@@ -22,6 +22,7 @@ function firstPayload({ goalEvaluation = null, includeGoal = false } = {}) {
       identityEvidence: { anchor: 'young woman in a wool waistcoat', excerpts: [visible], explanation: 'The visible receptionist is Tessa Morren in current World_State.' },
       activityEvidence: { exchangeActive: { excerpts: [visible], explanation: 'She handles Lucien intake.' }, inChat: { excerpts: [visible], explanation: 'She remains at the counter.' } },
       role: 'Guild intake clerk', personality: 'Brisk and efficient during guild intake.', location: 'Adventurer Guild Post', status: 'Handling the station intake backlog.',
+      semanticUpdates: [{ field: 'personality', operation: 'establish', value: 'Brisk and efficient during guild intake.', durability: 'durable', sources: [{ messageId: 1, excerpt: visible }], explanation: 'Visible intake actions support a narrow work demeanor.' }],
       ...(includeGoal ? { goal: 'Close the intake ledger by dusk.' } : {}),
       relationshipChange: { evaluated: true, impact: 'none', delta: { trust:0, affection:0, desire:0, tension:0 }, axisEvidence: {}, reason: 'Initial professional interaction.' },
       relationshipSummary: 'Neutral professional clerk-to-adventurer interaction.',

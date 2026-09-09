@@ -199,6 +199,7 @@ test('supported direct new-dossier bootstrap fields still work alongside the ide
         mood: 'Warmly welcoming.', location: 'Behind the Lantern Inn counter.',
         status: 'Preparing Lucien’s room.', goal: 'Have Lucien’s room ready before dusk.',
         behaviorProfile: ['Checks guest needs before preparing rooms.'], mannerisms: ['Smiles before answering a guest.'],
+        profileEstablishment: { mannerisms: 'reinforced' },
         memories: [], keyRelationships: [],
     };
     const result = apply(state, payload([miraPatch({ id: 'transport-mira', semanticUpdates: [], direct })]));

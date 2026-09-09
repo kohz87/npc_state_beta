@@ -493,6 +493,8 @@ export function reconcileFamilyGraphState(stateInput, { sourceMessageId = null, 
 }
 
 const BIRTHDAY_EVIDENCE_CUES = /\b(?:birthday|birth date|date of birth|born(?:\s+on)?|name day|nameday)\b/i;
+const BOOTSTRAP_PROFILE_FIELDS = new Set(['mannerisms']);
+const BOOTSTRAP_PROFILE_BASES = new Set(['explicit', 'reinforced']);
 function bootstrapBirthdayGrounded(value, context) {
     const birthday = normalizeBirthday(value);
     const source = String(context || '');
@@ -524,6 +526,31 @@ function recordBootstrapDiagnostics(before, after, patch, diagnostics = [], acco
     }
 }
 
+function bootstrapProfileBasis(patch, field) {
+    const raw = patch?.profileEstablishment;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return '';
+    const basis = String(raw[field] || '').trim().toLocaleLowerCase();
+    return BOOTSTRAP_PROFILE_BASES.has(basis) ? basis : '';
+}
+
+function bootstrapStructuredContaminated(field, value, policy = {}) {
+    if (!policy?.detected) return false;
+    const visible = evidenceTextKey(policy.visibleText || '', 50000);
+    const allowedWorld = field === 'location' || field === 'status';
+    const allowedInner = field === 'mood' || field === 'goal';
+    const disallowed = evidenceTextKey([
+        allowedWorld ? '' : policy.worldStateText,
+        allowedInner ? '' : policy.innerChatterText,
+        policy.excludedText,
+    ].filter(Boolean).join(' '), 50000);
+    if (!disallowed) return false;
+    const proposed = evidenceTextKey(typeof value === 'string' ? value : JSON.stringify(value ?? ''), 10000);
+    const tokens = proposed.match(/[\p{L}\p{N}]+/gu) || [];
+    return tokens.some(token => (token.length >= 3 || /[\p{L}].*\p{N}|\p{N}.*\p{L}/u.test(token))
+        && containsNormalizedPhrase(disallowed, token)
+        && !containsNormalizedPhrase(visible, token));
+}
+
 // Existing dossiers reach this function after prepareModelLedPayload() has stripped every
 // ordinary dossier field. Only identity may still change directly. A genuinely new NPC may
 // bootstrap grounded initial dossier values once; later evolution uses semanticUpdates only.
@@ -551,13 +578,22 @@ function applyIdentityAndBootstrapPatch(npc, patch, options = {}) {
     const validBootstrapField = field => {
         if (!Object.prototype.hasOwnProperty.call(patch || {}, field)) return false;
         const issue = dossierFieldValueIssue(field, patch[field]);
-        if (!issue) return true;
-        accountedFields.add(field);
-        options.applicationDiagnostics?.push({
-            npcId: next.id || before.id || '', field, group: dossierFieldGroup(field), channel: 'bootstrap',
-            status: 'rejected-proposal', reason: 'invalid-value-type:' + issue,
-        });
-        return false;
+        if (issue) {
+            accountedFields.add(field);
+            options.applicationDiagnostics?.push({ npcId: next.id || before.id || '', field, group: dossierFieldGroup(field), channel: 'bootstrap', status: 'rejected-proposal', reason: 'invalid-value-type:' + issue });
+            return false;
+        }
+        if (BOOTSTRAP_PROFILE_FIELDS.has(field) && !bootstrapProfileBasis(patch, field)) {
+            accountedFields.add(field);
+            options.applicationDiagnostics?.push({ npcId: next.id || before.id || '', field, group: dossierFieldGroup(field), channel: 'bootstrap', status: 'rejected-proposal', reason: 'profile-establishment-basis-required' });
+            return false;
+        }
+        if (options.structuredEvidenceDetected === true && bootstrapStructuredContaminated(field, patch[field], options.evidencePolicy)) {
+            accountedFields.add(field);
+            options.applicationDiagnostics?.push({ npcId: next.id || before.id || '', field, group: dossierFieldGroup(field), channel: 'bootstrap', status: 'rejected-proposal', reason: 'disallowed-structured-source-detail' });
+            return false;
+        }
+        return true;
     };
 
     for (const field of ['role', 'species', 'background', 'appearance', 'personality', 'speech', 'mood', 'location', 'goal']) {
@@ -1059,7 +1095,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         const lifecyclePatch = lifeStateUpdateByNpcId.get(npc.id) || null;
         const canPatch = Boolean(patch && (targetSet.has(npc.id) || allowHistoricalProfilePatches || (options.applyReturnedNpcPatches === true && returnedPatchSet.has(npc.id))));
         if (canPatch) {
-            npc = applyIdentityAndBootstrapPatch(npc, patch, { playerName, dossierLimits, isBootstrap: createdNpcIds.has(npc.id), profileContext: String(options.profileContext || ''), applicationDiagnostics });
+            npc = applyIdentityAndBootstrapPatch(npc, patch, { playerName, dossierLimits, isBootstrap: createdNpcIds.has(npc.id), profileContext: String(options.profileContext || ''), applicationDiagnostics, structuredEvidenceDetected: options.evidencePolicy?.detected === true, evidencePolicy: options.evidencePolicy });
             if (!lifecyclePatch) npc = applyLifeState(npc, patch, { ...options, state, storedStatus: storedStatusBeforePatch });
             const relationshipOptions = {
                 relationshipCaps: options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,

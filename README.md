@@ -2,7 +2,9 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.33
+## Release 0.5.34
+
+0.5.34 tightens first-admission evidence authority, retains isolated profile observations without promoting them to habits, and safely reuses accepted participant bindings for neutral Current Dynamic summaries.
 
 0.5.33 makes first-contact follow-up explicit instead of unconditional. **Off** is the default, including when the setting is absent on upgrade. **Missing evaluations only** rechecks only eligible blank fields on newly admitted NPCs that the first response neither proposed nor explicitly evaluated. **Recheck unknown fields** may also revisit eligible blanks explicitly marked insufficient. Any automatic follow-up uses the same complete current exchange, exact admitted stable IDs, existing locks/source validation, and the same final persistence/checkpoint boundary. A shared two-request budget includes malformed-JSON retries, so spending the retry budget skips follow-up rather than issuing a third request. Individual dossiers also offer a current-exchange-only **Recheck missing details** action that is distinct from historical Refresh. Deterministically generated birthdays remain internally tracked but are presented and supplied to normal scanner continuity as ordinary stable birthdays, without a `generated` label.
 

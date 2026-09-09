@@ -60,6 +60,7 @@ function payload() {
             behaviorProfile: ['Intake: Takes immediate control of registration and moves new arrivals quickly from paperwork to available work.'],
             speech: 'Brief, directive, and practical during registration.',
             mannerisms: ['Handles paperwork with brisk directive gestures, pushing implements toward applicants and tapping or pointing at the relevant place.'],
+        profileEstablishment: { mannerisms: 'reinforced' },
             mood: 'Hurried and practical',
             location: 'Adventurer Guild reception counter',
             goal: 'Finish Lucien’s registration and put a suitable bounty in front of him',

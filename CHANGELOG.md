@@ -2,6 +2,13 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.34
+
+- Reuse accepted current identity/activity evidence for descriptive zero-delta Current Dynamic binding without requiring every quotation to repeat both participants; exact-source, ambiguity, wrong-addressee, and numeric relationship safeguards remain separate.
+- Require model-led `profileEstablishment.mannerisms=explicit|reinforced` for NEW durable mannerism bootstrap. Isolated actions remain eligible for the existing bounded `profileObservations` store instead of being forced into a habit.
+- NEW bootstrap now rejects field proposals containing detail found only in a structured source that lacks authority for that field, without broadening World State/Inventory authority or rejecting separately supported proposals.
+- Add focused regressions and repository agent guidance. No persisted schema change or extra model request.
+
 ## 0.5.33
 
 - Make first-contact follow-up one canonical enum setting with **Off** as the default, including absent-setting upgrades. **Missing evaluations only** targets unaccounted eligible blanks on successfully admitted NPCs; **Recheck unknown fields** may also revisit eligible blanks explicitly marked insufficient.
