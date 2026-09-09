@@ -1,0 +1,50 @@
+name: v0.5.34 Candidate
+
+on:
+  push:
+    branches:
+      - fix/v0.5.34-grounding
+    paths:
+      - 'scripts/apply-v0534-grounding.py'
+      - '.github/workflows/v0534-candidate.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-candidate:
+    if: ${{ !contains(github.event.head_commit.message, '[v0534-candidate]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply focused patch
+        run: python3 scripts/apply-v0534-grounding.py
+      - name: Validate authoritative source
+        run: npm run validate
+      - name: Run focused regressions
+        run: node --test tests/v0534-grounding-source-parity.test.mjs tests/v0533-optional-first-contact-recheck.test.mjs
+      - name: Run full regression suite
+        run: npm test
+      - name: Package extension
+        run: npm run package
+      - name: Measure scan prompts
+        run: npm run measure:scan-prompts | tee v0534-prompt-measurements.txt
+      - name: Commit candidate
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Release v0.5.34 grounding parity [v0534-candidate]'
+          git push origin HEAD:fix/v0.5.34-grounding
+      - name: Upload prompt measurements
+        uses: actions/upload-artifact@v4
+        with:
+          name: v0534-prompt-measurements
+          path: v0534-prompt-measurements.txt
