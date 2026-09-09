@@ -28,15 +28,15 @@ function canonicalRoutineScanPrompt(prompt) {
     return String(prompt || '')
         .replace(
             'NEW ordinary fields are flat; []=string arrays; appearanceForms:[{name,appearance}].',
-            'NEW ordinary fields use semanticUpdates with sources; establish supported blanks. []=string arrays; appearanceForms:[{name,appearance}].',
+            'NEW ordinary fields: semanticUpdates with exact sources; establish supported blanks. []=string arrays; appearanceForms:[{name,appearance}].',
         )
         .replace(
             'VALID FICTIONAL EXAMPLE: populated NEW live/profile + zero-delta Current Dynamic + insufficient fields. Never copy facts/ids.',
-            'VALID FICTIONAL EXAMPLE (legacy flat NEW layout; use semanticUpdates above). Never copy facts/ids.',
+            'VALID FICTIONAL EXAMPLE: legacy flat NEW shape. Never copy facts/ids.',
         )
         .replace(
             'EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates; do not also emit legacy/direct ordinary replacements.',
-            'NEW and EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates; do not also emit legacy/direct ordinary replacements. NEW uses establish for blank fields.',
+            'NEW/EXISTING ordinary dossier mutations use semanticUpdates only; NEW supported blanks use establish.',
         )
         .replace(
             'PIPELINE: ordinary EXISTING-dossier fields apply through semanticUpdates once;',
