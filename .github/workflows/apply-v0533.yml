@@ -23,6 +23,19 @@ jobs:
           node-version: '22'
       - name: Apply patch and remove staging helpers
         run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const path = 'scripts/apply-v0533.mjs';
+          let source = fs.readFileSync(path, 'utf8');
+          const start = source.indexOf("replaceOnce('src/settings-contract.js',");
+          const end = source.indexOf("replaceOnce('src/settings.js',", start);
+          if (start < 0 || end < 0) throw new Error('settings-contract staging block not found');
+          const replacement = `replaceOnce('src/settings-contract.js',
+\`export function normalizeNumericSetting(key, value, fallback = NUMERIC_SETTINGS[key]?.default) {\`,
+\`export const FIRST_CONTACT_FOLLOW_UP_MODES = Object.freeze(['off', 'missing_evaluations', 'recheck_unknown_fields']);\nexport function normalizeFirstContactFollowUpMode(value) {\n    const mode = String(value || '').trim().toLocaleLowerCase();\n    return FIRST_CONTACT_FOLLOW_UP_MODES.includes(mode) ? mode : 'off';\n}\nexport function normalizeNumericSetting(key, value, fallback = NUMERIC_SETTINGS[key]?.default) {\`);
+`;
+          fs.writeFileSync(path, source.slice(0, start) + replacement + source.slice(end));
+          NODE
           node scripts/apply-v0533.mjs
           rm scripts/apply-v0533.mjs .github/workflows/apply-v0533.yml
       - name: Validate candidate
