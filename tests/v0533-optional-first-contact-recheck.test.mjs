@@ -228,6 +228,26 @@ test('edit, swipe, and chat ownership changes during follow-up discard before co
   }, { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'missing_evaluations' } }));
 });
 
+test('follow-up provider failure after edit, swipe, or chat change discards stale first-pass state', async t => {
+  for (const kind of ['edit','swipe','chat']) await t.test(kind, () => withHost(async h => {
+    h.context.chat = structuredClone(chat);
+    let calls = 0;
+    h.context.generateRaw = async () => {
+      h.metrics.generations += 1; calls += 1;
+      if (calls === 1) return JSON.stringify(firstPayload());
+      if (kind === 'edit') h.context.chat[1].mes += ' edited-before-failure';
+      if (kind === 'swipe') h.context.chat[1].swipe_id = 2;
+      if (kind === 'chat') h.context.chatId = 'other-chat-before-failure';
+      throw new Error('provider failed after ownership changed');
+    };
+    const result = await h.entry.processCompletedAssistantResponse(1);
+    assert.equal(result.discarded, true);
+    assert.equal(result.reason, 'stale-operation');
+    assert.equal(h.persisted().npcs.length, 0);
+    assert.equal(h.metrics.posts, 0);
+  }, { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'missing_evaluations' } }));
+});
+
 test('manual Recheck missing details is current-exchange-only and isolated from focused state channels', () => withHost(async h => {
   h.context.chat = structuredClone(chat);
   const before = structuredClone(h.persisted().npcs[0]);

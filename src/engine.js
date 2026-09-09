@@ -1059,9 +1059,10 @@ export function createNpcStateEngine(adapters = {}) {
                         followUp.acceptedChanges = audit.acceptedChanges;
                         followUp.remainingOutcomes = audit.remainingOutcomes;
                     } catch (error) {
-                        if (signal?.aborted) {
-                            finishDiscardedOperation(operationId, 'scan-cancelled', 'first-contact-completion');
-                            return { ok: false, discarded: true, reason: 'scan-cancelled', messageId };
+                        const failedCompletionChat = getContext().chat || [];
+                        if (signal?.aborted || !operationOwnershipMatches(ownership) || (expectedSource && !sourceDescriptorMatches(expectedSource, chatKey, failedCompletionChat, messageId))) {
+                            finishDiscardedOperation(operationId, signal?.aborted ? 'scan-cancelled' : 'stale-operation', 'first-contact-completion-failed');
+                            return { ok: false, discarded: true, reason: signal?.aborted ? 'scan-cancelled' : 'stale-operation', messageId };
                         }
                         const reason = String(error?.message || error).slice(0, 300);
                         followUp.status = 'failed';

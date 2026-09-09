@@ -14,9 +14,21 @@ on:
       - 'README.md'
       - 'CHANGELOG.md'
       - 'DEVELOPMENT.md'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - '.github/workflows/ci.yml'
+      - 'manifest.json'
+      - 'package.json'
+      - 'bootstrap.js'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'DEVELOPMENT.md'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
@@ -24,32 +36,19 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
-        with:
-          ref: fix/v0.5.33-follow-up-sol56
-          fetch-depth: 0
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Apply reviewed ownership fix and clean validation scaffolding
-        run: |
-          python3 scripts/apply-v0533-review-fix.py
-          rm -f scripts/apply-v0533-review-fix.py .github/workflows/review-fix-v0533.yml
-          git show 5c7251c22f012eb22632c049d2a2390b87bd18b7:.github/workflows/ci.yml > .github/workflows/ci.yml
-      - name: Commit clean reviewed candidate
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Guard failed follow-up ownership"
-          git push origin HEAD:fix/v0.5.33-follow-up-sol56
       - name: Validate authoritative source
         run: npm run validate
-      - name: Run focused v0.5.33 regressions
-        run: node --test tests/v0533-optional-first-contact-recheck.test.mjs
-      - name: Run full regression suite
+      - name: Run regression tests
         run: npm test
       - name: Package extension
         run: npm run package
-      - name: Measure scan prompts
-        run: npm run measure:scan-prompts
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-state-beta-package
+          path: dist/*.zip
+          if-no-files-found: error
