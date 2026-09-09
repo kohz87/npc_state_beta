@@ -10,20 +10,19 @@ import { scanPromptMeasurementMatrix } from '../scripts/measure-scan-prompts.mjs
 
 const matrix = () => new Map(scanPromptMeasurementMatrix().map(row => [row.name, row]));
 
-test('v0.5.23 Current Dynamic evidence reuse retains compact routine budgets', () => {
+test('v0.5.36 source-cited NEW contract retains bounded routine budgets', () => {
     const rows = matrix();
-    // v0.5.23 spends a small bounded prompt increment to explain that already accepted
-    // player-facing activity may supply Current Dynamic target binding without making the
-    // model repeat the same narrator quote. The dense fixture remains an honest overage.
+    // Explicit field citations replace the flat NEW example. Modest first-contact fixtures
+    // remain below the 7,500-token target; dense/multi-NPC sources retain honest overages.
     const ceilings = {
-        'minimal-one-npc': 6400,
-        'rich-first-encounter': 6400,
-        'three-active-plus-mentioned': 7470,
-        'observation-development': 6730,
-        'dense-collections-locks-forms': 8075,
-        'large-db-one-relevant': 6610,
-        'structured-plus-custom': 7135,
-        'targeted-refresh': 4800,
+        'minimal-one-npc': 6850,
+        'rich-first-encounter': 6850,
+        'three-active-plus-mentioned': 7900,
+        'observation-development': 7160,
+        'dense-collections-locks-forms': 8650,
+        'large-db-one-relevant': 7040,
+        'structured-plus-custom': 7600,
+        'targeted-refresh': 4900,
     };
     for (const [name, ceiling] of Object.entries(ceilings)) {
         assert.ok(rows.has(name), name);
@@ -31,7 +30,7 @@ test('v0.5.23 Current Dynamic evidence reuse retains compact routine budgets', (
     }
 });
 
-test('v0.5.23 evidence-reuse contract adds only bounded overhead to v0.5.22 fixtures', () => {
+test('v0.5.36 field-specific citations add bounded overhead to the flat-example baseline', () => {
     const rows = matrix();
     const v0522 = {
         'minimal-one-npc': 6343,
@@ -46,7 +45,7 @@ test('v0.5.23 evidence-reuse contract adds only bounded overhead to v0.5.22 fixt
     for (const [name, before] of Object.entries(v0522)) {
         assert.ok(rows.has(name), name);
         const increase = rows.get(name).estTokens - before;
-        assert.ok(increase <= 60, `${name}: contract change ${increase} tokens`);
+        assert.ok(increase <= 620, `${name}: contract change ${increase} tokens`);
     }
 });
 

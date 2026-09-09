@@ -123,12 +123,12 @@ test('continuity injection is independent from dedicated auto-scan routing', () 
 test('model-led personality, behavior, speech, and mannerism repair persists through reload', () => {
     const fixture = createEmptyState('chat:profile');
     fixture.npcs = [normalizeNpc({ id: 'npc-sora', name: 'Sora', personality: 'Quiet and dormant baseline post-emergence.', behaviorProfile: ['Rests in deep slumber after emergence.'], speech: 'Unvoiced; currently sleeping.', mannerisms: ['Folds her wings while sleeping.'], status: 'Sleeping after emergence.' })];
-    const evidence = 'Sora wakes, laughs, asks several curious questions, and taps one boot while thinking.';
+    const evidence = 'Sora wakes, laughs, asks several curious questions, and habitually taps one boot while thinking.';
     const result = { exchangeActiveNpcIds: [], finalPresentNpcIds: [], worldActiveNpcIds: [], socialEdges: [], familyFacts: [], lifeStateUpdates: [], npcs: [{ id: 'npc-sora', name: 'Sora', semanticUpdates: [
         { field: 'personality', operation: 'replace', value: 'Bright, curious, and energetic.', sources: [{ messageId: 19, excerpt: 'Sora wakes, laughs, asks several curious questions' }], explanation: 'real baseline' },
         { field: 'behaviorProfile', operation: 'replace', value: ['Eagerly engages with questions and plans.'], sources: [{ messageId: 19, excerpt: 'asks several curious questions' }], explanation: 'awake behavior' },
         { field: 'speech', operation: 'replace', value: 'Animated and inquisitive.', sources: [{ messageId: 19, excerpt: 'asks several curious questions' }], explanation: 'speaks now' },
-        { field: 'mannerisms', operation: 'replace', changes: [{ action: 'replace', ref: semanticEntryRef('mannerisms', 'Folds her wings while sleeping.'), value: 'Taps one boot while thinking.' }], sources: [{ messageId: 19, excerpt: 'taps one boot while thinking' }], explanation: 'new habit' },
+        { field: 'mannerisms', establishment: 'explicit', operation: 'replace', changes: [{ action: 'replace', ref: semanticEntryRef('mannerisms', 'Folds her wings while sleeping.'), value: 'Taps one boot while thinking.' }], sources: [{ messageId: 19, excerpt: 'habitually taps one boot while thinking' }], explanation: 'Explicit work habit.' },
         { field: 'status', operation: 'remove', sources: [{ messageId: 19, excerpt: 'Sora wakes' }], explanation: 'sleep ended' },
     ] }] };
     const applied = applyScanResult(fixture, result, { sourceMessageId: 20, profileContext: evidence, currentAdmissionText: evidence, applyRelationship: false, preservePresence: true, preserveObservation: true, applyReturnedNpcPatches: true });

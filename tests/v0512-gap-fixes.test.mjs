@@ -93,7 +93,7 @@ test('retry of a partial automatic scan forces a same-boundary semantic rescan i
         npcs: [{ id: '', name: 'Bessa Vond', identityKind: 'named',
             identityEvidence: { anchor: 'Bessa Vond', excerpts: ['Bessa Vond stands behind the counter.'], explanation: 'Named in current response.' },
             activityEvidence: { exchangeActive: { excerpts: ['Bessa Vond stands behind the counter.'], explanation: 'Directly present.' }, inChat: { excerpts: ['Bessa Vond stands behind the counter.'], explanation: 'Remains at counter.' } },
-            appearance: 'A clerk behind the counter.', evaluatedGroups: [...DOSSIER_EVALUATION_GROUPS], relationshipChange: structuredClone(ZERO_REL) }],
+            semanticUpdates: [{ field: 'appearance', operation: 'establish', value: 'A clerk behind the counter.', sources: [{ messageId: 1, excerpt: 'Bessa Vond stands behind the counter.' }] }], evaluatedGroups: [...DOSSIER_EVALUATION_GROUPS], relationshipChange: structuredClone(ZERO_REL) }],
     };
     h.context.generateRaw = async () => { h.metrics.generations += 1; return JSON.stringify(firstPayload); };
     const first = await h.entry.processCompletedAssistantResponse(1);
@@ -174,7 +174,7 @@ test('applied profile semantic updates accumulate bounded source-owned evolution
     assert.equal(state.npcs[0].profileEvolutionEvidence[0].sourceMessageId, 1);
     const secondText = 'Bessa Vond taps the ledger twice before answering difficult questions.';
     applied = applyScanResult(state, { ...EMPTY, npcs: [semanticPatch('npc-bessa-vond', [{
-        field: 'mannerisms', operation: 'establish', changes: [{ action: 'add', value: 'Observed tapping the ledger twice before difficult answers.' }], sources: [{ messageId: 3, excerpt: secondText }], explanation: 'A new observed gesture is recorded narrowly.'
+        field: 'mannerisms', establishment: 'reinforced', operation: 'establish', changes: [{ action: 'add', value: 'Observed tapping the ledger twice before difficult answers.' }], sources: [{ messageId: 3, excerpt: secondText }], explanation: 'A new observed gesture is recorded narrowly.'
     }])] }, {
         sourceMessageId: 3, turn: 2, profileContext: secondText, currentAdmissionText: secondText,
         applyReturnedNpcPatches: true, applyRelationship: false, preservePresence: true, preserveObservation: true,
@@ -183,7 +183,7 @@ test('applied profile semantic updates accumulate bounded source-owned evolution
     assert.equal(state.npcs[0].profileEvolutionEvidence.length, 2);
     assert.deepEqual(state.npcs[0].profileEvolutionEvidence.map(row => row.sourceMessageId), [1, 3]);
     const replay = applyScanResult(state, { ...EMPTY, npcs: [semanticPatch('npc-bessa-vond', [{
-        field: 'mannerisms', operation: 'establish', changes: [{ action: 'add', value: 'Observed tapping the ledger twice before difficult answers.' }], sources: [{ messageId: 3, excerpt: secondText }], explanation: 'Retry of same observation.'
+        field: 'mannerisms', establishment: 'reinforced', operation: 'establish', changes: [{ action: 'add', value: 'Observed tapping the ledger twice before difficult answers.' }], sources: [{ messageId: 3, excerpt: secondText }], explanation: 'Retry of same observation.'
     }])] }, {
         sourceMessageId: 3, turn: 3, profileContext: secondText, currentAdmissionText: secondText,
         applyReturnedNpcPatches: true, applyRelationship: false, preservePresence: true, preserveObservation: true,

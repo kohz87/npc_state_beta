@@ -1,5 +1,5 @@
 import { findNpcByReference, normalizeName } from '../schema.js';
-import { DOSSIER_LIVE_FIELDS, dossierFieldDefinition, dossierFieldGroup, dossierFieldValueIssue } from './dossier-fields.js';
+import { dossierFieldGroup, dossierFieldValueIssue } from './dossier-fields.js';
 
 function compact(value, max = 1200) {
     return String(value ?? '').replace(/\u0000/g, '').trim().slice(0, max);
@@ -20,47 +20,8 @@ function source(evidence, options = {}) {
     return excerpt ? [{ messageId: Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null, excerpt }] : [];
 }
 
-function evidenceKey(value, max = 50000) {
-    return String(value ?? '')
-        .normalize('NFKC')
-        .toLocaleLowerCase()
-        .replace(/[\s\p{P}\p{S}]+/gu, ' ')
-        .trim()
-        .slice(0, max);
-}
-
 function compatibilityDiagnostic(options, row) {
     if (Array.isArray(options.compatibilityDiagnostics)) options.compatibilityDiagnostics.push(row);
-}
-
-function identityKeys(npc) {
-    return [npc?.name, ...(Array.isArray(npc?.aliases) ? npc.aliases : [])]
-        .map(value => evidenceKey(value, 500))
-        .filter(value => value.length >= 2);
-}
-
-function directEvidenceContexts(field, options = {}) {
-    const visible = compact(options.currentAdmissionText || options.semanticEvidenceContext || options.profileContext, 50000);
-    const structuredKey = dossierFieldDefinition(field)?.structuredContext;
-    const structured = structuredKey ? compact(options[structuredKey], 50000) : '';
-    return [visible, structured].filter(Boolean);
-}
-
-function directFieldSource(npc, field, value, options = {}) {
-    const proposed = evidenceKey(value, 2000);
-    const identities = identityKeys(npc);
-    if (!proposed || !identities.length) return [];
-    for (const context of directEvidenceContexts(field, options)) {
-        const lines = context.split(/\r?\n/);
-        const sentences = context.split(/(?<=[.!?])\s+/);
-        const spans = [...new Set([...lines, ...sentences])].map(row => row.trim()).filter(Boolean);
-        for (const span of spans) {
-            const key = evidenceKey(span, 4000);
-            if (!key.includes(proposed) || !identities.some(identity => (` ${key} `).includes(` ${identity} `))) continue;
-            return source(span, options);
-        }
-    }
-    return [];
 }
 
 function operation(mode) {
@@ -85,17 +46,9 @@ export function adaptLegacySemanticPayload(stateInput, resultInput, options = {}
     if (!resultInput || typeof resultInput !== 'object' || Array.isArray(resultInput)) return resultInput;
     const state = stateInput || {};
     const result = structuredClone(resultInput);
-    const admissionMode = String(options.admissionMode || '').trim();
 
     for (const patch of Array.isArray(result.npcs) ? result.npcs : []) {
         const existing = existingNpc(state, patch);
-        const identityKind = String(patch?.identityKind || '').trim().toLocaleLowerCase().replace(/[_ ]+/g, '-');
-        if (!existing && admissionMode === 'named_preferred' && ['named', 'proper-name', 'proper'].includes(identityKind)) {
-            // Preserve the raw proposal until the canonical registry validator sees it.
-            // Compacting here would turn an object into '[object Object]' before validation.
-            patch._modelLedRole = structuredClone(patch.role);
-            patch.role = '';
-        }
         if (!existing) continue;
 
         const updates = Array.isArray(patch.semanticUpdates) ? structuredClone(patch.semanticUpdates) : [];
@@ -157,33 +110,6 @@ export function adaptLegacySemanticPayload(stateInput, resultInput, options = {}
                 changes.push({ action: 'remove', expected });
             }
             if (changes.length) updates.push({ field: 'keyRelationships', operation: 'refine', changes, durability: 'durable', sources: source(evidence, options), explanation: 'Legacy key-relationship removal.' });
-        }
-
-        for (const field of DOSSIER_LIVE_FIELDS) {
-            if (hasUpdate(updates, field) || !Object.prototype.hasOwnProperty.call(patch, field)) continue;
-            const shapeIssue = dossierFieldValueIssue(field, patch?.[field]);
-            if (shapeIssue) {
-                compatibilityDiagnostic(options, {
-                    npcId: existing.id, field, operation: compact(existing?.[field]) ? 'replace' : 'establish', group: dossierFieldGroup(field),
-                    status: 'rejected-proposal', reason: 'invalid-value-type:' + shapeIssue,
-                });
-                continue;
-            }
-            const value = compact(patch?.[field], field === 'currentForm' ? 80 : 1200);
-            if (!value || normalizeName(value) === normalizeName(existing?.[field])) continue;
-            const fieldSources = directFieldSource(existing, field, value, options);
-            const operationName = compact(existing?.[field]) ? 'replace' : 'establish';
-            if (!fieldSources.length) {
-                compatibilityDiagnostic(options, {
-                    npcId: existing.id, field, operation: operationName, group: dossierFieldGroup(field),
-                    status: 'unsupported-direct-proposal', reason: 'missing-field-specific-evidence',
-                });
-                continue;
-            }
-            updates.push({
-                field, operation: operationName, value, durability: 'temporary',
-                sources: fieldSources, explanation: 'Boundary-normalized direct live-state compatibility value.',
-            });
         }
 
         if (updates.length) patch.semanticUpdates = updates;

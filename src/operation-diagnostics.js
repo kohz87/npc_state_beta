@@ -56,7 +56,8 @@ export function summarizeProposalDiagnostics(semanticDiagnostics = [], coverageD
     };
     for (const row of Array.isArray(semanticDiagnostics) ? semanticDiagnostics : []) {
         const status = String(row?.status || '');
-        if (status === 'applied') summary.accepted += 1;
+        if (status === 'repaired-proposal') { /* historical rejection resolved within this operation */ }
+        else if (status === 'applied') summary.accepted += 1;
         else if (status === 'no-change-proposed') summary.unchanged += 1;
         else if (status === 'evaluated-unchanged') summary.unchanged += 1;
         else if (status === 'evaluated-groups') { /* group-level compatibility marker; not field-level unchanged */ }

@@ -20,7 +20,7 @@ function payload() {
     return {
         exchangeActiveNpcIds: ['Maren Kael'], inChatNpcIds: ['Maren Kael'], worldActiveNpcIds: [],
         npcs: [{
-            id: '', name: 'Maren Kael', identityKind: 'named', role: 'Guild intake clerk',
+            id: '', name: 'Maren Kael', identityKind: 'named', semanticUpdates: [{ field: 'role', operation: 'establish', value: 'Guild intake clerk', sources: [{ messageId: 1, excerpt: IDENTITY }] }],
             identityEvidence: { anchor: 'Maren Kael', excerpts: [IDENTITY], explanation: 'Named intake clerk.' },
             activityEvidence: {
                 exchangeActive: { excerpts: [ACTION], explanation: 'Guides Lucien through intake.' },
@@ -73,10 +73,12 @@ test('first-contact observations resolve the admitted stable id, preserve unknow
 
 test('one bootstrap value and its same-source observations remain one item of evidence', () => {
     const result = payload();
-    result.npcs[0].behaviorProfile = ['Guides applicants through paperwork and contract choices.'];
+    const behavior = ['Guides applicants through paperwork and contract choices.'];
+    result.npcs[0].semanticUpdates.push({ field: 'behaviorProfile', operation: 'establish', value: behavior, sources: [{ messageId: 1, excerpt: ACTION }] });
+    result.npcs[0].fieldEvaluations.insufficient = result.npcs[0].fieldEvaluations.insufficient.filter(field => field !== 'behaviorProfile');
     result.npcs[0].profileObservations.push(observation());
     const npc = apply(initial(), result).state.npcs[0];
-    assert.deepEqual(npc.behaviorProfile, result.npcs[0].behaviorProfile);
+    assert.deepEqual(npc.behaviorProfile, behavior);
     assert.equal(npc.profileEvolutionEvidence.length, 1);
 });
 

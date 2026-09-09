@@ -10,7 +10,7 @@ const LIFECYCLE_STATES = new Set(['alive', 'dead', 'unknown']);
 const LIFECYCLE_CERTAINTIES = new Set(['explicit', 'strong', 'uncertain', 'confirmed']); // confirmed: legacy compatibility only
 // Existing classifications only. These aliases never constitute admission evidence.
 const LEGACY_IDENTITY_KINDS = Object.freeze({ 'proper-name': 'named', proper: 'named', role: 'role-label', unnamed: 'role-label' });
-const DRIFT_KEYS = Object.freeze({ canonicalName: 'name', activityRefs: 'activityEvidence', live: 'flat dossier fields', relationshipToPlayer: 'relationshipChange with canonical axes and evidence' });
+const DRIFT_KEYS = Object.freeze({ canonicalName: 'name', activityRefs: 'activityEvidence', live: 'source-cited semanticUpdates', relationshipToPlayer: 'relationshipChange with canonical axes and evidence' });
 
 function payloadError(code, details) {
     const issues = details.slice(0, 12).map(value => String(value).slice(0, 240));

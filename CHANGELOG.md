@@ -2,6 +2,15 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.36
+
+- Unify NEW/EXISTING ordinary dossier writes under source-cited semantic updates (model contract 7); remove flat bootstrap writes, lexical contamination filtering, prompt rewriting, inferred direct-live citations, and the uncited Named preferred Role bridge.
+- Correct canonical NEW examples and Current Dynamic evidence guidance at their source. Keep validated participant reuse separate from numeric scoring; do not inject summary quotations or accept the experimental v0.5.35 provenance converter.
+- Validate mannerism establishment inside each semantic update across admission, Scan, completion, Recheck and Refresh. Preserve one-off observations and allow source-cited birthdays to supersede generated fallback metadata.
+- Use the remaining automatic request budget for narrowly scoped NEW-field contract repair; optional enrichment remains Off by default and malformed retry/repair/follow-up share the two-request ceiling. Repaired failures and conflicting field evaluations report honest outcomes.
+- Preserve distinct memories using exact normalized deduplication; leave semantic event consolidation to targeted model edits. Remove unused lexical relationship interpretation helpers while keeping exact quotation/participant and numeric mechanics.
+- Add captured Maren production-engine/persistence fixtures and authority, repair-budget, mannerism, source ownership and memory regressions; migrate older fixtures to explicit field citations. Persisted state/settings schemas and storage identity remain unchanged.
+
 ## 0.5.34
 
 - Reuse accepted current identity/activity evidence for descriptive zero-delta Current Dynamic binding without requiring every quotation to repeat both participants; exact-source, ambiguity, wrong-addressee, and numeric relationship safeguards remain separate.

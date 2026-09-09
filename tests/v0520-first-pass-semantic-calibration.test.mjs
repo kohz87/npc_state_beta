@@ -1,3 +1,4 @@
+import { citedFixture } from './helpers/cited-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -32,7 +33,7 @@ function payload() {
         exchangeActiveNpcIds: ['Vrena Pell'],
         inChatNpcIds: ['Vrena Pell'],
         worldActiveNpcIds: [],
-        npcs: [{
+        npcs: [citedFixture({
             id: '',
             name: 'Vrena Pell',
             identityKind: 'named',
@@ -76,7 +77,12 @@ function payload() {
                 insufficient: ['species', 'age', 'birthday', 'appearanceForms', 'currentForm', 'memories', 'keyRelationships'],
                 unavailable: [],
             },
-        }],
+        }, {
+            role: VISIBLE, background: VISIBLE, apparentAge: USER, appearance: VISIBLE,
+            personality: ASSISTANT, behaviorProfile: ASSISTANT, speech: ASSISTANT,
+            mannerisms: { excerpt: ASSISTANT, establishment: 'reinforced' },
+            mood: ASSISTANT, location: ASSISTANT, goal: ASSISTANT, status: ASSISTANT,
+        })],
         socialEdges: [],
         familyFacts: [],
         lifeStateUpdates: [],

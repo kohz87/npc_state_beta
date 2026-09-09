@@ -153,8 +153,7 @@ test('NEW semantic mannerism establishment keeps the v0.5.34 explicit-or-reinfor
     assert.equal(rejected.semanticDiagnostics.some(row => row.field === 'mannerisms' && row.reason === 'profile-establishment-basis-required'), true);
 
     const accepted = applyScanResult(state('chat:v0535-mannerism-accept'), payload(newPatch({
-        profileEstablishment: { mannerisms: 'reinforced' },
-        semanticUpdates: [update],
+        semanticUpdates: [{ ...update, establishment: 'reinforced' }],
     })), options(ex));
     assert.deepEqual(accepted.state.npcs.find(row => row.name === 'Linnea Brand').mannerisms, ['Taps relevant contract lines while explaining terms.']);
 });

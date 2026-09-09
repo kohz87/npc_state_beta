@@ -2,9 +2,11 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.34
+## Release 0.5.36
 
-0.5.34 tightens first-admission evidence authority, retains isolated profile observations without promoting them to habits, and safely reuses accepted participant bindings for neutral Current Dynamic summaries.
+0.5.36 consolidates NEW and EXISTING ordinary dossier changes under one source-cited semantic contract. Canonical prompts and examples agree, authorized evidence is not poisoned by words repeated in structured blocks, and uncited flat proposals cannot borrow identity/activity quotations. Mannerism establishment applies consistently in Scan, Refresh, and Recheck. Current Dynamic instructions explicitly reuse accepted exchange evidence while preserving wrong-addressee safeguards. Distinct memories are no longer merged by keyword similarity.
+
+A newly admitted dossier whose provider returns uncited ordinary fields or omits required mannerism establishment may use the remaining request budget for a current-exchange format repair, even with optional follow-up Off. The model supplies the missing field citations or withdraws unsupported claims. Failed/exhausted repair retains independently valid results and reports partial completion. This is not historical enrichment; automatic operations remain capped at two provider requests including JSON retry and optional follow-up.
 
 0.5.33 makes first-contact follow-up explicit instead of unconditional. **Off** is the default, including when the setting is absent on upgrade. **Missing evaluations only** rechecks only eligible blank fields on newly admitted NPCs that the first response neither proposed nor explicitly evaluated. **Recheck unknown fields** may also revisit eligible blanks explicitly marked insufficient. Any automatic follow-up uses the same complete current exchange, exact admitted stable IDs, existing locks/source validation, and the same final persistence/checkpoint boundary. A shared two-request budget includes malformed-JSON retries, so spending the retry budget skips follow-up rather than issuing a third request. Individual dossiers also offer a current-exchange-only **Recheck missing details** action that is distinct from historical Refresh. Deterministically generated birthdays remain internally tracked but are presented and supplied to normal scanner continuity as ordinary stable birthdays, without a `generated` label.
 
@@ -36,7 +38,7 @@ The automatic workflow remains:
 
 `compact continuity -> visible roleplay response -> dedicated post-response scan -> optional configured first-contact follow-up -> validate/apply -> guarded persistence/checkpoint -> refresh continuity/UI`
 
-Roleplay generation does not emit `<npc_state_v1>` or other NPC JSON. Foreground injection is continuity-only. `autoScan=true` means one logical dedicated scan operation after each completed assistant revision. With first-contact follow-up Off, a valid first response uses one provider request. When a follow-up mode is enabled, the same automatic operation may use one additional request for eligible newly admitted fields, but the shared cap is two requests total including malformed-JSON retries. Duplicate host completion events share the same logical job; edits, swipes, deletion, branch changes, and chat switches invalidate stale work.
+Roleplay generation does not emit `<npc_state_v1>` or other NPC JSON. Foreground injection is continuity-only. `autoScan=true` means one logical dedicated scan operation after each completed assistant revision. With first-contact follow-up Off, a contract-compliant first response uses one provider request. When a follow-up mode is enabled, the same automatic operation may use one additional request for eligible newly admitted fields, but the shared cap is two requests total including malformed-JSON retries. Duplicate host completion events share the same logical job; edits, swipes, deletion, branch changes, and chat switches invalidate stale work.
 
 Before the next ordinary generation, NPC State uses SillyTavern's awaited generation interceptor to settle the preceding response's owning scan and rebuild continuity. The recursion bypass exists only while invoking the scanner's own host generation call; ordinary roleplay work cannot inherit scanner privileges. A failed or timed-out owning scan exposes an actionable Retry state and aborts the attempted next generation instead of silently using unsynchronized state.
 
@@ -56,7 +58,7 @@ Current Dynamic may establish a neutral professional, transactional, adversarial
 
 Apparent Age is visual, not chronological. Direct visible life-stage wording such as child, adolescent, young adult, middle-aged, or elderly is positive evidence even without a number. The model may return `~N` for a specific-looking age or a semantic interval such as `~20-30` for a defensible visible band; the backend uses the NPC's stable identity to choose one reproducible inclusive value and persists only `~N`. No fixed English phrase-to-range dictionary is used. Existing/manual descriptive Apparent Age values remain compatible. Actual Age never derives from Apparent Age.
 
-New-NPC bootstrap, existing semantic updates, manual/import boundaries, and persisted normalization share field-aware value rules. Malformed nested collection members, form selectors, scalar objects, and coercive manual numeric values are rejected before lossy normalization rather than becoming strings such as `[object Object]`.
+NEW/EXISTING semantic updates, manual/import boundaries, and persisted normalization share field-aware value rules. Malformed nested collection members, form selectors, scalar objects, and coercive manual numeric values are rejected before lossy normalization rather than becoming strings such as `[object Object]`.
 
 ## Settings
 
@@ -74,7 +76,7 @@ Obsolete `scanAfterEachResponse`, `fallbackScan`, and `newNpcHistoryEnrichment` 
 
 ## Relationship and profile behavior
 
-Existing dossiers evolve through the single `semanticUpdates` channel (`establish`, `refine`, `replace`, `remove`). The model judges narrative meaning; deterministic code validates source ownership, target identity, durability, manual locks, collection/form targeting, and permitted fields. Personality, behavioral profile, speech, and mannerisms may also record bounded grounded observations without forcing an immediate dossier mutation. Observation-only and applied-change evidence share the existing `profileEvolutionEvidence` store and commit through the same guarded transaction/checkpoint. Mechanical observation identity uses the owned source event plus field and normalized concept, so distinct concepts can share one excerpt; an applied update that reuses an already observed source excerpt does not manufacture another evidence record. Every cited excerpt is validated against its claimed permitted message before source ownership is derived.
+NEW and EXISTING dossiers evolve through the single `semanticUpdates` channel (`establish`, `refine`, `replace`, `remove`). The model judges narrative meaning; deterministic code validates source ownership, target identity, durability, manual locks, collection/form targeting, and permitted fields. Personality, behavioral profile, speech, and mannerisms may also record bounded grounded observations without forcing an immediate dossier mutation. Observation-only and applied-change evidence share the existing `profileEvolutionEvidence` store and commit through the same guarded transaction/checkpoint. Mechanical observation identity uses the owned source event plus field and normalized concept, so distinct concepts can share one excerpt; an applied update that reuses an already observed source excerpt does not manufacture another evidence record. Every cited excerpt is validated against its claimed permitted message before source ownership is derived.
 
 Temporary states such as sleep, unconsciousness, one-off poses, injury, stress, or momentary mood do not automatically become permanent personality/speech. Later grounded evidence may enrich or replace an obsolete placeholder. Behavioral Profile and Mannerisms may consolidate substantially overlapping established entries through targeted collection refs while preserving distinct facts and unrelated entries. Semantic overlap remains model-led rather than hardcoded in English dictionaries.
 
@@ -90,10 +92,10 @@ User-owned portraits, locks, manual corrections, importance, and suppression tom
 
 Current boundaries:
 
-- Release label: **0.5.33**
+- Release label: **0.5.36**
 - Persisted state schema: **1**
 - Settings schema: **1**
-- Model semantic contract: **6**
+- Model semantic contract: **7**
 - Foreground continuity contract: **8**
 - Storage identity: **`npc_state_beta.v3`**
 
@@ -101,7 +103,7 @@ No database reset, rebuild, or storage-key migration is required. Automatic hist
 
 Old `<npc_state_v1>` text is ignored/stripped only where needed for historical canonicalization and prompt cleanliness so older chats do not diverge merely because transport text remains. New automatic processing does not consume embedded payloads.
 
-Supported older model-response aliases are normalized once at the scanner boundary into the canonical semantic pipeline. Tiny retired public diagnostic entry points may remain as compatibility tombstones, but the obsolete embedded-capture/completeness subsystems themselves are not present.
+Evidence-bearing older model-response aliases are normalized once at the scanner boundary into the canonical semantic pipeline. Uncited flat ordinary proposals are rejected; compatibility never invents field provenance. Tiny retired public diagnostic entry points may remain as compatibility tombstones, but the obsolete embedded-capture/completeness subsystems themselves are not present.
 
 SillyTavern's third-party extension updater is Git-based: it checks whether the installed repository is current and pulls the tracked branch when needed. The 0.5.x presentation label does not require uninstall/reinstall or data deletion.
 

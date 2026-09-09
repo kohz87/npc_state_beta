@@ -65,7 +65,7 @@ test('Scan engine repairs frozen post-emergence personality, behavior, speech, m
         { field: 'personality', operation: 'replace', value: 'Curious, energetic, proudly inquisitive.', sources: source('Sora laughs softly, asks three curious questions, eagerly compares hunting plans'), explanation: 'Later interaction establishes an actual baseline.' },
         { field: 'behaviorProfile', operation: 'replace', value: ['Eagerly engages with lessons and practical plans.', 'Approaches unfamiliar situations with bright curiosity.'], sources: source('eagerly compares hunting plans'), explanation: 'The sleeping placeholder is obsolete.' },
         { field: 'speech', operation: 'replace', value: 'Animated and direct, with frequent curious questions.', sources: source('asks three curious questions'), explanation: 'She is demonstrably speaking.' },
-        { field: 'mannerisms', operation: 'replace', changes: [{ action: 'replace', expected: 'Folds her feathered wings across her back in sleep.', value: 'Taps one boot while thinking.' }], sources: source('keeps tapping one boot when thinking'), explanation: 'Current durable mannerism is observed.' },
+        { field: 'mannerisms', establishment: 'reinforced', operation: 'replace', changes: [{ action: 'replace', expected: 'Folds her feathered wings across her back in sleep.', value: 'Taps one boot while thinking.' }], sources: source('keeps tapping one boot when thinking'), explanation: 'Current durable mannerism is observed.' },
         { field: 'status', operation: 'remove', sources: source('She is awake beside Lucien.'), explanation: 'Stored sleeping status is no longer current.' },
     ]);
     const applied = apply(stateWithNpc(), result, context);
@@ -102,7 +102,7 @@ test('foreground/full scan prompt includes personality and speech in reconciliat
     const prompt = buildScanPrompt({ state, chat, assistantMessageId: 1, scanDepth: 8 });
     assert.match(prompt, /Quiet and dormant baseline post-emergence/);
     assert.match(prompt, /Unvoiced; currently sleeping/);
-    assert.match(prompt, /NPC STATE DOSSIER UPDATE CONTRACT v6/);
+    assert.match(prompt, /NPC STATE DOSSIER UPDATE CONTRACT v7/);
 });
 
 test('semantic replacement does not require English cue phrases or repeated concept labels', () => {
@@ -146,7 +146,7 @@ test('form-specific mannerism survives unrelated current-form changes', () => {
     const state = stateWithNpc({ mannerisms: [oldWingHabit, 'Taps a boot while thinking.'], currentForm: 'Human' });
     const context = 'In human form Sora now drums two fingers on the table while calculating.';
     const ref = semanticEntryRef('mannerisms', 'Taps a boot while thinking.');
-    const result = fixture([{ field: 'mannerisms', operation: 'refine', changes: [{ action: 'replace', ref, value: 'Drums two fingers on a surface while calculating.' }], scope: { form: 'Human' }, sources: source(context), explanation: 'Human-form habit refined.' }]);
+    const result = fixture([{ field: 'mannerisms', establishment: 'reinforced', operation: 'refine', changes: [{ action: 'replace', ref, value: 'Drums two fingers on a surface while calculating.' }], scope: { form: 'Human' }, sources: source(context), explanation: 'Human-form habit refined.' }]);
     const applied = apply(state, result, context);
     assert.deepEqual(applied.state.npcs[0].mannerisms, [oldWingHabit, 'Drums two fingers on a surface while calculating.']);
 });
@@ -205,8 +205,8 @@ test('same-evidence targeted collection replacements are deduplicated by complet
     const context = 'Sora now drums two fingers while calculating and folds her hands before answering.';
     const sharedSources = source(context);
     const result = fixture([
-        { field: 'mannerisms', operation: 'replace', changes: [{ action: 'replace', ref: semanticEntryRef('mannerisms', first), value: 'Drums two fingers while calculating.' }], sources: sharedSources, explanation: 'First habit changed.' },
-        { field: 'mannerisms', operation: 'replace', changes: [{ action: 'replace', ref: semanticEntryRef('mannerisms', second), value: 'Folds her hands before answering.' }], sources: sharedSources, explanation: 'Second habit changed.' },
+        { field: 'mannerisms', establishment: 'reinforced', operation: 'replace', changes: [{ action: 'replace', ref: semanticEntryRef('mannerisms', first), value: 'Drums two fingers while calculating.' }], sources: sharedSources, explanation: 'First habit changed.' },
+        { field: 'mannerisms', establishment: 'reinforced', operation: 'replace', changes: [{ action: 'replace', ref: semanticEntryRef('mannerisms', second), value: 'Folds her hands before answering.' }], sources: sharedSources, explanation: 'Second habit changed.' },
     ]);
     const applied = apply(state, result, context);
     assert.deepEqual(applied.state.npcs[0].mannerisms, ['Drums two fingers while calculating.', 'Folds her hands before answering.']);

@@ -1,0 +1,110 @@
+{
+  "note": "Provider JSON copied from user capture. Current visible/World_State/Inner_Chatter supplied separately; raw wrapper and omitted control blocks were not captured.",
+  "user": "I dragged my feet towards the settlement, eating poor rations I found on myself and wished for a walking stick which I managed to manifest it from thin air, but something pulled from deep inside me. (it's soul armament using the only soul capacity to manifest)\n\nAfter days of descension from the forest, I finally found the settlement and approach it, looking for a place my memory somehow recalls, an adventurer guild for registration and earn some coins.\n\nJust when I entered the building, I was immediately man handled by a young woman receptionist who briefly introduced herself and into signing the registration form without fee and slapping contracts on the table and explaining them to me without me asking for it.\n\nBut one of the contracts caught my eyes, boar hunts.",
+  "visible": "<font color=\"#D97736\">\"Sign the bottom parchment. Press your thumb into the blue wax. Step away from the threshold, the mountain draft scatters every slip across my desk.\"</font>\n\nThe three-day descent from the shattered ridge had stripped the grease from your tins and the crusts from your pockets. The cold staff of pale, solid energy you pulled from the space before your ribs had borne your weight across the shale slopes, drawing a steady, hollow drag beneath your breastbone until the spruce forest gave way to split-rail fences and ditch-water. You carried the thing into the timber compound of Rimecross like a shepherd's crook, the pack heavy with wool wrapping and the two cold, heavy ovals settled against your spine.\n\nThe woman behind the counter wore sheepskin lined with gray rabbit fur, the sleeves rolled above her wrists to spare them from the open inkpots. Her skin had the red, wind-burned roughness common to the Rhunwald border, her coarse brown hair pinned back with a shaved bone bodkin. Before your boots stopped dripping slush onto the threshold planks, she had already slid an iron-nibbed pen into your fingers, guiding the shaft toward a scarred pine desk crowded with sand-boxes and lead weights.\n\n<font color=\"#D97736\">\"New arrivals take the provisional registry. The Crown waives the station fee this season, the wardens want scouts on the trail. You get a bronze provisional chit. You bring it back with salt, pelts, proof of work.\"</font>\n\nShe took the handle of a brass seal from a dish of tallow, pressed it onto a dab of cooling resin beside the scrawled name, and scraped the parchment flat with the edge of a ruler. Her gaze flicked down to the staff resting in your grip, lingered on the smooth, unseamed texture of the weapon, then returned to the counter without a comment. She dealt four slips of coarse grey rag-paper across the grain of the oak like a dealer turning cards in a taproom.\n\n<font color=\"#D97736\">\"The red marks belong to the forestry post. The yellow ones sit with the garrison teamsters. Leave the river run alone, the ferrymaster pays in barley meal nobody wants to haul.\"</font>\n\nThe fourth slip sat pinned beneath her knuckle. The charcoal sketch at the top showed a heavy, square-jawed hog with notched ears and a split upper tusk, rendered in heavy, utilitarian strokes. Beneath the sketch, the clerk's script laid out the terms in block imperial text: three head sighted near the lower stone terraces, root-cellars broken, payment upon delivery of the lower jawbones to the southern palisade watchman.\n\n<font color=\"#D97736\">\"Those are the brush boars down by the south orchards. Three sows, one scarred male broke through the stone ditch yesterday morning. The farmers want the tusks brought to the gate master. Ten gold coins per head, clean butchery earns five extra from the smokehouse keeper.\"</font>\n\nShe lifted her knuckle, leaving the parchment free. Across the room, two carters sitting by the iron stove stirred their cups of hot cider, their heavy cloaks steaming as the peat fire snapped behind the grating. Outside the oiled paper windows, the grey light of midday settled over the muddy track of the village, where a string of pack mules churned the melting sleet into brown paste.",
+  "world": "**📅 Time:** CR821, Redleaf 15, 11:45 am | **🌤 Loc:** Adventurer Guild Station | Rimecross [4,115] | **🌡 Wx:** Overcast, sleet, 1°C, dim daylight\n\n---\n\n**🧍 Lucien Noctis:**\n\n* *G-Rank:* G1 Provisional (Registered)\n* *Outfit:* Long ragged black-grey trench coat, worn scarf, layered dark travel clothes, leather belts and straps, reinforced trousers, weathered gloves, mud-splattered scuffed boots; NOCTIS ring on hand\n* *Position:* Standing at the intake counter inside the Rimecross Guild Station\n* *Visible Condition:* Windburned, several days of dark stubble, damp clothes, hollowed by three days of hard mountain travel\n* *Carrying:* Travel pack containing two eggs; utility knife at belt; coin pouch; manifested walking staff in hand\n\n---\n\n**👥 NPCs Present:**\n\n**Maren Voss:**\n\n* *Soul Class:* I\n* *G-Rank:* Unregistered (Guild Intake Clerk)\n* *Outfit:* Rabbit-lined sheepskin vest over rough wool tunic, sleeves pinned to elbows, ink-smudged apron\n* *Position:* Behind the intake counter, holding a brass stamping seal\n* *Mood:* Efficient, impatient, matter-of-fact\n* *Agenda:* Process incoming mountain drifters quickly to clear the hall and fill local work quotas\n* *Secret:* Diverts low-risk suppression bounties toward new arrivals before garrison regulars can claim the easy meat\n\n---\n\n**📡 Off-Screen:**\n\n* None established.\n\n---\n\n**🔥 Unresolved Threads:**\n\n* Lucien retains no autobiographical memory; carries the NOCTIS ring.\n* Two live sapient eggs (Stormcrown Thunderbird, Silver Dragon) remain concealed in Lucien's pack.\n* A manifested weapon (walking staff) is currently sustained in plain sight, occupying full Soul Capacity.\n* The south orchard boar hunt contract lies open on the intake counter.\n\n**🌱 Planted Seeds:** Orchard boar damage reported by southern farmers | Potential encounter with wild mountain beasts near village boundary | 0 turns\n**⏳ Consequence Timers:** Empty stomach and damp clothing | Fatigue penalties if active physical exertion begins without food/rest [Immediate]\n**🎯 Arc Phase:** Setup\n**🎬 Scene Phase:** Midpoint Tension",
+  "inner": "\"MAREN VOSS: Another starved stray from the pass. Looks half-frozen, clothes smell like burned grease. If he bleeds on my ledger, I'm making him scrub the boards himself.\"",
+  "response": {
+    "exchangeActiveNpcIds": [
+      "Maren Voss"
+    ],
+    "inChatNpcIds": [
+      "Maren Voss"
+    ],
+    "worldActiveNpcIds": [],
+    "npcs": [
+      {
+        "id": "",
+        "name": "Maren Voss",
+        "identityKind": "named",
+        "evaluatedGroups": [
+          "canon",
+          "profile",
+          "live",
+          "memory",
+          "npcRelationships"
+        ],
+        "identityEvidence": {
+          "anchor": "young woman receptionist",
+          "excerpts": [
+            "I was immediately man handled by a young woman receptionist who briefly introduced herself and into signing the registration form without fee and slapping contracts on the table and explaining them to me without me asking for it.",
+            "The woman behind the counter wore sheepskin lined with gray rabbit fur, the sleeves rolled above her wrists to spare them from the open inkpots."
+          ],
+          "explanation": "Maren Voss is the guild intake clerk who receives Lucien upon his arrival at Rimecross."
+        },
+        "activityEvidence": {
+          "exchangeActive": {
+            "excerpts": [
+              "Sign the bottom parchment. Press your thumb into the blue wax. Step away from the threshold, the mountain draft scatters every slip across my desk.",
+              "She took the handle of a brass seal from a dish of tallow, pressed it onto a dab of cooling resin beside the scrawled name, and scraped the parchment flat with the edge of a ruler."
+            ],
+            "explanation": "Maren speaks directly to Lucien, stamps his provisional registration, and presents contract options."
+          },
+          "inChat": {
+            "excerpts": [
+              "She lifted her knuckle, leaving the parchment free."
+            ],
+            "explanation": "Maren remains behind the intake counter in the active scene with Lucien."
+          }
+        },
+        "role": "Guild intake receptionist",
+        "background": "Intake clerk at the Rimecross Adventurer Guild station.",
+        "apparentAge": "~20-29",
+        "appearance": "Red, wind-burned skin, coarse brown hair pinned back with a shaved bone bodkin, wearing sheepskin lined with gray rabbit fur with sleeves rolled above the wrists.",
+        "personality": "Brisk, practical, and assertive, managing intake procedures with efficient momentum.",
+        "behaviorProfile": [
+          "Directs newcomers swiftly through registration paperwork and official seal stamping.",
+          "Deals out contract slips across the counter and explains bounty conditions unprompted."
+        ],
+        "speech": "Clipped, imperative, and instructional guild directives.",
+        "mannerisms": [
+          "Keeps sleeves rolled above wrists to protect them from open inkpots.",
+          "Deals contract slips across the desk like cards in a taproom."
+        ],
+        "mood": "Brisk and businesslike",
+        "location": "Adventurer Guild Station, Rimecross",
+        "goal": "Have Lucien select a contract and clear the intake counter.",
+        "status": "Waiting across the intake counter after dealing out the boar hunt contract.",
+        "memories": [
+          "Processed Lucien Noctis's provisional guild registration and laid out the south orchard boar bounty."
+        ],
+        "relationshipChange": {
+          "evaluated": true,
+          "impact": "none",
+          "delta": {
+            "trust": 0,
+            "affection": 0,
+            "desire": 0,
+            "tension": 0
+          },
+          "axisEvidence": {},
+          "reason": "First interaction establishing a neutral, purely transactional professional intake dynamic."
+        },
+        "relationshipSummary": "Impersonal and transactional guild intake; Maren treats Lucien as another cold drifter from the mountain pass, briskly processing his registration without personal investment.",
+        "relationshipSummaryEvidence": {
+          "excerpts": [
+            "New arrivals take the provisional registry. The Crown waives the station fee this season, the wardens want scouts on the trail. You get a bronze provisional chit. You bring it back with salt, pelts, proof of work.",
+            "Those are the brush boars down by the south orchards. Three sows, one scarred male broke through the stone ditch yesterday morning."
+          ],
+          "explanation": "Maren interacts with Lucien in a strictly businesslike capacity, executing standard intake and laying out bounties."
+        },
+        "fieldEvaluations": {
+          "unchanged": [],
+          "insufficient": [
+            "species",
+            "age",
+            "birthday",
+            "appearanceForms",
+            "currentForm",
+            "keyRelationships"
+          ],
+          "unavailable": []
+        }
+      }
+    ],
+    "socialEdges": [],
+    "familyFacts": [],
+    "lifeStateUpdates": [],
+    "candidateAccounting": {}
+  }
+}

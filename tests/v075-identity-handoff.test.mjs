@@ -191,7 +191,7 @@ test('unexpected nonempty model id is a transport hint and semantic updates foll
     assert.equal(result.coverageDiagnostics.some(row => row.status === 'missing-npc-patch'), false);
 });
 
-test('supported direct new-dossier bootstrap fields still work alongside the identity handoff', () => {
+test('uncited direct new-dossier fields cannot bypass the identity handoff', () => {
     const state = emptySafeState('chat:direct-bootstrap');
     const direct = {
         role: 'Innkeeper', species: 'Human', appearance: 'Silver-haired woman with a warm smile.',
@@ -204,10 +204,14 @@ test('supported direct new-dossier bootstrap fields still work alongside the ide
     };
     const result = apply(state, payload([miraPatch({ id: 'transport-mira', semanticUpdates: [], direct })]));
     const mira = result.state.npcs.find(npc => npc.name === 'Mira');
-    assertMiraPopulated(mira);
-    assert.equal(mira.personality, 'Hospitable and attentive.');
-    assert.deepEqual(mira.behaviorProfile, ['Checks guest needs before preparing rooms.']);
-    assert.deepEqual(mira.mannerisms, ['Smiles before answering a guest.']);
+    assert.ok(mira.id);
+    assert.equal(result.patchResolutions[0].npcId, mira.id);
+    for (const field of ['role', 'species', 'appearance', 'speech', 'personality', 'mood', 'location', 'status', 'goal']) {
+        assert.equal(mira[field], '', field);
+        assert.ok(result.semanticDiagnostics.some(row => row.field === field && row.reason === 'source-cited-update-required'));
+    }
+    assert.deepEqual(mira.behaviorProfile, []);
+    assert.deepEqual(mira.mannerisms, []);
 });
 
 test('mixed existing and multiple new NPCs retain independent accepted bindings', () => {

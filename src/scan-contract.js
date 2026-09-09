@@ -1,7 +1,7 @@
 import { DOSSIER_EVALUATION_GROUPS, DOSSIER_FIELD_DEFINITIONS, DOSSIER_SEMANTIC_FIELDS } from './model/dossier-fields.js';
 import { RELATIONSHIP_AXES } from './schema.js';
 
-const CURRENT_DYNAMIC_EVIDENCE_RULE = 'CURRENT DYNAMIC EVIDENCE: new/changed relationshipSummary needs relationshipSummaryEvidence:{excerpts:[1-3 exact permitted quotes],explanation}. Ground THIS NPC->PLAYER interaction. Player binding is POV-independent: first-person USER, second-person ASSISTANT narration, explicit PLAYER name, or accepted exchangeActive identity/activity evidence. One excerpt may bind directly; a small coherent set may use connected accepted identity/activity evidence from the same permitted source and need not repeat an already accepted narrator quote; quoted you alone is insufficient; another addressee conflicts. zero numeric movement is allowed; explanation interprets the evidence.';
+const CURRENT_DYNAMIC_EVIDENCE_RULE = 'CURRENT DYNAMIC EVIDENCE: new/changed relationshipSummary needs relationshipSummaryEvidence:{excerpts:[1-3 exact permitted quotes],explanation}. Ground THIS NPC->PLAYER interaction. Player binding is POV-independent: first-person USER, second-person ASSISTANT narration, explicit PLAYER name, or accepted exchangeActive identity/activity evidence. One excerpt may bind directly; a small coherent set may use connected accepted identity/activity evidence from the same permitted source and need not repeat an already accepted narrator quote; quoted you alone is insufficient; another addressee conflicts. For new/changed Current Dynamic, reuse an exact activityEvidence.exchangeActive excerpt unless a quote directly binds both participants. zero numeric movement is allowed; explanation interprets the evidence.';
 
 export const SCAN_OUTPUT_EXAMPLE_SCENES = Object.freeze({
     nia: 'Nia, a harbor clerk in her twenties at the South Quay Registry, wears a blue coat. She tells Ari “Registry first,” slides him the form, explains each entry, and checks his answers.',
@@ -40,12 +40,25 @@ export function scanOutputExamples({ includeNew = true, includeExisting = true }
         const nia = {
             id: '', name: 'Nia', identityKind: 'named', evaluatedGroups: [...DOSSIER_EVALUATION_GROUPS],
             identityEvidence: { anchor: 'Nia', ...evidence }, activityEvidence: { exchangeActive: evidence, inChat: evidence },
-            role: 'Harbor clerk', background: 'Clerk of the South Quay Registry.', apparentAge: '~20-29', appearance: 'Blue coat.',
-            personality: 'Practical and methodical in registry work.', behaviorProfile: ['Guides applicants through forms and checks their entries.'],
-            speech: 'Brief practical instructions.', status: 'Processing Ari’s registry form.',
+            semanticUpdates: [
+                { field: 'role', value: 'Harbor clerk' },
+                { field: 'background', value: 'Clerk of the South Quay Registry.' },
+                { field: 'apparentAge', value: '~20-29' },
+                { field: 'appearance', value: 'Blue coat.' },
+                { field: 'personality', value: 'Practical and methodical in registry work.' },
+                { field: 'behaviorProfile', changes: [{ action: 'add', value: 'Guides applicants through forms and checks their entries.' }] },
+                { field: 'speech', value: 'Brief practical instructions.' },
+                { field: 'status', value: 'Processing Ari’s registry form.' },
+            ].map(update => ({ ...update, operation: 'establish', sources: [{ messageId: null, excerpt: {
+                role: 'Nia, a harbor clerk', background: 'a harbor clerk in her twenties at the South Quay Registry',
+                apparentAge: 'in her twenties', appearance: 'wears a blue coat',
+                personality: 'She tells Ari “Registry first,” slides him the form, explains each entry, and checks his answers.',
+                behaviorProfile: 'slides him the form, explains each entry, and checks his answers',
+                speech: 'Registry first', status: 'slides him the form, explains each entry, and checks his answers',
+            }[update.field] }] })),
             relationshipChange: zero(), relationshipSummary: 'Professional clerk-applicant interaction.', relationshipSummaryEvidence: evidence,
         };
-        const proposed = new Set(Object.keys(nia));
+        const proposed = new Set(nia.semanticUpdates.map(update => update.field));
         nia.fieldEvaluations = { unchanged: [], insufficient: DOSSIER_SEMANTIC_FIELDS.filter(field => !proposed.has(field)), unavailable: [] };
         populated.npcs.push(nia);
     }
@@ -75,9 +88,9 @@ export function scanOutputContract(options = {}) {
         compact
             ? 'JSON: seven arrays required. NEW id="", canonical name, identityKind=named|role-label; EXISTING/name-only: keep supplied id. No alternate dialects.'
             : 'JSON: all seven arrays required, even empty. References=ids/names. NEW id="", name=canonical name, identityKind=' + SCAN_IDENTITY_KINDS.join('|') + '. EXISTING/name-only: keep supplied id. No canonicalName/activityRefs/live/relationshipToPlayer.',
-        compact ? 'NEW ordinary fields are flat; []=string arrays; appearanceForms:[{name,appearance}].' : 'NEW: flat strings; map [] means string arrays; appearanceForms:[{name,appearance}].',
+        'NEW ordinary fields: semanticUpdates with exact sources; establish supported blanks. Collections use changes; appearanceForms use scope.form.',
         compact
-            ? 'candidateAccounting maps supplied stable existing NPC ids to evaluated|mentioned|inactive|unresolved; coverage only, never presence. NEW/EXISTING patches may add evidence-only profileObservations:[{field,observation,concept?,sources:[{messageId,excerpt}],explanation?}] for personality|behaviorProfile|speech|mannerisms. NEW mannerisms: profileEstablishment.mannerisms=explicit|reinforced.'
+            ? 'candidateAccounting maps supplied stable existing NPC ids to evaluated|mentioned|inactive|unresolved; coverage only, never presence. NEW/EXISTING patches may add evidence-only profileObservations:[{field,observation,concept?,sources:[{messageId,excerpt}],explanation?}] for personality|behaviorProfile|speech|mannerisms.'
             : 'Routine candidateAccounting maps each supplied stable existing NPC id to evaluated|mentioned|inactive|unresolved; it is separate from activity and fieldEvaluations. NEW/EXISTING patches may add evidence-only profileObservations:[{field,observation,concept?,sources:[{messageId,excerpt}],explanation?}] for personality|behaviorProfile|speech|mannerisms.',
         compact
             ? 'Evidence={excerpts:[exact quotes],explanation}; identity adds anchor; activity keys=exchangeActive/inChat/worldActive; messageId:null=current.'
@@ -85,7 +98,7 @@ export function scanOutputContract(options = {}) {
         compact ? '' : 'evaluatedGroups=map groups only. Modern coverage: each applicable ordinary field is proposed or listed once in fieldEvaluations unchanged|insufficient|unavailable; group labels never prove field evaluation.',
         'OUTPUT CONTRACT:\n' + JSON.stringify(examples.minimal),
         (compact
-            ? 'VALID FICTIONAL EXAMPLE: populated NEW live/profile + zero-delta Current Dynamic + insufficient fields. Never copy facts/ids.\n'
+            ? 'VALID FICTIONAL EXAMPLE: source-cited NEW live/profile + zero-delta Current Dynamic + insufficient fields. Never copy facts/ids.\n'
             : 'VALID JSON EXAMPLE, fictional, never copy facts/ids: Nia shows grounded new-NPC live/profile facts and a zero-delta Current Dynamic; unsupported fields remain explicitly insufficient. Ivo is an evaluated but non-active existing dossier reconciled from a current registry note, with candidate and field coverage kept separate from presence.\n') + JSON.stringify(examples.populated),
         options.includeRelationship === false ? '' : (compact
             ? 'Relationship: impact=none|ordinary|meaningful|major|extreme; axes=trust|affection|desire|tension. Nonzero axes need axisEvidence. For each exchange-active NPC, relationshipSummary must be present: grounded text when supported, or "" when insufficient. Never invent intimacy. ' + CURRENT_DYNAMIC_EVIDENCE_RULE

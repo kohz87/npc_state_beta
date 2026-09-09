@@ -56,7 +56,7 @@ test('live-state semantic fields are present in foreground/model contracts', () 
     assert.equal(context.location, 'Inside the mountain shelter.');
     assert.equal(context.goal, 'Reach the southern gate before dark.');
     assert.equal(context.status, 'Preparing to leave the shelter.');
-    assert.equal(NPC_STATE_MODEL_CONTRACT_VERSION, 6);
+    assert.equal(NPC_STATE_MODEL_CONTRACT_VERSION, 7);
     assert.equal(FOREGROUND_CONTRACT_VERSION, 8);
     const semanticPrompt = semanticUpdatePrompt({ npcs: baseState().npcs, allowedSourceIds: [12] });
     for (const field of ['mood', 'location', 'goal', 'status', 'currentForm']) assert.match(semanticPrompt, new RegExp(`\\b${field}\\b`));

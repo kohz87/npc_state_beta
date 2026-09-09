@@ -139,14 +139,15 @@ function missingEvaluationFields(coverageDiagnostics = [], npcId = '') {
     return out;
 }
 
-function firstContactCompletionTargets(beforeState = {}, afterState = {}, coverageDiagnostics = [], mode = 'off') {
-    if (mode === 'off') return [];
+function firstContactCompletionTargets(beforeState = {}, afterState = {}, coverageDiagnostics = [], mode = 'off', semanticDiagnostics = []) {
     const existingIds = new Set((beforeState?.npcs || []).map(npc => npc?.id).filter(Boolean));
     return (afterState?.npcs || []).filter(npc => npc?.id && !existingIds.has(npc.id)).map(npc => {
         const missingEvaluations = missingEvaluationFields(coverageDiagnostics, npc.id);
+        const contractFields = new Set(semanticDiagnostics.filter(row => row?.npcId === npc.id
+            && ['source-cited-update-required', 'profile-establishment-basis-required'].includes(row?.reason)).map(row => row.field));
         const fields = DOSSIER_SEMANTIC_FIELDS.filter(field => firstContactFieldMissing(npc, field)
-            && (mode === 'recheck_unknown_fields' || missingEvaluations.has(field)));
-        return { npc, fields };
+            && (contractFields.has(field) || mode === 'recheck_unknown_fields' || (mode === 'missing_evaluations' && missingEvaluations.has(field))));
+        return { npc, fields, contractRepair: contractFields.size > 0 };
     }).filter(target => target.fields.length);
 }
 
@@ -228,13 +229,13 @@ function auditFirstContactCompletion(payload = {}, targets = [], semanticDiagnos
             resolvedByNpc.set(npcId, resolved);
             continue;
         }
+        const proposed = new Set((patch.semanticUpdates || []).map(row => String(row?.field || '').trim()).filter(field => allowed.has(field)));
         const invalidEvaluations = new Set((semanticDiagnostics || []).filter(row => row?.npcId === npcId && row?.status === 'invalid-field-evaluation').map(row => row?.field).filter(Boolean));
         for (const status of ['unchanged', 'insufficient', 'unavailable']) {
             for (const field of Array.isArray(patch?.fieldEvaluations?.[status]) ? patch.fieldEvaluations[status] : []) {
-                if (allowed.has(field) && !invalidEvaluations.has(field)) resolved.add(field);
+                if (allowed.has(field) && !proposed.has(field) && !invalidEvaluations.has(field)) resolved.add(field);
             }
         }
-        const proposed = new Set((patch.semanticUpdates || []).map(row => String(row?.field || '').trim()).filter(field => allowed.has(field)));
         for (const field of proposed) {
             const accepted = (semanticDiagnostics || []).some(row => row?.npcId === npcId && row?.field === field && ['applied', 'no-change-proposed'].includes(row?.status));
             if (accepted) resolved.add(field);
@@ -1014,10 +1015,11 @@ export function createNpcStateEngine(adapters = {}) {
 
             if (!manual) {
                 const followUpMode = String(settings.firstContactFollowUpMode || 'off');
-                const completionTargets = firstContactCompletionTargets(working, applied.state, applied.coverageDiagnostics, followUpMode);
+                const completionTargets = firstContactCompletionTargets(working, applied.state, applied.coverageDiagnostics, followUpMode, applied.semanticDiagnostics);
                 const followUp = {
                     mode: followUpMode,
-                    status: followUpMode === 'off' ? 'off' : (completionTargets.length ? 'pending' : 'unnecessary'),
+                    contractRepair: completionTargets.some(target => target.contractRepair),
+                    status: completionTargets.length ? 'pending' : (followUpMode === 'off' ? 'off' : 'unnecessary'),
                     targetCount: completionTargets.length,
                     requestedFields: completionTargets.reduce((sum, target) => sum + target.fields.length, 0),
                     acceptedChanges: 0,
@@ -1030,6 +1032,7 @@ export function createNpcStateEngine(adapters = {}) {
                         targets: completionTargets, chat, assistantMessageId: messageId,
                         playerName: resolvePlayerName('', chat, messageId),
                         memoryCriteria: settings.memoryCriteria, dossierLimits: settings.dossierLimits,
+                        scope: completionTargets.some(target => target.contractRepair) ? 'contract-repair' : 'automatic',
                     });
                     try {
                         const completionRaw = await invokeJson(completionPrompt, 'automatic-first-contact-completion', signal, { budget: requestBudget, operationId, purpose: 'first-contact-follow-up' });
@@ -1052,7 +1055,9 @@ export function createNpcStateEngine(adapters = {}) {
                         applied = {
                             ...applied,
                             state: completionApplied.state,
-                            semanticDiagnostics: [...(applied.semanticDiagnostics || []), ...(completionApplied.semanticDiagnostics || [])],
+                            semanticDiagnostics: [...(applied.semanticDiagnostics || []).map(row =>
+                                audit.resolvedByNpc.get(row?.npcId)?.has(row?.field) && row.status === 'rejected-proposal'
+                                    ? { ...row, status: 'repaired-proposal' } : row), ...(completionApplied.semanticDiagnostics || [])],
                             coverageDiagnostics: reconcileCompletionCoverage(applied.coverageDiagnostics, audit),
                         };
                         followUp.status = 'ran';

@@ -24,28 +24,8 @@ export { SCAN_SYSTEM_PROMPT, recentHistory, relevantNpcsForExchange, buildFirstC
 export { parseScanJson };
 export { keyRelationshipReferencesPlayer, reconcileFamilyGraphState } from './scan-application.js';
 
-function canonicalRoutineScanPrompt(prompt) {
-    return String(prompt || '')
-        .replace(
-            'NEW ordinary fields are flat; []=string arrays; appearanceForms:[{name,appearance}].',
-            'NEW ordinary fields: semanticUpdates with exact sources; establish supported blanks. []=string arrays; appearanceForms:[{name,appearance}].',
-        )
-        .replace(
-            'VALID FICTIONAL EXAMPLE: populated NEW live/profile + zero-delta Current Dynamic + insufficient fields. Never copy facts/ids.',
-            'VALID FICTIONAL EXAMPLE: legacy flat NEW shape. Never copy facts/ids.',
-        )
-        .replace(
-            'EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates; do not also emit legacy/direct ordinary replacements.',
-            'NEW/EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates; NEW supported blanks use establish.',
-        )
-        .replace(
-            'PIPELINE: ordinary EXISTING-dossier fields apply through semanticUpdates once;',
-            'PIPELINE: ordinary NEW/EXISTING dossier fields apply through semanticUpdates once;',
-        );
-}
-
 export function buildScanPrompt(options = {}) {
-    return canonicalRoutineScanPrompt(buildBaseScanPrompt(options));
+    return buildBaseScanPrompt(options);
 }
 
 export function sanitizeStructuredDossierPatch(patch = {}, npc = {}) {
@@ -63,50 +43,6 @@ export function newNpcAdmissionAllows(patch, mode = 'balanced') {
     const kind = String(patch?.identityKind || '').trim().toLocaleLowerCase().replace(/[_ ]+/g, '-');
     if (policy === 'named_preferred') return ['named', 'proper-name', 'proper'].includes(kind);
     return ['named', 'proper-name', 'proper', 'role-label', 'role', 'unnamed', ''].includes(kind);
-}
-
-const NEW_PROFILE_ESTABLISHMENT_BASES = new Set(['explicit', 'reinforced']);
-
-function normalizeNewNpcSemanticBootstrap(stateInput, resultInput, diagnostics = []) {
-    const result = structuredClone(resultInput || {});
-    const state = stateInput || {};
-    for (let patchIndex = 0; patchIndex < (Array.isArray(result.npcs) ? result.npcs.length : 0); patchIndex += 1) {
-        const patch = result.npcs[patchIndex];
-        if (!patch || typeof patch !== 'object' || Array.isArray(patch)) continue;
-        const patchId = String(patch.id || '').trim();
-        const existing = (patchId ? (state.npcs || []).find(npc => npc.id === patchId) || null : null)
-            || findNpcByReference(state, patch.name || '');
-        if (existing) continue;
-
-        const establishment = patch.profileEstablishment && typeof patch.profileEstablishment === 'object' && !Array.isArray(patch.profileEstablishment)
-            ? patch.profileEstablishment
-            : {};
-        const mannerismBasis = String(establishment.mannerisms || '').trim().toLocaleLowerCase();
-        const semanticUpdates = [];
-        for (const raw of Array.isArray(patch.semanticUpdates) ? patch.semanticUpdates : []) {
-            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-                semanticUpdates.push(raw);
-                continue;
-            }
-            const update = structuredClone(raw);
-            const field = String(update.field || '').trim();
-            const operation = String(update.operation || '').trim().toLocaleLowerCase();
-            if (field === 'mannerisms' && operation !== 'remove' && !NEW_PROFILE_ESTABLISHMENT_BASES.has(mannerismBasis)) {
-                diagnostics.push({
-                    npcId: '', patchIndex, field: 'mannerisms', group: 'profile', channel: 'new-semantic-bootstrap',
-                    status: 'rejected-proposal', reason: 'profile-establishment-basis-required',
-                });
-                continue;
-            }
-            // Passive generated birthdays are metadata fallback. A grounded explicit birthday
-            // from the same NEW admission must be able to supersede that generated value once
-            // its source passes the ordinary semantic validator.
-            if (field === 'birthday' && operation === 'establish') update.operation = 'replace';
-            semanticUpdates.push(update);
-        }
-        if (Array.isArray(patch.semanticUpdates)) patch.semanticUpdates = semanticUpdates;
-    }
-    return result;
 }
 
 function auditCandidateAccounting(state, result, candidateNpcIds = [], exchangeActiveNpcIds = []) {
@@ -184,7 +120,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     const focused = validateFocusedProposalPayload(parsed);
     compatibilityDiagnostics.push(...focused.diagnostics);
     const adapted = adaptLegacySemanticPayload(stateInput, focused.result, { ...semanticOptions, compatibilityDiagnostics });
-    const canonicalized = normalizeNewNpcSemanticBootstrap(stateInput, adapted, compatibilityDiagnostics);
+    const canonicalized = adapted;
     const prepared = prepareModelLedPayload(stateInput, canonicalized, options.admissionMode);
     const applied = core.applyScanResult(stateInput, prepared, options);
     const observations = applyProfileObservations(applied.state, canonicalized, {

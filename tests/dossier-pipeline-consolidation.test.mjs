@@ -76,7 +76,7 @@ function apply(state, result, context, extra = {}) {
 }
 
 test('0.5.12 uses one canonical semantic field registry', () => {
-    assert.equal(NPC_STATE_MODEL_CONTRACT_VERSION, 6);
+    assert.equal(NPC_STATE_MODEL_CONTRACT_VERSION, 7);
     assert.equal(FOREGROUND_CONTRACT_VERSION, 8);
     for (const field of [
         'role', 'species', 'background', 'age', 'apparentAge', 'birthday', 'appearance', 'appearanceForms',
@@ -154,9 +154,9 @@ test('legacy profile/live response shapes are adapted once at the boundary then 
     }), context);
     const npc = result.state.npcs[0];
     assert.equal(npc.personality, 'Animated, practical, and inquisitive.');
-    assert.equal(npc.location, 'Market square.');
+    assert.equal(npc.location, 'Mountain shelter.');
     assert.equal(result.semanticDiagnostics.some(row => row.field === 'personality' && row.status === 'applied'), true);
-    assert.equal(result.semanticDiagnostics.some(row => row.field === 'location' && row.status === 'applied'), true);
+    assert.equal(result.semanticDiagnostics.some(row => row.field === 'location' && row.reason === 'source-cited-update-required'), true);
 });
 
 test('coverage diagnostics distinguish a missing NPC patch from a checked unchanged dossier', () => {
@@ -254,7 +254,7 @@ test('structured evidence authority stays inside the one semantic validator and 
     assert.equal(applied.semanticDiagnostics.filter(row => row.status === 'invalid-source-reference').length, 2);
 });
 
-test('new NPC bootstrap remains complete while later existing-dossier changes stay semantic-only', () => {
+test('uncited NEW ordinary fields retain identity only and report every rejected proposal', () => {
     const state = createEmptyState('chat:new-bootstrap');
     const narrative = 'Rhea, a wolfkin courier, arrives at the south gate. She is alert, speaks briskly, and wants to deliver the sealed letter.';
     const result = {
@@ -282,15 +282,11 @@ test('new NPC bootstrap remains complete while later existing-dossier changes st
     });
     const npc = applied.state.npcs.find(row => row.name === 'Rhea');
     assert.ok(npc);
-    assert.equal(npc.role, 'Courier');
-    assert.equal(npc.species, 'Wolfkin');
-    assert.equal(npc.background, 'Courier from the southern road.');
-    assert.equal(npc.personality, 'Alert and dutiful.');
-    assert.equal(npc.speech, 'Brisk and practical.');
-    assert.equal(npc.location, 'South gate.');
-    assert.equal(npc.goal, 'Deliver the sealed letter.');
-    assert.equal(npc.status, 'Waiting at the gate.');
-    assert.deepEqual(npc.memories, ['Arrived at the south gate carrying a sealed letter.']);
+    for (const field of ['role', 'species', 'background', 'personality', 'speech', 'location', 'goal', 'status']) {
+        assert.equal(npc[field], '', field);
+        assert.ok(applied.semanticDiagnostics.some(row => row.field === field && row.reason === 'source-cited-update-required'));
+    }
+    assert.deepEqual(npc.memories, []);
 });
 
 test('scanner core no longer contains duplicate existing-dossier semantic decision engines', () => {
@@ -298,5 +294,5 @@ test('scanner core no longer contains duplicate existing-dossier semantic decisi
     for (const oldName of ['applyStablePatch', 'applyDynamicPatch', 'profileEvolutionDecision', 'durableCanonDecision', 'explicitAgeChange', 'mergeAppearanceFormPatch']) {
         assert.doesNotMatch(source, new RegExp('function\\s+' + oldName + '\\b'), oldName);
     }
-    assert.match(source, /function applyIdentityAndBootstrapPatch\b/);
+    assert.match(source, /function applyIdentityPatch\b/);
 });

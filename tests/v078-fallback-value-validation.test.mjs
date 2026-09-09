@@ -4,7 +4,7 @@ import { withHost } from './helpers/host-harness.mjs';
 import { emptyScanPayload, scanOutputExamples } from '../src/scan-contract.js';
 import { createEmptyState, normalizeNpc } from '../src/schema.js';
 
-const visible = 'Nia, harbor clerk in blue, tells Ari “Registry first” and taps the form. Nia has auburn hair and hazel eyes. Nia works with Ivo and checks the station ledger.';
+const visible = 'Nia, harbor clerk in blue, tells Ari “Registry first” and taps the form. Nia has auburn hair and hazel eyes. Nia works with Ivo and checks the station ledger. Nia is 24 years old and appears 24; she habitually taps the ledger.';
 const chatFor = () => [{ is_user: true, name: 'Ari', mes: 'Hello.' }, { is_user: false, swipe_id: 0, mes: visible }];
 async function runAuto(h, payload) { h.context.chat = chatFor(); h.context.generateRaw = async () => { h.metrics.generations += 1; return JSON.stringify(payload); }; return h.entry.processCompletedAssistantResponse(1); }
 
@@ -25,12 +25,13 @@ const source = excerpt => [{ messageId: null, excerpt }];
 test('new bootstrap rejects object scalar input instead of storing [object Object]', () => withHost(async h => {
     const payload = scanOutputExamples().populated;
     payload.npcs = [payload.npcs[0]];
+    payload.npcs[0].semanticUpdates = payload.npcs[0].semanticUpdates.filter(row => row.field !== 'appearance');
     payload.npcs[0].appearance = { hair: 'auburn', eyes: 'hazel' };
     const result = await runAuto(h, payload);
     assert.equal(result.ok, true);
     assert.equal(h.persisted().npcs[0]?.appearance, '');
     assert.ok(result.semanticDiagnostics.some(row => row.field === 'appearance'
-        && row.channel === 'bootstrap' && row.status === 'rejected-proposal'
+        && row.channel === 'ordinary-contract' && row.status === 'rejected-proposal'
         && row.reason === 'invalid-value-type:expected-string-value'));
     assert.ok(h.api.operationDiagnostics().at(-1).proposals.rejected >= 1);
 }));
@@ -50,7 +51,10 @@ test('semantic scalar object input is rejected and preserves the established val
 test('numeric age compatibility remains supported while non-age scalar coercion is rejected', () => withHost(async h => {
     const payload = scanOutputExamples().populated;
     payload.npcs = [payload.npcs[0]];
-    Object.assign(payload.npcs[0], { age: 24, apparentAge: 24, role: ['clerk'], speech: true });
+    payload.npcs[0].semanticUpdates = [
+        { field: 'age', value: 24 }, { field: 'apparentAge', value: 24 },
+        { field: 'role', value: ['clerk'] }, { field: 'speech', value: true },
+    ].map(row => ({ ...row, operation: 'establish', sources: source('Nia is 24 years old and appears 24; she habitually taps the ledger.') }));
     const result = await runAuto(h, payload);
     assert.equal(result.ok, true);
     const npc = h.persisted().npcs[0];
@@ -73,7 +77,7 @@ test('supported collection object compatibility is retained without object-strin
     return withHost(async h => {
         const payload = emptyScanPayload();
         payload.exchangeActiveNpcIds = ['npc-nia']; payload.inChatNpcIds = ['npc-nia'];
-        payload.npcs = [{ id: 'npc-nia', name: 'Nia', evaluatedGroups: ['profile', 'memory', 'npcRelationships'], relationshipChange: { evaluated: true, impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, axisEvidence: {}, reason: 'No shift.' }, semanticUpdates: updates.map(row => ({ ...row, operation: 'replace', sources: source(visible), explanation: visible })) }];
+        payload.npcs = [{ id: 'npc-nia', name: 'Nia', evaluatedGroups: ['profile', 'memory', 'npcRelationships'], relationshipChange: { evaluated: true, impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, axisEvidence: {}, reason: 'No shift.' }, semanticUpdates: updates.map(row => ({ ...row, establishment: 'explicit', operation: 'replace', sources: source(visible), explanation: visible })) }];
         const result = await runAuto(h, payload);
         assert.equal(result.ok, true);
         const npc = h.persisted().npcs[0];
@@ -100,6 +104,7 @@ test('mixed invalid collection members reject the field atomically and keep vali
 test('named-preferred role compatibility validates raw input once and never resurrects object text', () => withHost(async h => {
     const bad = scanOutputExamples().populated;
     bad.npcs = [bad.npcs[0]];
+    bad.npcs[0].semanticUpdates = bad.npcs[0].semanticUpdates.filter(row => row.field !== 'role');
     bad.npcs[0].role = { title: 'clerk' };
     const rejected = await runAuto(h, bad);
     assert.equal(rejected.ok, true);

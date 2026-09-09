@@ -1,3 +1,4 @@
+import { citedFixture } from './helpers/cited-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { withHost } from './helpers/host-harness.mjs';
@@ -16,6 +17,7 @@ const BESSA_ASSISTANT = [
     'Bessa Vond. Front desk clerk, Intake Officer when the marshal is out, which is always.',
     'Bessa nudged the bone-handled quill into your fingers.',
     'Bessa processed Lucien Noctis’s registration behind the pine counter and spread the available work across the desk.',
+    'Bessa has auburn hair and ink-stained fingertips. Bessa repeatedly taps the relevant contract lines as she explains each rule.',
     'Bessa looked from the frost on your pack to the metal staff. Her brow furrowed, though her mouth remained practical.',
     '“Return the tusks to the yard scale. Do not bring the carcasses into the hall.”',
 ].join(' ');
@@ -30,7 +32,13 @@ function activityEvidence() {
     return { exchangeActive: { excerpts: [excerpt], explanation: 'Bessa acts directly in the exchange.' }, inChat: { excerpts: [excerpt], explanation: 'Bessa remains in the intake scene.' } };
 }
 function bessaPatch(fields = {}) {
-    return { id: '', name: 'Bessa Vond', identityKind: 'named', identityEvidence: identityEvidence(), activityEvidence: activityEvidence(), relationshipChange: structuredClone(ZERO_REL), ...fields };
+    return citedFixture({ id: '', name: 'Bessa Vond', identityKind: 'named', identityEvidence: identityEvidence(), activityEvidence: activityEvidence(), relationshipChange: structuredClone(ZERO_REL), ...fields }, {
+        role: identityEvidence().excerpts[0], appearance: 'Bessa has auburn hair and ink-stained fingertips.',
+        behaviorProfile: BESSA_ASSISTANT, speech: '“Dip the quill first. Right there on the blotter.”',
+        mannerisms: { excerpt: 'Bessa repeatedly taps the relevant contract lines as she explains each rule.', establishment: 'reinforced' },
+        mood: 'Bessa looked from the frost on your pack to the metal staff. Her brow furrowed, though her mouth remained practical.',
+        location: activityEvidence().exchangeActive.excerpts[0], goal: activityEvidence().exchangeActive.excerpts[0], status: activityEvidence().exchangeActive.excerpts[0],
+    });
 }
 function payloadForBessa(fields = {}) {
     return { exchangeActiveNpcIds: ['Bessa Vond'], inChatNpcIds: ['Bessa Vond'], worldActiveNpcIds: [], npcs: [bessaPatch(fields)], socialEdges: [], familyFacts: [], lifeStateUpdates: [] };

@@ -152,7 +152,7 @@ test('one dedicated post-response Scan changes all four fields and persists them
     assert.equal(h.generations(), 1);
 });
 
-test('supported direct compatibility values normalize once into the semantic validator and cannot override explicit semantic updates', () => {
+test('uncited direct values preserve existing state and cannot override explicit semantic updates', () => {
     const state = liveState();
     const evidence = 'Sora | Mood: Relieved. | Location: Market square. | Goal: Learn city routes. | Status: Studying map.';
     const result = apply(state, payload({
@@ -164,12 +164,12 @@ test('supported direct compatibility values normalize once into the semantic val
         }],
     }), evidence);
     const npc = result.state.npcs[0];
-    assert.equal(npc.mood, 'Relieved.');
+    assert.equal(npc.mood, 'Nervous about the storm.');
     assert.equal(npc.location, 'Market square.');
-    assert.equal(npc.goal, 'Learn city routes.');
-    assert.equal(npc.status, 'Studying map.');
-    assert.equal(result.semanticDiagnostics.filter(row => row.status === 'applied' && LIVE_FIELDS.includes(row.field)).length, 4);
-    assert.equal(result.semanticDiagnostics.some(row => row.field === 'location' && row.status === 'unsupported-direct-proposal'), false);
+    assert.equal(npc.goal, 'Reach the southern gate before dark.');
+    assert.equal(npc.status, 'Preparing to leave the shelter.');
+    assert.equal(result.semanticDiagnostics.filter(row => row.status === 'applied' && LIVE_FIELDS.includes(row.field)).length, 1);
+    assert.equal(result.semanticDiagnostics.some(row => row.field === 'location' && row.status === 'rejected-proposal'), false);
 });
 
 test('unsupported direct existing live proposals are diagnosed instead of silently disappearing', () => {
@@ -186,8 +186,8 @@ test('unsupported direct existing live proposals are diagnosed instead of silent
     assert.equal(npc.goal, 'Reach the southern gate before dark.');
     assert.equal(npc.status, 'Preparing to leave the shelter.');
     for (const field of LIVE_FIELDS) {
-        const diagnostic = result.semanticDiagnostics.find(row => row.field === field && row.status === 'unsupported-direct-proposal');
-        assert.equal(diagnostic?.reason, 'missing-field-specific-evidence', field);
+        const diagnostic = result.semanticDiagnostics.find(row => row.field === field && row.status === 'rejected-proposal');
+        assert.equal(diagnostic?.reason, 'source-cited-update-required', field);
     }
 });
 

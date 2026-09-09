@@ -14,8 +14,8 @@ function state(key = 'chat:v0521') {
 test('compact fictional new-NPC example demonstrates grounded Background instead of marking it insufficient', () => {
     const nia = scanOutputExamples().populated.npcs.find(npc => npc.name === 'Nia');
     assert.ok(nia);
-    assert.equal(nia.role, 'Harbor clerk');
-    assert.equal(nia.background, 'Clerk of the South Quay Registry.');
+    assert.equal(nia.semanticUpdates.find(row => row.field === 'role').value, 'Harbor clerk');
+    assert.equal(nia.semanticUpdates.find(row => row.field === 'background').value, 'Clerk of the South Quay Registry.');
     assert.equal(nia.fieldEvaluations.insufficient.includes('background'), false);
 });
 
@@ -35,8 +35,10 @@ test('new NPC may persist Role and grounded workplace Background from the same c
                 exchangeActive: { excerpts: [excerpt], explanation: 'Morwen directly handles Lucien at intake.' },
                 inChat: { excerpts: [excerpt], explanation: 'Morwen remains at the counter with Lucien.' },
             },
-            role: 'Adventurer Guild intake clerk',
-            background: 'Intake clerk at the Rimecross Adventurer Guild outpost.',
+            semanticUpdates: [
+                { field: 'role', operation: 'establish', value: 'Adventurer Guild intake clerk', sources: [{ messageId: 1, excerpt }] },
+                { field: 'background', operation: 'establish', value: 'Intake clerk at the Rimecross Adventurer Guild outpost.', sources: [{ messageId: 1, excerpt }] },
+            ],
             fieldEvaluations: {
                 unchanged: [],
                 insufficient: ['species', 'age', 'apparentAge', 'birthday', 'appearance', 'appearanceForms'],

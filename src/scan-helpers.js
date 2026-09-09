@@ -52,7 +52,7 @@ function dossierExtractionGroupSummary() {
 
 export function dossierExtractionPromptRules({ includeNew = true, includeExisting = true } = {}) {
     const modes = [];
-    if (includeNew) modes.push('NEW: capture supported facts only; unknown is valid');
+    if (includeNew) modes.push('NEW: establish supported facts through semanticUpdates; unknown is valid');
     if (includeExisting) modes.push('EXISTING: compare supplied context; semanticUpdates only');
     return [
         `DOSSIER EXTRACTION MAP: ${dossierExtractionGroupSummary()}. ${modes.join('. ')}.`,

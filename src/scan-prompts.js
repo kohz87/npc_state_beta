@@ -130,7 +130,7 @@ function dossierCollectionRules(limits) {
     return [
         `DOSSIER COLLECTION LIMITS: behaviorProfile=${limits.behaviorProfile}, mannerisms=${limits.mannerisms}, keyRelationships=${limits.keyRelationships}, memories=${limits.memories}.`,
         'Existing collections use targeted semanticUpdates with supplied refs/exact expected values; omission/empty arrays preserve, remove retires one supported entry, clear:true requires explicit whole-collection evidence, and unrelated entries are never evicted for space.',
-        'Important Memories are distinct durable events/facts; refine richer evidence of the same event instead of appending paraphrases. keyRelationships contains significant NON-PLAYER ties from this NPC perspective; familyFacts/socialEdges complement it. NEW NPCs may bootstrap concise grounded arrays within limits.',
+        'Important Memories are distinct durable events/facts; refine richer evidence of the same event instead of appending paraphrases. keyRelationships contains significant NON-PLAYER ties from this NPC perspective; familyFacts/socialEdges complement it. NEW collections use source-cited establish updates within limits.',
     ];
 }
 
@@ -180,7 +180,7 @@ ${JSON.stringify({ name: activePlayerName })}`,
         '- Every authoritative life transition uses top-level lifeStateUpdates, independent of ordinary dossier/activity patches. dead requires grounded current-timeline evidence with certainty explicit|strong and a target-bound lifeStateReason; include nearby antecedent for pronouns. Irreversible terminal dissolution with no living form is death; reversible transformation is not.',
         '- STORED STATUS REPAIR: if a supplied existing Status itself unambiguously establishes that same NPC is dead/irreversibly dissolved while stored Life state is not dead, emit lifeStateUpdates dead with explicit|strong certainty and lifeStateReason EXACTLY equal to that Status. This repairs death only, never resurrection; sleep, unconsciousness, injury, disappearance, metaphor, uncertain danger, or reversible form do not qualify. Dead NPCs are never worldActive.',
         '- livingReturn:true is required only when a previously dead/archived NPC is explicitly established alive again with explicit|strong current evidence and a target-bound reason. Stored Status alone never proves resurrection.',
-        '- EXISTING ordinary canon/profile/live/memory/NPC-tie/age/form changes use semanticUpdates below. Identity/admission, player relationship, lifecycle/activity, and family/social graph remain their focused channels.',
+        '- NEW/EXISTING ordinary canon/profile/live/memory/NPC-tie/age/form changes use semanticUpdates below. Identity/admission, player relationship, lifecycle/activity, and family/social graph remain their focused channels.',
         ...(structuredDetected ? structuredEvidencePromptRules() : []),
         relationshipCustomCriteriaPrompt(relationshipCriteria),
         memoryCriteria ? `IMPORTANT MEMORY RUBRIC (user-authored; preserve as supplied):
@@ -204,6 +204,7 @@ export function buildFirstContactCompletionPrompt({ targets = [], chat, assistan
     const activePlayerName = resolvePlayerName(playerName, chat, assistantMessageId);
     const limits = normalizeDossierLimits(dossierLimits);
     const manualRecheck = scope === 'manual';
+    const contractRepair = scope === 'contract-repair';
     const rows = (Array.isArray(targets) ? targets : []).map(target => ({
         id: String(target?.npc?.id || '').trim(),
         name: String(target?.npc?.name || '').trim(),
@@ -216,6 +217,7 @@ export function buildFirstContactCompletionPrompt({ targets = [], chat, assistan
         manualRecheck
             ? 'You are NPC State performing a MANUAL CURRENT-EXCHANGE MISSING-DETAIL RECHECK. Return exactly one valid JSON object, no markdown/commentary.'
             : 'You are NPC State performing a FIRST-CONTACT COMPLETION CHECK inside the same automatic Scan operation. Return exactly one valid JSON object, no markdown/commentary.',
+        contractRepair ? 'CONTRACT FORMAT REPAIR: the first response proposed ordinary fields without the required source-cited updates or mannerism establishment. Reconsider ONLY listed fields against the same current exchange; return exact field-specific sources, narrow or withdraw unsupported claims. Never copy activity evidence to unrelated fields.' : '',
         `PLAYER IDENTITY: ${JSON.stringify({ name: activePlayerName })}`,
         `${manualRecheck ? 'TARGET NPC AND ONLY FIELDS TO RECHECK' : 'ADMITTED TARGETS AND ONLY FIELDS TO RECHECK'}:\n${JSON.stringify(rows)}`,
         manualRecheck
@@ -307,7 +309,7 @@ function nonSystemIds(chat = [], through = null, limit = 30) {
 function semanticAppend({ npcs = [], mode = 'scan', sourceIds = [] } = {}) {
     return [
         semanticUpdatePrompt({ npcs, mode, allowedSourceIds: sourceIds, compactContext: true }),
-        'PIPELINE: ordinary EXISTING-dossier fields apply through semanticUpdates once; identity/admission, player relationship, lifecycle/activity, and graph safety remain separate focused channels.',
+        'PIPELINE: ordinary NEW/EXISTING dossier fields apply through semanticUpdates once; identity/admission, player relationship, lifecycle/activity, and graph safety remain separate focused channels.',
         'FAMILY / KINSHIP: familyFacts.relation is directional owner->member. Preserve grounded custom labels; add reciprocalRelation only when established/safely symmetric. Never invent members, gender, biology, or reciprocity.',
     ].join('\n\n');
 }

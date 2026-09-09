@@ -37,7 +37,7 @@ test('same-message unrelated quoted dialogue is not rescued by accepted identity
 
 test('isolated gesture stays observation-only without model recurrence basis; retry deduplicates it',()=>{
  const ex=exchange([ID,PEN,TAP].join('\n'));
- const p=patch({mannerisms:['Taps a blunt fingernail against contract broadsheets while explaining bounty terms.'],profileObservations:[{field:'mannerisms',observation:'Tapped a blunt fingernail against the boar print once.',concept:'contract tapping',sources:[{messageId:1,excerpt:TAP}],explanation:'One grounded occurrence.'}]});
+ const p=patch({semanticUpdates:[{field:'mannerisms',operation:'establish',value:['Taps a blunt fingernail against contract broadsheets while explaining bounty terms.'],sources:[{messageId:1,excerpt:TAP}]}],profileObservations:[{field:'mannerisms',observation:'Tapped a blunt fingernail against the boar print once.',concept:'contract tapping',sources:[{messageId:1,excerpt:TAP}],explanation:'One grounded occurrence.'}]});
  const first=applyScanResult(state('chat:v0534-observation'),payload(p),opts(ex));
  const npc=first.state.npcs.find(n=>n.name==='Linnea Rost');
  assert.deepEqual(npc.mannerisms,[]);
@@ -50,7 +50,7 @@ test('isolated gesture stays observation-only without model recurrence basis; re
 test('model-led reinforced basis keeps first-scene mannerism eligible without quote thresholds',()=>{
  const recurring='Linnea taps the relevant contract margin, then taps the signature line when the next rule is explained.';
  const ex=exchange([ID,PEN,TAP,recurring].join('\n'));
- const r=applyScanResult(state('chat:v0534-reinforced'),payload(patch({mannerisms:['Taps relevant contract lines while explaining terms.'],profileEstablishment:{mannerisms:'reinforced'}})),opts(ex));
+ const r=applyScanResult(state('chat:v0534-reinforced'),payload(patch({semanticUpdates:[{field:'mannerisms',operation:'establish',value:['Taps relevant contract lines while explaining terms.'],establishment:'reinforced',sources:[{messageId:1,excerpt:recurring}]}]})),opts(ex));
  assert.deepEqual(r.state.npcs.find(n=>n.name==='Linnea Rost').mannerisms,['Taps relevant contract lines while explaining terms.']);
 });
 
@@ -58,9 +58,9 @@ test('structured-only appearance detail is rejected while separately visible reg
  const reg="Linnea seals Lucien Noctis's completed provisional registration and hands the form back.";
  const raw=[ID,PEN,TAP,reg,'<Blocks><World_State>NPCs Present: Linnea Rost | bleached linen sleeves | G1</World_State><Inventory>Guild Token | G1</Inventory></Blocks>'].join('\n');
  const ex=exchange(raw);
- const r=applyScanResult(state('chat:v0534-structured'),payload(patch({appearance:'Dark hair, grey wool vest, and bleached linen sleeves.',memories:["Processed Lucien Noctis's completed provisional registration."]})),opts(ex));
+ const r=applyScanResult(state('chat:v0534-structured'),payload(patch({semanticUpdates:[{field:'appearance',operation:'establish',value:'Dark hair, grey wool vest, and bleached linen sleeves.',sources:[{messageId:1,excerpt:'NPCs Present: Linnea Rost | bleached linen sleeves | G1'}]},{field:'memories',operation:'establish',value:["Processed Lucien Noctis's completed provisional registration."],sources:[{messageId:1,excerpt:reg}]}]})),opts(ex));
  const npc=r.state.npcs.find(n=>n.name==='Linnea Rost');
  assert.equal(npc.appearance,'');
  assert.deepEqual(npc.memories,["Processed Lucien Noctis's completed provisional registration."]);
- assert.equal(r.semanticDiagnostics.some(d=>d.field==='appearance'&&d.reason==='disallowed-structured-source-detail'),true);
+ assert.equal(r.semanticDiagnostics.some(d=>d.field==='appearance'&&d.reason==='out-of-scope-source'),true);
 });

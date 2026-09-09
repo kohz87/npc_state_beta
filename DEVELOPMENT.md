@@ -4,10 +4,10 @@ The authoritative behavior and ownership specification is [`docs/core-contract.m
 
 ## Current boundaries
 
-- Extension release: `0.5.34`
+- Extension release: `0.5.36`
 - Persisted state schema: `1`
 - Settings schema: `1`
-- Model semantic update contract: `6`
+- Model semantic update contract: `7`
 - Foreground continuity contract: `8`
 - Sidecar/settings storage identity remains `npc_state_beta.v3`
 
@@ -33,7 +33,7 @@ Do not move these responsibilities into one giant module. Share helpers only whe
 
 ## Compatibility and hygiene rules
 
-Preserve public `NPCState` APIs, settings keys, sidecar identity, routing semantics, supported bundle/import formats and conservative legacy response adaptation unless a release explicitly migrates them. Legacy compatibility belongs at a boundary, not as a parallel mutation path.
+Preserve public `NPCState` APIs, settings keys, sidecar identity, routing semantics, supported bundle/import formats and conservative legacy response adaptation unless a release explicitly migrates them. v0.5.36 retires uncited flat ordinary model proposals and the NEW-only Role/mannerism bridges. Evidence-bearing legacy proposal aliases remain boundary readers; saved dossiers and manual imports retain their supported shapes.
 
 Retired public diagnostic entry points may remain as tiny compatibility tombstones when removing them would break callers, but the obsolete subsystem behind them must stay absent. Historical transport stripping and shipped-default settings migrations remain valid only where they protect existing chats/settings; do not reinterpret them as current extraction workflows.
 

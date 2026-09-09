@@ -28,7 +28,7 @@ import {
     normalizeDossierTextCollection,
 } from './dossier-fields.js';
 
-export const NPC_STATE_MODEL_CONTRACT_VERSION = 6;
+export const NPC_STATE_MODEL_CONTRACT_VERSION = 7;
 
 const FIELD_SET = new Set(DOSSIER_SEMANTIC_FIELDS);
 const SCALAR_FIELDS = new Set(DOSSIER_SCALAR_FIELDS);
@@ -39,14 +39,14 @@ const AGE_KINDS = new Set(['birthday', 'elapsed', 'correction']);
 const PROFILE_EVOLUTION_FIELDS = new Set(['personality', 'behaviorProfile', 'speech', 'mannerisms']);
 
 export const SEMANTIC_COLLECTION_CHANGE_EXAMPLE = Object.freeze({
-    field: 'mannerisms',
+    field: 'mannerisms', establishment: 'explicit',
     operation: 'refine',
     changes: Object.freeze([
         Object.freeze({ action: 'replace', expected: 'Taps twice.', value: 'Taps once.' }),
         Object.freeze({ action: 'remove', expected: 'Rings bell.' }),
         Object.freeze({ action: 'add', value: 'Squares pages.' }),
     ]),
-    sources: Object.freeze([Object.freeze({ messageId: null, excerpt: 'Ivo now taps once, skips the bell, and squares pages.' })]),
+    sources: Object.freeze([Object.freeze({ messageId: null, excerpt: 'Before every review, Ivo now taps once and squares pages; he no longer rings the bell.' })]),
 });
 
 export const SEMANTIC_FORM_UPDATE_EXAMPLE = Object.freeze({
@@ -164,11 +164,12 @@ export function semanticUpdatePrompt({ npcs = [], mode = 'scan', allowedSourceId
     const groups = DOSSIER_EVALUATION_GROUPS.join('|');
     return [
         `NPC STATE DOSSIER UPDATE CONTRACT v${NPC_STATE_MODEL_CONTRACT_VERSION}:`,
-        `Mode: ${mode}. EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates; do not also emit legacy/direct ordinary replacements. Semantic fields: ${dossierSemanticFieldList()}. Operations: ${DOSSIER_SEMANTIC_OPERATIONS.join('|')}.`,
-        `Coverage: every exchange-active EXISTING NPC inspects groups [${groups}]; targeted Refresh inspects all supplied groups. Proposed fields use semanticUpdates; otherwise list fieldEvaluations unchanged|insufficient|unavailable. Group labels alone are not field coverage.`,
-        'Update:{field,operation,value?,changes?,clear?,durability?,scope?,ageKind?,sources:[{messageId,excerpt}],explanation?}. Shape notation is explanatory. Omission preserves; remove is explicit; clear:true authorizes an empty collection. Age replacement needs ageKind birthday|elapsed|correction.',
+        `Mode: ${mode}. NEW/EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates; NEW supported blanks use establish. Semantic fields: ${dossierSemanticFieldList()}. Operations: ${DOSSIER_SEMANTIC_OPERATIONS.join('|')}.`,
+        `Coverage: every exchange-active NPC inspects groups [${groups}]; targeted Refresh inspects all supplied groups. Proposed fields use semanticUpdates; otherwise list fieldEvaluations unchanged|insufficient|unavailable. Group labels alone are not field coverage.`,
+        'Update:{field,operation,value?,changes?,clear?,durability?,establishment?,scope?,ageKind?,sources:[{messageId,excerpt}],explanation?}. Shape notation is explanatory. Omission preserves; remove is explicit; clear:true authorizes an empty collection. Age replacement needs ageKind birthday|elapsed|correction.',
         'Sources: exact text from the permitted claimed message; saved dossier is context, not proof. Validator enforces source/target identity, locks, value shape, limits, persistence; model decides narrative meaning.',
         'Structured authority: visible narrative may support any field; World_State only live location/status; NPC_Inner_Chatter only private mood/goal. Structured blocks never independently rewrite durable canon/profile/memory/keyRelationships/currentForm.',
+        'Mannerism additions/replacements require establishment:explicit|reinforced in that semantic update, for NEW and EXISTING alike. One-off gestures go to profileObservations, not durable mannerisms.',
         'Durable canon/profile needs durable evidence. Temporary sleep, silence, mood, injury, one-off action/pose, or temporary form does not become durable characterization; later grounded characterization may replace an obsolete temporary placeholder.',
         'Actual age is chronological: established replacement needs ageKind birthday|elapsed|correction plus evidence for the resulting number; never derive it from apparent age or invented calendar arithmetic. Birthday is passive freeform calendar metadata: preserve fantasy calendars, do not infer it from age, and do not auto-advance age merely because the date passes.',
         'After grounded birthday/elapsed aging, update apparentAge/appearance/forms only when established species/setting maturation supports it; unknown biology remains unknown, correction alone does not imply growth, and minor maturation stays neutral/non-sexual.',
@@ -204,6 +205,9 @@ function semanticSourceContext(field, options = {}, messageId = null) {
 }
 
 function sourceValidation(update, options = {}) {
+    if (Array.isArray(update?.sources) && update.sources.some(row => !row || typeof row !== 'object' || Array.isArray(row)
+        || (row.messageId != null && !Number.isInteger(row.messageId))
+        || typeof (row.excerpt ?? row.evidence) !== 'string')) return { ok: false, reason: 'invalid-source-shape' };
     const rows = sourceRows(update);
     if (!rows.length) return { ok: false, reason: 'missing-source' };
     const currentMessageId = Number.isInteger(options.sourceMessageId) ? options.sourceMessageId : null;
@@ -494,7 +498,7 @@ function applyScalarOperation(npc, update, rows) {
     }
     const value = normalizedScalar(field, update.value);
     if (!value) return { changed: false, reason: 'invalid-value' };
-    if (update.operation === 'establish' && current) return { changed: false, reason: 'already-established' };
+    if (update.operation === 'establish' && current && !(field === 'birthday' && npc.birthdayProvenance === 'generated')) return { changed: false, reason: 'already-established' };
     if (update.operation !== 'establish' && !current && update.operation !== 'replace') return { changed: false, reason: 'not-established' };
     if (sameValue(current, value)) return { changed: false, reason: 'no-change' };
     if (field === 'age' && current) {
@@ -573,28 +577,11 @@ function normalizedUpdate(raw) {
 export function prepareModelLedPayload(stateInput, resultInput, admissionMode = 'balanced') {
     if (!resultInput || typeof resultInput !== 'object' || Array.isArray(resultInput)) return resultInput;
     const result = structuredClone(resultInput);
-    const state = stateInput || {};
     for (const patch of Array.isArray(result.npcs) ? result.npcs : []) {
-        const semanticFields = new Set((Array.isArray(patch.semanticUpdates) ? patch.semanticUpdates : [])
-            .map(update => String(update?.field || '').trim()).filter(field => FIELD_SET.has(field)));
-        const byId = String(patch.id || '').trim() ? (state.npcs || []).find(npc => npc.id === String(patch.id).trim()) : null;
-        const existing = byId || findNpcByReference(state, patch.name || '');
-        if (!existing) {
-            // A field proposed through semanticUpdates has one mutation authority. Remove its
-            // direct NEW-bootstrap duplicate from the deterministic core copy only; the
-            // original result still reaches the semantic validator with evidence/provenance.
-            for (const field of semanticFields) delete patch[field];
-            if (semanticFields.has('role')) delete patch._modelLedRole;
-            if (String(admissionMode) === 'named_preferred' && String(patch.identityKind || '').trim().toLocaleLowerCase() === 'named' && !semanticFields.has('role')) {
-                patch._modelLedRole = patch.role;
-                patch.role = '';
-            }
-            continue;
-        }
-
-        // One ordinary mutation path for existing dossiers. Compatibility channels are
-        // normalized into semanticUpdates at the boundary before this function runs.
+        // Focused identity/mechanics never write ordinary fields, even during admission.
         for (const field of DOSSIER_SEMANTIC_FIELDS) delete patch[field];
+        delete patch._modelLedRole;
+        delete patch.profileEstablishment;
         delete patch.profileChanges;
         delete patch.canonChanges;
         delete patch.ageChange;
@@ -684,7 +671,10 @@ function fieldEvaluationDiagnostics(patch, npcId, proposedFields = []) {
     }));
     const accountedFields = [];
     for (const [field, status] of detail.byField.entries()) {
-        if (proposals.has(field)) continue;
+        if (proposals.has(field)) {
+            diagnostics.push({ npcId, field, group: dossierFieldGroup(field), status: 'invalid-field-evaluation', reason: 'conflicts-with-proposal' });
+            continue;
+        }
         accountedFields.push(field);
         diagnostics.push({
             npcId, field, group: dossierFieldGroup(field),
@@ -711,28 +701,6 @@ function evaluatedGroupsForPatch(patch = {}) {
         .filter(value => DOSSIER_EVALUATION_GROUPS.includes(value)))];
 }
 
-function restoreNewNpcModelLedRole(state, originalResult, options = {}, diagnostics = []) {
-    const patches = Array.isArray(originalResult?.npcs) ? originalResult.npcs : [];
-    for (let patchIndex = 0; patchIndex < patches.length; patchIndex += 1) {
-        const patch = patches[patchIndex];
-        if (!Object.prototype.hasOwnProperty.call(patch || {}, '_modelLedRole')) continue;
-        const roleValue = patch._modelLedRole;
-        const roleIssue = dossierFieldValueIssue('role', roleValue);
-        if (roleIssue) {
-            if (roleValue !== undefined) diagnostics.push({ npcId: '', patchIndex, field: 'role', group: dossierFieldGroup('role'), channel: 'bootstrap-role', status: 'rejected-proposal', reason: 'invalid-value-type:' + roleIssue });
-            continue;
-        }
-        const role = compact(roleValue, 240);
-        if (!role || String(patch?.identityKind || '').trim().toLocaleLowerCase() !== 'named') continue;
-        const { npc } = resolvedPatchTarget(state, patch, patchIndex, options);
-        if (!npc || manualProtected(npc, 'role') || npc.role) continue;
-        if ((Array.isArray(patch.semanticUpdates) ? patch.semanticUpdates : []).some(update => String(update?.field || '').trim() === 'role')) continue;
-        npc.role = role;
-        npc.updatedAt = Math.max(Date.now(), Number(npc.updatedAt || 0) + 1);
-        diagnostics.push({ npcId: npc.id, patchIndex, field: 'role', group: dossierFieldGroup('role'), channel: 'bootstrap-role', status: 'applied' });
-    }
-}
-
 function identityValue(value) {
     if (Array.isArray(value)) return value.map(identityValue);
     if (!value || typeof value !== 'object') return value ?? null;
@@ -752,6 +720,7 @@ function updateIdentity(raw) {
         expected: compact(raw.expected, 2000),
         ageKind: String(raw.ageKind || '').trim().toLocaleLowerCase(),
         durability: String(raw.durability || '').trim().toLocaleLowerCase(),
+        establishment: raw.establishment,
         sources: sourceRows(raw).map(row => ({ messageId: row.messageId ?? null, excerpt: evidenceKey(row.excerpt, 900) })),
     });
 }
@@ -761,7 +730,6 @@ export function applyModelLedSemanticUpdates(stateInput, resultInput, options = 
     const diagnostics = [];
     const seen = new Set();
     const limits = normalizeDossierLimits(options.dossierLimits);
-    restoreNewNpcModelLedRole(state, resultInput, options, diagnostics);
 
     const patches = Array.isArray(resultInput?.npcs) ? resultInput.npcs : [];
     for (let patchIndex = 0; patchIndex < patches.length; patchIndex += 1) {
@@ -774,6 +742,12 @@ export function applyModelLedSemanticUpdates(stateInput, resultInput, options = 
         }
         const ordinaryProposalFields = proposedFieldsForPatch(patch);
         const semanticRows = Array.isArray(patch.semanticUpdates) ? patch.semanticUpdates : [];
+        const semanticFields = new Set(semanticRows.map(row => row?.field));
+        for (const field of DOSSIER_SEMANTIC_FIELDS) {
+            if (!directFieldProposed(patch, field) || semanticFields.has(field)) continue;
+            const issue = dossierFieldValueIssue(field, patch[field]);
+            diagnostics.push({ npcId: npc.id, patchIndex, field, group: dossierFieldGroup(field), channel: 'ordinary-contract', status: 'rejected-proposal', reason: issue ? 'invalid-value-type:' + issue : 'source-cited-update-required' });
+        }
         const fieldEvaluation = fieldEvaluationDiagnostics(patch, npc.id, ordinaryProposalFields);
         diagnostics.push(...fieldEvaluation.diagnostics.map(row => ({ patchIndex, ...row })));
         if (!ordinaryProposalFields.length && !fieldEvaluation.present) {
@@ -805,6 +779,14 @@ export function applyModelLedSemanticUpdates(stateInput, resultInput, options = 
             seen.add(dedupeKey);
             if (DURABLE_FIELDS.has(update.field) && update.durability === 'temporary') {
                 diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, group: dossierFieldGroup(update.field), status: 'invalid-structure', reason: 'temporary-evidence-cannot-rewrite-durable-canon' });
+                continue;
+            }
+            const addsMannerism = update.field === 'mannerisms' && update.operation !== 'remove'
+                && (Array.isArray(update.changes) && update.changes.length
+                    ? update.changes.some(change => ['add', 'replace'].includes(change?.action))
+                    : Array.isArray(update.value) && update.value.length > 0);
+            if (addsMannerism && !['explicit', 'reinforced'].includes(update.establishment)) {
+                diagnostics.push({ npcId: npc.id, patchIndex, field: update.field, group: dossierFieldGroup(update.field), status: 'rejected-proposal', reason: 'profile-establishment-basis-required' });
                 continue;
             }
             const provenance = sourceValidation(update, options);

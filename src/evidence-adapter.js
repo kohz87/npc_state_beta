@@ -194,7 +194,7 @@ export function identityPresencePromptRules() {
 
 export function structuredEvidencePromptRules() {
     return [
-        'STRUCTURED BLOCK FIREWALL: visible narrative outside <Blocks> is full event evidence. <World_State> may corroborate location/status/scene placement only; NPCs Present does not prove inChat, while Off-Screen may corroborate worldActive. It never proves exchange action/speech/perception or independently introduces an NPC. NEW bootstrap cannot borrow ordinary dossier detail from disallowed structured sources.',
+        'STRUCTURED BLOCK FIREWALL: visible narrative outside <Blocks> is full event evidence. <World_State> may corroborate location/status/scene placement only; NPCs Present does not prove inChat, while Off-Screen may corroborate worldActive. It never proves exchange action/speech/perception or independently introduces an NPC. NEW/EXISTING semanticUpdates require field-authorized sources.',
         'A grounded visible anchor may use one compatible canonical name from current World_State; keep identityEvidence.anchor visible and put structured-only canonical wording in name. World_State alone cannot introduce an NPC.',
         '<NPC_Inner_Chatter> directly grounds stated current private mood/goal/attitude/relationship context only; it never proves presence, action, speech, gesture, or visible reaction. Other <Blocks> children are not ordinary current-event evidence. Never convert private thought into visible behavior without independent visible support.',
     ];

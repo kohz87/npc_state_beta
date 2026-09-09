@@ -1,10 +1,9 @@
 import { evidenceReferenceScope } from './evidence-adapter.js';
-import { DOSSIER_SEMANTIC_FIELDS, dossierFieldGroup, dossierFieldValueIssue, normalizeDossierTextCollection } from './model/dossier-fields.js';
 import { relationshipEvidenceExcerptMatch } from './relationship-evidence.js';
 import { GENERIC_REFERENCES, appendUnique, containsNormalizedPhrase, evidenceTextKey, identityTokenMention, resolvePlayerName, shortActivityIdentityCandidates, shortActivityIdentityUnique, uniqueStrings } from './scan-helpers.js';
 import { applyLifeState } from './scan-lifecycle.js';
 import { applyRelationshipChange, applyRelationshipSummaryProjection, relationshipDeltaForPatch, relationshipEvaluationDiagnostic } from './scan-relationships.js';
-import { DEFAULT_RELATIONSHIP_CAPS, RELATIONSHIP_AXES, applyBirthdayFill, findNpcByReference, makeNpcId, normalizeActualAge, normalizeApparentAge, normalizeAppearanceForms, normalizeBirthday, normalizeCurrentStatus, normalizeDossierLimits, normalizeFamilySlots, normalizeKeyRelationshipEntries, normalizeMemoryEntries, normalizeName, normalizeNpc, normalizeNpcAdmissionMode, normalizeState } from './schema.js';
+import { DEFAULT_RELATIONSHIP_CAPS, RELATIONSHIP_AXES, applyBirthdayFill, findNpcByReference, makeNpcId, normalizeDossierLimits, normalizeFamilySlots, normalizeKeyRelationshipEntries, normalizeName, normalizeNpc, normalizeNpcAdmissionMode, normalizeState } from './schema.js';
 
 export function keyRelationshipReferencesPlayer(value, playerName = '') {
     const key = normalizeName(value);
@@ -492,73 +491,9 @@ export function reconcileFamilyGraphState(stateInput, { sourceMessageId = null, 
     return normalizeState(state, state.chatKey);
 }
 
-const BIRTHDAY_EVIDENCE_CUES = /\b(?:birthday|birth date|date of birth|born(?:\s+on)?|name day|nameday)\b/i;
-const BOOTSTRAP_PROFILE_FIELDS = new Set(['mannerisms']);
-const BOOTSTRAP_PROFILE_BASES = new Set(['explicit', 'reinforced']);
-function bootstrapBirthdayGrounded(value, context) {
-    const birthday = normalizeBirthday(value);
-    const source = String(context || '');
-    return Boolean(birthday && source.trim() && BIRTHDAY_EVIDENCE_CUES.test(source) && profileEvidenceGrounded(birthday, source));
-}
-
-function meaningfulBootstrapProposal(patch, field) {
-    if (!Object.prototype.hasOwnProperty.call(patch || {}, field)) return false;
-    const value = patch?.[field];
-    if (Array.isArray(value)) return value.length > 0;
-    if (value && typeof value === 'object') return Object.keys(value).length > 0;
-    return String(value ?? '').trim().length > 0;
-}
-
-function bootstrapComparable(value) {
-    if (Array.isArray(value) || (value && typeof value === 'object')) return JSON.stringify(value ?? null);
-    return evidenceTextKey(value, 6000);
-}
-
-function recordBootstrapDiagnostics(before, after, patch, diagnostics = [], accountedFields = new Set()) {
-    for (const field of DOSSIER_SEMANTIC_FIELDS) {
-        if (accountedFields.has(field) || !meaningfulBootstrapProposal(patch, field)) continue;
-        const changed = bootstrapComparable(before?.[field]) !== bootstrapComparable(after?.[field]);
-        diagnostics.push({
-            npcId: after?.id || before?.id || '', field, group: dossierFieldGroup(field), channel: 'bootstrap',
-            status: changed ? 'applied' : 'rejected-proposal',
-            reason: changed ? '' : 'bootstrap-value-rejected-or-normalized-away',
-        });
-    }
-}
-
-function bootstrapProfileBasis(patch, field) {
-    const raw = patch?.profileEstablishment;
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return '';
-    const basis = String(raw[field] || '').trim().toLocaleLowerCase();
-    return BOOTSTRAP_PROFILE_BASES.has(basis) ? basis : '';
-}
-
-function bootstrapStructuredContaminated(field, value, policy = {}) {
-    if (!policy?.detected) return false;
-    const visible = evidenceTextKey(policy.visibleText || '', 50000);
-    const allowedWorld = field === 'location' || field === 'status';
-    const allowedInner = field === 'mood' || field === 'goal';
-    const disallowed = evidenceTextKey([
-        allowedWorld ? '' : policy.worldStateText,
-        allowedInner ? '' : policy.innerChatterText,
-        policy.excludedText,
-    ].filter(Boolean).join(' '), 50000);
-    if (!disallowed) return false;
-    const proposed = evidenceTextKey(typeof value === 'string' ? value : JSON.stringify(value ?? ''), 10000);
-    const tokens = proposed.match(/[\p{L}\p{N}]+/gu) || [];
-    return tokens.some(token => (token.length >= 3 || /[\p{L}].*\p{N}|\p{N}.*\p{L}/u.test(token))
-        && containsNormalizedPhrase(disallowed, token)
-        && !containsNormalizedPhrase(visible, token));
-}
-
-// Existing dossiers reach this function after prepareModelLedPayload() has stripped every
-// ordinary dossier field. Only identity may still change directly. A genuinely new NPC may
-// bootstrap grounded initial dossier values once; later evolution uses semanticUpdates only.
-function applyIdentityAndBootstrapPatch(npc, patch, options = {}) {
+function applyIdentityPatch(npc, patch) {
     const locked = new Set(npc.manualProfileFields || []);
-    const before = structuredClone(npc);
     const next = structuredClone(npc);
-    const limits = normalizeDossierLimits(options.dossierLimits);
     const canonicalName = canonicalPatchName(patch);
 
     if (!locked.has('name') && canonicalName) {
@@ -572,76 +507,6 @@ function applyIdentityAndBootstrapPatch(npc, patch, options = {}) {
             .filter(alias => humanIdentityCandidate(alias, patch?.role));
         next.aliases = appendUnique(next.aliases, aliases, 10);
     }
-    if (options.isBootstrap !== true) return next;
-
-    const accountedFields = new Set();
-    const validBootstrapField = field => {
-        if (!Object.prototype.hasOwnProperty.call(patch || {}, field)) return false;
-        const issue = dossierFieldValueIssue(field, patch[field]);
-        if (issue) {
-            accountedFields.add(field);
-            options.applicationDiagnostics?.push({ npcId: next.id || before.id || '', field, group: dossierFieldGroup(field), channel: 'bootstrap', status: 'rejected-proposal', reason: 'invalid-value-type:' + issue });
-            return false;
-        }
-        if (BOOTSTRAP_PROFILE_FIELDS.has(field) && !bootstrapProfileBasis(patch, field)) {
-            accountedFields.add(field);
-            options.applicationDiagnostics?.push({ npcId: next.id || before.id || '', field, group: dossierFieldGroup(field), channel: 'bootstrap', status: 'rejected-proposal', reason: 'profile-establishment-basis-required' });
-            return false;
-        }
-        if (options.structuredEvidenceDetected === true && bootstrapStructuredContaminated(field, patch[field], options.evidencePolicy)) {
-            accountedFields.add(field);
-            options.applicationDiagnostics?.push({ npcId: next.id || before.id || '', field, group: dossierFieldGroup(field), channel: 'bootstrap', status: 'rejected-proposal', reason: 'disallowed-structured-source-detail' });
-            return false;
-        }
-        return true;
-    };
-
-    for (const field of ['role', 'species', 'background', 'appearance', 'personality', 'speech', 'mood', 'location', 'goal']) {
-        if (!validBootstrapField(field)) continue;
-        const value = String(patch[field]).trim();
-        if (value) next[field] = value;
-    }
-    if (validBootstrapField('age')) {
-        const age = normalizeActualAge(patch.age);
-        if (age) next.age = age;
-    }
-    if (validBootstrapField('apparentAge')) {
-        const apparentAge = normalizeApparentAge(patch.apparentAge);
-        if (apparentAge) next.apparentAge = apparentAge;
-    }
-    if (validBootstrapField('birthday')) {
-        const birthday = normalizeBirthday(patch.birthday);
-        if (birthday && bootstrapBirthdayGrounded(birthday, options.profileContext)) {
-            next.birthday = birthday;
-            next.birthdayProvenance = 'explicit';
-        }
-    }
-
-    if (validBootstrapField('appearanceForms')) {
-        const forms = normalizeAppearanceForms(patch.appearanceForms);
-        if (forms.length) next.appearanceForms = forms;
-    }
-    if (validBootstrapField('currentForm')) {
-        const requestedForm = String(patch.currentForm).trim().slice(0, 80);
-        if (requestedForm) {
-            const forms = normalizeAppearanceForms(patch.appearanceForms);
-            const matched = forms.find(form => normalizeName(form.name) === normalizeName(requestedForm));
-            next.currentForm = matched?.name || requestedForm;
-        }
-    }
-    if (validBootstrapField('status')) {
-        const status = normalizeCurrentStatus(patch.status);
-        if (status) next.status = status;
-    }
-
-    if (validBootstrapField('behaviorProfile')) next.behaviorProfile = normalizeDossierTextCollection('behaviorProfile', patch.behaviorProfile, limits.behaviorProfile, 360);
-    if (validBootstrapField('mannerisms')) next.mannerisms = normalizeDossierTextCollection('mannerisms', patch.mannerisms, limits.mannerisms, 280);
-    if (validBootstrapField('memories')) next.memories = normalizeMemoryEntries(patch.memories, limits.memories, 700);
-    if (validBootstrapField('keyRelationships')) {
-        next.keyRelationships = normalizeKeyRelationshipEntries(patch.keyRelationships, limits.keyRelationships, 500)
-            .filter(item => !keyRelationshipReferencesPlayer(item, options.playerName));
-    }
-    recordBootstrapDiagnostics(before, next, patch, options.applicationDiagnostics, accountedFields);
     return next;
 }
 
@@ -1095,7 +960,7 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
         const lifecyclePatch = lifeStateUpdateByNpcId.get(npc.id) || null;
         const canPatch = Boolean(patch && (targetSet.has(npc.id) || allowHistoricalProfilePatches || (options.applyReturnedNpcPatches === true && returnedPatchSet.has(npc.id))));
         if (canPatch) {
-            npc = applyIdentityAndBootstrapPatch(npc, patch, { playerName, dossierLimits, isBootstrap: createdNpcIds.has(npc.id), profileContext: String(options.profileContext || ''), applicationDiagnostics, structuredEvidenceDetected: options.evidencePolicy?.detected === true, evidencePolicy: options.evidencePolicy });
+            npc = applyIdentityPatch(npc, patch);
             if (!lifecyclePatch) npc = applyLifeState(npc, patch, { ...options, state, storedStatus: storedStatusBeforePatch });
             const relationshipOptions = {
                 relationshipCaps: options.relationshipCaps || DEFAULT_RELATIONSHIP_CAPS,

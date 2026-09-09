@@ -1,3 +1,4 @@
+import { citedFixture } from './helpers/cited-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -45,7 +46,7 @@ function sannaActivity() {
 }
 
 function sannaPatch(extra = {}) {
-    return {
+    return citedFixture({
         id: '', name: 'Sanna Karr', identityKind: 'named', identityEvidence: sannaIdentity(), activityEvidence: sannaActivity(),
         evaluatedGroups: ALL_GROUPS,
         fieldEvaluations: { unchanged: [], insufficient: ['age', 'background', 'keyRelationships'], unavailable: [] },
@@ -56,7 +57,11 @@ function sannaPatch(extra = {}) {
         },
         relationshipChange: structuredClone(NO_REL),
         ...extra,
-    };
+    }, { role: sannaIdentity().excerpts[0], appearance: SANNA_VISIBLE,
+        behaviorProfile: SANNA_VISIBLE, mannerisms: { excerpt: SANNA_VISIBLE, establishment: 'reinforced' },
+        memories: 'Sanna Karr processes Lucien Noctis’s signature and issues Lucien a lead token bearing the Guild twin-peak seal.',
+        status: sannaActivity().inChat.excerpts[0],
+    });
 }
 
 function payload(patch, active = ['Sanna Karr']) {
@@ -118,7 +123,7 @@ test('Sanna Karr first-pass bootstrap captures supported dossier facts and neutr
     assert.equal(sanna.age, '');
     assert.equal(sanna.background, '');
     assert.deepEqual(sanna.keyRelationships, []);
-    assert.ok(result.semanticDiagnostics.filter(row => row.channel === 'bootstrap' && row.status === 'applied').length >= 6);
+    assert.ok(result.semanticDiagnostics.filter(row => row.operation === 'establish' && row.status === 'applied').length >= 6);
     assert.equal(result.semanticDiagnostics.some(row => row.field === 'relationshipSummary' && row.status === 'applied'), true);
 });
 
