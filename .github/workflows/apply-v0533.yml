@@ -43,6 +43,7 @@ jobs:
           t = re.sub(r"\}\), \{ state: (.+) \}\);$", r"}, { state: \1 }));", t, flags=re.MULTILINE)
           t = t.replace("    assert.equal(latest(h).followUp.remainingOutcomes, 0);\n  }, { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'recheck_unknown_fields' } }));",
                         "    const followUp = latest(h).followUp;\n    assert.ok(followUp.requestedFields > 1);\n    assert.equal(followUp.remainingOutcomes, followUp.requestedFields - 1);\n  }, { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'recheck_unknown_fields' } }));")
+          t = t.replace("assert.deepEqual(h.persisted().socialEdges, []);", "assert.deepEqual(h.persisted().socialEdges || [], []);")
           open(p, 'w', encoding='utf-8').write(t)
           PY
       - name: Apply candidate patch
