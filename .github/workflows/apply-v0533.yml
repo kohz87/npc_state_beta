@@ -54,6 +54,66 @@ jobs:
           PY
       - name: Apply candidate patch
         run: node scripts/apply-v0533.mjs
+      - name: Compact prompt and align superseded regressions
+        run: |
+          python3 - <<'PY'
+          def edit(path, old, new, count=None):
+              s = open(path, encoding='utf-8').read()
+              found = s.count(old)
+              if count is not None and found != count:
+                  raise SystemExit(f'{path}: expected {count} matches, found {found}: {old[:80]}')
+              if found == 0:
+                  raise SystemExit(f'{path}: no match: {old[:80]}')
+              open(path, 'w', encoding='utf-8').write(s.replace(old, new))
+
+          def section_edit(path, anchor, old, new, occurrences=1):
+              s = open(path, encoding='utf-8').read()
+              start = s.index(anchor)
+              end = s.find('\ntest(', start + len(anchor))
+              if end < 0: end = len(s)
+              part = s[start:end]
+              if part.count(old) != occurrences:
+                  raise SystemExit(f'{path}: section {anchor} expected {occurrences} matches, found {part.count(old)}')
+              part = part.replace(old, new)
+              open(path, 'w', encoding='utf-8').write(s[:start] + part + s[end:])
+
+          edit('src/scan-helpers.js',
+               "        'PROFILE EVIDENCE: personality and narrow behavior patterns may be established from multiple reinforcing choices/reactions/actions even in a first scene; one isolated gesture, mood, pose, or line remains tentative observation evidence, not a broad trait or recurring habit.',\n        'MANNERISM SUFFICIENCY: mannerisms are repeated characteristic gestures, object-handling, or social habits. Multiple related instances may consolidate into one narrow mannerism; a single sleeve-grab, tap, sweep, pose, or similar isolated action is insufficient and stays observation/live evidence.',",
+               "        'BEHAVIOR PROFILE EVIDENCE: personality may be established narrowly from multiple reinforcing choices/reactions; behaviorProfile and mannerisms require explicit recurrence/generalization or multiple reinforcing actions. One isolated gesture, mood, pose, line, or object action stays observation evidence, not a recurring habit.',")
+          edit('src/scan-helpers.js',
+               "        'LIVE GOAL: store the remaining objective after the current exchange. Completed registration, payment, delivery, explanation, or other finished action is not a live goal; a lasting consequence of that completion may instead qualify as memory when the memory rubric supports it.',",
+               "        'LIVE GOAL: store what remains to be done after the exchange; completed actions are not goals. Lasting completed registration/access may qualify as memory under the memory rubric.',")
+
+          section_edit('tests/post-response-rework.test.mjs',
+                       "test('automatic post-response scan may complete a newly admitted dossier with a second bounded request and duplicate completion is idempotent'",
+                       "{ settings: { birthdayFillMode: 'off' } }",
+                       "{ settings: { birthdayFillMode: 'off', firstContactFollowUpMode: 'recheck_unknown_fields' } }")
+          section_edit('tests/post-response-rework.test.mjs',
+                       "test('next-generation interceptor waits for preceding scan after user append and scanner quiet generation does not recurse'",
+                       'assert.equal(h.metrics.generations, 2);', 'assert.equal(h.metrics.generations, 1);')
+          edit('tests/v0512-gap-fixes.test.mjs', 'assert.equal(h.metrics.generations, 3);', 'assert.equal(h.metrics.generations, 2);', 1)
+          edit('tests/structure.test.mjs', "assert.equal(manifest.version, '0.5.32');", "assert.equal(manifest.version, '0.5.33');", 1)
+          edit('tests/structure.test.mjs', "/NPC_STATE_VERSION = '0.5.32'/", "/NPC_STATE_VERSION = '0.5.33'/", 1)
+          edit('tests/v0530-first-contact-profile.test.mjs', "assert.equal(h.metrics.generations, mode === 'stale' ? 1 : 2);", "assert.equal(h.metrics.generations, 1);", 1)
+          section_edit('tests/v075-identity-handoff.test.mjs',
+                       "test('dedicated Scan retains a complete new dossier when model emits a nonempty transport id'",
+                       'assert.equal(h.generations(), 2);', 'assert.equal(h.generations(), 1);')
+          section_edit('tests/v076-first-pass-completeness.test.mjs',
+                       "test('successful dedicated Sanna scan commits and persists the dossier'",
+                       'assert.equal(harness.generations(), 2);', 'assert.equal(harness.generations(), 1);')
+          section_edit('tests/v076-first-pass-completeness.test.mjs',
+                       "test('follow-up Scan uses the assigned stable id without duplicating Sanna or replaying relationship scoring'",
+                       'assert.equal(harness.generations(), 3);', 'assert.equal(harness.generations(), 2);')
+          section_edit('tests/v077-host-capture.test.mjs',
+                       "test('legacy-compatible host response still applies valid proposals but cannot falsely report complete candidate/field coverage'",
+                       'assert.equal(h.metrics.generations, 2);', 'assert.equal(h.metrics.generations, 1);', 2)
+          section_edit('tests/v077-host-capture.test.mjs',
+                       "test('lengthy narrative with Inventory preserves user-visible content while new admission completion stays bounded'",
+                       'assert.equal(h.metrics.generations, 2);', 'assert.equal(h.metrics.generations, 1);')
+          edit('tests/v077-host-capture.test.mjs',
+               "test('lengthy narrative with Inventory preserves user-visible content while new admission completion stays bounded'",
+               "test('lengthy narrative with Inventory preserves user-visible content with default follow-up Off'", 1)
+          PY
       - name: Remove staging helpers
         run: rm scripts/apply-v0533.mjs .github/workflows/apply-v0533.yml
       - name: Validate authoritative source
