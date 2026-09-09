@@ -1,0 +1,244 @@
+{
+  "note": "Supplied Vrena response object transcribed without correcting values, source IDs or excerpts; current USER and visible ASSISTANT narrative preserved. Structured context retains the supplied header/Vrena row and Inner Chatter; unrelated World_State rows and excluded control blocks are omitted. Raw Blocks wrappers are reconstructed for the host test. No provider reasoning is stored.",
+  "user": "I dragged my feet towards the settlement, eating poor rations I found on myself and wished for a walking stick which I managed to manifest it from thin air, but something pulled from deep inside me. (it's soul armament using the only soul capacity to manifest)\n\nAfter days of descension from the forest, I finally found the settlement and approach it, looking for a place my memory somehow recalls, an adventurer guild for registration and earn some coins.\n\nJust when I entered the building, I was immediately man handled by a young woman receptionist who briefly introduced herself and into signing the registration form without fee and slapping contracts on the table and explaining them to me without me asking for it.\n\nBut one of the contracts caught my eyes, boar hunts.",
+  "visible": "<font color=\"#D97706\">\"Wipe your boots on the scraper. Step up.\"</font>\n\nThe iron stove in the corner had a long crack down its belly, sealed with dried gray mortar that smelled of hot silt and brimstone. Beyond the threshold of split pine, the frontier post opened into a low-beamed common hall where greasy tallow lamps hung from iron hooks, throwing yellow circles across scrubbed benches and cold floorboards. The draft from the open pass pushed grit through the cracks in the doorframe, settling on the long counter where a woman in a sheepskin vest sat behind a ledger bound in boiled hide.\n\nShe didn't look up until the latch dropped into its cradle.\n\n<font color=\"#D97706\">\"Take the pack off the counter. The cedar is fresh oiled.\"</font>\n\nHer fingers were stained with dark gall-nut ink to the second knuckle, quick and dry as birch shavings. She pulled an imperial registration folio from beneath a pile of route surveys, drove an iron nib into an inkwell, and spun the heavy sheet across the timber.\n\n<font color=\"#D97706\">\"Name on the bottom rule. First, last, whatever mark you carry. Registration is free this season. Council decree for the northern passes. We need hands on the road.\"</font>\n\nThe walk down through the timberline had worn the soles of your boots smooth against wet slate and root carpets. The three dry biscuit cakes from your coat pocket had lasted two days; by the third, the hunger was just a dull hollow ache under the ribs, quieted only by snowmelt scooped from the stream beds. When the walking stick had taken form along the high ridgeline, it had come out of you like a long-held breath drawn through water—a dark, dense length of solid mana, smooth as river iron, cold to the skin but rigid enough to plant into the scree and take your full leaning weight. Holding it in the world kept a steady, taut stitch pulled tight somewhere behind your breastbone, an unyielding anchor of your soul's limited reach that left no room for anything else to take shape.\n\nShe tapped the dry end of the quill against the grain of the counter, her sleeve pulled up to show forearms corded like hemp rope.\n\n<font color=\"#D97706\">\"Vrena Karr. Station clerk. Write it down, or tell me what to scratch.\"</font>\n\nWhen the ink took the name—*Lucien Noctis*—she didn't squint at it or ask where the letters had come from. She dusted the wet strokes with pulverized limestone from a horn shaker, blew the pale powder across the floor, and folded the ledger closed with a sharp slap that rattled a tin cup full of grease pencils.\n\nFrom beneath the counter came four separate slips of coarse gray rag-paper, each stamped with the crossed pick and broadsword of the Rhunwald Branch. She dropped them in a fan across the damp table.\n\n<font color=\"#D97706\">\"G-One provisional. No guild credit until two slips come back stamped by a resident burgomaster or a freeholder. No salvage advances.\"</font>\n\nHer thumb pinned the slips down one by one, sliding them forward into the light of the tallow lamp.\n\n<font color=\"#D97706\">\"Quarry road has timber wolves down from the moraine. Five Gold per pelt, winter coat only, ears attached. The kitchen plots behind the watchpost have hares digging under the frost frames. Two Gold per basket of twelve. Waste of steel, but the guards pay cash.\"</font>\n\nHer fingernail settled heavily on the third slip, where a crude woodblock stamp showed a split hoof over a broken furrow.\n\n<font color=\"#D97706\">\"This one pays thirty Gold. Two crag-boars broke through the south ditch behind the old brewhouse. Tusks like iron wedges, thick hide, rooting out the winter turnip vaults. The maltster wants them dead before they tear the floor timber out of his kiln. You bring the pairs of lower tusks to the scale house out back. Thirty Gold in coin from the guild drawer, minus five for cartage if the brewer hauls the carcasses to the salting shed himself.\"</font>\n\nOutside the oilskin window, the afternoon light was already bleeding gray into the valley. Smoke from the Rimecross chimneys rose straight and flat, pressed down by the cold front sliding off the Dorn peaks. In the pack against your shoulder, cushioned between thick folds of wool and linen, the cold weight of the dragon egg sat motionless, while a faint, dry prickle of static hummed through the canvas where the thunderbird shell rested.\n\nVrena reached for a wax taper to trim the smoking wick, her dark eyes flicking from your weathered trench coat down to the dark staff resting against your palm.\n\n<font color=\"#D97706\">\"The maltster keeps a dog by the ditch. Give him a wide berth. The beast bites strangers.\"</font>",
+  "world": "**📅 Time:** CR821, Redleaf 15, 01:20 pm | **🌤 Loc:** Adventurer Guild Station | Rimecross, Northern Dornspine | [4,115] | **🌡 Wx:** Heavy overcast, biting mountain breeze, -2°C, pale afternoon gloom\n\n**👥 NPCs Present:**\n\n**Vrena Karr:**\n\n* *Soul Class:* I\n* *G-Rank:* G2 Administrative Clerk\n* *Outfit:* Thick sheepskin vest over an ink-stained linen smock, coarse woolen trousers, heavy iron-buckled frontier boots\n* *Position:* Seated behind the oiled cedar counter, trimming a tallow candle\n* *Mood:* Brisk, practical, impatient with idle loitering\n* *Agenda:* Clear the backlog of low-tier frontier extermination contracts before snow blocks the roads\n* *Secret:* The local burgomaster has threatened to cut the branch's winter firewood stipend if the boars ruin the municipal root stores",
+  "inner": "Vrena Karr: Another drifter off the ridge with no boots to speak of. If he breaks his neck on those boars, at least the paperwork stays clean.",
+  "response": {
+    "exchangeActiveNpcIds": [
+      "Vrena Karr"
+    ],
+    "inChatNpcIds": [
+      "Vrena Karr"
+    ],
+    "worldActiveNpcIds": [],
+    "npcs": [
+      {
+        "id": "",
+        "name": "Vrena Karr",
+        "identityKind": "named",
+        "evaluatedGroups": [
+          "canon",
+          "profile",
+          "live",
+          "memory",
+          "npcRelationships"
+        ],
+        "identityEvidence": {
+          "anchor": "Vrena Karr",
+          "excerpts": [
+            "\"Vrena Karr. Station clerk. Write it down, or tell me what to scratch.\""
+          ],
+          "explanation": "Vrena Karr identifies herself by name and role as station clerk."
+        },
+        "activityEvidence": {
+          "exchangeActive": {
+            "excerpts": [
+              "\"Vrena Karr. Station clerk. Write it down, or tell me what to scratch.\"",
+              "\"G-One provisional. No guild credit until two slips come back stamped by a resident burgomaster or a freeholder. No salvage advances.\""
+            ],
+            "explanation": "Vrena interacts directly with Lucien, processing his registration and explaining local contracts."
+          },
+          "inChat": {
+            "excerpts": [
+              "Vrena reached for a wax taper to trim the smoking wick, her dark eyes flicking from your weathered trench coat down to the dark staff resting against your palm."
+            ],
+            "explanation": "Vrena remains behind the counter trimming a wick at the scene's end."
+          }
+        },
+        "semanticUpdates": [
+          {
+            "field": "role",
+            "operation": "establish",
+            "value": "Station clerk",
+            "sources": [
+              {
+                "messageId": null,
+                "excerpt": "\"Vrena Karr. Station clerk. Write it down, or tell me what to scratch.\""
+              }
+            ]
+          },
+          {
+            "field": "background",
+            "operation": "establish",
+            "value": "Clerk for the Rhunwald Branch guild station in Rimecross.",
+            "sources": [
+              {
+                "messageId": null,
+                "excerpt": "each stamped with the crossed pick and broadsword of the Rhunwald Branch."
+              }
+            ]
+          },
+          {
+            "field": "apparentAge",
+            "operation": "establish",
+            "value": "~20-29",
+            "sources": [
+              {
+                "messageId": null,
+                "excerpt": "a young woman receptionist who briefly introduced herself"
+              }
+            ]
+          },
+          {
+            "field": "appearance",
+            "operation": "establish",
+            "value": "Young woman with dark eyes, dark gall-nut ink-stained fingers, and corded forearms, wearing a sheepskin vest.",
+            "sources": [
+              {
+                "messageId": null,
+                "excerpt": "where a woman in a sheepskin vest sat behind a ledger bound in boiled hide."
+              },
+              {
+                "messageId": null,
+                "excerpt": "Her fingers were stained with dark gall-nut ink to the second knuckle, quick and dry as birch shavings."
+              },
+              {
+                "messageId": null,
+                "excerpt": "her sleeve pulled up to show forearms corded like hemp rope."
+              }
+            ]
+          },
+          {
+            "field": "personality",
+            "operation": "establish",
+            "value": "Brisk, practical, and no-nonsense, handling guild business with blunt efficiency.",
+            "sources": [
+              {
+                "messageId": null,
+                "excerpt": "\"Take the pack off the counter. The cedar is fresh oiled.\""
+              }
+            ]
+          },
+          {
+            "field": "behaviorProfile",
+            "operation": "establish",
+            "changes": [
+              {
+                "action": "add",
+                "value": "Lays out bounty slips one by one and explains terms directly to prospective adventurers."
+              }
+            ],
+            "sources": [
+              {
+                "messageId": null,
+                "excerpt": "Her thumb pinned the slips down one by one, sliding them forward into the light of the tallow lamp."
+              }
+            ]
+          },
+          {
+            "field": "speech",
+            "operation": "establish",
+            "value": "Terse, direct, and imperative instructions.",
+            "sources": [
+              {
+                "messageId": null,
+                "excerpt": "\"Wipe your boots on the scraper. Step up.\""
+              }
+            ]
+          },
+          {
+            "field": "mood",
+            "operation": "establish",
+            "value": "Brisk and practical.",
+            "sources": [
+              {
+                "messageId": null,
+                "excerpt": "folded the ledger closed with a sharp slap that rattled a tin cup full of grease pencils."
+              }
+            ]
+          },
+          {
+            "field": "location",
+            "operation": "establish",
+            "value": "Adventurer Guild Station, Rimecross",
+            "sources": [
+              {
+                "messageId": null,
+                "excerpt": "Beyond the threshold of split pine, the frontier post opened into a low-beamed common hall where greasy tallow lamps hung from iron hooks"
+              }
+            ]
+          },
+          {
+            "field": "status",
+            "operation": "establish",
+            "value": "Trimming a tallow candle wick behind the counter after detailing available contracts.",
+            "sources": [
+              {
+                "messageId": null,
+                "excerpt": "Vrena reached for a wax taper to trim the smoking wick, her dark eyes flicking from your weathered trench coat down to the dark staff resting against your palm."
+              }
+            ]
+          },
+          {
+            "field": "memories",
+            "operation": "establish",
+            "changes": [
+              {
+                "action": "add",
+                "value": "Registered Lucien Noctis as a G1 provisional adventurer and issued him slips for wolf, hare, and boar bounties."
+              }
+            ],
+            "sources": [
+              {
+                "messageId": null,
+                "excerpt": "When the ink took the name—*Lucien Noctis*—she didn't squint at it or ask where the letters had come from."
+              }
+            ]
+          }
+        ],
+        "profileObservations": [
+          {
+            "field": "mannerisms",
+            "observation": "Tapped the dry end of her quill against the counter grain while waiting.",
+            "concept": "Tapping quill while waiting",
+            "sources": [
+              {
+                "messageId": null,
+                "excerpt": "She tapped the dry end of the quill against the grain of the counter"
+              }
+            ]
+          }
+        ],
+        "relationshipChange": {
+          "evaluated": true,
+          "impact": "none",
+          "delta": {
+            "trust": 0,
+            "affection": 0,
+            "desire": 0,
+            "tension": 0
+          },
+          "axisEvidence": {},
+          "reason": "Vrena handles Lucien's registration in a standard, purely professional capacity with no emotional shift."
+        },
+        "relationshipSummary": "Strictly professional and transactional intake; Vrena treats Lucien as an ordinary provisional registrant.",
+        "relationshipSummaryEvidence": {
+          "excerpts": [
+            "\"Vrena Karr. Station clerk. Write it down, or tell me what to scratch.\"",
+            "\"G-One provisional. No guild credit until two slips come back stamped by a resident burgomaster or a freeholder. No salvage advances.\""
+          ],
+          "explanation": "Vrena interacts with Lucien purely as a station clerk registering a new recruit."
+        },
+        "fieldEvaluations": {
+          "unchanged": [],
+          "insufficient": [
+            "species",
+            "age",
+            "birthday",
+            "appearanceForms",
+            "mannerisms",
+            "goal",
+            "currentForm",
+            "keyRelationships"
+          ],
+          "unavailable": []
+        }
+      }
+    ],
+    "socialEdges": [],
+    "familyFacts": [],
+    "lifeStateUpdates": [],
+    "candidateAccounting": {}
+  }
+}

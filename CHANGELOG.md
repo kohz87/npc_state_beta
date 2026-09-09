@@ -2,6 +2,11 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.37
+
+- Resolve model-supplied null-ID quotations against uniquely matching, field-authorized current USER/ASSISTANT sources. Preserve strict explicit-ID checks, historical scope, source-event ownership and ambiguity rejection.
+- Label current source IDs and correct the null/numeric citation contract (model contract 8). Add captured Vrena production-path and source-ownership regressions. No new request, keyword inference or persisted schema change.
+
 ## 0.5.36
 
 - Unify NEW/EXISTING ordinary dossier writes under source-cited semantic updates (model contract 7); remove flat bootstrap writes, lexical contamination filtering, prompt rewriting, inferred direct-live citations, and the uncited Named preferred Role bridge.

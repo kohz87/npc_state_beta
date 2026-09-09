@@ -28,7 +28,7 @@ import {
     normalizeDossierTextCollection,
 } from './dossier-fields.js';
 
-export const NPC_STATE_MODEL_CONTRACT_VERSION = 7;
+export const NPC_STATE_MODEL_CONTRACT_VERSION = 8;
 
 const FIELD_SET = new Set(DOSSIER_SEMANTIC_FIELDS);
 const SCALAR_FIELDS = new Set(DOSSIER_SCALAR_FIELDS);
@@ -217,11 +217,21 @@ function sourceValidation(update, options = {}) {
     for (const row of rows) {
         if (row.messageId !== null && row.messageId < 0) return { ok: false, reason: 'invalid-source-reference' };
         if (currentMessageId !== null && row.messageId !== null && row.messageId > currentMessageId) return { ok: false, reason: 'future-source-reference' };
+        const excerpt = evidenceKey(row.excerpt, 1600);
+        if (row.messageId === null && hasPerMessageContexts) {
+            // Resolve the supplied quotation, never the proposed meaning. Unspecified
+            // ownership is confined to this exchange even when Refresh includes history.
+            const candidates = [...new Set(Array.isArray(options.currentExchangeSourceIds)
+                ? options.currentExchangeSourceIds : [currentMessageId])]
+                .filter(id => Number.isInteger(id) && id >= 0 && (currentMessageId === null || id <= currentMessageId));
+            const matches = candidates.filter(id => excerpt && semanticSourceContext(update.field, options, id).includes(excerpt));
+            if (matches.length !== 1) return { ok: false, reason: matches.length > 1 ? 'ambiguous-current-source' : 'out-of-scope-source' };
+            row.messageId = matches[0];
+        }
         const claimedMessageId = row.messageId !== null ? row.messageId : currentMessageId;
         if (hasPerMessageContexts && !Number.isInteger(claimedMessageId)) return { ok: false, reason: 'invalid-source-reference' };
         const context = semanticSourceContext(update.field, options, hasPerMessageContexts ? claimedMessageId : null);
         if (!context) return { ok: false, reason: hasPerMessageContexts ? 'invalid-source-reference' : 'no-permitted-context' };
-        const excerpt = evidenceKey(row.excerpt, 1600);
         if (!excerpt || !context.includes(excerpt)) return { ok: false, reason: 'out-of-scope-source' };
     }
     return { ok: true, rows };

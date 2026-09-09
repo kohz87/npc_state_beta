@@ -4,10 +4,10 @@ The authoritative behavior and ownership specification is [`docs/core-contract.m
 
 ## Current boundaries
 
-- Extension release: `0.5.36`
+- Extension release: `0.5.37`
 - Persisted state schema: `1`
 - Settings schema: `1`
-- Model semantic update contract: `7`
+- Model semantic update contract: `8`
 - Foreground continuity contract: `8`
 - Sidecar/settings storage identity remains `npc_state_beta.v3`
 

@@ -555,7 +555,10 @@ export function createNpcStateEngine(adapters = {}) {
                 semanticPrivateContext: view.innerChatterText,
             };
         }
-        return { sourceEventKey: current, sourceEventKeys, semanticSourceContextsByMessageId };
+        const exchange = currentExchange(chat, sourceMessageId);
+        const currentExchangeSourceIds = [exchange?.user?.id, exchange?.assistant?.id]
+            .filter(id => Number.isInteger(id) && Object.hasOwn(semanticSourceContextsByMessageId, id));
+        return { sourceEventKey: current, sourceEventKeys, semanticSourceContextsByMessageId, currentExchangeSourceIds };
     }
 
 

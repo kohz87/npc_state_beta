@@ -2,7 +2,9 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.36
+## Release 0.5.37
+
+0.5.37 fixes current USER citations returned with `messageId:null`. A supplied quotation must uniquely match a field-authorized source in the owned current USER/ASSISTANT exchange; ambiguity, explicit wrong IDs, and historical-only matches remain rejected. Scan and Recheck label both source IDs. No new provider request or age inference rule is added.
 
 0.5.36 consolidates NEW and EXISTING ordinary dossier changes under one source-cited semantic contract. Canonical prompts and examples agree, authorized evidence is not poisoned by words repeated in structured blocks, and uncited flat proposals cannot borrow identity/activity quotations. Mannerism establishment applies consistently in Scan, Refresh, and Recheck. Current Dynamic instructions explicitly reuse accepted exchange evidence while preserving wrong-addressee safeguards. Distinct memories are no longer merged by keyword similarity.
 
@@ -92,10 +94,10 @@ User-owned portraits, locks, manual corrections, importance, and suppression tom
 
 Current boundaries:
 
-- Release label: **0.5.36**
+- Release label: **0.5.37**
 - Persisted state schema: **1**
 - Settings schema: **1**
-- Model semantic contract: **7**
+- Model semantic contract: **8**
 - Foreground continuity contract: **8**
 - Storage identity: **`npc_state_beta.v3`**
 

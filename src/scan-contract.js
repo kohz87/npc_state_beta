@@ -93,8 +93,8 @@ export function scanOutputContract(options = {}) {
             ? 'candidateAccounting maps supplied stable existing NPC ids to evaluated|mentioned|inactive|unresolved; coverage only, never presence. NEW/EXISTING patches may add evidence-only profileObservations:[{field,observation,concept?,sources:[{messageId,excerpt}],explanation?}] for personality|behaviorProfile|speech|mannerisms.'
             : 'Routine candidateAccounting maps each supplied stable existing NPC id to evaluated|mentioned|inactive|unresolved; it is separate from activity and fieldEvaluations. NEW/EXISTING patches may add evidence-only profileObservations:[{field,observation,concept?,sources:[{messageId,excerpt}],explanation?}] for personality|behaviorProfile|speech|mannerisms.',
         compact
-            ? 'Evidence={excerpts:[exact quotes],explanation}; identity adds anchor; activity keys=exchangeActive/inChat/worldActive; messageId:null=current.'
-            : 'Evidence:{excerpts:[1-3 exact quotes],explanation}; identityEvidence adds anchor. activityEvidence keys:exchangeActive/inChat/worldActive. Identity/activity=current visible. Semantic/observation messageId:null=current, number=history.',
+            ? 'Evidence={excerpts:[exact quotes],explanation}; identity adds anchor; activity keys=exchangeActive/inChat/worldActive; messageId:number; null=unique current USER/ASSISTANT quote only.'
+            : 'Evidence:{excerpts:[1-3 exact quotes],explanation}; identityEvidence adds anchor. activityEvidence keys:exchangeActive/inChat/worldActive. Identity/activity=current visible. Semantic/observation sources: cite numeric messageId, including current messages; null requires a unique current USER/ASSISTANT source match, never history.',
         compact ? '' : 'evaluatedGroups=map groups only. Modern coverage: each applicable ordinary field is proposed or listed once in fieldEvaluations unchanged|insufficient|unavailable; group labels never prove field evaluation.',
         'OUTPUT CONTRACT:\n' + JSON.stringify(examples.minimal),
         (compact

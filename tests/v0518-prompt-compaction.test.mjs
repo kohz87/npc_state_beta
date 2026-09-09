@@ -30,7 +30,7 @@ test('v0.5.36 source-cited NEW contract retains bounded routine budgets', () => 
     }
 });
 
-test('v0.5.36 field-specific citations add bounded overhead to the flat-example baseline', () => {
+test('v0.5.37 source-cited contract and current source IDs add bounded overhead to the flat-example baseline', () => {
     const rows = matrix();
     const v0522 = {
         'minimal-one-npc': 6343,
@@ -45,7 +45,8 @@ test('v0.5.36 field-specific citations add bounded overhead to the flat-example 
     for (const [name, before] of Object.entries(v0522)) {
         assert.ok(rows.has(name), name);
         const increase = rows.get(name).estTokens - before;
-        assert.ok(increase <= 620, `${name}: contract change ${increase} tokens`);
+        // v0.5.37 adds explicit current-source labels and unique-null ownership (~21 tokens).
+        assert.ok(increase <= 650, `${name}: contract change ${increase} tokens`);
     }
 });
 

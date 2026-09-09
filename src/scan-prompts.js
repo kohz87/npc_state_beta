@@ -189,6 +189,7 @@ ${compactText(memoryCriteria, 6000)}` : '',
 ${JSON.stringify(relevantDossierRows)}`,
         `OLDER REFERENCE CONTEXT — antecedent/continuity only; NOT new event evidence:
 ${JSON.stringify(history)}`,
+        `SOURCE IDS: USER=${exchange.user?.id ?? "unavailable"} ASSISTANT=${exchange.assistant.id}`,
         `CURRENT USER MESSAGE (complete event evidence):
 ${scannerEvidenceText(exchange.user?.mes || '')}`,
         `CURRENT ASSISTANT MESSAGE (complete event evidence):
@@ -227,6 +228,7 @@ export function buildFirstContactCompletionPrompt({ targets = [], chat, assistan
         ...dossierExtractionPromptRules({ includeNew: false, includeExisting: true }),
         ...(structuredDetected ? structuredEvidencePromptRules() : []),
         memoryCriteria ? `IMPORTANT MEMORY RUBRIC (user-authored; preserve as supplied):\n${compactText(memoryCriteria, 6000)}` : '',
+        `SOURCE IDS: USER=${exchange.user?.id ?? "unavailable"} ASSISTANT=${exchange.assistant.id}`,
         `CURRENT USER MESSAGE (complete event evidence):\n${scannerEvidenceText(exchange.user?.mes || '')}`,
         `CURRENT ASSISTANT MESSAGE (complete event evidence):\n${scannerEvidenceText(exchange.assistant?.mes || '')}`,
         'All top-level activity/presence/world/social/family/lifecycle arrays must be empty. NPC patches must keep the supplied stable id and use only semanticUpdates/profileObservations/fieldEvaluations for that target\'s listed fields.',

@@ -76,7 +76,7 @@ function apply(state, result, context, extra = {}) {
 }
 
 test('0.5.12 uses one canonical semantic field registry', () => {
-    assert.equal(NPC_STATE_MODEL_CONTRACT_VERSION, 7);
+    assert.equal(NPC_STATE_MODEL_CONTRACT_VERSION, 8);
     assert.equal(FOREGROUND_CONTRACT_VERSION, 8);
     for (const field of [
         'role', 'species', 'background', 'age', 'apparentAge', 'birthday', 'appearance', 'appearanceForms',

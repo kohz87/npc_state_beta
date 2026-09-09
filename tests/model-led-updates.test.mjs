@@ -102,7 +102,7 @@ test('foreground/full scan prompt includes personality and speech in reconciliat
     const prompt = buildScanPrompt({ state, chat, assistantMessageId: 1, scanDepth: 8 });
     assert.match(prompt, /Quiet and dormant baseline post-emergence/);
     assert.match(prompt, /Unvoiced; currently sleeping/);
-    assert.match(prompt, /NPC STATE DOSSIER UPDATE CONTRACT v7/);
+    assert.match(prompt, /NPC STATE DOSSIER UPDATE CONTRACT v8/);
 });
 
 test('semantic replacement does not require English cue phrases or repeated concept labels', () => {
