@@ -36,7 +36,7 @@ function canonicalRoutineScanPrompt(prompt) {
         )
         .replace(
             'EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates; do not also emit legacy/direct ordinary replacements.',
-            'NEW/EXISTING ordinary dossier mutations use semanticUpdates only; NEW supported blanks use establish.',
+            'NEW/EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates; NEW supported blanks use establish.',
         )
         .replace(
             'PIPELINE: ordinary EXISTING-dossier fields apply through semanticUpdates once;',
