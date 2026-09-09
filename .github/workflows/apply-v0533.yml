@@ -30,7 +30,7 @@ jobs:
           end = s.index("once('src/settings.js',", start)
           replacement = """once('src/settings-contract.js',
             'export function normalizeNumericSetting(key, value, fallback = NUMERIC_SETTINGS[key]?.default) {',
-            `export const FIRST_CONTACT_FOLLOW_UP_MODES = Object.freeze(['off', 'missing_evaluations', 'recheck_unknown_fields']);\\nexport function normalizeFirstContactFollowUpMode(value) {\\n    const mode = String(value || '').trim().toLocaleLowerCase();\\n    return FIRST_CONTACT_FOLLOW_UP_MODES.includes(mode) ? mode : 'off';\\n}\\n\\nexport function normalizeNumericSetting(key, value, fallback = NUMERIC_SETTINGS[key]?.default) {`);
+            `export const FIRST_CONTACT_FOLLOW_UP_MODES = Object.freeze(['off', 'missing_evaluations', 'recheck_unknown_fields']);\nexport function normalizeFirstContactFollowUpMode(value) {\n    const mode = String(value || '').trim().toLocaleLowerCase();\n    return FIRST_CONTACT_FOLLOW_UP_MODES.includes(mode) ? mode : 'off';\n}\n\nexport function normalizeNumericSetting(key, value, fallback = NUMERIC_SETTINGS[key]?.default) {`);
           """
           s = s[:start] + replacement + s[end:]
           marker = "fs.rmSync('tests/v0532-first-contact-completion.test.mjs');"
@@ -61,7 +61,15 @@ jobs:
       - name: Run focused v0.5.33 regressions
         run: node --test tests/v0533-optional-first-contact-recheck.test.mjs
       - name: Run full regression tests
-        run: npm test
+        run: |
+          set +e
+          npm test > /tmp/full-tests.log 2>&1
+          code=$?
+          if [ "$code" -ne 0 ]; then
+            grep -n -E 'not ok|AssertionError|ERR_ASSERTION|failureType|error:|fail [0-9]+' /tmp/full-tests.log -B 12 -A 35 || tail -n 250 /tmp/full-tests.log
+            exit "$code"
+          fi
+          cat /tmp/full-tests.log
       - name: Package extension
         run: npm run package
       - name: Measure scan prompts
