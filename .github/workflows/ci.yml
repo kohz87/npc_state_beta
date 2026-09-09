@@ -31,8 +31,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Apply reviewed ownership fix
-        run: python3 scripts/apply-v0533-review-fix.py
+      - name: Apply reviewed ownership fix and clean validation scaffolding
+        run: |
+          python3 scripts/apply-v0533-review-fix.py
+          rm -f scripts/apply-v0533-review-fix.py .github/workflows/review-fix-v0533.yml
+          git show 5c7251c22f012eb22632c049d2a2390b87bd18b7:.github/workflows/ci.yml > .github/workflows/ci.yml
+      - name: Commit clean reviewed candidate
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Guard failed follow-up ownership"
+          git push origin HEAD:fix/v0.5.33-follow-up-sol56
       - name: Validate authoritative source
         run: npm run validate
       - name: Run focused v0.5.33 regressions
@@ -43,12 +53,3 @@ jobs:
         run: npm run package
       - name: Measure scan prompts
         run: npm run measure:scan-prompts
-      - name: Commit reviewed fix and restore CI
-        run: |
-          rm -f scripts/apply-v0533-review-fix.py .github/workflows/review-fix-v0533.yml
-          git show 5c7251c22f012eb22632c049d2a2390b87bd18b7:.github/workflows/ci.yml > .github/workflows/ci.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Guard failed follow-up ownership"
-          git push origin HEAD:fix/v0.5.33-follow-up-sol56
