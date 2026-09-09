@@ -41,6 +41,7 @@ function completeFields() {
         behaviorProfile: ['Keeps current intake work task-focused.'],
         speech: 'Clipped practical instructions and blunt questions.',
         mannerisms: ['Observed tapping the contract writing during intake.'],
+        profileEstablishment: { mannerisms: 'reinforced' },
         mood: 'Businesslike with brief curiosity about Lucien’s equipment.',
         location: 'Behind the Guild hall pine counter.',
         goal: 'Process Lucien’s registration and direct him toward available work.',
@@ -304,6 +305,7 @@ test('new-NPC collection bootstrap consumes only field-specific aliases', () => 
         evaluatedGroups: [...DOSSIER_EVALUATION_GROUPS],
         fieldEvaluations: { unchanged: [], insufficient: [], unavailable: [] },
         mannerisms: [{ memory: [{ bad: true }, 'garbage'], mannerism: 'Tapped the contract writing with a stained nail during intake.' }],
+        profileEstablishment: { mannerisms: 'reinforced' },
     });
     const bessa = result.state.npcs.find(npc => npc.name === 'Bessa Vond');
     assert.deepEqual(bessa.mannerisms, ['Tapped the contract writing with a stained nail during intake.']);

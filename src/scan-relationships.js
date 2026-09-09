@@ -275,7 +275,6 @@ function relationshipSummaryContextualTargetBound(npc, excerpts, excerptMatches,
         }
     }
     const worldStateCanonicalEnrichmentAccepted = binding.worldStateCanonicalEnrichmentAccepted === true;
-    if (!identityIndexes.length && !worldStateCanonicalEnrichmentAccepted) return false;
 
     // Both halves must come from the same permitted source record. This keeps the bridge
     // bounded to one coherent interaction source instead of combining arbitrary mentions
@@ -317,6 +316,9 @@ function relationshipSummaryContextualTargetBound(npc, excerpts, excerptMatches,
     const summarySourceSafe = sourceId => excerpts.every((excerpt, index) =>
         excerptMatches[index]?.sourceId === sourceId
         && !explicitOtherNpcTarget(excerpt, subjectNames, playerName, otherNpcNames, excerptMatches[index])
+        && (!identityMentioned(excerpt, subjectNames, otherNpcNames)
+            || summaryExcerptOverlapsAcceptedActivity(excerpt, acceptedActivityExcerpts)
+            || summaryExcerptOverlapsAcceptedActivity(excerpt, acceptedIdentityExcerpts))
         && !contextualDialogueNarrationAmbiguous(
             excerpt,
             subjectNames,
@@ -326,6 +328,20 @@ function relationshipSummaryContextualTargetBound(npc, excerpts, excerptMatches,
             acceptedIdentityExcerpts,
             excerptMatches[index]?.sourceRole || '',
         ));
+
+    // Accepted current identity + activity may transiently bind a descriptive summary
+    // without forcing every summary quote to repeat both participants. Require the summary
+    // to reuse activity evidence that is distinct from identity-only evidence, in the same
+    // exact permitted source. Presence/activity flags alone never authorize nearby text.
+    const distinctActivityExcerpts = acceptedActivityExcerpts.filter(activityExcerpt =>
+        !acceptedIdentityExcerpts.some(identityExcerpt => summaryExcerptOverlapsAcceptedActivity(activityExcerpt, [identityExcerpt])));
+    const coherentBindingSources = new Set(activityBindings.filter(row => row.kind === 'visible')
+        .map(row => row.sourceId)
+        .filter(sourceId => identityBindings.some(identity => identity.kind === 'visible' && identity.sourceId === sourceId)));
+    const reusesDistinctActivity = sourceId => excerpts.some((excerpt, index) =>
+        excerptMatches[index]?.sourceId === sourceId
+        && summaryExcerptOverlapsAcceptedActivity(excerpt, distinctActivityExcerpts));
+    if ([...coherentBindingSources].some(sourceId => summarySourceSafe(sourceId) && reusesDistinctActivity(sourceId))) return true;
 
     // When the canonical proper name was accepted specifically through the current
     // World_State enrichment path, the exact visible identity anchor remains identity
