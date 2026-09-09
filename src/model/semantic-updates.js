@@ -143,9 +143,10 @@ export function semanticEditIndex(npc = {}) {
         refs,
         manualProfileFields: Array.isArray(npc.manualProfileFields) ? npc.manualProfileFields : [],
         recentProfileEvidence: Array.isArray(npc.profileEvolutionEvidence)
-            ? npc.profileEvolutionEvidence.slice(-4).map(row => ({
+            ? npc.profileEvolutionEvidence.slice(-6).map(row => ({
                 field: row.field,
                 kind: row.kind,
+                concept: compact(row.concept, 180),
                 sourceMessageId: row.sourceMessageId,
                 evidence: compact(row.evidence, 260),
             }))

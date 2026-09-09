@@ -2,7 +2,9 @@
 
 NPC State is a SillyTavern extension that maintains durable NPC continuity while leaving narrative interpretation to the selected language model. The extension owns structure, evidence boundaries, deterministic relationship mechanics, history ownership, persistence, rollback, and recovery.
 
-## Release 0.5.37
+## Release 0.5.38
+
+0.5.38 clarifies profile establishment and compatible enrichment separately from contradictory character development. The scanner reconsiders stored observations with new current evidence, while isolated actions remain observations. Its compact semantic index now includes the latest six profile-evidence records and their concepts, so early observations are less easily hidden by subsequent applied changes. Source validation, mannerism establishment metadata, locks, and the twelve-record persisted evidence limit remain intact. No extra model request or automatic habit promotion is added.
 
 0.5.37 fixes current USER citations returned with `messageId:null`. A supplied quotation must uniquely match a field-authorized source in the owned current USER/ASSISTANT exchange; ambiguity, explicit wrong IDs, and historical-only matches remain rejected. Scan and Recheck label both source IDs. No new provider request or age inference rule is added.
 

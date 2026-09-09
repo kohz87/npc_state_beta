@@ -10,19 +10,19 @@ import { scanPromptMeasurementMatrix } from '../scripts/measure-scan-prompts.mjs
 
 const matrix = () => new Map(scanPromptMeasurementMatrix().map(row => [row.name, row]));
 
-test('v0.5.36 source-cited NEW contract retains bounded routine budgets', () => {
+test('v0.5.38 profile calibration and bounded evidence context retain routine budgets', () => {
     const rows = matrix();
     // Explicit field citations replace the flat NEW example. Modest first-contact fixtures
     // remain below the 7,500-token target; dense/multi-NPC sources retain honest overages.
     const ceilings = {
-        'minimal-one-npc': 6850,
-        'rich-first-encounter': 6850,
-        'three-active-plus-mentioned': 7900,
-        'observation-development': 7160,
-        'dense-collections-locks-forms': 8650,
-        'large-db-one-relevant': 7040,
-        'structured-plus-custom': 7600,
-        'targeted-refresh': 4900,
+        'minimal-one-npc': 6935,
+        'rich-first-encounter': 6935,
+        'three-active-plus-mentioned': 7985,
+        'observation-development': 7270,
+        'dense-collections-locks-forms': 8845,
+        'large-db-one-relevant': 7125,
+        'structured-plus-custom': 7685,
+        'targeted-refresh': 4985,
     };
     for (const [name, ceiling] of Object.entries(ceilings)) {
         assert.ok(rows.has(name), name);
@@ -30,7 +30,7 @@ test('v0.5.36 source-cited NEW contract retains bounded routine budgets', () => 
     }
 });
 
-test('v0.5.37 source-cited contract and current source IDs add bounded overhead to the flat-example baseline', () => {
+test('v0.5.38 source-cited contract and profile context add bounded overhead to the flat-example baseline', () => {
     const rows = matrix();
     const v0522 = {
         'minimal-one-npc': 6343,
@@ -45,8 +45,9 @@ test('v0.5.37 source-cited contract and current source IDs add bounded overhead 
     for (const [name, before] of Object.entries(v0522)) {
         assert.ok(rows.has(name), name);
         const increase = rows.get(name).estTokens - before;
-        // v0.5.37 adds explicit current-source labels and unique-null ownership (~21 tokens).
-        assert.ok(increase <= 650, `${name}: contract change ${increase} tokens`);
+        // v0.5.38 adds ~89 tokens of calibration, plus up to ~108 in the dense
+        // fixture for two more evidence records and stored concepts (six-row cap).
+        assert.ok(increase <= 845, `${name}: contract change ${increase} tokens`);
     }
 });
 

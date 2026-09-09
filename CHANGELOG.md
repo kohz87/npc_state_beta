@@ -2,6 +2,12 @@
 
 This file tracks the current public 0.5.x line. Older 0.4.x material is archived under `docs/history/`; superseded 0.6.x/0.7.x development-line details remain available in Git history and are not repeated here as competing current release notes.
 
+## 0.5.38
+
+- Separate initial profile establishment and compatible enrichment from contradictory lasting development in shared Scan/Refresh/Recheck guidance. Ask the model to reconsider observations with new current evidence; isolated gestures, unrelated actions, and continued narration of one action do not automatically become habits.
+- Expand the compact semantic edit index from four to six recent profile-evidence records and retain stored concepts. Reproduce Sariel's early observation surviving persistence but disappearing from the former four-record projection; preserve the twelve-record store and all ownership/deduplication rules.
+- Add production persistence/context and authored enrichment regressions with negative source/lock/establishment checks. Keep semantic contract 8, persisted schema 1, and request limits unchanged. Prompt fixtures increase by roughly 89 estimated tokens for guidance and up to 108 more for the expanded evidence context; these are local estimates, not billed provider usage.
+
 ## 0.5.37
 
 - Resolve model-supplied null-ID quotations against uniquely matching, field-authorized current USER/ASSISTANT sources. Preserve strict explicit-ID checks, historical scope, source-event ownership and ambiguity rejection.

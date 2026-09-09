@@ -39,7 +39,7 @@ test('routine Scan asks for grounded first-pass background, portrait-ready appea
     assert.match(prompt, /Preserve prior supported visible facts unless contradicted/i);
     assert.match(prompt, /Never invent missing portrait features/i);
     assert.match(prompt, /BEHAVIOR PROFILE EVIDENCE:/);
-    assert.match(prompt, /must not be rewritten as a habitual behavior/i);
+    assert.match(prompt, /Isolated gestures and unrelated actions stay observations/i);
     assert.match(prompt, /first direct interaction may establish a neutral professional, transactional/i);
     assert.match(prompt, /zero score movement/i);
 });
