@@ -9,11 +9,44 @@ import {
     auditDossierEvaluationCoverage,
     prepareModelLedPayload,
 } from './model/semantic-updates.js';
+import {
+    SCAN_SYSTEM_PROMPT,
+    recentHistory,
+    relevantNpcsForExchange,
+    buildScanPrompt as buildBaseScanPrompt,
+    buildFirstContactCompletionPrompt,
+    buildTargetedRefreshPrompt,
+    buildStructuredDossierImportPrompt,
+} from './scan-prompts.js';
 
 export { currentExchange } from './scan-helpers.js';
-export { SCAN_SYSTEM_PROMPT, recentHistory, relevantNpcsForExchange, buildScanPrompt, buildFirstContactCompletionPrompt, buildTargetedRefreshPrompt, buildStructuredDossierImportPrompt } from './scan-prompts.js';
+export { SCAN_SYSTEM_PROMPT, recentHistory, relevantNpcsForExchange, buildFirstContactCompletionPrompt, buildTargetedRefreshPrompt, buildStructuredDossierImportPrompt };
 export { parseScanJson };
 export { keyRelationshipReferencesPlayer, reconcileFamilyGraphState } from './scan-application.js';
+
+function canonicalRoutineScanPrompt(prompt) {
+    return String(prompt || '')
+        .replace(
+            'NEW ordinary fields are flat; []=string arrays; appearanceForms:[{name,appearance}].',
+            'NEW ordinary dossier fields use semanticUpdates with exact permitted sources; use establish for supported blank fields. Do not also emit flat ordinary field replacements. []=string arrays; appearanceForms:[{name,appearance}].',
+        )
+        .replace(
+            'VALID FICTIONAL EXAMPLE: populated NEW live/profile + zero-delta Current Dynamic + insufficient fields. Never copy facts/ids.',
+            'LEGACY-SHAPE FICTIONAL EXAMPLE: facts are illustrative only; do not copy its flat NEW ordinary-field layout. Current NEW ordinary dossier fields use semanticUpdates with exact permitted sources.',
+        )
+        .replace(
+            'EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates; do not also emit legacy/direct ordinary replacements.',
+            'NEW and EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates; do not also emit legacy/direct ordinary replacements. NEW uses establish for supported blank fields.',
+        )
+        .replace(
+            'PIPELINE: ordinary EXISTING-dossier fields apply through semanticUpdates once;',
+            'PIPELINE: ordinary NEW/EXISTING dossier fields apply through semanticUpdates once;',
+        );
+}
+
+export function buildScanPrompt(options = {}) {
+    return canonicalRoutineScanPrompt(buildBaseScanPrompt(options));
+}
 
 export function sanitizeStructuredDossierPatch(patch = {}, npc = {}) {
     const out = core.sanitizeStructuredDossierPatch(patch, npc);
