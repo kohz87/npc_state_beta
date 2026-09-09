@@ -4,6 +4,11 @@ import { findNpcByReference, normalizeNpcAdmissionMode, normalizeRelationshipSum
 import { adaptLegacySemanticPayload } from './model/legacy-semantic-adapter.js';
 import { applyProfileObservations } from './profile-observations.js';
 import {
+    DOSSIER_COLLECTION_FIELDS,
+    DOSSIER_SCALAR_FIELDS,
+    dossierFieldValueIssue,
+} from './model/dossier-fields.js';
+import {
     applyModelLedFamilyFacts,
     applyModelLedSemanticUpdates,
     auditDossierEvaluationCoverage,
@@ -18,25 +23,61 @@ import {
     buildTargetedRefreshPrompt,
     buildStructuredDossierImportPrompt,
 } from './scan-prompts.js';
+import { containsNormalizedPhrase, evidenceTextKey } from './scan-helpers.js';
 
 export { currentExchange } from './scan-helpers.js';
 export { SCAN_SYSTEM_PROMPT, recentHistory, relevantNpcsForExchange, buildFirstContactCompletionPrompt, buildTargetedRefreshPrompt, buildStructuredDossierImportPrompt };
 export { parseScanJson };
 export { keyRelationshipReferencesPlayer, reconcileFamilyGraphState } from './scan-application.js';
 
+const NEW_SEMANTIC_EXAMPLE_EVIDENCE = 'Nia, a South Quay clerk in her twenties wearing a blue coat, says "Registry first," hands Ari a form, explains each entry, and checks his answers.';
+const NEW_SEMANTIC_EXAMPLE = Object.freeze({
+    exchangeActiveNpcIds: ['Nia'],
+    inChatNpcIds: ['Nia'],
+    worldActiveNpcIds: [],
+    npcs: [{
+        id: '',
+        name: 'Nia',
+        identityKind: 'named',
+        evaluatedGroups: ['canon', 'profile', 'live', 'memory', 'npcRelationships'],
+        identityEvidence: { anchor: 'Nia', excerpts: [NEW_SEMANTIC_EXAMPLE_EVIDENCE], explanation: 'Nia is the clerk processing Ari.' },
+        activityEvidence: {
+            exchangeActive: { excerpts: [NEW_SEMANTIC_EXAMPLE_EVIDENCE], explanation: 'Nia directly processes Ari.' },
+            inChat: { excerpts: [NEW_SEMANTIC_EXAMPLE_EVIDENCE], explanation: 'Nia remains with Ari at the registry.' },
+        },
+        semanticUpdates: [
+            { field: 'role', operation: 'establish', value: 'South Quay clerk', sources: [{ messageId: null, excerpt: NEW_SEMANTIC_EXAMPLE_EVIDENCE }] },
+            { field: 'apparentAge', operation: 'establish', value: '~20-29', sources: [{ messageId: null, excerpt: NEW_SEMANTIC_EXAMPLE_EVIDENCE }] },
+            { field: 'appearance', operation: 'establish', value: 'Blue coat.', sources: [{ messageId: null, excerpt: NEW_SEMANTIC_EXAMPLE_EVIDENCE }] },
+            { field: 'personality', operation: 'establish', value: 'Practical and methodical in registry work.', sources: [{ messageId: null, excerpt: NEW_SEMANTIC_EXAMPLE_EVIDENCE }] },
+            { field: 'behaviorProfile', operation: 'establish', changes: [{ action: 'add', value: 'Guides applicants through forms and checks their entries.' }], sources: [{ messageId: null, excerpt: NEW_SEMANTIC_EXAMPLE_EVIDENCE }] },
+            { field: 'speech', operation: 'establish', value: 'Brief practical instructions.', sources: [{ messageId: null, excerpt: NEW_SEMANTIC_EXAMPLE_EVIDENCE }] },
+            { field: 'status', operation: 'establish', value: 'Processing Ari’s registry form.', sources: [{ messageId: null, excerpt: NEW_SEMANTIC_EXAMPLE_EVIDENCE }] },
+        ],
+        relationshipChange: { evaluated: true, impact: 'none', delta: { trust: 0, affection: 0, desire: 0, tension: 0 }, axisEvidence: {}, reason: 'No relationship shift.' },
+        relationshipSummary: 'Professional clerk-applicant interaction.',
+        relationshipSummaryEvidence: { excerpts: [NEW_SEMANTIC_EXAMPLE_EVIDENCE], explanation: 'Nia directly handles Ari’s registry intake.' },
+        fieldEvaluations: { unchanged: [], insufficient: ['species', 'background', 'age', 'birthday', 'appearanceForms', 'mannerisms', 'mood', 'location', 'goal', 'currentForm', 'memories', 'keyRelationships'], unavailable: [] },
+    }],
+    socialEdges: [],
+    familyFacts: [],
+    lifeStateUpdates: [],
+    candidateAccounting: {},
+});
+
 function canonicalRoutineScanPrompt(prompt) {
     return String(prompt || '')
         .replace(
             'NEW ordinary fields are flat; []=string arrays; appearanceForms:[{name,appearance}].',
-            'NEW ordinary fields: semanticUpdates with exact sources; establish supported blanks. []=string arrays; appearanceForms:[{name,appearance}].',
+            'NEW ordinary fields use semanticUpdates with exact permitted sources; establish supported blanks. []=string arrays; appearanceForms:[{name,appearance}].',
         )
         .replace(
-            'VALID FICTIONAL EXAMPLE: populated NEW live/profile + zero-delta Current Dynamic + insufficient fields. Never copy facts/ids.',
-            'VALID FICTIONAL EXAMPLE: legacy flat NEW shape. Never copy facts/ids.',
+            /VALID FICTIONAL EXAMPLE: populated NEW live\/profile \+ zero-delta Current Dynamic \+ insufficient fields\. Never copy facts\/ids\.\n[\s\S]*?\nRelationship:/,
+            `VALID FICTIONAL EXAMPLE: source-cited NEW dossier + zero-delta Current Dynamic. Never copy facts/ids.\n${JSON.stringify(NEW_SEMANTIC_EXAMPLE)}\nCurrent Dynamic evidence must reuse at least one exact activityEvidence.exchangeActive excerpt for that NPC.\nRelationship:`,
         )
         .replace(
             'EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates; do not also emit legacy/direct ordinary replacements.',
-            'NEW/EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates; NEW supported blanks use establish.',
+            'NEW and EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates; NEW supported blanks use establish.',
         )
         .replace(
             'PIPELINE: ordinary EXISTING-dossier fields apply through semanticUpdates once;',
@@ -66,6 +107,132 @@ export function newNpcAdmissionAllows(patch, mode = 'balanced') {
 }
 
 const NEW_PROFILE_ESTABLISHMENT_BASES = new Set(['explicit', 'reinforced']);
+const SCALAR_FIELDS = new Set(DOSSIER_SCALAR_FIELDS);
+const COLLECTION_FIELDS = new Set(DOSSIER_COLLECTION_FIELDS);
+
+function patchTargetsExistingNpc(state, patch) {
+    const id = String(patch?.id || '').trim();
+    if (id && (state?.npcs || []).some(npc => npc.id === id)) return true;
+    return Boolean(findNpcByReference(state || {}, patch?.name || ''));
+}
+
+function exactEvidenceContained(excerpt, sourceText) {
+    const needle = evidenceTextKey(excerpt, 1600);
+    const haystack = evidenceTextKey(sourceText, 30000);
+    return Boolean(needle && haystack && haystack.includes(needle));
+}
+
+function currentAssistantVisibleExcerpts(patch, options = {}) {
+    const assistantVisible = (Array.isArray(options?.evidencePolicy?.relationshipSources) ? options.evidencePolicy.relationshipSources : [])
+        .filter(source => source?.kind === 'visible' && source?.role === 'assistant')
+        .map(source => String(source?.text || '').trim())
+        .filter(Boolean);
+    const fallback = String(options.semanticEvidenceContext || options.profileContext || '').trim();
+    const records = [
+        patch?.activityEvidence?.exchangeActive,
+        patch?.identityEvidence,
+        patch?.activityEvidence?.inChat,
+    ];
+    const out = [];
+    for (const record of records) {
+        for (const raw of Array.isArray(record?.excerpts) ? record.excerpts : []) {
+            const excerpt = String(raw || '').trim();
+            if (!excerpt || out.includes(excerpt)) continue;
+            const matched = assistantVisible.length
+                ? assistantVisible.some(source => exactEvidenceContained(excerpt, source))
+                : exactEvidenceContained(excerpt, fallback);
+            if (!matched) continue;
+            out.push(excerpt);
+            if (out.length >= 3) return out;
+        }
+    }
+    return out;
+}
+
+function directProposalPresent(patch, field) {
+    if (!Object.prototype.hasOwnProperty.call(patch || {}, field)) return false;
+    const value = patch[field];
+    if (Array.isArray(value)) return value.length > 0;
+    if (value && typeof value === 'object') return Object.keys(value).length > 0;
+    return String(value ?? '').trim().length > 0;
+}
+
+function compatibilitySemanticUpdate(field, value, excerpts) {
+    const base = {
+        field,
+        operation: 'establish',
+        sources: excerpts.map(excerpt => ({ messageId: null, excerpt })),
+        explanation: 'Compatibility normalization of a NEW flat proposal using the same patch’s accepted current assistant evidence.',
+    };
+    if (COLLECTION_FIELDS.has(field)) {
+        return {
+            ...base,
+            changes: (Array.isArray(value) ? value : []).map(item => ({ action: 'add', value: structuredClone(item) })),
+        };
+    }
+    return { ...base, value: structuredClone(value) };
+}
+
+function normalizeLegacyNewFlatFields(stateInput, resultInput, options = {}, diagnostics = []) {
+    const result = structuredClone(resultInput || {});
+    const state = stateInput || {};
+    for (let patchIndex = 0; patchIndex < (Array.isArray(result.npcs) ? result.npcs.length : 0); patchIndex += 1) {
+        const patch = result.npcs[patchIndex];
+        if (!patch || typeof patch !== 'object' || Array.isArray(patch) || patchTargetsExistingNpc(state, patch)) continue;
+        const excerpts = currentAssistantVisibleExcerpts(patch, options);
+        if (!excerpts.length) continue;
+        const semanticUpdates = Array.isArray(patch.semanticUpdates) ? structuredClone(patch.semanticUpdates) : [];
+        const semanticFields = new Set(semanticUpdates.map(update => String(update?.field || '').trim()));
+        for (const field of [...DOSSIER_SCALAR_FIELDS, ...DOSSIER_COLLECTION_FIELDS]) {
+            if (semanticFields.has(field) || !directProposalPresent(patch, field)) continue;
+            const issue = dossierFieldValueIssue(field, patch[field]);
+            if (issue) continue;
+            semanticUpdates.push(compatibilitySemanticUpdate(field, patch[field], excerpts));
+            semanticFields.add(field);
+            diagnostics.push({
+                npcId: '', patchIndex, field, channel: 'compatibility',
+                status: 'legacy-new-flat-normalized', reason: 'current-assistant-evidence-reused',
+            });
+        }
+        if (semanticUpdates.length) patch.semanticUpdates = semanticUpdates;
+    }
+    return result;
+}
+
+function summaryEvidenceHasPlayerCue(excerpts = [], playerName = '') {
+    return excerpts.some(raw => {
+        const excerpt = String(raw || '').trim();
+        return Boolean(excerpt && (
+            (playerName && containsNormalizedPhrase(excerpt, playerName))
+            || /\b(?:you|your|yours|yourself)\b/i.test(excerpt)
+        ));
+    });
+}
+
+function normalizeRelationshipSummaryActivityReuse(resultInput, options = {}, diagnostics = []) {
+    const result = structuredClone(resultInput || {});
+    const playerName = String(options.playerName || '').trim();
+    for (let patchIndex = 0; patchIndex < (Array.isArray(result.npcs) ? result.npcs.length : 0); patchIndex += 1) {
+        const patch = result.npcs[patchIndex];
+        const summary = String(patch?.relationshipSummary || '').trim();
+        const evidence = patch?.relationshipSummaryEvidence;
+        if (!summary || !evidence || typeof evidence !== 'object' || Array.isArray(evidence)) continue;
+        const excerpts = Array.isArray(evidence.excerpts)
+            ? evidence.excerpts.map(value => String(value || '').trim()).filter(Boolean).slice(0, 3)
+            : [];
+        if (!excerpts.length || excerpts.length >= 3 || !summaryEvidenceHasPlayerCue(excerpts, playerName)) continue;
+        const activity = currentAssistantVisibleExcerpts({ activityEvidence: { exchangeActive: patch?.activityEvidence?.exchangeActive } }, options);
+        const candidate = activity.find(activityExcerpt => !excerpts.some(summaryExcerpt =>
+            containsNormalizedPhrase(activityExcerpt, summaryExcerpt) || containsNormalizedPhrase(summaryExcerpt, activityExcerpt)));
+        if (!candidate) continue;
+        evidence.excerpts = [...excerpts, candidate];
+        diagnostics.push({
+            npcId: '', patchIndex, field: 'relationshipSummary', group: 'playerRelationship', channel: 'compatibility',
+            status: 'summary-evidence-activity-reuse-normalized', reason: 'accepted-current-activity-evidence-reused',
+        });
+    }
+    return result;
+}
 
 function normalizeNewNpcSemanticBootstrap(stateInput, resultInput, diagnostics = []) {
     const result = structuredClone(resultInput || {});
@@ -184,7 +351,9 @@ export function applyScanResult(stateInput, resultInput, options = {}) {
     const focused = validateFocusedProposalPayload(parsed);
     compatibilityDiagnostics.push(...focused.diagnostics);
     const adapted = adaptLegacySemanticPayload(stateInput, focused.result, { ...semanticOptions, compatibilityDiagnostics });
-    const canonicalized = normalizeNewNpcSemanticBootstrap(stateInput, adapted, compatibilityDiagnostics);
+    const flatNormalized = normalizeLegacyNewFlatFields(stateInput, adapted, semanticOptions, compatibilityDiagnostics);
+    const relationshipNormalized = normalizeRelationshipSummaryActivityReuse(flatNormalized, semanticOptions, compatibilityDiagnostics);
+    const canonicalized = normalizeNewNpcSemanticBootstrap(stateInput, relationshipNormalized, compatibilityDiagnostics);
     const prepared = prepareModelLedPayload(stateInput, canonicalized, options.admissionMode);
     const applied = core.applyScanResult(stateInput, prepared, options);
     const observations = applyProfileObservations(applied.state, canonicalized, {
