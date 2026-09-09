@@ -20,9 +20,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Normalize staging helper
+      - name: Normalize staging helper and focused fixture
         run: |
           python3 - <<'PY'
+          import re
           p = 'scripts/apply-v0533.mjs'
           s = open(p, encoding='utf-8').read()
           start = s.index("once('src/settings-contract.js',")
@@ -36,6 +37,13 @@ jobs:
           i = s.index(marker)
           s = s[:i] + marker + "\nconsole.log('Applied v0.5.33 patch');\n"
           open(p, 'w', encoding='utf-8').write(s)
+
+          p = 'tests/v0533-optional-first-contact-recheck.test.mjs'
+          t = open(p, encoding='utf-8').read()
+          t = re.sub(r"\}\), \{ state: (.+) \}\);$", r"}, { state: \1 }));", t, flags=re.MULTILINE)
+          t = t.replace("    assert.equal(latest(h).followUp.remainingOutcomes, 0);\n  }, { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'recheck_unknown_fields' } }));",
+                        "    const followUp = latest(h).followUp;\n    assert.ok(followUp.requestedFields > 1);\n    assert.equal(followUp.remainingOutcomes, followUp.requestedFields - 1);\n  }, { state: createEmptyState('chat:actor.png:fixture'), settings: { firstContactFollowUpMode: 'recheck_unknown_fields' } }));")
+          open(p, 'w', encoding='utf-8').write(t)
           PY
       - name: Apply candidate patch
         run: node scripts/apply-v0533.mjs
