@@ -1,0 +1,34 @@
+name: v0534 sync main
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/v0534-focused-fixes
+          fetch-depth: 0
+      - name: Preserve concurrent main and sync
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git merge origin/main --no-edit || true
+          if git ls-files -u | grep -q .; then
+            git checkout --theirs AGENTS.md
+            git add AGENTS.md
+            if git ls-files -u | grep -q .; then
+              echo 'Unexpected conflicts remain'
+              git ls-files -u
+              exit 1
+            fi
+            git commit --no-edit
+          fi
+          rm -f .github/workflows/v0534-sync-main.yml
+          git add -A
+          git commit -m 'chore: preserve concurrent repository guidance'
+          git push origin HEAD:work/v0534-focused-fixes
