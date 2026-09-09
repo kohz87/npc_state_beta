@@ -83,7 +83,7 @@ jobs:
           profile = manner = goal = 0
           for line in lines:
               if "'PROFILE EVIDENCE:" in line:
-                  out.append("        'BEHAVIOR PROFILE EVIDENCE: personality may be established narrowly from multiple reinforcing choices/reactions; behaviorProfile and mannerisms require explicit recurrence/generalization or multiple reinforcing actions. One isolated gesture, mood, pose, line, or object action stays observation evidence, not a recurring habit.',")
+                  out.append("        'BEHAVIOR PROFILE EVIDENCE: personality may be established narrowly from multiple reinforcing choices/reactions. behaviorProfile needs explicit recurrence/generalization or multiple reinforcing actions. Multiple related instances may consolidate into one narrow mannerism; one isolated gesture, mood, pose, line, or object action must not be rewritten as a habitual behavior and stays observation evidence.',")
                   profile += 1
                   continue
               if "'MANNERISM SUFFICIENCY:" in line:
@@ -98,10 +98,19 @@ jobs:
               raise SystemExit(f'src/scan-helpers.js unexpected prompt rows: profile={profile} manner={manner} goal={goal}')
           open(p, 'w', encoding='utf-8').write('\n'.join(out) + '\n')
 
-          section_edit('tests/post-response-rework.test.mjs',
-                       "test('automatic post-response scan may complete a newly admitted dossier with a second bounded request and duplicate completion is idempotent'",
-                       "{ settings: { birthdayFillMode: 'off' } }",
-                       "{ settings: { birthdayFillMode: 'off', firstContactFollowUpMode: 'recheck_unknown_fields' } }")
+          anchor = "test('automatic post-response scan may complete a newly admitted dossier with a second bounded request and duplicate completion is idempotent'"
+          s = open('tests/post-response-rework.test.mjs', encoding='utf-8').read()
+          start = s.index(anchor)
+          end = s.find('\ntest(', start + len(anchor))
+          part = s[start:end]
+          old = "    setProvider(h, payloadForBessa(completeFields()));"
+          new = """    let providerCalls = 0;\n    setProvider(h, ({ prompt }) => {\n        providerCalls += 1;\n        if (providerCalls === 1) return JSON.stringify(payloadForBessa(completeFields()));\n        const id = prompt.match(/\\\"id\\\":\\\"([^\\\"]+)\\\",\\\"name\\\":\\\"Bessa Vond\\\"/)?.[1];\n        const fields = JSON.parse(prompt.match(/\\\"unresolvedFields\\\":(\\[[^\\]]*\\])/)?.[1] || '[]');\n        return JSON.stringify({ exchangeActiveNpcIds: [], inChatNpcIds: [], worldActiveNpcIds: [], npcs: [{ id, name: 'Bessa Vond', fieldEvaluations: { insufficient: fields } }], socialEdges: [], familyFacts: [], lifeStateUpdates: [], candidateAccounting: {} });\n    });"""
+          if part.count(old) != 1:
+              raise SystemExit('post-response completion fixture did not match once')
+          part = part.replace(old, new)
+          part = part.replace("{ settings: { birthdayFillMode: 'off' } }", "{ settings: { birthdayFillMode: 'off', firstContactFollowUpMode: 'recheck_unknown_fields' } }")
+          open('tests/post-response-rework.test.mjs', 'w', encoding='utf-8').write(s[:start] + part + s[end:])
+
           section_edit('tests/post-response-rework.test.mjs',
                        "test('next-generation interceptor waits for preceding scan after user append and scanner quiet generation does not recurse'",
                        'assert.equal(h.metrics.generations, 2);', 'assert.equal(h.metrics.generations, 1);')
