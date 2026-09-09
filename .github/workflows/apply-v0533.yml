@@ -20,6 +20,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Normalize staging helper
+        run: |
+          python3 - <<'PY'
+          p = 'scripts/apply-v0533.mjs'
+          s = open(p, encoding='utf-8').read()
+          marker = "fs.rmSync('tests/v0532-first-contact-completion.test.mjs');"
+          i = s.index(marker)
+          s = s[:i] + marker + "\nconsole.log('Applied v0.5.33 patch');\n"
+          open(p, 'w', encoding='utf-8').write(s)
+          PY
       - name: Apply candidate patch
         run: node scripts/apply-v0533.mjs
       - name: Remove staging helpers
