@@ -13,41 +13,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: work/v0534-focused-fixes
+          ref: main
           fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Extract and apply prepared patch
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          lines = Path('.github/workflows/v0534-candidate.yml').read_text().splitlines()
-          start = next(i for i,l in enumerate(lines) if "python - <<'PY'" in l) + 1
-          end = next(i for i in range(start, len(lines)) if lines[i].strip() == 'PY')
-          body = '\n'.join((line[10:] if line.startswith('          ') else line) for line in lines[start:end]) + '\n'
-          body = body.replace("if actual != count:\n                  raise SystemExit(f'{path}: expected {count} occurrences, found {actual}: {old[:100]!r}')", "if actual < count:\n                  print(f'WARN {path}: expected {count} occurrences, found {actual}: {old[:100]!r}')\n                  return")
-          Path('/tmp/apply_v0534.py').write_text(body)
-          PY
-          python /tmp/apply_v0534.py
-      - name: Install
-        run: npm ci
-      - name: Verify candidate
-        run: |
-          node --test tests/v0534-focused-fixes.test.mjs tests/v0526-pov-target-binding.test.mjs tests/v0529-current-dynamic-source-reuse.test.mjs tests/v0530-first-contact-profile.test.mjs tests/v076-first-pass-completeness.test.mjs
-          npm run validate
-          npm test
-          npm run package
-          npm run measure:scan-prompts | tee scan-measurements.jsonl
-      - name: Remove temporary workflow files from hydrated tree
-        if: always()
-        run: rm -rf .github/workflows/v0534-candidate.yml .github/workflows/v0534-pr-hydrate.yml
-      - name: Package hydrated checkout
-        if: always()
-        run: tar -czf /tmp/npc_state_beta_v0534_candidate.tgz --exclude=.git --exclude=node_modules .
+      - name: Package clean baseline
+        run: tar -czf /tmp/npc_state_beta_main.tgz --exclude=.git .
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: npc-state-v0534-candidate
-          path: /tmp/npc_state_beta_v0534_candidate.tgz
+          name: npc-state-main-baseline
+          path: /tmp/npc_state_beta_main.tgz
           retention-days: 1
