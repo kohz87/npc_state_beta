@@ -13,7 +13,7 @@ test('routine scan requests source-cited semanticUpdates for NEW ordinary dossie
     const prompt = buildScanPrompt({ state, chat, assistantMessageId: 1, playerName: 'Ari' });
 
     assert.match(prompt, /NEW ordinary fields: semanticUpdates with exact sources/i);
-    assert.match(prompt, /NEW\/EXISTING ordinary dossier mutations use semanticUpdates only/i);
+    assert.match(prompt, /NEW\/EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates/i);
     assert.match(prompt, /ordinary NEW\/EXISTING dossier fields apply through semanticUpdates once/i);
     assert.match(prompt, /Never copy facts\/ids/i);
     assert.doesNotMatch(prompt, /NEW ordinary fields are flat;/i);
