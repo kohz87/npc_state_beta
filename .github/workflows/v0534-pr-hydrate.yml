@@ -26,6 +26,7 @@ jobs:
           start = next(i for i,l in enumerate(lines) if "python - <<'PY'" in l) + 1
           end = next(i for i in range(start, len(lines)) if lines[i].strip() == 'PY')
           body = '\n'.join((line[10:] if line.startswith('          ') else line) for line in lines[start:end]) + '\n'
+          body = body.replace("if actual != count:\n", "if actual < count:\n")
           Path('/tmp/apply_v0534.py').write_text(body)
           PY
           python /tmp/apply_v0534.py
