@@ -1,0 +1,733 @@
+name: v0534 candidate
+
+on:
+  push:
+    branches:
+      - work/v0534-focused-fixes
+    paths:
+      - .github/workflows/v0534-candidate.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build-candidate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/v0534-focused-fixes
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Trace affected references
+        run: |
+          printf '%s\n' '--- scan-application bootstrap/source helpers ---'
+          grep -nE 'applyIdentityAndBootstrapPatch|bootstrapBirthdayGrounded|recordBootstrapDiagnostics|dossierField(Group|ValueIssue)|normalizeActualAge|normalizeApparentAge|normalizeAppearanceForms|normalizeBirthday|normalizeCurrentStatus|normalizeMemoryEntries' src/scan-application.js || true
+          printf '%s\n' '--- model role/bootstrap compatibility ---'
+          grep -R -nE '_modelLedRole|restoreNewNpcModelLedRole|prepareModelLedPayload' src tests || true
+          printf '%s\n' '--- relationship target binding ---'
+          grep -R -nE 'worldStateCanonicalEnrichmentAccepted|relationshipSummaryTargetBinding' src tests || true
+      - name: Apply focused patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          def read(path):
+              return Path(path).read_text()
+
+          def write(path, text):
+              Path(path).write_text(text)
+
+          def replace(path, old, new, count=1):
+              text = read(path)
+              actual = text.count(old)
+              if actual != count:
+                  raise SystemExit(f'{path}: expected {count} occurrences, found {actual}: {old[:100]!r}')
+              write(path, text.replace(old, new, count))
+
+          def sub(path, pattern, replacement, count=1, flags=re.S):
+              text = read(path)
+              text2, n = re.subn(pattern, replacement, text, count=count, flags=flags)
+              if n != count:
+                  raise SystemExit(f'{path}: expected regex count {count}, found {n}: {pattern[:120]!r}')
+              write(path, text2)
+
+          # 1. Current Dynamic: one canonical accepted identity/activity bridge.
+          relationship_fn = r'''function relationshipSummaryContextualTargetBound\(npc, excerpts, excerptMatches, options = \{\}\) \{.*?\n\}\n\nfunction relationshipSummaryEvidenceGrounded'''
+          relationship_repl = r'''function relationshipSummaryContextualTargetBound(npc, excerpts, excerptMatches, options = {}) {
+              const binding = options.relationshipSummaryTargetBinding;
+              if (!binding || typeof binding !== 'object' || Array.isArray(binding)) return false;
+              if (String(binding.npcId || '') !== String(npc?.id || '')) return false;
+              if (binding.identityAccepted !== true || binding.identityEvidenceAccepted !== true
+                  || binding.exchangeActiveAccepted !== true || binding.activityEvidenceAccepted !== true) return false;
+
+              const subjectNames = [npc?.name, ...(Array.isArray(npc?.aliases) ? npc.aliases : [])].map(value => String(value || '').trim()).filter(Boolean);
+              const playerName = String(options.playerName || '').trim();
+              const otherNpcNames = (Array.isArray(options.otherNpcNames) ? options.otherNpcNames : []).map(value => String(value || '').trim()).filter(Boolean);
+              if (!subjectNames.length || !playerName) return false;
+
+              const acceptedActivityExcerpts = Array.isArray(binding.activityEvidenceExcerpts) ? binding.activityEvidenceExcerpts : [];
+              const acceptedIdentityExcerpts = Array.isArray(binding.identityEvidenceExcerpts) ? binding.identityEvidenceExcerpts : [];
+              const sources = relationshipEvidenceSourcesForOptions(options);
+              const activityBindings = verifiedTransientEvidenceBindings(binding.activityEvidenceBindings, acceptedActivityExcerpts, sources);
+              const identityBindings = verifiedTransientEvidenceBindings(binding.identityEvidenceBindings, acceptedIdentityExcerpts, sources);
+              if (!activityBindings.length || !identityBindings.length) return false;
+
+              const activitySources = new Set(activityBindings.filter(row => row.kind === 'visible').map(row => row.sourceId));
+              const identitySources = new Set(identityBindings.filter(row => row.kind === 'visible').map(row => row.sourceId));
+              const boundSources = new Set([...activitySources].filter(sourceId => identitySources.has(sourceId)));
+              if (!boundSources.size) return false;
+
+              const playerBoundActivitySources = new Set(activityBindings.filter(row => row.kind === 'visible'
+                  && !identityMentioned(row.excerpt, otherNpcNames, subjectNames)
+                  && playerMentioned(row.excerpt, playerName, [...subjectNames, ...otherNpcNames], {
+                      allowNarratorSecondPerson: row.insideQuotedDialogue !== true,
+                      sourceRole: row.sourceRole || '',
+                  }))
+                  .map(row => row.sourceId));
+
+              const summarySourceSafe = sourceId => excerpts.every((excerpt, index) =>
+                  excerptMatches[index]?.sourceId === sourceId
+                  && !explicitOtherNpcTarget(excerpt, subjectNames, playerName, otherNpcNames, excerptMatches[index])
+                  && !contextualDialogueNarrationAmbiguous(
+                      excerpt,
+                      subjectNames,
+                      playerName,
+                      otherNpcNames,
+                      acceptedActivityExcerpts,
+                      acceptedIdentityExcerpts,
+                      excerptMatches[index]?.sourceRole || '',
+                  ));
+              const summaryReusesAcceptedBinding = sourceId => excerpts.some((excerpt, index) =>
+                  excerptMatches[index]?.sourceId === sourceId
+                  && (summaryExcerptOverlapsAcceptedActivity(excerpt, acceptedActivityExcerpts)
+                      || summaryExcerptOverlapsAcceptedActivity(excerpt, acceptedIdentityExcerpts)));
+
+              // Accepted identity + exchange activity supplies transient participant binding only
+              // inside one exactly matched current source. At least one summary excerpt must reuse
+              // that accepted evidence unless the accepted activity itself directly binds the PC.
+              // This does not grant authority to arbitrary same-message dialogue or another target.
+              return [...boundSources].some(sourceId => summarySourceSafe(sourceId)
+                  && (summaryReusesAcceptedBinding(sourceId) || playerBoundActivitySources.has(sourceId)));
+          }
+
+          function relationshipSummaryEvidenceGrounded'''
+          sub('src/scan-relationships.js', relationship_fn, relationship_repl)
+
+          # 2. Deterministic core: identity only. Ordinary NEW fields no longer have a flat bypass.
+          bootstrap_block = r'''const BIRTHDAY_EVIDENCE_CUES = .*?\nfunction socialEdgeKey'''
+          identity_only = r'''function applyIdentityPatch(npc, patch) {
+              const locked = new Set(npc.manualProfileFields || []);
+              const next = structuredClone(npc);
+              const canonicalName = canonicalPatchName(patch);
+
+              if (!locked.has('name') && canonicalName) {
+                  if (canonicalName !== next.name && next.name && !isTechnicalNpcIdentity(next.name)) {
+                      next.aliases = appendUnique(next.aliases, [next.name], 10);
+                  }
+                  next.name = canonicalName;
+              }
+              if (!locked.has('aliases')) {
+                  const aliases = (Array.isArray(patch?.aliases) ? patch.aliases : [])
+                      .filter(alias => humanIdentityCandidate(alias, patch?.role));
+                  next.aliases = appendUnique(next.aliases, aliases, 10);
+              }
+              return next;
+          }
+
+          function socialEdgeKey'''
+          sub('src/scan-application.js', bootstrap_block, identity_only)
+          replace('src/scan-application.js',
+                  "npc = applyIdentityAndBootstrapPatch(npc, patch, { playerName, dossierLimits, isBootstrap: createdNpcIds.has(npc.id), profileContext: String(options.profileContext || ''), applicationDiagnostics });",
+                  "npc = applyIdentityPatch(npc, patch);")
+          replace('src/scan-application.js',
+                  "                    const canonicalIdentity = canonicalPatchName(patch, []);\n                    const worldStateCanonicalEnrichmentAccepted = Boolean(identityEvidenceAccepted\n                        && canonicalIdentity\n                        && !containsNormalizedPhrase(currentVisibleText, canonicalIdentity)\n                        && worldStateCanonicalIdentityMention(patch, evidencePolicy));\n",
+                  "")
+          replace('src/scan-application.js',
+                  "                        worldStateCanonicalEnrichmentAccepted,\n",
+                  "")
+          replace('src/scan-application.js',
+                  "    if (options.birthdayFill && birthdayFillIds.size) {\n        state.npcs = state.npcs.map(raw => birthdayFillIds.has(raw.id)\n            ? normalizeNpc(applyBirthdayFill(raw, options.birthdayFill))\n            : raw);\n    }",
+                  "    if (options.deferBirthdayFill !== true && options.birthdayFill && birthdayFillIds.size) {\n        state.npcs = state.npcs.map(raw => birthdayFillIds.has(raw.id)\n            ? normalizeNpc(applyBirthdayFill(raw, options.birthdayFill))\n            : raw);\n    }")
+          replace('src/scan-application.js',
+                  "        applicationDiagnostics: applicationDiagnostics.map(row => structuredClone(row)),\n",
+                  "        applicationDiagnostics: applicationDiagnostics.map(row => structuredClone(row)),\n        birthdayFillNpcIds: [...birthdayFillIds],\n")
+          # Remove imports that belonged only to the superseded flat bootstrap path.
+          replace('src/scan-application.js',
+                  "import { DOSSIER_SEMANTIC_FIELDS, dossierFieldGroup, dossierFieldValueIssue, normalizeDossierTextCollection } from './model/dossier-fields.js';\n",
+                  "")
+          replace('src/scan-application.js',
+                  "import { DEFAULT_RELATIONSHIP_CAPS, RELATIONSHIP_AXES, applyBirthdayFill, findNpcByReference, makeNpcId, normalizeActualAge, normalizeApparentAge, normalizeAppearanceForms, normalizeBirthday, normalizeCurrentStatus, normalizeDossierLimits, normalizeFamilySlots, normalizeKeyRelationshipEntries, normalizeMemoryEntries, normalizeName, normalizeNpc, normalizeNpcAdmissionMode, normalizeState } from './schema.js';",
+                  "import { DEFAULT_RELATIONSHIP_CAPS, RELATIONSHIP_AXES, applyBirthdayFill, findNpcByReference, makeNpcId, normalizeDossierLimits, normalizeFamilySlots, normalizeKeyRelationshipEntries, normalizeName, normalizeNpc, normalizeNpcAdmissionMode, normalizeState } from './schema.js';")
+
+          # 3. Boundary adapter no longer grants a special direct NEW-role authority.
+          replace('src/model/legacy-semantic-adapter.js',
+                  "    const admissionMode = String(options.admissionMode || '').trim();\n\n",
+                  "")
+          sub('src/model/legacy-semantic-adapter.js',
+              r'''        const identityKind = String\(patch\?\.identityKind \|\| ''\)\.trim\(\)\.toLocaleLowerCase\(\)\.replace\(/\[_ \]\+/g, '-'\);\n        if \(!existing && admissionMode === 'named_preferred' && \['named', 'proper-name', 'proper'\]\.includes\(identityKind\)\) \{.*?\n        \}\n        if \(!existing\) continue;''',
+              "        if (!existing) continue;")
+
+          # 4. Canonical semantic path now owns NEW and EXISTING ordinary fields.
+          replace('src/model/semantic-updates.js',
+                  "const PROFILE_EVOLUTION_FIELDS = new Set(['personality', 'behaviorProfile', 'speech', 'mannerisms']);\n",
+                  "const PROFILE_EVOLUTION_FIELDS = new Set(['personality', 'behaviorProfile', 'speech', 'mannerisms']);\nconst PROFILE_BASES = new Set(['explicit', 'reinforced', 'development']);\n")
+          replace('src/model/semantic-updates.js',
+                  "export const NPC_STATE_MODEL_CONTRACT_VERSION = 6;",
+                  "export const NPC_STATE_MODEL_CONTRACT_VERSION = 7;")
+          replace('src/model/semantic-updates.js',
+                  "        `Mode: ${mode}. EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates; do not also emit legacy/direct ordinary replacements. Semantic fields: ${dossierSemanticFieldList()}. Operations: ${DOSSIER_SEMANTIC_OPERATIONS.join('|')}.`,",
+                  "        `Mode: ${mode}. NEW and EXISTING dossiers have ONE ordinary mutation channel: semanticUpdates after identity/admission; direct ordinary fields are not mutation authority. Semantic fields: ${dossierSemanticFieldList()}. Operations: ${DOSSIER_SEMANTIC_OPERATIONS.join('|')}.`,")
+          replace('src/model/semantic-updates.js',
+                  "        `Coverage: every exchange-active EXISTING NPC inspects groups [${groups}]; targeted Refresh inspects all supplied groups. Proposed fields use semanticUpdates; otherwise list fieldEvaluations unchanged|insufficient|unavailable. Group labels alone are not field coverage.`,",
+                  "        `Coverage: every exchange-active NEW/EXISTING NPC inspects groups [${groups}]; targeted Refresh inspects all supplied groups. Proposed fields use semanticUpdates; otherwise list fieldEvaluations unchanged|insufficient|unavailable. Group labels alone are not field coverage.`,")
+          replace('src/model/semantic-updates.js',
+                  "        'Update:{field,operation,value?,changes?,clear?,durability?,scope?,ageKind?,sources:[{messageId,excerpt}],explanation?}. Shape notation is explanatory. Omission preserves; remove is explicit; clear:true authorizes an empty collection. Age replacement needs ageKind birthday|elapsed|correction.',",
+                  "        'Update:{field,operation,value?,changes?,clear?,durability?,scope?,ageKind?,profileBasis?,sources:[{messageId,excerpt}],explanation?}. profileBasis applies only to personality|behaviorProfile|speech|mannerisms. Omission preserves; remove is explicit; clear:true authorizes an empty collection. Age replacement needs ageKind birthday|elapsed|correction.',")
+          replace('src/model/semantic-updates.js',
+                  "        'Durable canon/profile needs durable evidence. Temporary sleep, silence, mood, injury, one-off action/pose, or temporary form does not become durable characterization; later grounded characterization may replace an obsolete temporary placeholder.',",
+                  "        'Profile establishment is model-led: profileBasis=explicit when the source directly states a recurring trait/habit, reinforced when one owned source contains reinforcing instances, development only when changing an already established characteristic. One isolated action/pose stays profileObservations. The validator checks source/target/structure, not semantic recurrence or quote counts.',")
+          replace('src/model/semantic-updates.js',
+                  "        'Actual age is chronological: established replacement needs ageKind birthday|elapsed|correction plus evidence for the resulting number; never derive it from apparent age or invented calendar arithmetic. Birthday is passive freeform calendar metadata: preserve fantasy calendars, do not infer it from age, and do not auto-advance age merely because the date passes.',",
+                  "        'Source authority is field-scoped. Split independently sourced facts into separate semanticUpdates; one disallowed source rejects only that proposal and never broadens structured authority. Actual age is chronological: established replacement needs ageKind birthday|elapsed|correction plus evidence for the resulting number; never derive it from apparent age or invented calendar arithmetic. Birthday is passive freeform calendar metadata.',")
+          replace('src/model/semantic-updates.js',
+                  "function profileEvolutionMode(update) {\n    if (Array.isArray(update?.changes) && update.changes.length > 1) return 'batch';",
+                  "function profileEvolutionMode(update) {\n    if (PROFILE_BASES.has(String(update?.profileBasis || '').trim())) return String(update.profileBasis).trim();\n    if (Array.isArray(update?.changes) && update.changes.length > 1) return 'batch';")
+          replace('src/model/semantic-updates.js',
+                  "function semanticValueShapeIssue(update) {\n    const field = update?.field;\n    if (!field) return 'unsupported-field';",
+                  "function semanticValueShapeIssue(update) {\n    const field = update?.field;\n    if (!field) return 'unsupported-field';\n    if (update.profileBasis !== undefined) {\n        const basis = String(update.profileBasis || '').trim().toLocaleLowerCase();\n        if (!PROFILE_EVOLUTION_FIELDS.has(field)) return 'profileBasis-unsupported-field';\n        if (!PROFILE_BASES.has(basis)) return 'profileBasis-invalid';\n    }")
+          replace('src/model/semantic-updates.js',
+                  "        durability: String(raw.durability || '').trim().toLocaleLowerCase(),\n",
+                  "        durability: String(raw.durability || '').trim().toLocaleLowerCase(),\n        ...(raw.profileBasis !== undefined ? { profileBasis: String(raw.profileBasis || '').trim().toLocaleLowerCase() } : {}),\n")
+          replace('src/model/semantic-updates.js',
+                  "        durability: String(raw.durability || '').trim().toLocaleLowerCase(),\n        sources: sourceRows(raw).map(row => ({ messageId: row.messageId ?? null, excerpt: evidenceKey(row.excerpt, 900) })),",
+                  "        durability: String(raw.durability || '').trim().toLocaleLowerCase(),\n        profileBasis: String(raw.profileBasis || '').trim().toLocaleLowerCase(),\n        sources: sourceRows(raw).map(row => ({ messageId: row.messageId ?? null, excerpt: evidenceKey(row.excerpt, 900) })),")
+          # NEW deterministic copy gets identity only, regardless of whether a semantic proposal exists.
+          sub('src/model/semantic-updates.js',
+              r'''export function prepareModelLedPayload\(stateInput, resultInput, admissionMode = 'balanced'\) \{.*?\n\}\n\nfunction patchResolutionAt''',
+              r'''export function prepareModelLedPayload(stateInput, resultInput) {
+              if (!resultInput || typeof resultInput !== 'object' || Array.isArray(resultInput)) return resultInput;
+              const result = structuredClone(resultInput);
+              const state = stateInput || {};
+              for (const patch of Array.isArray(result.npcs) ? result.npcs : []) {
+                  const byId = String(patch.id || '').trim() ? (state.npcs || []).find(npc => npc.id === String(patch.id).trim()) : null;
+                  const existing = byId || findNpcByReference(state, patch.name || '');
+                  // Identity/admission is focused deterministic state. Ordinary NEW values are
+                  // applied later from the original result through the same semantic validator
+                  // used for existing dossiers, so flat compatibility values cannot bypass it.
+                  for (const field of DOSSIER_SEMANTIC_FIELDS) delete patch[field];
+                  delete patch._modelLedRole;
+                  if (!existing) continue;
+                  delete patch.profileChanges;
+                  delete patch.canonChanges;
+                  delete patch.ageChange;
+                  delete patch.ageProgression;
+                  delete patch.appearanceFormChanges;
+                  delete patch.keyRelationshipChanges;
+              }
+              return result;
+          }
+
+          function patchResolutionAt''')
+          # Remove superseded special NEW-role restorer.
+          sub('src/model/semantic-updates.js',
+              r'''function restoreNewNpcModelLedRole\(state, originalResult, options = \{\}, diagnostics = \[\]\) \{.*?\n\}\n\nfunction identityValue''',
+              "function identityValue")
+          replace('src/model/semantic-updates.js',
+                  "    restoreNewNpcModelLedRole(state, resultInput, options, diagnostics);\n\n",
+                  "")
+          # Only semanticUpdates count as ordinary field proposals/coverage.
+          sub('src/model/semantic-updates.js',
+              r'''function proposedFieldsForPatch\(patch = \{\}\) \{.*?\n\}\n\nconst FIELD_EVALUATION_STATES''',
+              r'''function proposedFieldsForPatch(patch = {}) {
+              const fields = [];
+              for (const update of Array.isArray(patch?.semanticUpdates) ? patch.semanticUpdates : []) {
+                  const field = String(update?.field || '').trim();
+                  if (FIELD_SET.has(field) && !fields.includes(field) && fields.length < 32) fields.push(field);
+              }
+              return fields;
+          }
+
+          const FIELD_EVALUATION_STATES''')
+          # Basis requirement is structural/provenance policy only; no recurrence regex/counting.
+          insert_after = "function normalizeCollection(field, values, limits, playerName = '') {\n    if (field === 'keyRelationships') {\n        return normalizeKeyRelationshipEntries(values, limits.keyRelationships, 500)\n            .filter(value => !playerReference(value, playerName));\n    }\n    if (field === 'memories') return normalizeMemoryEntries(values, limits.memories, 700);\n    const cap = field === 'behaviorProfile' ? limits.behaviorProfile : limits.mannerisms;\n    return normalizeDossierTextCollection(field, values, cap, 700);\n}\n"
+          basis_helper = insert_after + "\nfunction profileEstablishmentBasisIssue(npc, update, limits, playerName = '') {\n    if (!PROFILE_EVOLUTION_FIELDS.has(update.field) || update.operation === 'remove') return '';\n    const established = SCALAR_FIELDS.has(update.field)\n        ? Boolean(normalizedScalar(update.field, npc?.[update.field]))\n        : (COLLECTION_FIELDS.has(update.field) ? collectionValues(npc, update.field, limits, playerName).length > 0 : true);\n    if (established) return '';\n    const basis = String(update.profileBasis || '').trim().toLocaleLowerCase();\n    if (!basis) return 'missing-profile-establishment-basis';\n    if (basis === 'development') return 'profile-development-requires-established-characteristic';\n    return '';\n}\n"
+          replace('src/model/semantic-updates.js', insert_after, basis_helper)
+          replace('src/model/semantic-updates.js',
+                  "            const provenance = sourceValidation(update, options);\n            if (!provenance.ok) {\n                diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, group: dossierFieldGroup(update.field), status: 'invalid-source-reference', reason: provenance.reason });\n                continue;\n            }\n            let result;",
+                  "            const provenance = sourceValidation(update, options);\n            if (!provenance.ok) {\n                diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, group: dossierFieldGroup(update.field), status: 'invalid-source-reference', reason: provenance.reason });\n                continue;\n            }\n            const profileBasisIssue = profileEstablishmentBasisIssue(npc, update, limits, options.playerName);\n            if (profileBasisIssue) {\n                diagnostics.push({ npcId: npc.id, field: update.field, operation: update.operation, group: dossierFieldGroup(update.field), status: 'rejected-proposal', reason: profileBasisIssue });\n                continue;\n            }\n            let result;")
+          # Explicitly diagnose ignored direct NEW ordinary proposals.
+          replace('src/model/semantic-updates.js',
+                  "    const limits = normalizeDossierLimits(options.dossierLimits);\n\n    const patches = Array.isArray(resultInput?.npcs) ? resultInput.npcs : [];",
+                  "    const limits = normalizeDossierLimits(options.dossierLimits);\n    const newlyAdmittedNpcIds = new Set(Array.isArray(options.newlyAdmittedNpcIds) ? options.newlyAdmittedNpcIds : []);\n\n    const patches = Array.isArray(resultInput?.npcs) ? resultInput.npcs : [];")
+          replace('src/model/semantic-updates.js',
+                  "        const ordinaryProposalFields = proposedFieldsForPatch(patch);\n        const semanticRows = Array.isArray(patch.semanticUpdates) ? patch.semanticUpdates : [];",
+                  "        const ordinaryProposalFields = proposedFieldsForPatch(patch);\n        const semanticRows = Array.isArray(patch.semanticUpdates) ? patch.semanticUpdates : [];\n        if (newlyAdmittedNpcIds.has(npc.id)) {\n            const semanticFields = new Set(semanticRows.map(row => String(row?.field || '').trim()));\n            for (const field of DOSSIER_SEMANTIC_FIELDS) {\n                if (!directFieldProposed(patch, field) || semanticFields.has(field)) continue;\n                diagnostics.push({ npcId: npc.id, patchIndex, field, group: dossierFieldGroup(field), channel: 'direct-field', status: 'rejected-proposal', reason: 'semantic-source-evidence-required' });\n            }\n        }")
+
+          # 5. Schema retains richer basis provenance in the existing bounded evidence store.
+          replace('src/schema.js',
+                  "    const allowedModes = new Set(['refine', 'gradual', 'explicit', 'batch']);",
+                  "    const allowedModes = new Set(['refine', 'gradual', 'explicit', 'reinforced', 'development', 'batch']);")
+
+          # 6. Scanner coordinates NEW semantic ownership and explicit birthday precedence.
+          replace('src/scanner.js',
+                  "import { findNpcByReference, normalizeNpcAdmissionMode, normalizeRelationshipSummary } from './schema.js';",
+                  "import { applyBirthdayFill, findNpcByReference, normalizeNpc, normalizeNpcAdmissionMode, normalizeRelationshipSummary } from './schema.js';")
+          replace('src/scanner.js',
+                  "    const adapted = adaptLegacySemanticPayload(stateInput, focused.result, { ...semanticOptions, compatibilityDiagnostics });\n    const prepared = prepareModelLedPayload(stateInput, adapted, options.admissionMode);\n    const applied = core.applyScanResult(stateInput, prepared, options);",
+                  "    const adapted = adaptLegacySemanticPayload(stateInput, focused.result, { ...semanticOptions, compatibilityDiagnostics });\n    const prepared = prepareModelLedPayload(stateInput, adapted);\n    const preexistingNpcIds = new Set((stateInput?.npcs || []).map(npc => npc.id));\n    const applied = core.applyScanResult(stateInput, prepared, { ...options, deferBirthdayFill: true });\n    const newlyAdmittedNpcIds = applied.patchResolutions\n        .filter(row => row?.status === 'accepted' && row.npcId && !preexistingNpcIds.has(row.npcId))\n        .map(row => row.npcId);")
+          replace('src/scanner.js',
+                  "    const semantic = applyModelLedSemanticUpdates(observations.state, adapted, {\n        ...semanticOptions,\n        patchResolutions: applied.patchResolutions,\n    });\n    const family = applyModelLedFamilyFacts(semantic.state, adapted, options);",
+                  "    const semantic = applyModelLedSemanticUpdates(observations.state, adapted, {\n        ...semanticOptions,\n        patchResolutions: applied.patchResolutions,\n        newlyAdmittedNpcIds,\n    });\n    const family = applyModelLedFamilyFacts(semantic.state, adapted, options);\n    if (options.birthdayFill && Array.isArray(applied.birthdayFillNpcIds)) {\n        const birthdayFillIds = new Set(applied.birthdayFillNpcIds);\n        family.state.npcs = family.state.npcs.map(raw => birthdayFillIds.has(raw.id)\n            ? normalizeNpc(applyBirthdayFill(raw, options.birthdayFill))\n            : raw);\n    }")
+
+          # 7. Compact model instructions: one semantic path, model-led basis, no duplicate rule stack.
+          replace('src/scan-helpers.js',
+                  "    if (includeNew) modes.push('NEW: capture supported facts only; unknown is valid');",
+                  "    if (includeNew) modes.push('NEW: establish supported ordinary facts through semanticUpdates; unknown is valid');")
+          replace('src/scan-helpers.js',
+                  "        'FIRST-PASS SUFFICIENCY: One scene can contain multiple distinct observations supporting a narrow initial field; repeated encounters are not required. It remains ONE owned source for later development, not multiple independent events.',\n        'BEHAVIOR PROFILE EVIDENCE: personality may be established narrowly from multiple reinforcing choices/reactions. behaviorProfile needs explicit recurrence/generalization or multiple reinforcing actions. Multiple related instances may consolidate into one narrow mannerism; one isolated gesture, mood, pose, line, or object action must not be rewritten as a habitual behavior and stays observation evidence.',",
+                  "        'FIRST-PASS PROFILE: One source may establish a narrow characteristic when it explicitly states recurrence/trait meaning or contains reinforcing instances; use semanticUpdates with profileBasis explicit|reinforced. One isolated gesture, pose, line, mood, or object action stays profileObservations. Quote/message counts never decide recurrence.',")
+          replace('src/scan-helpers.js',
+                  "        'PROFILE DEVELOPMENT: refine compatible detail. Lasting change needs explicit sustained development or independent observations plus new support; elapsed time or temporary mood/sleep/injury/stress/silence is insufficient. Player-specific attitude belongs in Current Dynamic.',",
+                  "        'PROFILE DEVELOPMENT: use profileBasis=development only for an established characteristic with grounded lasting change; independent observations still need new support. Elapsed time or temporary mood/sleep/injury/stress/silence is insufficient. Player-specific attitude belongs in Current Dynamic.',")
+
+          replace('src/scan-prompts.js',
+                  "        'Important Memories are distinct durable events/facts; refine richer evidence of the same event instead of appending paraphrases. keyRelationships contains significant NON-PLAYER ties from this NPC perspective; familyFacts/socialEdges complement it. NEW NPCs may bootstrap concise grounded arrays within limits.',",
+                  "        'Important Memories are distinct durable events/facts; refine richer evidence of the same event instead of appending paraphrases. keyRelationships contains significant NON-PLAYER ties from this NPC perspective; familyFacts/socialEdges complement it. NEW and EXISTING arrays use semanticUpdates within these limits.',")
+          replace('src/scan-prompts.js',
+                  "        '- Cover every individually relevant NPC, including multiple new/existing characters. Every exchange-active EXISTING NPC needs an npcs patch for explicit relationship/field evaluation; named-only mentions, crowds, background workers, and incidental characters do not become new dossiers.',",
+                  "        '- Cover every individually relevant NPC, including multiple new/existing characters. Every exchange-active NPC needs an npcs patch for explicit relationship/field evaluation; named-only mentions, crowds, background workers, and incidental characters do not become new dossiers.',")
+          replace('src/scan-prompts.js',
+                  "        '- EXISTING ordinary canon/profile/live/memory/NPC-tie/age/form changes use semanticUpdates below. Identity/admission, player relationship, lifecycle/activity, and family/social graph remain their focused channels.',",
+                  "        '- NEW and EXISTING ordinary canon/profile/live/memory/NPC-tie/age/form values use semanticUpdates below after identity/admission. Player relationship, lifecycle/activity, and family/social graph remain their focused channels.',")
+          replace('src/scan-prompts.js',
+                  "        'PIPELINE: ordinary EXISTING-dossier fields apply through semanticUpdates once; identity/admission, player relationship, lifecycle/activity, and graph safety remain separate focused channels.',",
+                  "        'PIPELINE: ordinary NEW/EXISTING dossier fields apply through semanticUpdates once after identity/admission; player relationship, lifecycle/activity, and graph safety remain separate focused channels.',")
+
+          # 8. Scanner contract example now exercises NEW through semanticUpdates.
+          replace('src/scan-contract.js',
+                  "        compact ? 'NEW ordinary fields are flat; []=string arrays; appearanceForms:[{name,appearance}].' : 'NEW: flat strings; map [] means string arrays; appearanceForms:[{name,appearance}].',",
+                  "        compact ? 'NEW/EXISTING ordinary fields use semanticUpdates; direct flat ordinary values are not mutation authority.' : 'NEW/EXISTING ordinary fields use semanticUpdates after identity/admission; direct flat ordinary values are compatibility input only and do not mutate.',")
+          old_nia = """            role: 'Harbor clerk', background: 'Clerk of the South Quay Registry.', apparentAge: '~20-29', appearance: 'Blue coat.',
+            personality: 'Practical and methodical in registry work.', behaviorProfile: ['Guides applicants through forms and checks their entries.'],
+            speech: 'Brief practical instructions.', status: 'Processing Ari’s registry form.',
+            relationshipChange: zero(), relationshipSummary: 'Professional clerk-applicant interaction.', relationshipSummaryEvidence: evidence,
+        };
+        const proposed = new Set(Object.keys(nia));"""
+          new_nia = """            semanticUpdates: [
+                { field: 'role', operation: 'establish', value: 'Harbor clerk', durability: 'durable', sources: [{ messageId: null, excerpt }], explanation: 'Current visible introduction establishes her role.' },
+                { field: 'background', operation: 'establish', value: 'Clerk of the South Quay Registry.', durability: 'durable', sources: [{ messageId: null, excerpt }], explanation: 'Current visible introduction establishes her workplace affiliation.' },
+                { field: 'apparentAge', operation: 'establish', value: '~20-29', durability: 'durable', sources: [{ messageId: null, excerpt }], explanation: 'Current visible life-stage wording supports an apparent-age band.' },
+                { field: 'appearance', operation: 'establish', value: 'Blue coat.', durability: 'durable', sources: [{ messageId: null, excerpt }], explanation: 'Current visible narration establishes the coat.' },
+                { field: 'behaviorProfile', operation: 'establish', value: ['Guides applicants through forms and checks their entries.'], durability: 'durable', profileBasis: 'reinforced', sources: [{ messageId: null, excerpt }], explanation: 'Several connected intake actions support a narrow work pattern.' },
+                { field: 'status', operation: 'establish', value: 'Processing Ari’s registry form.', sources: [{ messageId: null, excerpt }], explanation: 'Current activity.' },
+            ],
+            relationshipChange: zero(), relationshipSummary: 'Professional clerk-applicant interaction.', relationshipSummaryEvidence: evidence,
+        };
+        const proposed = new Set(nia.semanticUpdates.map(update => update.field));"""
+          replace('src/scan-contract.js', old_nia, new_nia)
+          replace('src/scan-contract.js',
+                  "            ? 'VALID FICTIONAL EXAMPLE: populated NEW live/profile + zero-delta Current Dynamic + insufficient fields. Never copy facts/ids.\\n'",
+                  "            ? 'VALID FICTIONAL EXAMPLE: populated NEW semantic facts + zero-delta Current Dynamic + insufficient fields. Never copy facts/ids.\\n'")
+
+          # 9. Release/docs.
+          replace('manifest.json', '"version": "0.5.33"', '"version": "0.5.34"')
+          replace('DEVELOPMENT.md', '- Extension release: `0.5.33`', '- Extension release: `0.5.34`')
+          replace('DEVELOPMENT.md', '- Model semantic update contract: `6`', '- Model semantic update contract: `7`')
+          replace('README.md', '## Release 0.5.33', '## Release 0.5.34')
+          readme = read('README.md')
+          marker = '## Release 0.5.34\n\n'
+          release_note = ("0.5.34 unifies new- and existing-NPC ordinary field authority through `semanticUpdates`, so structured blocks cannot bypass field-scoped source rules during first admission. Durable profile establishment now carries a compact model-led `profileBasis` (`explicit`, `reinforced`, or later `development`) while isolated actions remain bounded observations; deterministic code validates provenance and structure rather than deciding whether prose is habitual. Current Dynamic validation now reuses accepted current identity/activity bindings without requiring every summary quotation to repeat both participant names, while retaining exact-source, wrong-addressee, ambiguity, and numeric-evidence safeguards. Generated birthday fill remains separate metadata and runs after grounded semantic updates so explicit birthdays retain precedence.\n\n")
+          if marker not in readme:
+              raise SystemExit('README release marker missing after bump')
+          readme = readme.replace(marker, marker + release_note, 1)
+          write('README.md', readme)
+          replace('README.md',
+                  'New-NPC bootstrap, existing semantic updates, manual/import boundaries, and persisted normalization share field-aware value rules. Malformed nested collection members, form selectors, scalar objects, and coercive manual numeric values are rejected before lossy normalization rather than becoming strings such as `[object Object]`.',
+                  'New and existing ordinary dossier proposals share the same semantic-update/source validator after identity/admission. Direct flat NEW ordinary values are non-authoritative compatibility input and do not count as coverage; generated birthday fill remains separate metadata. Malformed nested collection members, form selectors, scalar objects, and coercive manual numeric values are rejected before lossy normalization rather than becoming strings such as `[object Object]`.')
+          replace('README.md',
+                  'Existing dossiers evolve through the single `semanticUpdates` channel (`establish`, `refine`, `replace`, `remove`). The model judges narrative meaning; deterministic code validates source ownership, target identity, durability, manual locks, collection/form targeting, and permitted fields.',
+                  'New and existing dossiers use the single `semanticUpdates` channel (`establish`, `refine`, `replace`, `remove`) for ordinary fields after identity/admission. The model judges narrative meaning; deterministic code validates source ownership, target identity, durability, manual locks, collection/form targeting, and permitted fields. First establishment of personality, behavioral profile, speech, or mannerisms supplies `profileBasis=explicit|reinforced`; later lasting development may use `development`. This metadata records the model judgment and is not deterministic proof of recurrence.')
+
+          changelog = read('CHANGELOG.md')
+          changelog_entry = """## 0.5.34
+
+- Unify NEW and EXISTING ordinary dossier mutation through `semanticUpdates` after deterministic identity/admission. Retire the flat NEW bootstrap mutation path and its special NEW-role restorer; direct flat ordinary values remain non-authoritative compatibility input and do not count as field coverage. Field-scoped visible/World_State/Inner_Chatter authority therefore applies equally on first admission and later updates.
+- Generalize zero-delta Current Dynamic target binding to reuse exact accepted current identity/activity evidence for ordinary named admissions, not only World_State name enrichment. The bridge remains one-source, exact-match, wrong-addressee/ambiguous-target safe, and separate from numeric relationship evidence.
+- Add compact model-led `profileBasis` metadata for durable profile establishment/development. `explicit` permits directly stated recurrence/trait meaning, `reinforced` permits model-judged reinforcing instances in one owned source, and `development` applies only after a characteristic already exists. Deterministic code validates source/target/structure but does not count quotations or infer habits; isolated evidence stays in the existing bounded observation store.
+- Defer passive birthday generation until after semantic application so grounded explicit birthdays win without changing generated birthday provenance or actual/apparent-age separation. Preserve the optional first-contact follow-up modes, Off default, shared two-request budget, scoped coverage, diagnostics, manual missing-details recheck, rollback/recovery ownership, and persisted schema version 1.
+- Add focused Linnea-shaped relationship, profile-observation, source-authority parity, explicit-birthday, and negative target-binding regressions. Repository tests remain controlled simulations and do not prove live-provider semantic compliance.
+
+"""
+          if '## 0.5.33' not in changelog:
+              raise SystemExit('CHANGELOG baseline marker missing')
+          write('CHANGELOG.md', changelog.replace('## 0.5.33\n\n', changelog_entry + '## 0.5.33\n\n', 1))
+
+          core = read('docs/core-contract.md')
+          core = core.replace(
+              'New-dossier bootstrap fields are flat and should include every supported current-exchange fact actually evidenced. Existing, including name-only, dossiers retain supplied stable IDs and update through `semanticUpdates`. Unsupported age, backstory, habits, relationships, memories, or other facts remain unknown.',
+              'After identity/admission, NEW and EXISTING ordinary dossier fields mutate only through `semanticUpdates` and the shared field/source validator. NEW patches use `establish` for grounded initial values. Direct flat ordinary values may be parsed as compatibility input but are not mutation authority and do not count as field coverage. Unsupported age, backstory, habits, relationships, memories, or other facts remain unknown.')
+          core = core.replace(
+              'When the accepted visible identity was canonically enriched by current World_State, that accepted visible identity may also supply the NPC side without forcing the summary to repeat the visible anchor or structured-only proper name. Reuse is transient, same-operation, one-permitted-source, and limited to identity/activity evidence unambiguously owned by that accepted NPC patch; each supplied summary quotation still validates against permitted source text. Other identity paths retain their existing summary-linked target checks.',
+              'Accepted current identity and exchange-activity evidence may supply participant binding without forcing every summary quotation to repeat the NPC name or player pronoun, including when World_State only enriched the canonical name of an already visible individual. Reuse is transient, same-operation, one-permitted-source, and limited to exact identity/activity evidence unambiguously owned by that accepted NPC patch; each supplied summary quotation still validates against permitted source text, and at least one quoted part must reuse accepted binding evidence unless the accepted activity itself directly binds the player. Presence or exchange-active status alone never grants authority to unrelated same-message dialogue.')
+          core = core.replace(
+              'New- and existing-NPC patches may include bounded `profileObservations:[{field,observation,concept?,sources:[{messageId,excerpt}],explanation?}]` for personality, behavioral profile, speech, or mannerisms. The observation container is an array at the structural parser boundary. An observation is source-owned evidence only: it may persist without an ordinary field mutation and cannot directly change dossier fields, relationship state, presence, or lifecycle.',
+              'New- and existing-NPC patches may include bounded `profileObservations:[{field,observation,concept?,sources:[{messageId,excerpt}],explanation?}]` for personality, behavioral profile, speech, or mannerisms. The observation container is an array at the structural parser boundary. An observation is source-owned evidence only: it may persist without an ordinary field mutation and cannot directly change dossier fields, relationship state, presence, or lifecycle. A semantic update that first establishes one of those durable profile fields supplies model-led `profileBasis=explicit|reinforced`; later lasting change may use `development` only after the characteristic exists. This basis is a semantic classification, not deterministic proof that recurrence occurred: the backend validates source ownership, target, structure, locks, and duplicate support without keyword rules or quote/message thresholds.')
+          core = core.replace(
+              '4. apply focused deterministic identity, relationship, lifecycle/presence, and graph mechanics;\n5. validate and retain bounded profile observations through the same accepted patch identity/source authority;\n6. apply ordinary `semanticUpdates` through the field registry;\n7. reconcile model-led family facts where permitted;\n8. report semantic and coverage diagnostics.',
+              '4. apply focused deterministic identity, relationship, lifecycle/presence, and graph mechanics;\n5. validate and retain bounded profile observations through the same accepted patch identity/source authority;\n6. apply NEW/EXISTING ordinary `semanticUpdates` through the field registry;\n7. reconcile model-led family facts where permitted, then apply passive generated-birthday fill only where no grounded birthday was established;\n8. report semantic and coverage diagnostics.')
+          core = core.replace(
+              '`unchanged` is recorded only by an authoritative validator or explicit field outcome. Legacy evaluatedGroups are group-level compatibility metadata only. Modern field outcomes report unchanged, insufficient, unavailable, and unaccounted field ids separately. Direct bootstrap, semantic, relationship-summary, identity, validation, and coverage outcomes are merged without double-counting one effective update.',
+              '`unchanged` is recorded only by an authoritative validator or explicit field outcome. Legacy evaluatedGroups are group-level compatibility metadata only. Modern field outcomes report unchanged, insufficient, unavailable, and unaccounted field ids separately. Semantic, relationship-summary, identity, validation, and coverage outcomes are merged without double-counting one effective update; rejected direct NEW compatibility values remain visible diagnostics rather than a second mutation path.')
+          write('docs/core-contract.md', core)
+
+          agents = """# Repository agent guidance
+
+Work in this repository follows [`DEVELOPMENT.md`](DEVELOPMENT.md) and the authoritative runtime contract in [`docs/core-contract.md`](docs/core-contract.md). Read both before changing extension behavior; do not duplicate their rules here.
+
+## Before editing
+
+- Inspect current remote HEAD and any working-tree changes; preserve unrelated work.
+- Check for nested `AGENTS.md` instructions in the paths you will touch.
+- Read the core contract before changing scanner, evidence, validation, persistence, rollback, recovery, or UI behavior.
+
+## Implementation
+
+- Reuse the existing scanner, evidence, validation, diagnostics, and persistence paths instead of creating parallel authorities.
+- Keep semantic interpretation model-led; keep source ownership, target binding, structural validation, locks, replay safety, and commit ownership deterministic.
+- Preserve chat/message/swipe identity, rollback and recovery boundaries, manual corrections, explicit locks, and deletion/suppression behavior.
+- Keep changes lean. Remove superseded implementations and references only after tracing callers, exports, persisted readers, UI hooks, and tests.
+- Preserve functional tombstones and compatibility readers that prevent resurrection, duplicate replay, stale writes, rollback loss, or saved-data breakage.
+- Do not move retired implementations into legacy folders or leave new no-op mutation paths.
+- Never modify, reset, rebuild, or migrate a user's actual NPC State database without explicit instruction.
+
+## Verification and release
+
+- Follow the existing test, validation, packaging, prompt-measurement, and versioning conventions in `DEVELOPMENT.md`.
+- Prefer behavioral regressions through production application/engine paths over prompt-string assertions alone.
+- Treat controlled model fixtures as deterministic application tests, not proof of live-provider compliance.
+- Before publishing, recheck current remote `main` and preserve concurrent work.
+- Commit, push, or release only when the active user task explicitly authorizes it.
+- Report material behavior changes, verification results, cleanup performed, request/prompt impact, and remaining limitations.
+"""
+          write('AGENTS.md', agents)
+
+          # 10. Focused behavioral regressions.
+          test_file = r'''import test from 'node:test';
+          import assert from 'node:assert/strict';
+
+          import { buildExchangeEvidencePolicy, profileEvidenceText, relationshipEvidenceText } from '../src/evidence-adapter.js';
+          import { applyScanResult } from '../src/scanner.js';
+          import { createEmptyState, normalizeNpc } from '../src/schema.js';
+
+          const PLAYER = 'Lucien Noctis';
+          const ZERO = Object.freeze({
+              evaluated: true,
+              impact: 'none',
+              delta: { trust: 0, affection: 0, desire: 0, tension: 0 },
+              axisEvidence: {},
+              reason: 'Routine professional interaction without numeric movement.',
+          });
+          const IDENTITY = 'Linnea Rost did not look up from her ledger to inspect the conjured rod. A woman with dark hair fastened tightly behind her ears by a bone bodkin, she wore the grey woolen vest and rolled linen sleeves of a frontier clerk who had processed fifty frostbitten vagrants before noon.';
+          const PEN = '\"Right hand, take the pen. Third line from the bottom. Don\'t let the nib drip on the sheepskin.\"';
+          const TAP = 'Linnea tapped a blunt fingernail against the coarse woodblock print of the boar on the parchment.';
+          const SUPPLY = '\"The provisional token grants access to the supply shed, the water butt out back, space in the common straw for eight Gold a week.\"';
+
+          function safeState(key) {
+              const state = createEmptyState(key);
+              state.branchSafety = { status: 'safe' };
+              return state;
+          }
+
+          function exchange(assistant, user = 'I approach the registry counter and wait for the clerk.') {
+              return {
+                  user: { id: 0, is_user: true, name: PLAYER, mes: user },
+                  assistant: { id: 1, is_user: false, name: 'Narrator', mes: assistant, swipe_id: 0 },
+              };
+          }
+
+          function options(ex) {
+              const visible = [profileEvidenceText(ex.user.mes), profileEvidenceText(ex.assistant.mes)].filter(Boolean).join('\n');
+              const relationship = [relationshipEvidenceText(ex.user.mes), relationshipEvidenceText(ex.assistant.mes)].filter(Boolean).join('\n');
+              return {
+                  sourceMessageId: 1,
+                  turn: 1,
+                  playerName: PLAYER,
+                  relationshipContext: relationship,
+                  profileContext: visible,
+                  semanticEvidenceContext: visible,
+                  evidencePolicy: buildExchangeEvidencePolicy(ex),
+                  currentAdmissionText: visible,
+                  applyReturnedNpcPatches: true,
+                  applyRelationship: true,
+                  preservePresence: true,
+                  preserveObservation: true,
+                  requireDossierCoverage: false,
+              };
+          }
+
+          function basePatch(extra = {}) {
+              return {
+                  id: '',
+                  name: 'Linnea Rost',
+                  identityKind: 'named',
+                  identityEvidence: { anchor: 'Linnea Rost', excerpts: [IDENTITY], explanation: 'Visible narration identifies Linnea.' },
+                  activityEvidence: {
+                      exchangeActive: { excerpts: [PEN, TAP], explanation: 'Linnea handles Lucien’s intake and bounty briefing.' },
+                      inChat: { excerpts: [TAP], explanation: 'Linnea remains at the counter.' },
+                  },
+                  relationshipChange: structuredClone(ZERO),
+                  ...extra,
+              };
+          }
+
+          function payload(patch) {
+              return {
+                  exchangeActiveNpcIds: ['Linnea Rost'],
+                  inChatNpcIds: ['Linnea Rost'],
+                  worldActiveNpcIds: [],
+                  npcs: [patch], socialEdges: [], familyFacts: [], lifeStateUpdates: [], candidateAccounting: {},
+              };
+          }
+
+          test('Linnea original exact summary evidence persists through the real application path at zero movement', () => {
+              const ex = exchange([IDENTITY, PEN, TAP, SUPPLY].join('\n\n'));
+              const summary = 'Strictly transactional frontier clerk processing Lucien\'s intake and offering him an urgent local hunting bounty.';
+              const result = applyScanResult(safeState('chat:v0534-linnea'), payload(basePatch({
+                  relationshipSummary: summary,
+                  relationshipSummaryEvidence: { excerpts: [PEN, SUPPLY], explanation: 'Linnea treats Lucien with routine, brisk frontier efficiency without personal investment.' },
+                  semanticUpdates: [{ field: 'role', operation: 'establish', value: 'Frontier clerk', durability: 'durable', sources: [{ messageId: 1, excerpt: IDENTITY }], explanation: 'Visible current role.' }],
+              })), options(ex));
+              const npc = result.state.npcs.find(row => row.name === 'Linnea Rost');
+              assert.ok(npc);
+              assert.equal(npc.relationshipSummary, summary);
+              assert.equal(npc.role, 'Frontier clerk');
+              assert.deepEqual(npc.relationship, { trust: 0, affection: 0, desire: 0, tension: 0 });
+              assert.equal(npc.relationshipHistory.length, 0);
+              assert.equal(npc.relationshipEvidenceHistory.length, 0);
+              assert.equal(result.semanticDiagnostics.some(row => row.field === 'relationshipSummary' && row.status === 'applied'), true);
+          });
+
+          test('delayed-name participant binding can reuse earlier accepted player-facing activity', () => {
+              const earlier = 'She slid the registry board toward your hand and waited for the signature.';
+              const quote = '\"Sign the lower line.\"';
+              const delayed = 'Only after sealing the form did she add, \"Linnea Rost.\"';
+              const ex = exchange([quote, earlier, delayed].join(' '));
+              const patch = {
+                  ...basePatch(),
+                  identityEvidence: { anchor: 'Linnea Rost', excerpts: [delayed], explanation: 'The later introduction names the same clerk.' },
+                  activityEvidence: { exchangeActive: { excerpts: [earlier], explanation: 'The clerk directly handles the player’s form.' }, inChat: { excerpts: [delayed], explanation: 'She remains in the scene.' } },
+                  relationshipSummary: 'Routine registrar-applicant interaction.',
+                  relationshipSummaryEvidence: { excerpts: [quote], explanation: 'The clerk gives Lucien a direct signing instruction.' },
+              };
+              const result = applyScanResult(safeState('chat:v0534-delayed-name'), payload(patch), options(ex));
+              assert.equal(result.state.npcs.find(row => row.name === 'Linnea Rost')?.relationshipSummary, 'Routine registrar-applicant interaction.');
+          });
+
+          test('Current Dynamic bridge rejects other addressees, another NPC dialogue, ambiguous/unrelated same-message text, and old-source quotes', () => {
+              const cases = [
+                  {
+                      name: 'other-addressee',
+                      assistant: [IDENTITY, 'Linnea Rost turns to Mira Vale and pushes the ledger toward her. \"Which line are you signing?\"'].join(' '),
+                      activity: 'Linnea Rost turns to Mira Vale and pushes the ledger toward her. \"Which line are you signing?\"',
+                      evidence: 'Linnea Rost turns to Mira Vale and pushes the ledger toward her. \"Which line are you signing?\"',
+                      otherNpc: true,
+                      expectedReason: 'wrong-summary-target',
+                  },
+                  {
+                      name: 'another-npc-dialogue',
+                      assistant: [IDENTITY, TAP, 'Varner said, \"Take the east road.\"'].join(' '),
+                      activity: TAP,
+                      evidence: 'Varner said, \"Take the east road.\"',
+                      expectedReason: 'wrong-summary-target',
+                  },
+                  {
+                      name: 'ambiguous-dialogue',
+                      assistant: [IDENTITY, TAP, '\"Take the east road.\"'].join(' '),
+                      activity: TAP,
+                      evidence: '\"Take the east road.\"',
+                      expectedReason: 'wrong-summary-target',
+                  },
+                  {
+                      name: 'unrelated-text',
+                      assistant: [IDENTITY, TAP, 'Snow hissed against the shutter while a cart axle groaned outside.'].join(' '),
+                      activity: TAP,
+                      evidence: 'Snow hissed against the shutter while a cart axle groaned outside.',
+                      expectedReason: 'wrong-summary-target',
+                  },
+                  {
+                      name: 'old-source',
+                      assistant: [IDENTITY, TAP].join(' '),
+                      activity: TAP,
+                      evidence: 'Linnea told Lucien yesterday to take the east road.',
+                      expectedReason: 'out-of-scope-summary-evidence',
+                  },
+              ];
+              for (const row of cases) {
+                  const ex = exchange(row.assistant);
+                  const state = safeState('chat:v0534-negative-' + row.name);
+                  if (row.otherNpc) state.npcs = [normalizeNpc({ id: 'mira', name: 'Mira Vale' })];
+                  const patch = basePatch({
+                      activityEvidence: { exchangeActive: { excerpts: [row.activity], explanation: 'Claimed current activity.' }, inChat: { excerpts: [IDENTITY], explanation: 'Current scene.' } },
+                      relationshipSummary: 'Linnea directs Lucien through registration.',
+                      relationshipSummaryEvidence: { excerpts: [row.evidence], explanation: 'Claimed relationship evidence.' },
+                  });
+                  const result = applyScanResult(state, payload(patch), options(ex));
+                  const npc = result.state.npcs.find(candidate => candidate.name === 'Linnea Rost');
+                  assert.equal(npc?.relationshipSummary || '', '', row.name);
+                  const diagnostic = result.semanticDiagnostics.find(item => item.field === 'relationshipSummary');
+                  assert.equal(diagnostic?.reason, row.expectedReason, row.name);
+              }
+          });
+
+          test('nonzero relationship movement still requires numeric axis evidence', () => {
+              const ex = exchange([IDENTITY, PEN, TAP].join(' '));
+              const result = applyScanResult(safeState('chat:v0534-numeric'), payload(basePatch({
+                  relationshipChange: { evaluated: true, impact: 'ordinary', delta: { trust: 1, affection: 0, desire: 0, tension: 0 }, axisEvidence: {}, reason: 'Unsupported trust movement.' },
+                  relationshipSummary: 'Professional intake interaction.',
+                  relationshipSummaryEvidence: { excerpts: [PEN], explanation: 'Direct intake instruction.' },
+              })), options(ex));
+              assert.equal(result.state.npcs.find(row => row.name === 'Linnea Rost')?.relationship.trust, 0);
+          });
+
+          test('isolated action remains an observation when durable profile establishment lacks a model basis', () => {
+              const ex = exchange([IDENTITY, TAP].join(' '));
+              const patch = basePatch({
+                  semanticUpdates: [{ field: 'mannerisms', operation: 'establish', value: ['Taps a blunt fingernail against contract broadsheets while explaining bounty terms.'], durability: 'durable', sources: [{ messageId: 1, excerpt: TAP }], explanation: 'One observed tap.' }],
+                  profileObservations: [{ field: 'mannerisms', observation: 'Tapped a blunt fingernail against the boar contract print once.', concept: 'Contract-tapping gesture', sources: [{ messageId: 1, excerpt: TAP }], explanation: 'Grounded one-off observation.' }],
+              });
+              const first = applyScanResult(safeState('chat:v0534-observation'), payload(patch), options(ex));
+              const npc = first.state.npcs.find(row => row.name === 'Linnea Rost');
+              assert.deepEqual(npc.mannerisms, []);
+              assert.equal(npc.profileEvolutionEvidence.filter(row => row.kind === 'observation').length, 1);
+              assert.equal(first.semanticDiagnostics.some(row => row.field === 'mannerisms' && row.reason === 'missing-profile-establishment-basis'), true);
+
+              const retryPatch = { ...patch, id: npc.id };
+              const retry = applyScanResult(first.state, payload(retryPatch), options(ex));
+              assert.equal(retry.state.npcs.find(row => row.id === npc.id).profileEvolutionEvidence.filter(row => row.kind === 'observation').length, 1);
+          });
+
+          test('explicit habitual narration and reinforcing first-scene instances remain eligible without deterministic thresholds', () => {
+              const explicit = 'Linnea habitually taps the contract margin with one fingernail whenever she explains bounty terms.';
+              const reinforced = 'Linnea checks the applicant name, checks the signature line, and checks the token seal before returning each registration.';
+              const ex = exchange([IDENTITY, explicit, reinforced].join(' '));
+              const patch = basePatch({
+                  activityEvidence: { exchangeActive: { excerpts: [reinforced], explanation: 'Linnea processes the current intake.' }, inChat: { excerpts: [IDENTITY], explanation: 'Current scene.' } },
+                  semanticUpdates: [
+                      { field: 'mannerisms', operation: 'establish', value: ['Taps the contract margin with one fingernail when explaining bounty terms.'], durability: 'durable', profileBasis: 'explicit', sources: [{ messageId: 1, excerpt: explicit }], explanation: 'The source explicitly states habitual recurrence.' },
+                      { field: 'behaviorProfile', operation: 'establish', value: ['Checks intake paperwork and token details methodically before returning a registration.'], durability: 'durable', profileBasis: 'reinforced', sources: [{ messageId: 1, excerpt: reinforced }], explanation: 'The model classifies several connected checks as one narrow intake pattern.' },
+                  ],
+              });
+              const result = applyScanResult(safeState('chat:v0534-profile-basis'), payload(patch), options(ex));
+              const npc = result.state.npcs.find(row => row.name === 'Linnea Rost');
+              assert.deepEqual(npc.mannerisms, ['Taps the contract margin with one fingernail when explaining bounty terms.']);
+              assert.deepEqual(npc.behaviorProfile, ['Checks intake paperwork and token details methodically before returning a registration.']);
+              assert.ok(npc.profileEvolutionEvidence.some(row => row.mode === 'explicit'));
+              assert.ok(npc.profileEvolutionEvidence.some(row => row.mode === 'reinforced'));
+          });
+
+          test('profileBasis development cannot bootstrap an absent characteristic but can refine an established one', () => {
+              const development = 'Over the following months, Linnea stops tapping contracts and instead folds her hands before explaining difficult terms.';
+              const ex = exchange([IDENTITY, development].join(' '));
+              const update = { field: 'mannerisms', operation: 'replace', value: ['Folds her hands before explaining difficult terms.'], durability: 'durable', profileBasis: 'development', sources: [{ messageId: 1, excerpt: development }], explanation: 'Sustained narrated development.' };
+              const blank = applyScanResult(safeState('chat:v0534-development-blank'), payload(basePatch({ semanticUpdates: [update] })), options(ex));
+              assert.deepEqual(blank.state.npcs.find(row => row.name === 'Linnea Rost').mannerisms, []);
+              assert.equal(blank.semanticDiagnostics.some(row => row.reason === 'profile-development-requires-established-characteristic'), true);
+
+              const state = safeState('chat:v0534-development-existing');
+              state.npcs = [normalizeNpc({ id: 'linnea', name: 'Linnea Rost', mannerisms: ['Taps contracts while explaining terms.'] })];
+              const existingPatch = basePatch({ id: 'linnea', semanticUpdates: [update] });
+              const changed = applyScanResult(state, payload(existingPatch), options(ex));
+              assert.deepEqual(changed.state.npcs[0].mannerisms, ['Folds her hands before explaining difficult terms.']);
+              assert.ok(changed.state.npcs[0].profileEvolutionEvidence.some(row => row.mode === 'development'));
+          });
+
+          test('NEW direct flat ordinary fields cannot bypass structured-source authority', () => {
+              const visible = 'Linnea Rost wears a grey wool vest and rolled linen sleeves. Linnea seals Lucien Noctis’s completed provisional registration and hands the form back.';
+              const raw = visible + ' <Blocks><World_State>NPCs Present: Linnea Rost | bleached linen sleeves | G1</World_State><Inventory>Provisional Guild Token | G1</Inventory></Blocks>';
+              const ex = exchange(raw);
+              const patch = {
+                  ...basePatch(),
+                  identityEvidence: { anchor: 'Linnea Rost', excerpts: ['Linnea Rost wears a grey wool vest and rolled linen sleeves.'], explanation: 'Visible identity.' },
+                  activityEvidence: { exchangeActive: { excerpts: ['Linnea seals Lucien Noctis’s completed provisional registration and hands the form back.'], explanation: 'Direct registration action.' }, inChat: { excerpts: ['Linnea Rost wears a grey wool vest and rolled linen sleeves.'], explanation: 'Current scene.' } },
+                  appearance: 'Bleached linen sleeves.',
+                  memories: ['Lucien completed G1 registration.'],
+                  semanticUpdates: [{ field: 'role', operation: 'establish', value: 'Guild clerk', durability: 'durable', sources: [{ messageId: 1, excerpt: 'Linnea Rost wears a grey wool vest and rolled linen sleeves.' }], explanation: 'Visible current clerk context.' }],
+              };
+              const result = applyScanResult(safeState('chat:v0534-flat-firewall'), payload(patch), options(ex));
+              const npc = result.state.npcs.find(row => row.name === 'Linnea Rost');
+              assert.equal(npc.appearance, '');
+              assert.deepEqual(npc.memories, []);
+              assert.equal(result.semanticDiagnostics.some(row => row.channel === 'direct-field' && row.field === 'appearance' && row.reason === 'semantic-source-evidence-required'), true);
+              assert.equal(result.semanticDiagnostics.some(row => row.channel === 'direct-field' && row.field === 'memories' && row.reason === 'semantic-source-evidence-required'), true);
+          });
+
+          test('NEW and EXISTING use the same field-scoped source firewall while supported registration memory survives', () => {
+              const visibleAppearance = 'Linnea Rost wears a grey wool vest and rolled linen sleeves.';
+              const registration = 'Linnea seals Lucien Noctis’s completed provisional registration and hands the form back.';
+              const world = 'NPCs Present: Linnea Rost | bleached linen sleeves | G1';
+              const raw = [visibleAppearance, registration, `<Blocks><World_State>${world}</World_State><Inventory>Provisional Guild Token | G1</Inventory></Blocks>`].join(' ');
+              const ex = exchange(raw);
+              const invalidAppearance = { field: 'appearance', operation: 'establish', value: 'Bleached linen sleeves.', durability: 'durable', sources: [{ messageId: 1, excerpt: world }], explanation: 'Structured-only appearance must not authorize durable appearance.' };
+              const validMemory = { field: 'memories', operation: 'establish', value: ['Processed Lucien Noctis’s completed provisional registration.'], durability: 'durable', sources: [{ messageId: 1, excerpt: registration }], explanation: 'Visible completed registration is a durable event.' };
+
+              const newResult = applyScanResult(safeState('chat:v0534-source-new'), payload(basePatch({ semanticUpdates: [invalidAppearance, validMemory] })), options(ex));
+              const fresh = newResult.state.npcs.find(row => row.name === 'Linnea Rost');
+              assert.equal(fresh.appearance, '');
+              assert.deepEqual(fresh.memories, ['Processed Lucien Noctis’s completed provisional registration.']);
+              assert.equal(fresh.age, '');
+              assert.equal(fresh.apparentAge, '');
+              assert.equal(newResult.semanticDiagnostics.some(row => row.field === 'appearance' && row.status === 'invalid-source-reference'), true);
+
+              const existingState = safeState('chat:v0534-source-existing');
+              existingState.npcs = [normalizeNpc({ id: 'linnea', name: 'Linnea Rost' })];
+              const existingPatch = basePatch({ id: 'linnea', semanticUpdates: [invalidAppearance, validMemory] });
+              const existingResult = applyScanResult(existingState, payload(existingPatch), options(ex));
+              assert.equal(existingResult.state.npcs[0].appearance, '');
+              assert.deepEqual(existingResult.state.npcs[0].memories, ['Processed Lucien Noctis’s completed provisional registration.']);
+              assert.equal(existingResult.semanticDiagnostics.some(row => row.field === 'appearance' && row.status === 'invalid-source-reference'), true);
+          });
+
+          test('grounded explicit birthday wins before passive generated birthday fill and actual/apparent age remain separate', () => {
+              const birthdayLine = 'Linnea Rost says, \"My birthday is 12 Frost.\"';
+              const ex = exchange([IDENTITY, birthdayLine].join(' '));
+              const result = applyScanResult(safeState('chat:v0534-birthday'), payload(basePatch({
+                  semanticUpdates: [{ field: 'birthday', operation: 'establish', value: '12 Frost', durability: 'durable', sources: [{ messageId: 1, excerpt: birthdayLine }], explanation: 'Explicit birthday statement.' }],
+              })), { ...options(ex), birthdayFill: { mode: 'random', calendar: 'Frost:30\nThaw:30', fallbackDays: 30 } });
+              const npc = result.state.npcs.find(row => row.name === 'Linnea Rost');
+              assert.equal(npc.birthday, '12 Frost');
+              assert.equal(npc.birthdayProvenance, 'explicit');
+              assert.equal(npc.age, '');
+              assert.equal(npc.apparentAge, '');
+          });
+          '''
+          # Dedent the intentionally indented workflow literal.
+          import textwrap
+          write('tests/v0534-focused-fixes.test.mjs', textwrap.dedent(test_file))
+          PY
+      - name: Install
+        run: npm ci
+      - name: Focused regression
+        run: node --test tests/v0534-focused-fixes.test.mjs tests/v0526-pov-target-binding.test.mjs tests/v0529-current-dynamic-source-reuse.test.mjs tests/v0530-first-contact-profile.test.mjs tests/v076-first-pass-completeness.test.mjs
+      - name: Full validation
+        run: |
+          npm run validate
+          npm test
+          npm run package
+          npm run measure:scan-prompts | tee /tmp/scan-measurements.jsonl
+      - name: Record measurement artifact in job summary
+        run: |
+          printf '### Scanner prompt measurements\n```json\n' >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/scan-measurements.jsonl >> "$GITHUB_STEP_SUMMARY"
+          printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+      - name: Commit candidate
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add AGENTS.md CHANGELOG.md DEVELOPMENT.md README.md docs/core-contract.md manifest.json src tests/v0534-focused-fixes.test.mjs
+          git commit -m 'fix: unify NPC evidence validation'
+          git push origin HEAD:work/v0534-focused-fixes
